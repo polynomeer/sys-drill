@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const API_BASE_URL =
@@ -47,6 +48,12 @@ export default function Home() {
           {detail}
         </pre>
       )}
+      <Link
+        href="/dashboard"
+        className="rounded bg-foreground px-5 py-2 font-medium text-background"
+      >
+        훈련 시작하기
+      </Link>
     </div>
   );
 }
