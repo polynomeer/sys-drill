@@ -103,11 +103,17 @@
 
 ## 6단계 — 프론트엔드: System Design Workspace
 
-- [ ] 온보딩(연차/스택/목표) → Dashboard → 시나리오 목록 → Design Workspace 화면 구현
-- [ ] Design Workspace: 요구사항 표시, 구조화 섹션 입력, 자동저장, 제출
-- [ ] 제출 후 평가 대기 상태(Polling) UI
+- [x] 온보딩(연차/스택/목표) → Dashboard → 시나리오 목록 → Design Workspace 화면 구현
+- [x] Design Workspace: 요구사항 표시, 구조화 섹션 입력, 자동저장, 제출 (구조화 섹션은 8개 필드 대신 가이드 체크리스트가 딸린 단일 textarea로 구현 — 아래 결정 사항 참고)
+- [x] 제출 후 평가 대기 상태(Polling) UI
 
-**완료 기준**: 브라우저에서 시나리오를 선택해 설계를 제출하고 평가 결과를 볼 수 있다.
+**완료 기준 충족**: 실제 브라우저로 온보딩 → 대시보드 → 시나리오 선택 → 설계 작성/제출 → Polling 대기 → 평가 결과 표시까지 전체 흐름을 직접 조작해 확인함. RuleEvaluator가 "동시성 제어" 키워드 누락을 정확히 잡아내는 것도 실제 데이터로 확인.
+
+**진행 중 발견한 결정 사항 / 이번 단계에서 메운 공백**:
+- 이 단계 전까지 없었던 백엔드 API 3종을 먼저 추가했다: `POST/GET /users`(온보딩용 경량 프로필 생성 — 비밀번호 없음, 실제 회원가입/로그인은 아님), `GET /scenarios`/`GET /scenarios/{id}`(시나리오 카탈로그), `SessionResponse.currentStepPrompt`(현재 스텝의 문제 텍스트). 일반 API용 전역 CORS 설정도 이번에 처음 추가했다 (`management.endpoints.web.cors`는 `/actuator/**`에만 적용되고 있었다).
+- "구조화 섹션 입력"은 8개의 개별 입력 필드로 구현하지 않고, 8개 항목을 체크리스트로 보여주는 **단일 textarea**로 구현했다. 백엔드의 RuleEvaluator/HybridRuleAiEvaluator가 현재 `rawText` 하나만 소비하고 `structuredJson`은 저장만 할 뿐 아무것도 읽지 않기 때문에, 프론트에서 구조화 폼을 먼저 만드는 것은 아직 쓰이지 않는 데이터를 만드는 것이었다. 백엔드가 섹션별 데이터를 실제로 활용하게 되면 그때 폼을 분리한다.
+- "자동저장"은 서버 draft 저장이 아니라 **localStorage에만 저장**된다. 백엔드에 IN_PROGRESS 상태를 유지한 채 답안을 저장하는 엔드포인트가 없고(제출 즉시 SUBMITTED로 전이), 이번 단계 범위에서 새로 만들지 않았다. 제출된 submissionId도 localStorage에 남겨서, 대기(Polling) 중 새로고침해도 이어서 결과를 볼 수 있게 했다.
+- 사용자 식별은 여전히 "게스트 프로필"(닉네임만, 로그인 없음) 수준이다. 2단계 이후 계속 열려 있던 실제 회원가입/로그인 공백은 아직 남아 있다 — 여러 기기/브라우저 간 이어가기가 필요해지면 그때 반드시 채워야 한다.
 
 ## 7단계 — 프론트엔드: 꼬리설계 + Wargame Live 콘솔
 
