@@ -72,12 +72,18 @@
 
 ## 4단계 — Rule 기반 Simulation Engine v1
 
-- [ ] [ARCHITECTURE.md](docs/ARCHITECTURE.md) §6 `SystemState`/`DesignTraits` 모델 구현
-- [ ] "선착순 쿠폰" 시나리오의 워게임 이벤트 템플릿 1개 구현 (트래픽 20배 + Redis latency 증가 → DB write hotspot)
-- [ ] 사용자 액션(`applied_actions`) 처리 및 §6.1 인과/부작용 규칙 최소 3개 구현 (Rate Limit 강화, Cache TTL 조정, DB pool 증가)
-- [ ] `utilization` 기반 병목 계산 로직 ([ARCHITECTURE.md](docs/ARCHITECTURE.md) §6의 0~60/60~80/80~95/95+/100+ 구간)
+- [x] [ARCHITECTURE.md](docs/ARCHITECTURE.md) §6 `SystemState`/`DesignTraits` 모델 구현 (`DesignTraits`는 문서의 전체 필드 중 이번 단계 3개 액션이 실제로 쓰는 것만 구현 — 나머지는 필요해질 때 추가)
+- [x] "선착순 쿠폰" 시나리오의 워게임 이벤트 템플릿 1개 구현 (트래픽 20배 + Redis latency 증가 → DB write hotspot), `SimulationEngine`에 순수 함수로 구현
+- [x] 사용자 액션(`applied_actions`) 처리 및 §6.1 인과/부작용 규칙 최소 3개 구현 (Rate Limit 강화, Cache TTL 조정, DB pool 증가)
+- [x] `utilization` 기반 병목 계산 로직 ([ARCHITECTURE.md](docs/ARCHITECTURE.md) §6의 0~60/60~80/80~95/95+/100+ 구간)
 
-**완료 기준**: 시나리오를 시작하고 시간에 따라 SystemState가 악화되다가, 올바른 액션을 적용하면 지표가 회복되는 흐름을 통합 테스트로 재현한다.
+**완료 기준 충족**: `POST .../simulation/incident`로 시나리오 워게임을 시작하면 트래픽 20배+Redis 저하로 read/write 양쪽 축이 모두 악화되고(초기 errorRate 0.30, p95 640ms), `STRENGTHEN_RATE_LIMIT`→`INCREASE_CACHE_TTL`→`INCREASE_DB_POOL` 3개 액션을 순서대로 적용하면 각 액션이 서로 다른 축을 회복시키며 최종적으로 안정 상태(errorRate 0.001, p95 80ms)로 돌아오는 것을 API 통합 테스트로 확인. 계산식 자체는 손으로 미리 검증한 값과 대조하는 순수 단위 테스트로 별도 검증. 총 37개 테스트 통과.
+
+**진행 중 발견한 결정 사항**:
+- `SystemState`는 저장하지 않고 항상 **파생값**으로 계산한다. Redis에는 재계산에 필요한 최소 입력(`incidentActive`, `DesignTraits`)만 세션별로 저장한다 ([ARCHITECTURE.md](docs/ARCHITECTURE.md) §9가 "실시간 시뮬레이션 상태"를 Redis 역할로 명시한 것과 일치).
+- `applied_actions`는 세션 하위 개념이지만 `simulation` 모듈이 소유한다 (평가/제출과 달리 시뮬레이션 액션·효과는 이 모듈의 핵심 책임이므로).
+- 인시던트 하나(선착순 쿠폰)에 대해서만 동작하는 전용 상수/공식으로 구현했다. 여러 시나리오가 자체 파라미터로 인시던트를 정의하는 일반화된 엔진은 콘텐츠가 실제로 늘어나는 시점(로드맵 Phase 2)의 과제로 미룬다.
+- 테스트에서 `MockMvcResultMatchers.jsonPath(path, Matchers.lessThan(0.6))` 조합이 Hamcrest 3.0에서 `Double`/`BigDecimal` 타입 불일치로 `ClassCastException`을 던졌다 — JsonPath로 값을 직접 읽어 AssertJ로 비교하는 방식으로 우회했다. 이후 단계에서 숫자 비교가 필요한 jsonPath 매처를 쓸 때 참고할 것.
 
 ## 5단계 — Rule Evaluator + AI 평가 연동
 
