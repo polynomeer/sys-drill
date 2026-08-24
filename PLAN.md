@@ -87,12 +87,19 @@
 
 ## 5단계 — Rule Evaluator + AI 평가 연동
 
-- [ ] Rule Evaluator: 요구사항 누락, scenario-specific invariant 체크 구현 (LLM 없이 판정 가능한 것부터)
-- [ ] PromptTemplate 저장/버전 관리 테이블 및 관리 API
-- [ ] LLM Provider 연동 (Context Assemble → LLM Critique → Follow-up Generation), 구조화 JSON(`top_risks`, `missed_points`, `followup_questions` 등) 스키마 검증
-- [ ] [PRD.md](docs/PRD.md) §10 평가 루브릭(100점) 반영
+- [x] Rule Evaluator: 요구사항 누락, scenario-specific invariant 체크 구현 (`RuleEvaluator` — 멱등성/동시성/rate limit/observability 키워드 스캔, LLM 없이 판정)
+- [x] PromptTemplate 저장/버전 관리 테이블 및 관리 API (`V5` 마이그레이션 + `POST/GET /admin/prompt-templates`, `POST /admin/prompt-templates/{id}/activate`)
+- [x] LLM Provider 연동: Anthropic Claude, `RestClient` 기반 `AnthropicLlmClient`. Context Assemble(`HybridRuleAiEvaluator`) → LLM Critique → 구조화 JSON(`rubricScores`/`strengths`/`missedPoints`/`topRisks`/`followupQuestions`/`recommendedChanges`) 파싱·검증
+- [x] [PRD.md](docs/PRD.md) §10 평가 루브릭(100점)을 `Rubric` 객체로 반영, 점수는 모델이 보고한 합계를 신뢰하지 않고 차원별로 재계산+클램프
 
-**완료 기준**: "선착순 쿠폰" 시나리오 제출에 대해 Rule+AI 하이브리드 평가 결과가 구조화된 형태로 저장되고 조회 API로 확인 가능하다.
+**완료 기준 충족**: "선착순 쿠폰" 시나리오 제출 → Rule+AI 하이브리드 평가 결과(rubric 점수, 강점/약점, 규칙+LLM 리스크 플래그, 후속 질문, 권장 변경사항, 모델 메타데이터)가 저장되고 신규 `GET /submissions/{id}/feedback`으로 조회 가능함을 통합 테스트로 확인. 신규 25개 포함 총 54개 테스트 통과.
+
+**진행 중 발견한 결정 사항**:
+- LLM 자격증명은 `ANTHROPIC_API_KEY`/`ANTHROPIC_BASE_URL`이 아니라 **`LLM_ANTHROPIC_*`로 네임스페이스를 분리**했다. 이 셸에는 Claude Code 자신의 `ANTHROPIC_BASE_URL`이 이미 설정되어 있어, 같은 이름을 쓰면 백엔드가 의도치 않게 그 값을 물려받을 위험이 있었다. 사용자가 `backend/.env.local`에 `LLM_ANTHROPIC_API_KEY`를 넣으면 `./gradlew bootRun`(테스트는 제외)이 이를 읽어 환경변수로 주입한다 (`build.gradle.kts`의 `bootRun` 태스크 커스터마이징 — Spring Config 로더가 아니라 Gradle 레벨에서 처리해 확장자/로더 호환성 문제를 피했다).
+- 키가 비어 있으면 `AnthropicLlmClient`가 예외를 던지는 대신 **오프라인 캔드 응답**을 반환한다. 실제 키를 넣기 전까지도 파이프라인 전체(Rule 엔진, 저장, 조회 API)가 정상 동작함을 보장하기 위함이며, 키를 넣는 순간 코드 변경 없이 실제 호출로 전환된다.
+- Spring Boot 4의 자동구성된 `ObjectMapper`(Jackson 3, `tools.jackson.databind`)는 Kotlin 데이터 클래스의 기본값 파라미터를 JSON에 없는 필드에 대해 정상적으로 적용하지만, 테스트에서 직접 만든 `JsonMapper.builder().build()`는 Kotlin 모듈이 빠져 있어 같은 상황에서 실패했다 — `LlmEvaluationResultParserTest`를 Spring이 관리하는 실제 빈을 주입받도록 고쳐서 발견/수정했다.
+- Step 3에서 겪은 `@Modifying(clearAutomatically = true)`가 flush 안 된 `save()`를 조용히 버리는 함정이 `evaluation_risk_flags`에도 동일하게 재현되어 `saveAllAndFlush`로 수정했다 — 이 패턴을 쓸 때마다 반복해서 주의해야 한다.
+- AI 메타데이터는 ARCHITECTURE.md §7.1이 나열한 전체 목록(토큰 수, 비용, idempotency key 등) 대신 `model_provider`/`model_name`/`latency_ms`만 우선 저장했다. 비용/토큰 추적이 실제로 필요해지는 시점에 확장한다.
 
 ## 6단계 — 프론트엔드: System Design Workspace
 
