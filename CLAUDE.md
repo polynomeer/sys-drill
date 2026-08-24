@@ -4,9 +4,18 @@
 
 ## 프로젝트 개요
 
-SysDrill은 백엔드 개발자를 위한 시스템 디자인/장애 대응 훈련 플랫폼 기획 프로젝트입니다. Redis, Kafka, DB, 캐시, 큐, 로드밸런서 등의 구성요소를 시뮬레이션하며 트래픽 증가, 장애, 성능 병목 상황을 실습하는 것을 목표로 합니다.
+SysDrill은 백엔드 개발자가 핵심 컴포넌트를 직접 구현하고(Build), 시스템을 설계하고(Design), 트래픽·장애 상황에 워게임처럼 대응하며(Wargame) 반복 훈련하는 플랫폼입니다.
 
-현재는 코드 구현 이전의 **기획 단계**이며, `docs/`에 기획서와 피봇 검토 문서가 정리되어 있습니다. 교육 서비스 vs B2B 운영 리스크 진단 등 서비스 방향은 아직 확정되지 않았으므로, 코드/설계 작업 전에는 관련 문서를 먼저 확인합니다.
+핵심 문서:
+
+- [docs/PRD.md](docs/PRD.md) — 제품 요구사항 정의서 (제품 정의, 타깃, 4개 모드, MVP 범위, 비즈니스 모델)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 시스템 아키텍처 설계서 (기술 스택, 도메인 모델, 시뮬레이션/평가 파이프라인)
+- [docs/ROADMAP.md](docs/ROADMAP.md) — Phase 1~5 단계별 로드맵
+- [PLAN.md](PLAN.md) — **Claude Code가 순서대로 실행할 작업계획서 (Phase 1 MVP)**. 코드 작업은 이 문서의 단계를 따른다.
+- [docs/FUTURE_EXPLORATIONS.md](docs/FUTURE_EXPLORATIONS.md) — 검토했으나 채택하지 않은 피봇/확장 아이디어 아카이브
+- [docs/archive/](docs/archive/) — 초기 브레인스토밍 원본 문서 (참고용, 서로 상충하는 내용 포함)
+
+코드/설계 작업 전에는 PRD.md와 ARCHITECTURE.md를 먼저 확인하고, 실제 구현 순서는 PLAN.md를 따른다.
 
 ## 커밋 규칙
 
