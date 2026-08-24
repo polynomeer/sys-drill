@@ -117,11 +117,17 @@
 
 ## 7단계 — 프론트엔드: 꼬리설계 + Wargame Live 콘솔
 
-- [ ] 꼬리설계 카드 UI (조건 변경 표시 + 재설계 입력)
-- [ ] Wargame Live: MetricsPanel, EventStreamPanel, ActionPanel, TimelinePanel ([PRD.md](docs/PRD.md) §7.3, 원본 와이어프레임 참고)
-- [ ] 액션 제출 → Simulation Engine 결과 반영 → 실시간(Polling 또는 SSE) 갱신
+- [x] 꼬리설계 카드 UI (조건 변경 표시 + 재설계 입력) — 기존 Design Workspace에 amber 배너 + phase-aware 안내로 구현 (별도 화면 없이 동일 워크스페이스 재사용)
+- [x] Wargame Live: MetricsPanel, ActionPanel, 통합 이벤트/타임라인 로그 ([PRD.md](docs/PRD.md) §7.3 참고 — EventStreamPanel/TimelinePanel은 아래 결정 사항대로 하나로 병합)
+- [x] 액션 제출 → Simulation Engine 결과 반영 → 실시간(Polling) 갱신
 
-**완료 기준**: 사용자가 꼬리설계를 거쳐 워게임에 진입하고, 액션을 취하며 지표 변화를 관찰할 수 있다.
+**완료 기준 충족**: 실제 브라우저로 전체 루프(INITIAL 설계 → 평가 → advance → FOLLOWUP 꼬리설계 → 평가 → advance → INCIDENT/Wargame Live → 인시던트 발생(p95 640ms/error 30%, 4단계 손계산과 정확히 일치) → 3개 액션 적용 → 완전 회복(p95 80ms/error 0.1%) → 회고 제출 → 평가 → advance → COMPLETED)을 직접 조작해 확인함.
+
+**진행 중 발견한 결정 사항**:
+- 세션 상태 머신(advance)이 이미 FOLLOWUP/INCIDENT 단계 전이를 처리하고 있었으므로, "꼬리설계 카드"는 별도 화면이 아니라 **기존 Design Workspace가 phase에 따라 다르게 렌더링**하는 방식으로 구현했다. FOLLOWUP이면 조건 변경 배너, INCIDENT면 WargameLive 패널이 추가로 표시된다.
+- EventStreamPanel과 TimelinePanel을 **하나의 클라이언트 전용 로그**로 합쳤다. `applied_actions`는 백엔드에 저장되지만 조회 API가 없어서, 인시던트 시작과 액션 적용 이벤트를 프론트에서만 누적한다 (새로고침하면 사라짐). 실제 이력 조회가 필요해지면 `GET /sessions/{id}/applied-actions` 같은 엔드포인트를 추가해야 한다.
+- INCIDENT 단계의 "제출"은 새 메커니즘을 만들지 않고 **기존 텍스트 회고 제출을 재사용**했다. 이미 PRD.md §10 루브릭에 "장애 대응 판단"(20점) 항목이 있어서 회고 텍스트를 그대로 Rule+AI 파이프라인에 태우는 것만으로 자연스럽게 맞아떨어졌다.
+- 시뮬레이션 상태 조회가 404면(아직 인시던트를 시작 안 한 상태) 자동으로 `POST .../simulation/incident`를 호출해 시작하도록 처리했다 — 별도의 "인시던트 시작" 버튼 없이 워크스페이스 진입 시 자동으로 시작된다.
 
 ## 8단계 — 결과 리포트 + 대시보드
 
