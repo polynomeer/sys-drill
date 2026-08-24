@@ -7,6 +7,7 @@ import {
   EvaluationFeedback,
   SessionResponse,
   SessionStatus,
+  advanceSession,
   getFeedback,
   getSession,
   submitAnswer,
@@ -19,8 +20,9 @@ import {
   saveDraft,
   saveSubmissionId,
 } from "@/lib/localSession";
+import { WargameLive } from "./WargameLive";
 
-const GUIDANCE_SECTIONS = [
+const DESIGN_GUIDANCE = [
   "기능/비기능 요구사항 요약 (무엇을 보장하고 무엇을 포기할지)",
   "고수준 아키텍처와 요청 흐름",
   "저장소 선택과 읽기/쓰기 패턴",
@@ -31,9 +33,27 @@ const GUIDANCE_SECTIONS = [
   "예상 병목과 트레이드오프",
 ];
 
+const INCIDENT_GUIDANCE = [
+  "가장 먼저 확인한 지표와 그 이유",
+  "원인 가설과 근거",
+  "선택한 조치와 그 이유",
+  "조치의 예상 부작용",
+  "조치 이후 지표가 어떻게 바뀌었는지",
+  "재발 방지를 위한 구조 개선 아이디어",
+];
+
 const POLL_INTERVAL_MS = 1500;
 
-type ViewState = "loading" | "error" | "editing" | "submitting" | "waiting" | "result" | "failed" | "completed";
+type ViewState =
+  | "loading"
+  | "error"
+  | "editing"
+  | "submitting"
+  | "waiting"
+  | "result"
+  | "advancing"
+  | "failed"
+  | "completed";
 
 export default function DesignWorkspacePage() {
   const params = useParams<{ sessionId: string }>();
@@ -98,29 +118,33 @@ export default function DesignWorkspacePage() {
     }, POLL_INTERVAL_MS);
   }, [resolveOutcome, sessionId, stopPolling]);
 
+  const loadAndDecideView = useCallback(async () => {
+    const fetched = await getSession(sessionId);
+    setSession(fetched);
+    setFeedback(null);
+    if (fetched.status === "IN_PROGRESS") {
+      setAnswer(loadDraft(sessionId));
+      setView("editing");
+    } else {
+      await resolveOutcome(fetched.status);
+      if (fetched.status === "SUBMITTED" || fetched.status === "EVALUATING") {
+        startPolling();
+      }
+    }
+  }, [sessionId, resolveOutcome, startPolling]);
+
   useEffect(() => {
     if (!getStoredUserId()) {
       router.replace("/onboarding");
       return;
     }
 
-    getSession(sessionId)
-      .then(async (fetched) => {
-        setSession(fetched);
-        if (fetched.status === "IN_PROGRESS") {
-          setAnswer(loadDraft(sessionId));
-          setView("editing");
-        } else {
-          await resolveOutcome(fetched.status);
-          if (fetched.status === "SUBMITTED" || fetched.status === "EVALUATING") {
-            startPolling();
-          }
-        }
-      })
-      .catch((err) => {
-        setError(err instanceof ApiError ? err.message : "세션을 불러오지 못했습니다.");
-        setView("error");
-      });
+    // Data fetch on mount, not a cascading render loop.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadAndDecideView().catch((err) => {
+      setError(err instanceof ApiError ? err.message : "세션을 불러오지 못했습니다.");
+      setView("error");
+    });
 
     return () => stopPolling();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -152,14 +176,36 @@ export default function DesignWorkspacePage() {
     }
   }
 
+  async function handleAdvance() {
+    setView("advancing");
+    setError(null);
+    try {
+      await advanceSession(sessionId);
+      await loadAndDecideView();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "다음 단계로 진행하지 못했습니다.");
+      setView("result");
+    }
+  }
+
+  const isFollowup = session?.currentPhase === "FOLLOWUP";
+  const isIncident = session?.currentPhase === "INCIDENT";
+  const guidance = isIncident ? INCIDENT_GUIDANCE : DESIGN_GUIDANCE;
+
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
-      <h1 className="text-xl font-semibold">System Design Workspace</h1>
+      <h1 className="text-xl font-semibold">
+        {isIncident ? "Wargame Live" : "System Design Workspace"}
+      </h1>
 
       {view === "loading" && <p className="text-sm text-zinc-500">불러오는 중...</p>}
 
-      {view === "error" && (
-        <p className="text-sm text-red-600">{error ?? "오류가 발생했습니다."}</p>
+      {view === "error" && <p className="text-sm text-red-600">{error ?? "오류가 발생했습니다."}</p>}
+
+      {isFollowup && (view === "editing" || view === "submitting") && (
+        <div className="rounded border border-amber-400 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+          조건이 변경되었습니다 — 아래 새 조건을 반영해 설계를 다시 검토하세요 (꼬리설계).
+        </div>
       )}
 
       {session?.currentStepPrompt && (view === "editing" || view === "submitting") && (
@@ -169,22 +215,30 @@ export default function DesignWorkspacePage() {
         </section>
       )}
 
+      {isIncident && (view === "editing" || view === "submitting") && <WargameLive sessionId={sessionId} />}
+
       {(view === "editing" || view === "submitting") && (
         <>
           <section className="rounded border border-zinc-300 p-4 text-sm dark:border-zinc-700">
-            <h2 className="mb-2 font-semibold text-zinc-500">답안에 포함하면 좋은 항목</h2>
+            <h2 className="mb-2 font-semibold text-zinc-500">
+              {isIncident ? "회고에 포함하면 좋은 항목" : "답안에 포함하면 좋은 항목"}
+            </h2>
             <ul className="list-inside list-disc space-y-1 text-zinc-600 dark:text-zinc-400">
-              {GUIDANCE_SECTIONS.map((section) => (
+              {guidance.map((section) => (
                 <li key={section}>{section}</li>
               ))}
             </ul>
           </section>
 
           <textarea
-            className="min-h-[280px] rounded border border-zinc-300 p-3 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="min-h-[200px] rounded border border-zinc-300 p-3 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-900"
             value={answer}
             onChange={(e) => handleAnswerChange(e.target.value)}
-            placeholder="설계를 자유롭게 작성하세요. 입력 내용은 자동으로 이 브라우저에 저장됩니다."
+            placeholder={
+              isIncident
+                ? "대응 회고를 작성하세요. 입력 내용은 자동으로 이 브라우저에 저장됩니다."
+                : "설계를 자유롭게 작성하세요. 입력 내용은 자동으로 이 브라우저에 저장됩니다."
+            }
           />
 
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -199,10 +253,12 @@ export default function DesignWorkspacePage() {
         </>
       )}
 
-      {view === "waiting" && (
+      {(view === "waiting" || view === "advancing") && (
         <div className="flex flex-col items-center gap-3 rounded border border-zinc-300 p-8 dark:border-zinc-700">
           <p className="text-sm text-zinc-500">
-            제출한 답안을 평가하는 중입니다 ({session?.status ?? "..."})...
+            {view === "advancing"
+              ? "다음 단계로 이동하는 중..."
+              : `제출한 답안을 평가하는 중입니다 (${session?.status ?? "..."})...`}
           </p>
         </div>
       )}
@@ -219,7 +275,18 @@ export default function DesignWorkspacePage() {
         </div>
       )}
 
-      {view === "result" && feedback && <FeedbackView feedback={feedback} />}
+      {view === "result" && feedback && (
+        <>
+          <FeedbackView feedback={feedback} />
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <button
+            onClick={handleAdvance}
+            className="self-start rounded bg-foreground px-5 py-2 font-medium text-background"
+          >
+            다음 단계로
+          </button>
+        </>
+      )}
     </div>
   );
 }

@@ -62,6 +62,23 @@ export interface EvaluationFeedback {
   createdAt: string | null;
 }
 
+export type SimulationActionType = "STRENGTHEN_RATE_LIMIT" | "INCREASE_CACHE_TTL" | "INCREASE_DB_POOL";
+
+export interface SystemState {
+  trafficRps: number;
+  p95LatencyMs: number;
+  errorRate: number;
+  availability: number;
+  dbReadLoad: number;
+  dbWriteLoad: number;
+  connectionPoolUsage: number;
+  cacheHitRatio: number;
+  cacheLatencyMs: number;
+  queueLag: number;
+  consumerThroughput: number;
+  externalDependencyLatencyMs: number;
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -121,4 +138,26 @@ export function submitAnswer(
 
 export function getFeedback(submissionId: string): Promise<EvaluationFeedback> {
   return apiFetch<EvaluationFeedback>(`/submissions/${submissionId}/feedback`);
+}
+
+export function advanceSession(sessionId: string): Promise<SessionResponse> {
+  return apiFetch<SessionResponse>(`/sessions/${sessionId}/advance`, { method: "POST" });
+}
+
+export function startIncident(sessionId: string): Promise<SystemState> {
+  return apiFetch<SystemState>(`/sessions/${sessionId}/simulation/incident`, { method: "POST" });
+}
+
+export function getSimulationState(sessionId: string): Promise<SystemState> {
+  return apiFetch<SystemState>(`/sessions/${sessionId}/simulation/state`);
+}
+
+export function applySimulationAction(
+  sessionId: string,
+  actionType: SimulationActionType,
+): Promise<SystemState> {
+  return apiFetch<SystemState>(`/sessions/${sessionId}/simulation/actions`, {
+    method: "POST",
+    body: JSON.stringify({ actionType }),
+  });
 }
