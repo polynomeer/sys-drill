@@ -35,7 +35,9 @@ class Submission(
     @Column(name = "revision_no", nullable = false)
     var revisionNo: Int = 1,
 
-    @Column(name = "client_request_id", unique = true)
+    // Uniqueness is enforced per-session, not globally — see
+    // V3__scope_submission_client_request_id_per_session.sql.
+    @Column(name = "client_request_id")
     var clientRequestId: String? = null,
 
     @CreationTimestamp

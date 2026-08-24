@@ -11,6 +11,10 @@ interface SessionRepository : JpaRepository<Session, UUID> {
      * Guarded state transition per docs/ARCHITECTURE.md §5: only applies when the
      * row is still in [from]. Returns the number of rows updated (0 = a concurrent
      * transition already moved the session elsewhere).
+     *
+     * Callers must provide the transaction (SessionService methods are already
+     * @Transactional; EvaluationWorker/EvaluationRequestPublisher wrap calls in
+     * a TransactionTemplate) — see TransactionSupportConfig for why.
      */
     @Modifying(clearAutomatically = true)
     @Query(

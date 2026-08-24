@@ -1,5 +1,6 @@
 package com.sysdrill.backend.session
 
+import com.sysdrill.backend.common.events.EvaluationRequested
 import com.sysdrill.backend.common.web.ConflictException
 import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.scenario.ScenarioRepository
@@ -7,6 +8,7 @@ import com.sysdrill.backend.scenario.ScenarioStepRepository
 import com.sysdrill.backend.scenario.ScenarioVersionRepository
 import com.sysdrill.backend.submission.Submission
 import com.sysdrill.backend.submission.SubmissionRepository
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -20,6 +22,7 @@ class SessionService(
     private val scenarioVersionRepository: ScenarioVersionRepository,
     private val scenarioStepRepository: ScenarioStepRepository,
     private val submissionRepository: SubmissionRepository,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
 
     @Transactional
@@ -64,7 +67,7 @@ class SessionService(
             throw ConflictException("Session $sessionId is not accepting submissions right now")
         }
 
-        return submissionRepository.save(
+        val submission = submissionRepository.save(
             Submission(
                 sessionId = sessionId,
                 phase = session.currentPhase ?: "UNKNOWN",
@@ -73,13 +76,18 @@ class SessionService(
                 clientRequestId = clientRequestId,
             )
         )
+        // Delivered after this transaction commits (EvaluationRequestPublisher), so the
+        // SUBMITTED -> EVALUATING move and the queue enqueue only happen once the
+        // submission is durably saved.
+        eventPublisher.publishEvent(EvaluationRequested(submission.id!!, sessionId))
+        return submission
     }
 
     /**
      * Moves a session on to the next scenario step once feedback is ready, or
-     * completes it when there is no next step. Evaluation itself (SUBMITTED ->
-     * EVALUATING -> FEEDBACK_READY) is out of scope until the async pipeline
-     * lands (PLAN.md step 3); this only implements the FEEDBACK_READY -> * leg.
+     * completes it when there is no next step. SUBMITTED -> EVALUATING ->
+     * FEEDBACK_READY is driven by EvaluationRequestPublisher/EvaluationWorker
+     * (PLAN.md step 3); this only implements the FEEDBACK_READY -> * leg.
      */
     @Transactional
     fun advance(sessionId: UUID): Session {

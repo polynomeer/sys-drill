@@ -19,6 +19,12 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
+sysdrill:
+  evaluation:
+    queue-key: ${EVALUATION_QUEUE_KEY:sysdrill:evaluation:jobs}
+    dead-letter-key: ${EVALUATION_DEAD_LETTER_KEY:sysdrill:evaluation:dead-letter}
+    max-attempts: ${EVALUATION_MAX_ATTEMPTS:3}
+
 management:
   endpoints:
     web:
