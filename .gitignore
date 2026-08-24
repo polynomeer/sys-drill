@@ -16,9 +16,12 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Dependencies / build output (기술 스택 확정 시 확장)
+# Dependencies / build output
 node_modules/
 __pycache__/
 *.pyc
 dist/
 build/
+.next/
+out/
+.kotlin/
