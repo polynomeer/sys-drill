@@ -2,6 +2,8 @@ package com.sysdrill.backend.session
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
@@ -24,8 +26,9 @@ class Session(
     @Column(name = "scenario_version_id", nullable = false)
     var scenarioVersionId: UUID,
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    var status: String = "IN_PROGRESS",
+    var status: SessionStatus = SessionStatus.IN_PROGRESS,
 
     @Column(name = "current_phase")
     var currentPhase: String? = null,

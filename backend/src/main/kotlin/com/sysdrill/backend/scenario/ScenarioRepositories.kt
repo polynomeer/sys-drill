@@ -5,6 +5,10 @@ import java.util.UUID
 
 interface ScenarioRepository : JpaRepository<Scenario, UUID>
 
-interface ScenarioVersionRepository : JpaRepository<ScenarioVersion, UUID>
+interface ScenarioVersionRepository : JpaRepository<ScenarioVersion, UUID> {
+    fun findFirstByScenarioIdAndStatusOrderByVersionNoDesc(scenarioId: UUID, status: String): ScenarioVersion?
+}
 
-interface ScenarioStepRepository : JpaRepository<ScenarioStep, UUID>
+interface ScenarioStepRepository : JpaRepository<ScenarioStep, UUID> {
+    fun findByScenarioVersionIdAndStepOrder(scenarioVersionId: UUID, stepOrder: Int): ScenarioStep?
+}

@@ -20,6 +20,7 @@ import com.sysdrill.backend.session.Session
 import com.sysdrill.backend.session.SessionPhase
 import com.sysdrill.backend.session.SessionPhaseRepository
 import com.sysdrill.backend.session.SessionRepository
+import com.sysdrill.backend.session.SessionStatus
 import com.sysdrill.backend.submission.Submission
 import com.sysdrill.backend.submission.SubmissionRepository
 import org.assertj.core.api.Assertions.assertThat
@@ -161,12 +162,12 @@ class CoreDomainRepositoryTest(
         flushAndClear()
 
         val found = sessionRepository.findById(saved.id!!).orElseThrow()
-        assertThat(found.status).isEqualTo("IN_PROGRESS")
+        assertThat(found.status).isEqualTo(SessionStatus.IN_PROGRESS)
 
-        found.status = "SUBMITTED"
+        found.status = SessionStatus.SUBMITTED
         sessionRepository.save(found)
         flushAndClear()
-        assertThat(sessionRepository.findById(saved.id!!).orElseThrow().status).isEqualTo("SUBMITTED")
+        assertThat(sessionRepository.findById(saved.id!!).orElseThrow().status).isEqualTo(SessionStatus.SUBMITTED)
     }
 
     @Test
