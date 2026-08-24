@@ -1,6 +1,7 @@
 package com.sysdrill.backend.evaluation
 
 import com.jayway.jsonpath.JsonPath
+import com.sysdrill.backend.evaluation.llm.AnthropicLlmClient
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.session.SessionRepository
@@ -22,9 +23,11 @@ import java.util.UUID
 
 /**
  * Drives the real async pipeline (submit -> EvaluationRequestPublisher ->
- * Redis queue -> EvaluationWorker -> Evaluation row -> session transition)
- * end to end, per PLAN.md step 3's completion criterion: "Worker가 비동기로
- * 평가(스텁 결과)를 만들어 저장하고, 클라이언트는 Polling으로 완료를 확인할 수 있다."
+ * Redis queue -> EvaluationWorker -> HybridRuleAiEvaluator -> Evaluation row
+ * -> session transition) end to end. No LLM_ANTHROPIC_API_KEY is configured
+ * in this test environment, so AnthropicLlmClient runs in its offline
+ * fallback mode (see its kdoc) — the pipeline mechanics are still exercised
+ * for real; only the "AI" half is canned rather than a live call.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -81,7 +84,7 @@ class EvaluationWorkerIntegrationTest(
     @Test
     fun `a submission that always fails exhausts retries, is dead-lettered, and fails the session`() {
         val sessionId = mockMvc.startSession(userId)
-        val submissionId = submitRawText(sessionId, "please ${StubRuleEvaluator.FORCE_FAILURE_MARKER}")
+        val submissionId = submitRawText(sessionId, "please ${AnthropicLlmClient.FORCE_FAILURE_MARKER}")
 
         awaitSessionStatus(sessionId, SessionStatus.EVALUATION_FAILED)
 

@@ -11,6 +11,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Component
 import org.springframework.transaction.support.TransactionTemplate
+import tools.jackson.databind.ObjectMapper
 import java.time.Duration
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -31,9 +32,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 class EvaluationWorker(
     private val evaluationQueue: EvaluationQueue,
     private val evaluationRepository: EvaluationRepository,
+    private val evaluationRiskFlagRepository: EvaluationRiskFlagRepository,
     private val submissionRepository: SubmissionRepository,
     private val sessionRepository: SessionRepository,
-    private val stubRuleEvaluator: StubRuleEvaluator,
+    private val hybridRuleAiEvaluator: HybridRuleAiEvaluator,
+    private val objectMapper: ObjectMapper,
     @Qualifier("transactionTemplate") private val transactionTemplate: TransactionTemplate,
     @Value("\${sysdrill.evaluation.max-attempts}") private val maxAttempts: Int,
 ) {
@@ -86,18 +89,39 @@ class EvaluationWorker(
             }
 
             try {
-                val result = stubRuleEvaluator.evaluate(submission)
+                val outcome = hybridRuleAiEvaluator.evaluate(submission)
                 // saveAndFlush, not save: compareAndSetStatus below is a bulk
                 // @Modifying(clearAutomatically = true) update. clear() detaches
                 // the persistence context without flushing it first, so a plain
                 // save() here would have its INSERT silently dropped.
-                evaluationRepository.saveAndFlush(
+                val evaluation = evaluationRepository.saveAndFlush(
                     Evaluation(
                         submissionId = submission.id!!,
-                        rubricVersion = result.rubricVersion,
-                        totalScore = result.totalScore,
-                        weaknesses = result.weaknesses,
+                        rubricVersion = outcome.rubricVersion,
+                        totalScore = outcome.totalScore,
+                        scoreDimensions = objectMapper.writeValueAsString(outcome.rubricScores),
+                        strengths = objectMapper.writeValueAsString(outcome.strengths),
+                        weaknesses = objectMapper.writeValueAsString(outcome.weaknesses),
+                        riskPoints = objectMapper.writeValueAsString(outcome.riskFlags.map { it.description }),
+                        followupQuestions = objectMapper.writeValueAsString(outcome.followupQuestions),
+                        recommendedChanges = objectMapper.writeValueAsString(outcome.recommendedChanges),
+                        modelProvider = outcome.modelProvider,
+                        modelName = outcome.modelName,
+                        latencyMs = outcome.latencyMs,
                     )
+                )
+                // saveAllAndFlush for the same reason as the Evaluation save above:
+                // the compareAndSetStatus bulk update right after this clears the
+                // persistence context without flushing it first.
+                evaluationRiskFlagRepository.saveAllAndFlush(
+                    outcome.riskFlags.map { finding ->
+                        EvaluationRiskFlag(
+                            evaluationId = evaluation.id!!,
+                            riskKey = finding.riskKey,
+                            severity = finding.severity,
+                            description = finding.description,
+                        )
+                    }
                 )
                 val transitioned = sessionRepository.compareAndSetStatus(
                     submission.sessionId,

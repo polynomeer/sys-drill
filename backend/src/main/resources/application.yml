@@ -24,6 +24,14 @@ sysdrill:
     queue-key: ${EVALUATION_QUEUE_KEY:sysdrill:evaluation:jobs}
     dead-letter-key: ${EVALUATION_DEAD_LETTER_KEY:sysdrill:evaluation:dead-letter}
     max-attempts: ${EVALUATION_MAX_ATTEMPTS:3}
+  llm:
+    anthropic:
+      # Namespaced under LLM_* (not ANTHROPIC_*) so this never collides with
+      # env vars Claude Code itself may already have set in this shell.
+      base-url: ${LLM_ANTHROPIC_BASE_URL:https://api.anthropic.com}
+      api-key: ${LLM_ANTHROPIC_API_KEY:}
+      model: ${LLM_ANTHROPIC_MODEL:claude-sonnet-5}
+      max-tokens: ${LLM_ANTHROPIC_MAX_TOKENS:2000}
 
 management:
   endpoints:

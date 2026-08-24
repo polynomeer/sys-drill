@@ -44,6 +44,23 @@ class Evaluation(
     @Column(name = "risk_points", columnDefinition = "jsonb")
     var riskPoints: String? = null,
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "followup_questions", columnDefinition = "jsonb")
+    var followupQuestions: String? = null,
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "recommended_changes", columnDefinition = "jsonb")
+    var recommendedChanges: String? = null,
+
+    @Column(name = "model_provider")
+    var modelProvider: String? = null,
+
+    @Column(name = "model_name")
+    var modelName: String? = null,
+
+    @Column(name = "latency_ms")
+    var latencyMs: Int? = null,
+
     @Column(name = "is_active", nullable = false)
     var isActive: Boolean = true,
 

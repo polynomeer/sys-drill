@@ -56,3 +56,19 @@ allOpen {
 tasks.withType<Test> {
 	useJUnitPlatform()
 }
+
+// Loads backend/.env.local (if present) as environment variables for local
+// `bootRun` only — never for `test`, which relies on AnthropicLlmClient's
+// offline fallback and shouldn't depend on (or require) a real API key.
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+	val dotenvLocal = file(".env.local")
+	if (dotenvLocal.exists()) {
+		dotenvLocal.readLines()
+			.map { it.trim() }
+			.filter { it.isNotEmpty() && !it.startsWith("#") && it.contains("=") }
+			.forEach { line ->
+				val (key, value) = line.split("=", limit = 2)
+				environment(key.trim(), value.trim().removeSurrounding("\""))
+			}
+	}
+}
