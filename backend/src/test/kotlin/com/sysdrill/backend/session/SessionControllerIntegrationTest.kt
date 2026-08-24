@@ -52,6 +52,7 @@ class SessionControllerIntegrationTest(
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
             .andExpect(jsonPath("$.currentPhase").value("INITIAL"))
+            .andExpect(jsonPath("$.currentStepPrompt").value(org.hamcrest.Matchers.containsString("선착순")))
     }
 
     @Test

@@ -6,11 +6,13 @@ import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.scenario.ScenarioRepository
 import com.sysdrill.backend.scenario.ScenarioStepRepository
 import com.sysdrill.backend.scenario.ScenarioVersionRepository
+import com.sysdrill.backend.scenario.ScenarioStep
 import com.sysdrill.backend.submission.Submission
 import com.sysdrill.backend.submission.SubmissionRepository
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.UUID
 
@@ -23,6 +25,7 @@ class SessionService(
     private val scenarioStepRepository: ScenarioStepRepository,
     private val submissionRepository: SubmissionRepository,
     private val eventPublisher: ApplicationEventPublisher,
+    private val objectMapper: ObjectMapper,
 ) {
 
     @Transactional
@@ -52,6 +55,20 @@ class SessionService(
 
     fun getSession(sessionId: UUID): Session =
         sessionRepository.findById(sessionId).orElseThrow { NotFoundException("Session not found: $sessionId") }
+
+    /** The "prompt" text of whichever ScenarioStep the session is currently on — what the frontend shows as the brief. */
+    fun getCurrentStepPrompt(session: Session): String? {
+        val phase = sessionPhaseRepository.findTopBySessionIdOrderByPhaseOrderDesc(session.id!!) ?: return null
+        val step = scenarioStepRepository.findByScenarioVersionIdAndStepOrder(session.scenarioVersionId, phase.phaseOrder)
+        return step?.let { extractPrompt(it) }
+    }
+
+    private fun extractPrompt(step: ScenarioStep): String? {
+        val content = step.content ?: return null
+        @Suppress("UNCHECKED_CAST")
+        val map = objectMapper.readValue(content, Map::class.java) as Map<String, Any?>
+        return map["prompt"] as? String
+    }
 
     @Transactional
     fun submit(sessionId: UUID, rawText: String?, structuredJson: String?, clientRequestId: String?): Submission {

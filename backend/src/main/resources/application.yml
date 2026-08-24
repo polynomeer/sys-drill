@@ -20,6 +20,7 @@ spring:
       port: ${REDIS_PORT:6379}
 
 sysdrill:
+  frontend-origin: ${FRONTEND_ORIGIN:http://localhost:3000}
   evaluation:
     queue-key: ${EVALUATION_QUEUE_KEY:sysdrill:evaluation:jobs}
     dead-letter-key: ${EVALUATION_DEAD_LETTER_KEY:sysdrill:evaluation:dead-letter}

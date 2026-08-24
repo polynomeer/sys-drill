@@ -18,12 +18,11 @@ class SessionController(private val sessionService: SessionService) {
     @PostMapping
     fun start(@Valid @RequestBody request: StartSessionRequest): ResponseEntity<SessionResponse> {
         val session = sessionService.startSession(request.userId, request.scenarioId)
-        return ResponseEntity.status(HttpStatus.CREATED).body(SessionResponse.from(session))
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(session))
     }
 
     @GetMapping("/{id}")
-    fun get(@PathVariable id: UUID): SessionResponse =
-        SessionResponse.from(sessionService.getSession(id))
+    fun get(@PathVariable id: UUID): SessionResponse = toResponse(sessionService.getSession(id))
 
     @PostMapping("/{id}/submissions")
     fun submit(
@@ -35,6 +34,8 @@ class SessionController(private val sessionService: SessionService) {
     }
 
     @PostMapping("/{id}/advance")
-    fun advance(@PathVariable id: UUID): SessionResponse =
-        SessionResponse.from(sessionService.advance(id))
+    fun advance(@PathVariable id: UUID): SessionResponse = toResponse(sessionService.advance(id))
+
+    private fun toResponse(session: Session): SessionResponse =
+        SessionResponse.from(session, sessionService.getCurrentStepPrompt(session))
 }
