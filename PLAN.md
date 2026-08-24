@@ -8,16 +8,21 @@
 
 ---
 
-## 0단계 — 프로젝트 스캐폴딩
+## 0단계 — 프로젝트 스캐폴딩 ✅ 완료 (2026-08-24)
 
-- [ ] 모노레포 구조 결정: `backend/`(Kotlin+Spring Boot), `frontend/`(Next.js)
-- [ ] `backend/`: Gradle 기반 Spring Boot 프로젝트 초기화. 모듈 패키지 경계를 [ARCHITECTURE.md](docs/ARCHITECTURE.md) §2 기준으로 미리 만든다 (`identity`, `content`, `scenario`, `session`, `submission`, `evaluation`, `simulation`, `reporting`).
-- [ ] `frontend/`: Next.js 프로젝트 초기화 (TypeScript, Tailwind CSS)
-- [ ] 로컬 개발 인프라: `docker-compose.yml`로 PostgreSQL + Redis 기동
-- [ ] 루트 `.gitignore`에 Gradle(`build/`, `.gradle/`)과 Node(`node_modules/`, `.next/`) 항목 보강
-- [ ] 두 프로젝트 모두 헬스체크 엔드포인트/페이지로 기동 확인
+- [x] 모노레포 구조 결정: `backend/`(Kotlin+Spring Boot), `frontend/`(Next.js)
+- [x] `backend/`: Gradle 기반 Spring Boot 프로젝트 초기화 (Spring Boot 4.1.1, Kotlin 2.3.21, Java 21). 모듈 패키지 경계를 [ARCHITECTURE.md](docs/ARCHITECTURE.md) §2 기준으로 미리 만듦 (`identity`, `content`, `scenario`, `session`, `submission`, `evaluation`, `simulation`, `reporting` — 각 `.gitkeep`로 표시, 1단계부터 실제 코드로 채운다)
+- [x] `frontend/`: Next.js 프로젝트 초기화 (TypeScript, Tailwind CSS, App Router)
+- [x] 로컬 개발 인프라: `docker-compose.yml`로 PostgreSQL + Redis 기동
+- [x] 루트 `.gitignore`에 Gradle(`build/`)과 Node(`node_modules/`, `.next/`) 항목 보강 (Gradle 세부 항목은 `backend/.gitignore`가 담당)
+- [x] 두 프로젝트 모두 헬스체크 엔드포인트/페이지로 기동 확인 (브라우저로 직접 검증: `frontend`가 `backend`의 `/actuator/health`를 호출해 "up" 표시)
 
-**완료 기준**: `docker-compose up`으로 DB/Redis가 뜨고, backend가 DB에 연결되며, frontend가 backend 헬스체크를 호출해 표시한다.
+**완료 기준 충족**: `docker compose up -d`로 DB/Redis가 뜨고, `./gradlew bootRun`으로 backend가 DB/Redis에 연결되며, `npm run dev`로 뜬 frontend가 backend 헬스체크를 호출해 표시함을 확인함.
+
+**진행 중 발견한 결정 사항** (다음 단계 작업자가 알아야 할 것):
+- 로컬 환경에 이미 다른 프로젝트가 `5432`(Postgres), `8080`(API) 포트를 점유하고 있어 충돌을 피하려고 포트를 변경함: **Postgres → host `5433`**, **Redis → `6379`(그대로)**, **backend `server.port` → `8081`**. 모두 `backend/src/main/resources/application.yml`과 `docker-compose.yml`에서 환경변수로 오버라이드 가능 (`DB_PORT`, `SERVER_PORT` 등).
+- `frontend/.env.local.example`의 `NEXT_PUBLIC_API_BASE_URL`도 `8081` 기준으로 맞춰뒀다. 로컬에서 작업 시 `cp frontend/.env.local.example frontend/.env.local` 필요.
+- backend actuator에 `management.endpoints.web.cors.allowed-origins=http://localhost:3000`을 설정해 프론트엔드 dev 서버에서 CORS 없이 호출 가능하게 함.
 
 ## 1단계 — 도메인 스키마 및 마이그레이션
 
