@@ -244,12 +244,17 @@
 - Rate Limiter의 `InMemoryStore`/`FaultyStore` 패턴을 그대로 재사용해 `LockStore`를 별도 클래스로 분리했다 — 여러 `DistributedLock` 인스턴스가 같은 `LockStore`를 공유하면 "여러 프로세스가 같은 외부 락 서비스(Redis 등)를 바라보는" 상황을 실제 네트워크 호출 없이 시뮬레이션할 수 있다. 9단계에서 확립한 이 패턴이 매번 재사용 가능한 표준 모양이라는 것을 이번에 다시 확인했다.
 - fencing token 검증(stage 3)이 이 챌린지의 핵심이자 가장 지도하기 어려운 부분이었다 — 단순히 "토큰이 증가한다"만 확인하는 게 아니라, **만료된 소유자가 뒤늦게 `release()`를 호출해도 현재 소유자의 락에 전혀 영향을 주지 않아야 한다**는 것까지 어서션했다(`owner_id`와 `token`이 모두 일치해야 release가 성공하도록). 분산 락에서 가장 흔한 실무 버그(락을 소유했다고 "생각하는" 죽은/멈춘 프로세스가 다른 소유자의 락을 실수로 해제하는 것)를 정확히 겨냥한다.
 
-## 16단계 — Build 과제 확장: Retry/Backoff Middleware
+## 16단계 — Build 과제 확장: Retry/Backoff Middleware ✅ 완료 (2026-08-25)
 
-- [ ] `challenges/retry-backoff/` 템플릿 repo + stage 설계 (exponential backoff, jitter, retry budget)
-- [ ] `V17` 마이그레이션으로 챌린지/stage 시딩
+- [x] `challenges/retry-backoff/` 템플릿 repo + stage 설계 (exponential backoff, jitter, retry budget) — 4 stage: 기본 재시도, 재시도 소진, exponential backoff+jitter, 공유 retry budget
+- [x] `V17` 마이그레이션으로 챌린지/stage 시딩
 
-**완료 기준**: 14단계와 동일한 패턴.
+**완료 기준 충족**: 14단계와 동일한 패턴 — 로컬에서 참조 구현/스텁을 실제 sandbox로 먼저 검증한 뒤 마이그레이션에 반영. jitter가 들어간 stage 3/4는 무작위성 때문에 로컬에서 10회 연속 재실행으로 별도 확인. `RetryBackoffControllerIntegrationTest`로 올바른 구현은 4 stage 전부 PASSED(`score=4`), 스텁은 전부 FAILED 확인, 격리 실행 3회 연속 통과. 신규 2개 포함 백엔드 총 103개 테스트 통과.
+
+**진행 중 발견한 결정 사항**:
+- `RetryPolicy`에 실제 `time.sleep` 대신 **주입 가능한 `sleep_fn`**을 받도록 설계했다(기본값은 `time.sleep`, 테스트는 기록만 하는 no-op을 넘긴다) — exponential backoff는 실수 초 단위로 빠르게 커지므로, 실제로 기다리는 방식으로는 stage 테스트가 샌드박스 10초 타임아웃 안에 끝나지 못했을 것이다. 대기 시간을 실제로 재는 대신 **기록해서 검증**하는 이 패턴은 Circuit Breaker(4단계)의 `time.sleep()` 기반 테스트보다 더 빠르고 안정적이었다 — 다음에 타이밍이 중요한 챌린지를 만들 때는 실제 sleep보다 이 방식을 먼저 고려할 것.
+- jitter 검증은 "매번 값이 다르다"만 확인하지 않고 **각 지연이 `[0, base_delay * 2^attempt]`(capped) 범위 안에 있는지**까지 어서션했다 — 순수 무작위성만 확인하면 상한을 벗어나는 구현(예: 지터를 잘못 더해 최대 지연을 넘기는 버그)을 못 잡기 때문.
+- retry budget(stage 4)은 **여러 `RetryPolicy` 인스턴스가 같은 `RetryBudget`을 공유**하는 시나리오로 설계했다 — Distributed Lock의 `LockStore` 공유 패턴과 동일한 모양이다. 첫 번째 정책이 예산을 대부분 소진하면, 같은 예산을 쓰는 두 번째(독립된) 정책은 재시도를 거의 못 하고 즉시 실패해야 한다는 것까지 어서션해, "재시도 예산은 개별 요청이 아니라 다운스트림 리소스 전체를 보호한다"는 개념을 정확히 검증한다.
 
 ## 17단계 — Build 과제 확장: Event Bus
 
