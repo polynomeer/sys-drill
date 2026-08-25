@@ -256,12 +256,21 @@
 - jitter 검증은 "매번 값이 다르다"만 확인하지 않고 **각 지연이 `[0, base_delay * 2^attempt]`(capped) 범위 안에 있는지**까지 어서션했다 — 순수 무작위성만 확인하면 상한을 벗어나는 구현(예: 지터를 잘못 더해 최대 지연을 넘기는 버그)을 못 잡기 때문.
 - retry budget(stage 4)은 **여러 `RetryPolicy` 인스턴스가 같은 `RetryBudget`을 공유**하는 시나리오로 설계했다 — Distributed Lock의 `LockStore` 공유 패턴과 동일한 모양이다. 첫 번째 정책이 예산을 대부분 소진하면, 같은 예산을 쓰는 두 번째(독립된) 정책은 재시도를 거의 못 하고 즉시 실패해야 한다는 것까지 어서션해, "재시도 예산은 개별 요청이 아니라 다운스트림 리소스 전체를 보호한다"는 개념을 정확히 검증한다.
 
-## 17단계 — Build 과제 확장: Event Bus
+## 17단계 — Build 과제 확장: Event Bus ✅ 완료 (2026-08-25)
 
-- [ ] `challenges/event-bus/` 템플릿 repo + stage 설계 (pub/sub, at-least-once delivery, ordering)
-- [ ] `V18` 마이그레이션으로 챌린지/stage 시딩
+- [x] `challenges/event-bus/` 템플릿 repo + stage 설계 (pub/sub, at-least-once delivery, ordering) — 4 stage: pub/sub fan-out, at-least-once(visibility timeout 재전달), ordering, 동시성
+- [x] `V18` 마이그레이션으로 챌린지/stage 시딩
 
-**완료 기준**: 14단계와 동일한 패턴.
+**완료 기준 충족**: 14단계와 동일한 패턴 — 로컬에서 참조 구현/스텁을 실제 sandbox로 먼저 검증한 뒤 마이그레이션에 반영. `EventBusControllerIntegrationTest`로 올바른 구현은 4 stage 전부 PASSED(`score=4`), 스텁은 전부 FAILED 확인, 격리 실행 2회 연속 통과. 신규 2개 포함 백엔드 총 105개 테스트 통과. 이로써 로드맵 Phase 2의 Build 과제 확장 4종(Circuit Breaker/Distributed Lock/Retry-Backoff/Event Bus, 14~17단계) 전부 완료.
+
+**진행 중 발견한 결정 사항**:
+- Queue(11단계)의 "구독자당 visibility-timeout 큐" 구조를 그대로 재사용하되, **구독자별로 별도 큐를 두어 fan-out을 구현**했다 — `publish()`가 topic이 일치하는 모든 구독자의 큐에 이벤트 사본을 하나씩 넣는다. Queue는 "메시지 하나를 여러 컨슈머 중 하나가 가져간다"(경쟁)였다면, Event Bus는 "메시지 하나를 구독한 모두가 각자 가져간다"(복제) — 같은 at-least-once/visibility-timeout 메커니즘이 두 가지 다른 배달 의미론(competing consumers vs fan-out)에 재사용될 수 있음을 확인했다.
+- ordering(stage 3)은 "같은 topic, 같은 구독자" 안에서만 보장하도록 스코프를 좁혔다 — 서로 다른 구독자 간의 순서나 서로 다른 topic 간의 전역 순서는 애초에 pub/sub이 보장하는 개념이 아니므로 테스트 대상에서 제외했다.
+
+## 18단계 — 추가 시나리오: 주문/결제
+
+- [ ] docs/PRD.md §8 표의 "주문/결제"(transaction boundary, outbox/saga, idempotency / 외부 결제 timeout, retry storm, partial failure)를 9~11단계의 다른 시나리오와 같은 상세도로 콘텐츠화 (초기조건/꼬리설계/워게임 3단계 프롬프트, `SimulationEngine` 인시던트 모델, `RuleEvaluator` 평가 포인트)
+- [ ] 12단계에서 만든 꼬리설계 variant 구조를 이 시나리오에도 적용
 
 ## 18단계 — 추가 시나리오: 주문/결제
 
