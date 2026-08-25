@@ -169,14 +169,24 @@
 - 연결 대상 시나리오는 하드코딩된 UUID 대신 **`GET /scenarios` 목록에서 `domain === "coupon"`으로 찾는다** (`findBridgeScenario`). 시나리오가 하나뿐인 현재는 사실상 고정이지만, 11단계에서 시나리오가 늘어나도 프론트 코드를 고치지 않고 동작한다.
 - `BridgeProgress` 컴포넌트는 세션/리포트에 Build 링크가 있을 때만 표시된다 (`session.buildSubmissionId`/`report.buildSummary`가 null이면 렌더링 안 함) — Bridge를 거치지 않고 대시보드에서 바로 "선착순 쿠폰"을 시작하는 기존 경로는 그대로 영향 없이 동작한다.
 
-## 11단계 — MVP 콘텐츠 완성 및 통합 테스트
+## 11단계 — MVP 콘텐츠 완성 및 통합 테스트 ✅ 완료 (2026-08-25)
 
-- [ ] 나머지 2개 시나리오(알림 이벤트 처리, 대규모 상품 조회) 콘텐츠화 ([PRD.md](docs/PRD.md) §8.2, §8.3)
-- [ ] Queue Build 과제 추가
-- [ ] E2E 테스트: 회원가입 → 시나리오 3종 각각 Design→꼬리설계→Wargame→Report 완주
-- [ ] [PRD.md](docs/PRD.md) §11 "MVP에서 검증할 세 가지" 기준으로 셀프 점검
+- [x] 나머지 2개 시나리오(알림 이벤트 처리, 대규모 상품 조회) 콘텐츠화 ([PRD.md](docs/PRD.md) §8.2, §8.3) — `V11`/`V12` 마이그레이션, 각각 고유한 `SimulationEngine` 인시던트 모델(consumer lag / cache 스탬피드)과 `RuleEvaluator` 평가 포인트 세트
+- [x] Queue Build 과제 추가 — `challenges/queue/` 템플릿 repo, 4 stage(FIFO, ack/visibility timeout, 재시도+DLQ, 동시성), `V13` 마이그레이션
+- [x] E2E 테스트: 시나리오 3종 각각 Design→꼬리설계→Wargame→Report 완주 (`MvpScenarioE2ETest` — notification/product-browsing 2종 신규, coupon은 8단계 `ReportAndSkillProfileIntegrationTest`가 이미 커버)
+- [x] [PRD.md](docs/PRD.md) §11 "MVP에서 검증할 세 가지" 기준으로 셀프 점검 (아래)
 
-**완료 기준**: MVP 범위([PRD.md](docs/PRD.md) §11 포함 항목) 전체가 시나리오 3종 기준으로 동작한다.
+**완료 기준 충족**: 3개 시나리오 모두 `POST /sessions`부터 `GET /sessions/{id}/report`까지 실제 HTTP 파이프라인으로 완주 확인(백엔드 테스트), Wargame 인시던트 수치를 손으로 미리 계산해 `SimulationEngineTest`로 대조. 실제 브라우저로 "알림 이벤트 처리" 시나리오의 Design(도메인별 가이드 문구) → 꼬리설계 → Wargame Live(도메인별 지표: Queue Lag/Consumer Throughput/Provider Latency, 도메인별 액션 3종)까지 확인 — 인시던트 수치(500rps, p95 2400ms, error 30%)가 손계산과 정확히 일치. Build Mode는 Rate Limiter(6 stage)에 이어 Queue(4 stage)도 올바른 구현은 전부 PASSED, 스텁은 전부 FAILED로 실제 샌드박스에서 검증. 신규 19개 포함 백엔드 총 89개 테스트 통과.
+
+**진행 중 발견한 결정 사항**:
+- 4단계에서 "여러 시나리오가 자체 파라미터로 인시던트를 정의하는 일반화된 엔진은 콘텐츠가 실제로 늘어나는 시점의 과제로 미룬다"고 적어뒀던 그 시점이 이번 단계였다. 완전히 데이터 기반인 범용 엔진 대신, **도메인 문자열로 분기하는 3개의 독립된 순수 함수**(`SimulationEngine.Coupon`/`Notification`/`ProductBrowsing`)로 확장했다 — 세 인시던트의 메커니즘(DB read/write hotspot, consumer lag, cache stampede)이 서로 다른 축을 모델링해야 해서 공유 가능한 부분은 이미 공유 중이던 utilization-band 함수(`latencyMultiplier`/`errorRateFor`)뿐이었고, 그 이상의 추상화는 오히려 각 도메인의 손계산 검증을 어렵게 만들었을 것이다.
+- `DesignTraits`/`SimulationActionType`/`SimulationSessionStateCodec`을 세 도메인의 필드를 모두 갖도록 확장했다(합집합 방식) — 세션은 자신의 도메인에 해당하는 필드만 실제로 사용하지만, 도메인별로 별도 클래스를 만드는 것보다 Redis 코덱과 세션 상태 모델을 하나로 유지하는 편이 단순했다. `SimulationEngine.applyAction`은 세션의 도메인에 속하지 않는 액션을 명시적으로 거부한다(`IllegalStateException` → 409, `MvpScenarioE2ETest`로 확인).
+- **`RuleEvaluator`와 `HybridRuleAiEvaluator`도 도메인 인지형으로 바꿨다** — 이전까지는 세션이 어떤 시나리오든 상관없이 쿠폰 시나리오의 4개 개념(멱등성/동시성/rate limit/관측)만 검사했다. `submission.sessionId`로 세션→시나리오 버전→시나리오 도메인을 조회해 `RuleEvaluator.evaluate(text, domain)`으로 올바른 개념 세트를 선택하도록 고쳤다. 실제 브라우저로 "알림 이벤트 처리" 답안을 제출해 4개의 알림 전용 리스크(idempotent consumer/retry-backoff/DLQ/circuit breaker)가 정확히 잡히는 것을 확인.
+- Queue 챌린지는 6단계 Rate Limiter보다 적은 **4개 stage**로 스코프를 좁혔다 — PRD.md §7.1이 명시한 핵심 개념(ack/retry, visibility, at-least-once)이 FIFO/visibility-timeout·재전달/재시도+DLQ/동시성 4개로 충분히 커버되고, Rate Limiter 때 이미 "Build 채점 파이프라인이 실제로 동작하는가"라는 P0 가설은 검증이 끝났기 때문이다.
+- `SessionResponse`에 `domain` 필드를 추가해 프론트가 시나리오별 UI(가이드 문구, Wargame 액션 버튼, 지표 패널)를 고를 수 있게 했다. `WargameLive`/`MetricsPanel`/Design 가이드 문구를 전부 `domain` 기반 룩업 테이블로 바꿨다 — 새 시나리오가 추가돼도 페이지 컴포넌트 자체는 다시 작성할 필요가 없다.
+- **PRD.md §11 "MVP에서 검증할 세 가지" 셀프 점검**:
+  1. MVP 범위(§11 포함 항목) 자체는 코드로 점검 가능하고, 전부 충족한다 — 시스템 설계 3종+꼬리설계, Build 2종(Rate Limiter/Queue), Wargame(3개 도메인 각각 고유 인시던트), Rule+AI 하이브리드 평가, 결과 리포트(Bridge 통합 포함), 약점 프로필/점수 추이. 다만 "회원가입/로그인"은 여전히 6단계에서 남겨둔 공백대로 **닉네임만 있는 게스트 프로필**이다 — 비밀번호 인증이 없다.
+  2. §11의 진짜 "검증할 세 가지"(① 설계→조건변경→장애대응 흐름이 기존 학습보다 가치 있다고 느끼는가 ② AI 피드백이 "실무에서 실제로 터질 문제"를 짚어준다고 평가받는가 ③ 반복 학습 동기가 생기는가)는 **코드 자가점검으로 답할 수 있는 질문이 아니다** — 실제 사용자 반응이 필요한 가설이며, 이번 MVP 구현 완료로 "물어볼 수 있는 상태"가 됐을 뿐 아직 검증되지 않았다. 다음 단계는 실제 사용자 온보딩과 피드백 수집이다(로드맵 Phase 2 영역).
 
 ---
 
