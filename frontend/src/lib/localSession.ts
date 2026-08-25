@@ -48,3 +48,27 @@ export function saveSubmissionId(sessionId: string, submissionId: string): void 
 export function loadSubmissionId(sessionId: string): string | null {
   return window.localStorage.getItem(submissionKey(sessionId));
 }
+
+function buildDraftKey(slug: string): string {
+  return `sysdrill:build-draft:${slug}`;
+}
+
+export function saveBuildDraft(slug: string, sourceCode: string): void {
+  window.localStorage.setItem(buildDraftKey(slug), sourceCode);
+}
+
+export function loadBuildDraft(slug: string): string {
+  return window.localStorage.getItem(buildDraftKey(slug)) ?? "";
+}
+
+function buildSubmissionKey(slug: string): string {
+  return `sysdrill:build-submission:${slug}`;
+}
+
+export function saveBuildSubmissionId(slug: string, submissionId: string): void {
+  window.localStorage.setItem(buildSubmissionKey(slug), submissionId);
+}
+
+export function loadBuildSubmissionId(slug: string): string | null {
+  return window.localStorage.getItem(buildSubmissionKey(slug));
+}

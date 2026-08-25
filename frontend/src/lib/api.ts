@@ -29,6 +29,7 @@ export interface SessionResponse {
   currentPhase: string | null;
   currentStepPrompt: string | null;
   scenarioVersionId: string;
+  buildSubmissionId: string | null;
   startedAt: string;
   completedAt: string | null;
 }
@@ -100,6 +101,13 @@ export interface TimelineEntry {
   topRisks: string[];
 }
 
+export interface BuildSummary {
+  submissionId: string;
+  challengeTitle: string;
+  score: number | null;
+  totalStages: number;
+}
+
 export interface Report {
   id: string;
   sessionId: string;
@@ -107,7 +115,28 @@ export interface Report {
   summary: string | null;
   timelineFeedback: TimelineEntry[];
   improvementGuide: string[];
+  buildSummary: BuildSummary | null;
   createdAt: string | null;
+}
+
+export type BuildSubmissionStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "ERROR";
+export type BuildStageStatus = "PASSED" | "FAILED";
+
+export interface BuildStageResultResponse {
+  stageOrder: number;
+  title: string;
+  status: BuildStageStatus | null;
+  feedback: string | null;
+}
+
+export interface BuildSubmissionResponse {
+  id: string;
+  status: BuildSubmissionStatus;
+  score: number | null;
+  totalStages: number;
+  stages: BuildStageResultResponse[];
+  createdAt: string | null;
+  completedAt: string | null;
 }
 
 export class ApiError extends Error {
@@ -145,10 +174,14 @@ export function listScenarios(): Promise<ScenarioSummary[]> {
   return apiFetch<ScenarioSummary[]>("/scenarios");
 }
 
-export function startSession(userId: string, scenarioId: string): Promise<SessionResponse> {
+export function startSession(
+  userId: string,
+  scenarioId: string,
+  buildSubmissionId?: string,
+): Promise<SessionResponse> {
   return apiFetch<SessionResponse>("/sessions", {
     method: "POST",
-    body: JSON.stringify({ userId, scenarioId }),
+    body: JSON.stringify({ userId, scenarioId, buildSubmissionId }),
   });
 }
 
@@ -203,4 +236,19 @@ export function getSkillProfile(userId: string): Promise<SkillProfile> {
 
 export function getReport(sessionId: string): Promise<Report> {
   return apiFetch<Report>(`/sessions/${sessionId}/report`);
+}
+
+export function submitBuildChallenge(
+  slug: string,
+  userId: string,
+  sourceCode: string,
+): Promise<BuildSubmissionResponse> {
+  return apiFetch<BuildSubmissionResponse>(`/build-challenges/${slug}/submissions`, {
+    method: "POST",
+    body: JSON.stringify({ userId, sourceCode }),
+  });
+}
+
+export function getBuildSubmission(submissionId: string): Promise<BuildSubmissionResponse> {
+  return apiFetch<BuildSubmissionResponse>(`/build-submissions/${submissionId}`);
 }

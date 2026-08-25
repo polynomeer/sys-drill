@@ -89,6 +89,17 @@ export default function DashboardPage() {
         <p className="mt-1 text-sm text-zinc-500">시나리오를 선택하면 바로 설계를 시작합니다.</p>
       </div>
 
+      <Link
+        href="/bridge"
+        className="flex items-center justify-between rounded border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900"
+      >
+        <div>
+          <p className="font-medium">Bridge Mode — Build부터 Wargame까지 한 번에</p>
+          <p className="text-xs text-zinc-500">Rate Limiter 구현 → 선착순 쿠폰 설계 → 꼬리설계 → 장애 대응까지 이어서 훈련합니다.</p>
+        </div>
+        <span className="shrink-0 rounded bg-foreground px-4 py-2 text-sm font-medium text-background">시작</span>
+      </Link>
+
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {!loading && (topWeaknesses.length > 0 || (skillProfile?.trend.length ?? 0) > 0) && (

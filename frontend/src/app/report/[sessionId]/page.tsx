@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ApiError, Report, getReport } from "@/lib/api";
 import { getStoredUserId } from "@/lib/localSession";
+import { BridgeProgress } from "@/components/BridgeProgress";
 
 const PHASE_LABELS: Record<string, string> = {
   INITIAL: "초기 설계",
@@ -49,11 +50,26 @@ export default function ReportPage() {
         </Link>
       </div>
 
+      {report?.buildSummary && (
+        <div className="flex justify-end">
+          <BridgeProgress current="report" />
+        </div>
+      )}
+
       {loading && <p className="text-sm text-zinc-500">불러오는 중...</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {report && (
         <>
+          {report.buildSummary && (
+            <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
+              <h2 className="mb-1 text-sm font-semibold text-zinc-500">Build — {report.buildSummary.challengeTitle}</h2>
+              <p className="text-2xl font-semibold">
+                {report.buildSummary.score ?? 0} / {report.buildSummary.totalStages}
+              </p>
+            </section>
+          )}
+
           <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
             <h2 className="mb-1 text-sm font-semibold text-zinc-500">총평</h2>
             <p className="text-sm">{report.summary ?? "-"}</p>

@@ -22,6 +22,7 @@ import {
   saveSubmissionId,
 } from "@/lib/localSession";
 import { WargameLive } from "./WargameLive";
+import { BridgeProgress } from "@/components/BridgeProgress";
 
 const DESIGN_GUIDANCE = [
   "기능/비기능 요구사항 요약 (무엇을 보장하고 무엇을 포기할지)",
@@ -195,9 +196,12 @@ export default function DesignWorkspacePage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
-      <h1 className="text-xl font-semibold">
-        {isIncident ? "Wargame Live" : "System Design Workspace"}
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">
+          {isIncident ? "Wargame Live" : "System Design Workspace"}
+        </h1>
+        {session?.buildSubmissionId && <BridgeProgress current={isIncident ? "wargame" : "design"} />}
+      </div>
 
       {view === "loading" && <p className="text-sm text-zinc-500">불러오는 중...</p>}
 
