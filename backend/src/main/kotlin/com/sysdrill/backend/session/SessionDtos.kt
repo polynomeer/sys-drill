@@ -10,6 +10,8 @@ data class StartSessionRequest(
     @field:NotNull val scenarioId: UUID,
     /** Bridge Mode: links this session to a just-completed Build submission (PLAN.md step 10). */
     val buildSubmissionId: UUID? = null,
+    /** Optional override for reproducible variant selection (PLAN.md step 12); server-generated if omitted. */
+    val seed: String? = null,
 )
 
 data class SubmitAnswerRequest(

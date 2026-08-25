@@ -17,7 +17,7 @@ class SessionController(private val sessionService: SessionService) {
 
     @PostMapping
     fun start(@Valid @RequestBody request: StartSessionRequest): ResponseEntity<SessionResponse> {
-        val session = sessionService.startSession(request.userId, request.scenarioId, request.buildSubmissionId)
+        val session = sessionService.startSession(request.userId, request.scenarioId, request.buildSubmissionId, request.seed)
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(session))
     }
 

@@ -16,10 +16,16 @@ val NOTIFICATION_SCENARIO_ID: UUID = UUID.fromString("c0000000-0000-0000-0000-00
 /** Fixed id seeded by V12__seed_product_browsing_scenario.sql ("대규모 상품 조회"). */
 val PRODUCT_BROWSING_SCENARIO_ID: UUID = UUID.fromString("d0000000-0000-0000-0000-000000000002")
 
-fun MockMvc.startSession(userId: UUID, scenarioId: UUID = COUPON_SCENARIO_ID, buildSubmissionId: UUID? = null): UUID {
+fun MockMvc.startSession(
+    userId: UUID,
+    scenarioId: UUID = COUPON_SCENARIO_ID,
+    buildSubmissionId: UUID? = null,
+    seed: String? = null,
+): UUID {
     val body = buildString {
         append("""{"userId":"$userId","scenarioId":"$scenarioId"""")
         if (buildSubmissionId != null) append(""","buildSubmissionId":"$buildSubmissionId"""")
+        if (seed != null) append(""","seed":"$seed"""")
         append("}")
     }
     val response = perform(post("/sessions").contentType(MediaType.APPLICATION_JSON).content(body))

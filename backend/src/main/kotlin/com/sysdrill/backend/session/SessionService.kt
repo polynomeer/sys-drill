@@ -3,8 +3,10 @@ package com.sysdrill.backend.session
 import com.sysdrill.backend.build.BuildSubmissionRepository
 import com.sysdrill.backend.build.BuildSubmissionStatus
 import com.sysdrill.backend.common.events.EvaluationRequested
+import com.sysdrill.backend.common.readIntMap
 import com.sysdrill.backend.common.web.ConflictException
 import com.sysdrill.backend.common.web.NotFoundException
+import com.sysdrill.backend.identity.SkillProfileRepository
 import com.sysdrill.backend.scenario.ScenarioRepository
 import com.sysdrill.backend.scenario.ScenarioStepRepository
 import com.sysdrill.backend.scenario.ScenarioVersionRepository
@@ -30,11 +32,12 @@ class SessionService(
     private val eventPublisher: ApplicationEventPublisher,
     private val reportService: ReportService,
     private val buildSubmissionRepository: BuildSubmissionRepository,
+    private val skillProfileRepository: SkillProfileRepository,
     private val objectMapper: ObjectMapper,
 ) {
 
     @Transactional
-    fun startSession(userId: UUID, scenarioId: UUID, buildSubmissionId: UUID? = null): Session {
+    fun startSession(userId: UUID, scenarioId: UUID, buildSubmissionId: UUID? = null, seed: String? = null): Session {
         val scenario = scenarioRepository.findById(scenarioId)
             .orElseThrow { NotFoundException("Scenario not found: $scenarioId") }
         val version = scenarioVersionRepository
@@ -60,6 +63,12 @@ class SessionService(
                 scenarioVersionId = version.id!!,
                 buildSubmissionId = buildSubmissionId,
                 currentPhase = firstStep.stepType,
+                // Drives deterministic variant selection for steps with multiple
+                // authored versions (PLAN.md step 12) — PRD.md §7.3's "통제된
+                // 랜덤성": same seed always picks the same variant. Callers may
+                // supply their own (tests; future "replay this session" use
+                // cases); otherwise one is generated.
+                seed = seed ?: UUID.randomUUID().toString(),
             )
         )
         sessionPhaseRepository.save(
@@ -90,14 +99,44 @@ class SessionService(
     fun getCurrentStepPrompt(session: Session): String? {
         val phase = sessionPhaseRepository.findTopBySessionIdOrderByPhaseOrderDesc(session.id!!) ?: return null
         val step = scenarioStepRepository.findByScenarioVersionIdAndStepOrder(session.scenarioVersionId, phase.phaseOrder)
-        return step?.let { extractPrompt(it) }
+        return step?.let { extractPrompt(it, session) }
     }
 
-    private fun extractPrompt(step: ScenarioStep): String? {
+    /**
+     * A step's `content` is either a single `{"prompt": ...}` (INITIAL/INCIDENT,
+     * and FOLLOWUP steps with only one authored version) or, for a FOLLOWUP step
+     * with multiple authored tail-design twists, `{"variants": [{"key",
+     * "targetRiskKey", "prompt"}, ...]}` — see [selectVariant] for how one is chosen.
+     */
+    private fun extractPrompt(step: ScenarioStep, session: Session): String? {
         val content = step.content ?: return null
         @Suppress("UNCHECKED_CAST")
         val map = objectMapper.readValue(content, Map::class.java) as Map<String, Any?>
-        return map["prompt"] as? String
+        map["prompt"]?.let { return it as? String }
+
+        @Suppress("UNCHECKED_CAST")
+        val variants = map["variants"] as? List<Map<String, Any?>> ?: return null
+        return selectVariant(variants, session)["prompt"] as? String
+    }
+
+    /**
+     * Adaptive selection (PLAN.md step 12): prefer the variant whose
+     * `targetRiskKey` matches the user's most frequent recorded weakness in
+     * this scenario, so a recurring blind spot becomes the next tail-design's
+     * twist. Falls back to a seed-derived deterministic pick — reproducible
+     * per session, varied across sessions/users, per PRD.md §7.3's "통제된
+     * 랜덤성" (controlled randomness, not arbitrary).
+     */
+    private fun selectVariant(variants: List<Map<String, Any?>>, session: Session): Map<String, Any?> {
+        val weaknesses = objectMapper.readIntMap(skillProfileRepository.findByUserId(session.userId)?.weaknesses)
+        val byWeakness = variants
+            .filter { (it["targetRiskKey"] as? String) != null }
+            .filter { (weaknesses[it["targetRiskKey"] as String] ?: 0) > 0 }
+            .maxByOrNull { weaknesses[it["targetRiskKey"] as String] ?: 0 }
+        if (byWeakness != null) return byWeakness
+
+        val index = Math.floorMod(session.seed?.hashCode() ?: 0, variants.size)
+        return variants[index]
     }
 
     @Transactional
