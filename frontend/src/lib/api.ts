@@ -76,7 +76,10 @@ export type SimulationActionType =
   | "ADD_READ_REPLICA"
   | "ADD_DISPATCHER_WORKERS"
   | "ENABLE_IDEMPOTENT_PG_RETRY"
-  | "ISOLATE_PAYMENT_POOL";
+  | "ISOLATE_PAYMENT_POOL"
+  | "ENABLE_FINE_GRAINED_LOCKING"
+  | "SHORTEN_HOLD_TIMEOUT"
+  | "ENABLE_ATOMIC_INVENTORY_CHECK";
 
 export interface SystemState {
   trafficRps: number;

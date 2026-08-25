@@ -64,6 +64,15 @@ const DESIGN_GUIDANCE_BY_DOMAIN: Record<string, string[]> = {
     "관측(metrics/logs/alert) 계획",
     "예상 병목과 트레이드오프",
   ],
+  reservation: [
+    "기능/비기능 요구사항 요약 (무엇을 보장하고 무엇을 포기할지)",
+    "동시 예약 요청에 대한 락 전략 (세분화 수준 포함)",
+    "재고 정합성 — 예약 가능 수량 확인과 확정의 원자성",
+    "예약 홀드(hold) 타임아웃과 자동 해제",
+    "중복 예약(overbooking) 방지 방법",
+    "관측(metrics/logs/alert) 계획",
+    "예상 병목과 트레이드오프",
+  ],
 };
 
 const INCIDENT_GUIDANCE = [

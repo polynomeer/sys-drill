@@ -82,6 +82,23 @@ const ACTIONS_BY_DOMAIN: Record<string, ActionDef[]> = {
       effect: "긍정 효과: outbox backlog가 주문 처리용 풀로 번지지 않음(bulkhead). 부작용: 결제 전용 풀 자체가 포화되면 그 안에서는 여전히 지연.",
     },
   ],
+  reservation: [
+    {
+      type: "ENABLE_FINE_GRAINED_LOCKING",
+      label: "락 세분화 (좌석 단위)",
+      effect: "긍정 효과: 무관한 좌석 간 경합 제거로 유효 처리 용량 증가. 부작용: 락 구현·관리 복잡도 증가.",
+    },
+    {
+      type: "SHORTEN_HOLD_TIMEOUT",
+      label: "홀드 타임아웃 단축",
+      effect: "긍정 효과: 결제 미완료로 이탈한 홀드의 자원 점유 시간 감소. 부작용: 정상 사용자가 실제 필요 시간보다 일찍 홀드가 풀릴 위험.",
+    },
+    {
+      type: "ENABLE_ATOMIC_INVENTORY_CHECK",
+      label: "원자적 재고 확인",
+      effect: "긍정 효과: 재고 확인·확정 사이 경쟁으로 인한 낭비성 재시도 제거. 부작용: 원자적 처리를 위한 락/트랜잭션 범위 확대.",
+    },
+  ],
 };
 
 const INCIDENT_EVENT_BY_DOMAIN: Record<string, string> = {
@@ -89,6 +106,7 @@ const INCIDENT_EVENT_BY_DOMAIN: Record<string, string> = {
   notification: "인시던트 발생: provider timeout → 재시도 폭증 → consumer lag 증가",
   "product-browsing": "인시던트 발생: hot key 트래픽 집중 → cache miss 폭증 → DB read latency 급증",
   payment: "인시던트 발생: PG timeout 급증 → outbox 재시도 폭증 → 주문 처리 지연 전이",
+  reservation: "인시던트 발생: 인기 좌석에 예약 시도 집중 → 락 경합 급증 → 락 대기 시간 증가",
 };
 
 const POLL_INTERVAL_MS = 3000;
@@ -219,6 +237,11 @@ function MetricsPanel({ state, domain }: { state: SystemState; domain: string })
       { label: "DB Write Load", value: formatPercent(state.dbWriteLoad), colorFor: state.dbWriteLoad },
       { label: "Cache Hit Ratio", value: formatPercent(state.cacheHitRatio) },
       { label: "Cache Latency", value: formatMs(state.cacheLatencyMs) },
+    ],
+    reservation: [
+      { label: "Lock Wait Queue", value: `${state.queueLag}`, colorFor: state.queueLag > 0 ? 0.9 : 0 },
+      { label: "Lock Capacity", value: `${state.consumerThroughput.toFixed(1)}/s` },
+      { label: "Lock Utilization", value: formatPercent(state.dbWriteLoad), colorFor: state.dbWriteLoad },
     ],
   };
   const metrics = [...common, ...(domainSpecificByDomain[domain] ?? domainSpecificByDomain.coupon)];
