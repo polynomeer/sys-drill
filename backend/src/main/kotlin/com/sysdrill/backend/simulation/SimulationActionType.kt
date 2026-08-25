@@ -18,4 +18,8 @@ enum class SimulationActionType {
     SPLIT_CACHE_POLICY,
     ENABLE_SINGLE_FLIGHT,
     ADD_READ_REPLICA,
+    // payment (PLAN.md step 18)
+    ADD_DISPATCHER_WORKERS,
+    ENABLE_IDEMPOTENT_PG_RETRY,
+    ISOLATE_PAYMENT_POOL,
 }

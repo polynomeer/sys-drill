@@ -94,10 +94,36 @@ object RuleEvaluator {
         ),
     )
 
+    /**
+     * docs/PRD.md §8 "주문/결제" 평가 포인트: transaction boundary, outbox/saga,
+     * idempotency. riskKey는 다른 도메인과 겹치지 않도록 domain-qualified로
+     * 짓는다 — [domainByRiskKey]가 riskKey 하나당 도메인 하나를 가정하므로,
+     * "결제의 재시도"와 "알림의 재시도"처럼 개념은 비슷해도 도메인이 다르면
+     * 반드시 다른 riskKey를 써야 한다.
+     */
+    private val paymentConcepts = listOf(
+        Concept(
+            "MISSING_TRANSACTION_BOUNDARY",
+            listOf("트랜잭션 경계", "outbox", "saga", "아웃박스", "이벤트 발행"),
+            "DB 트랜잭션과 외부 결제 API 호출을 어떻게 분리했는지(outbox/saga)에 대한 언급이 없습니다. 하나의 트랜잭션으로 묶을 수 없는 두 작업을 어떻게 일관되게 처리하는지 확인이 필요합니다.",
+        ),
+        Concept(
+            "MISSING_PAYMENT_IDEMPOTENCY",
+            listOf("멱등", "idempoten"),
+            "결제 재시도 시 이중 결제를 어떻게 막는지(멱등성 키)에 대한 언급이 없습니다.",
+        ),
+        Concept(
+            "MISSING_PG_RETRY_BACKOFF",
+            listOf("retry", "재시도", "backoff", "백오프"),
+            "PG 장애 시 재시도 전략에 대한 언급이 없습니다. 응답 유실(partial failure)에 어떻게 대응하는지 확인이 필요합니다.",
+        ),
+    )
+
     private val conceptsByDomain = mapOf(
         "coupon" to couponConcepts,
         "notification" to notificationConcepts,
         "product-browsing" to productBrowsingConcepts,
+        "payment" to paymentConcepts,
     )
 
     /** Reverse lookup (riskKey -> domain), derived from [conceptsByDomain] rather than duplicated — used by SkillProfileController (PLAN.md step 13) to group weaknesses by scenario domain. */

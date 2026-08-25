@@ -210,4 +210,60 @@ class SimulationEngineTest {
 
     private fun productBrowsingSession(incidentActive: Boolean, traits: DesignTraits = DesignTraits()) =
         SimulationSessionState(domain = SimulationEngine.DOMAIN_PRODUCT_BROWSING, incidentActive = incidentActive, traits = traits)
+
+    // ---- payment (PLAN.md step 18 — PG degrades -> outbox backlog -> bulkhead vs. shared pool) ----
+
+    @Test
+    fun `baseline payment traffic is stable`() {
+        val state = SimulationEngine.computeState(paymentSession(incidentActive = false))
+
+        assertThat(state.trafficRps).isEqualTo(30.0)
+        assertThat(state.connectionPoolUsage).isCloseTo(0.2, delta)
+        assertThat(state.queueLag).isEqualTo(0)
+        assertThat(state.errorRate).isCloseTo(0.001, delta)
+    }
+
+    @Test
+    fun `the payment incident backs up the outbox and pollutes the shared connection pool`() {
+        val state = SimulationEngine.computeState(paymentSession(incidentActive = true))
+
+        assertThat(state.connectionPoolUsage).isCloseTo(3.12, Offset.offset(0.01))
+        assertThat(state.queueLag).isEqualTo(116)
+        assertThat(state.errorRate).isCloseTo(0.30, delta)
+        assertThat(state.p95LatencyMs).isCloseTo(480.0, delta)
+    }
+
+    @Test
+    fun `no single payment action alone fully recovers the session`() {
+        val isolateOnly = SimulationEngine.computeState(
+            SimulationEngine.applyAction(paymentSession(incidentActive = true), SimulationActionType.ISOLATE_PAYMENT_POOL)
+        )
+        val workersOnly = SimulationEngine.computeState(
+            SimulationEngine.applyAction(paymentSession(incidentActive = true), SimulationActionType.ADD_DISPATCHER_WORKERS)
+        )
+        val idempotentOnly = SimulationEngine.computeState(
+            SimulationEngine.applyAction(paymentSession(incidentActive = true), SimulationActionType.ENABLE_IDEMPOTENT_PG_RETRY)
+        )
+
+        assertThat(isolateOnly.errorRate).isCloseTo(0.02, delta)
+        assertThat(workersOnly.errorRate).isCloseTo(0.30, delta)
+        assertThat(idempotentOnly.errorRate).isCloseTo(0.005, delta)
+    }
+
+    @Test
+    fun `all three payment actions together recover the session`() {
+        var session = paymentSession(incidentActive = true)
+        session = SimulationEngine.applyAction(session, SimulationActionType.ADD_DISPATCHER_WORKERS)
+        session = SimulationEngine.applyAction(session, SimulationActionType.ENABLE_IDEMPOTENT_PG_RETRY)
+        session = SimulationEngine.applyAction(session, SimulationActionType.ISOLATE_PAYMENT_POOL)
+
+        val state = SimulationEngine.computeState(session)
+
+        assertThat(state.connectionPoolUsage).isCloseTo(0.2, delta)
+        assertThat(state.errorRate).isCloseTo(0.001, delta)
+        assertThat(state.p95LatencyMs).isCloseTo(60.0, delta)
+    }
+
+    private fun paymentSession(incidentActive: Boolean, traits: DesignTraits = DesignTraits()) =
+        SimulationSessionState(domain = SimulationEngine.DOMAIN_PAYMENT, incidentActive = incidentActive, traits = traits)
 }

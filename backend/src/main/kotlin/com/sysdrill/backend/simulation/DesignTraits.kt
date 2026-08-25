@@ -21,11 +21,16 @@ data class DesignTraits(
     val cachePolicySplit: Boolean = false,
     val singleFlightEnabled: Boolean = false,
     val readReplicaCount: Int = 0,
+    // payment
+    val dispatcherWorkers: Int = DEFAULT_DISPATCHER_WORKERS,
+    val idempotentPgRetryEnabled: Boolean = false,
+    val paymentPoolIsolated: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_CACHE_TTL_SECONDS = 10
         const val DEFAULT_DB_POOL_SIZE = 50
         const val DEFAULT_CONSUMER_COUNT = 4
         const val DEFAULT_RETRY_BACKOFF_MULTIPLIER = 1
+        const val DEFAULT_DISPATCHER_WORKERS = 4
     }
 }

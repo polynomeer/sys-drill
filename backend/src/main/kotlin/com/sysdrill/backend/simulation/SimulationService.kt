@@ -84,5 +84,11 @@ class SimulationService(
             "긍정 효과: 동시 cache miss의 DB 요청 중복(dogpile) 제거. 가능한 부작용: 요청 간 대기(head-of-line) 발생 가능."
         SimulationActionType.ADD_READ_REPLICA ->
             "긍정 효과: DB read 용량 증가. 가능한 부작용: replica lag으로 인한 조회 최신성 저하."
+        SimulationActionType.ADD_DISPATCHER_WORKERS ->
+            "긍정 효과: outbox 처리량 증가로 backlog 감소. 가능한 부작용: 외부 PG에 대한 동시 호출 증가."
+        SimulationActionType.ENABLE_IDEMPOTENT_PG_RETRY ->
+            "긍정 효과: 응답 유실로 인한 재시도가 중복 처리를 만들지 않아 유효 부하 감소. 가능한 부작용: 멱등성 키 저장·조회 비용 추가."
+        SimulationActionType.ISOLATE_PAYMENT_POOL ->
+            "긍정 효과: outbox backlog가 주문 처리용 커넥션 풀로 번지지 않음(bulkhead). 가능한 부작용: 결제 전용 풀 자체가 포화되면 그 풀 안에서는 여전히 지연."
     }
 }

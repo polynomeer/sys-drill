@@ -11,7 +11,7 @@ data class SimulationSessionState(
     val traits: DesignTraits,
 )
 
-/** "domain|incidentActive|rateLimitEnabled|cacheTtlSeconds|dbPoolSize|consumerCount|circuitBreakerEnabled|retryBackoffMultiplier|cachePolicySplit|singleFlightEnabled|readReplicaCount" — see EvaluationQueue for the same low-tech-on-purpose approach. */
+/** "domain|incidentActive|rateLimitEnabled|cacheTtlSeconds|dbPoolSize|consumerCount|circuitBreakerEnabled|retryBackoffMultiplier|cachePolicySplit|singleFlightEnabled|readReplicaCount|dispatcherWorkers|idempotentPgRetryEnabled|paymentPoolIsolated" — see EvaluationQueue for the same low-tech-on-purpose approach. */
 object SimulationSessionStateCodec {
 
     fun encode(state: SimulationSessionState): String =
@@ -27,6 +27,9 @@ object SimulationSessionStateCodec {
             state.traits.cachePolicySplit,
             state.traits.singleFlightEnabled,
             state.traits.readReplicaCount,
+            state.traits.dispatcherWorkers,
+            state.traits.idempotentPgRetryEnabled,
+            state.traits.paymentPoolIsolated,
         ).joinToString("|")
 
     fun decode(raw: String): SimulationSessionState {
@@ -44,6 +47,9 @@ object SimulationSessionStateCodec {
                 cachePolicySplit = parts[8].toBoolean(),
                 singleFlightEnabled = parts[9].toBoolean(),
                 readReplicaCount = parts[10].toInt(),
+                dispatcherWorkers = parts[11].toInt(),
+                idempotentPgRetryEnabled = parts[12].toBoolean(),
+                paymentPoolIsolated = parts[13].toBoolean(),
             ),
         )
     }

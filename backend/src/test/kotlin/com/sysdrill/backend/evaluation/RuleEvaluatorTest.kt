@@ -80,4 +80,32 @@ class RuleEvaluatorTest {
     fun `falls back to coupon concepts for an unknown domain`() {
         assertThat(RuleEvaluator.evaluate(null, "unknown-domain")).hasSize(4)
     }
+
+    @Test
+    fun `flags all three payment concepts when the submission mentions none of them`() {
+        val findings = RuleEvaluator.evaluate("그냥 API 서버 하나로 처리합니다.", "payment")
+
+        assertThat(findings.map { it.riskKey }).containsExactlyInAnyOrder(
+            "MISSING_TRANSACTION_BOUNDARY",
+            "MISSING_PAYMENT_IDEMPOTENCY",
+            "MISSING_PG_RETRY_BACKOFF",
+        )
+    }
+
+    @Test
+    fun `does not flag transaction boundary when the submission mentions outbox`() {
+        val findings = RuleEvaluator.evaluate("outbox 테이블에 이벤트를 기록한 뒤 별도로 발행합니다.", "payment")
+
+        assertThat(findings.map { it.riskKey }).doesNotContain("MISSING_TRANSACTION_BOUNDARY")
+    }
+
+    @Test
+    fun `payment riskKeys do not collide with notification or coupon riskKeys`() {
+        val paymentKeys = RuleEvaluator.evaluate(null, "payment").map { it.riskKey }.toSet()
+        val notificationKeys = RuleEvaluator.evaluate(null, "notification").map { it.riskKey }.toSet()
+        val couponKeys = RuleEvaluator.evaluate(null, "coupon").map { it.riskKey }.toSet()
+
+        assertThat(paymentKeys).doesNotContainAnyElementsOf(notificationKeys)
+        assertThat(paymentKeys).doesNotContainAnyElementsOf(couponKeys)
+    }
 }

@@ -37,4 +37,21 @@ class SimulationSessionStateCodecTest {
 
         assertThat(decoded).isEqualTo(original)
     }
+
+    @Test
+    fun `round-trips payment traits`() {
+        val original = SimulationSessionState(
+            domain = "payment",
+            incidentActive = true,
+            traits = DesignTraits(
+                dispatcherWorkers = 12,
+                idempotentPgRetryEnabled = true,
+                paymentPoolIsolated = true,
+            ),
+        )
+
+        val decoded = SimulationSessionStateCodec.decode(SimulationSessionStateCodec.encode(original))
+
+        assertThat(decoded).isEqualTo(original)
+    }
 }

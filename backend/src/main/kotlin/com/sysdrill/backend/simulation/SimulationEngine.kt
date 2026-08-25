@@ -16,6 +16,7 @@ object SimulationEngine {
     const val DOMAIN_COUPON = "coupon"
     const val DOMAIN_NOTIFICATION = "notification"
     const val DOMAIN_PRODUCT_BROWSING = "product-browsing"
+    const val DOMAIN_PAYMENT = "payment"
 
     /**
      * utilization = incoming_load / max_capacity bands, per docs/ARCHITECTURE.md §6:
@@ -45,6 +46,7 @@ object SimulationEngine {
         DOMAIN_COUPON -> Coupon.computeState(session)
         DOMAIN_NOTIFICATION -> Notification.computeState(session)
         DOMAIN_PRODUCT_BROWSING -> ProductBrowsing.computeState(session)
+        DOMAIN_PAYMENT -> Payment.computeState(session)
         else -> error("Unknown simulation domain: ${session.domain}")
     }
 
@@ -53,6 +55,7 @@ object SimulationEngine {
             DOMAIN_COUPON -> current.copy(traits = Coupon.applyAction(current.traits, action))
             DOMAIN_NOTIFICATION -> current.copy(traits = Notification.applyAction(current.traits, action))
             DOMAIN_PRODUCT_BROWSING -> current.copy(traits = ProductBrowsing.applyAction(current.traits, action))
+            DOMAIN_PAYMENT -> current.copy(traits = Payment.applyAction(current.traits, action))
             else -> error("Unknown simulation domain: ${current.domain}")
         }
 
@@ -255,6 +258,75 @@ object SimulationEngine {
             SimulationActionType.ENABLE_SINGLE_FLIGHT -> traits.copy(singleFlightEnabled = true)
             SimulationActionType.ADD_READ_REPLICA -> traits.copy(readReplicaCount = traits.readReplicaCount + 1)
             else -> error("$action does not apply to the product-browsing incident")
+        }
+    }
+
+    /**
+     * docs/PRD.md §8 "주문/결제" — 외부 PG(결제대행사)가 느려지면 주문 생성 시
+     * 함께 쓰는 outbox 테이블(트랜잭션 경계를 지키기 위한 안전한 이벤트 발행
+     * 패턴)의 처리가 밀리고, 그 backlog가 커넥션 풀을 통해 주문 처리 자체에도
+     * 번진다(계단식 장애) — 격리(bulkhead)하지 않으면. PG 응답 유실(partial
+     * failure)로 인한 재시도가 idempotency 없이 이루어지면 처리해야 할 유효
+     * 부하 자체가 늘어난다. Notification의 "provider 저하 → 처리량 붕괴"와
+     * 표면적으로 비슷해 보이지만, 축이 다르다: 여기서는 격리 여부가 "장애가
+     * 다른 곳으로 번지는지"를 결정하고, 나머지 두 액션이 backlog 자체를
+     * 줄인다 — 세 액션 모두 서로 다른 실패 모드를 겨냥한다(ADR-0010 참고).
+     */
+    private object Payment {
+        private const val BASELINE_ORDER_RPS = 30.0
+        private const val BASE_PG_LATENCY_MS = 50.0
+        private const val PG_DEGRADATION_FACTOR = 20.0 // PRD.md §8 워게임: 외부 결제 timeout
+
+        private const val PARTIAL_FAILURE_WASTE_FACTOR = 3.0 // idempotency 없이 재시도할 때의 유효 부하 증폭
+        private const val BACKLOG_CAPACITY_FOR_FULL_PRESSURE = 50.0
+        private const val BASE_POOL_USAGE = 0.2
+
+        private const val BASE_ORDER_LATENCY_MS = 60.0
+
+        fun computeState(session: SimulationSessionState): SystemState {
+            val traits = session.traits
+            val effectivePgLatencyMs = if (session.incidentActive) {
+                BASE_PG_LATENCY_MS * PG_DEGRADATION_FACTOR
+            } else {
+                BASE_PG_LATENCY_MS
+            }
+            val dispatcherThroughput = traits.dispatcherWorkers * (1000.0 / effectivePgLatencyMs)
+
+            val retryWasteFactor = if (session.incidentActive && !traits.idempotentPgRetryEnabled) {
+                PARTIAL_FAILURE_WASTE_FACTOR
+            } else {
+                0.0
+            }
+            val effectiveOrderRps = BASELINE_ORDER_RPS * (1 + retryWasteFactor)
+            val outboxBacklog = max(0.0, effectiveOrderRps - dispatcherThroughput)
+            val backlogRatio = outboxBacklog / BACKLOG_CAPACITY_FOR_FULL_PRESSURE
+
+            val poolUsageFromWaste = BASE_POOL_USAGE * (1 + retryWasteFactor)
+            // Isolating the payment/outbox connection pool (bulkhead) keeps a growing
+            // backlog from also degrading order-serving queries that share the same pool.
+            val connectionPoolUsage = poolUsageFromWaste + if (traits.paymentPoolIsolated) 0.0 else backlogRatio
+
+            return SystemState(
+                trafficRps = BASELINE_ORDER_RPS,
+                p95LatencyMs = BASE_ORDER_LATENCY_MS * latencyMultiplier(connectionPoolUsage),
+                errorRate = errorRateFor(connectionPoolUsage),
+                availability = 1.0 - errorRateFor(connectionPoolUsage),
+                dbReadLoad = 0.0,
+                dbWriteLoad = 0.0,
+                connectionPoolUsage = connectionPoolUsage,
+                cacheHitRatio = 0.0,
+                cacheLatencyMs = 0.0,
+                queueLag = outboxBacklog.toLong(),
+                consumerThroughput = dispatcherThroughput,
+                externalDependencyLatencyMs = effectivePgLatencyMs,
+            )
+        }
+
+        fun applyAction(traits: DesignTraits, action: SimulationActionType): DesignTraits = when (action) {
+            SimulationActionType.ADD_DISPATCHER_WORKERS -> traits.copy(dispatcherWorkers = traits.dispatcherWorkers + 8)
+            SimulationActionType.ENABLE_IDEMPOTENT_PG_RETRY -> traits.copy(idempotentPgRetryEnabled = true)
+            SimulationActionType.ISOLATE_PAYMENT_POOL -> traits.copy(paymentPoolIsolated = true)
+            else -> error("$action does not apply to the payment incident")
         }
     }
 }
