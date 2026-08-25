@@ -1,8 +1,12 @@
 package com.sysdrill.backend.reporting
 
+import com.sysdrill.backend.build.BuildChallengeRepository
+import com.sysdrill.backend.build.BuildStageRepository
+import com.sysdrill.backend.build.BuildSubmissionRepository
 import com.sysdrill.backend.common.readStringList
 import com.sysdrill.backend.evaluation.EvaluationRepository
 import com.sysdrill.backend.evaluation.EvaluationRiskFlagRepository
+import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.submission.SubmissionRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -14,6 +18,14 @@ data class TimelineEntry(
     val submissionId: UUID,
     val totalScore: Int?,
     val topRisks: List<String>,
+)
+
+/** Bridge Mode (PLAN.md step 10): the Build submission a session was entered from, folded into its report. */
+data class BuildSummary(
+    val submissionId: UUID,
+    val challengeTitle: String,
+    val score: Int?,
+    val totalStages: Int,
 )
 
 /**
@@ -28,6 +40,10 @@ class ReportService(
     private val evaluationRepository: EvaluationRepository,
     private val evaluationRiskFlagRepository: EvaluationRiskFlagRepository,
     private val reportRepository: ReportRepository,
+    private val sessionRepository: SessionRepository,
+    private val buildSubmissionRepository: BuildSubmissionRepository,
+    private val buildChallengeRepository: BuildChallengeRepository,
+    private val buildStageRepository: BuildStageRepository,
     private val objectMapper: ObjectMapper,
 ) {
 
@@ -68,7 +84,21 @@ class ReportService(
                 summary = summary,
                 timelineFeedback = objectMapper.writeValueAsString(timeline),
                 improvementGuide = objectMapper.writeValueAsString(improvementGuide),
+                buildSummary = buildSummary(sessionId)?.let { objectMapper.writeValueAsString(it) },
             )
+        )
+    }
+
+    private fun buildSummary(sessionId: UUID): BuildSummary? {
+        val session = sessionRepository.findById(sessionId).orElse(null) ?: return null
+        val submissionId = session.buildSubmissionId ?: return null
+        val submission = buildSubmissionRepository.findById(submissionId).orElse(null) ?: return null
+        val challenge = buildChallengeRepository.findById(submission.challengeId).orElse(null) ?: return null
+        return BuildSummary(
+            submissionId = submission.id!!,
+            challengeTitle = challenge.title,
+            score = submission.score,
+            totalStages = buildStageRepository.findByChallengeIdOrderByStageOrderAsc(challenge.id!!).size,
         )
     }
 }

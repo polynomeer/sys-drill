@@ -1,5 +1,7 @@
 package com.sysdrill.backend.session
 
+import com.sysdrill.backend.build.BuildSubmissionRepository
+import com.sysdrill.backend.build.BuildSubmissionStatus
 import com.sysdrill.backend.common.events.EvaluationRequested
 import com.sysdrill.backend.common.web.ConflictException
 import com.sysdrill.backend.common.web.NotFoundException
@@ -27,11 +29,12 @@ class SessionService(
     private val submissionRepository: SubmissionRepository,
     private val eventPublisher: ApplicationEventPublisher,
     private val reportService: ReportService,
+    private val buildSubmissionRepository: BuildSubmissionRepository,
     private val objectMapper: ObjectMapper,
 ) {
 
     @Transactional
-    fun startSession(userId: UUID, scenarioId: UUID): Session {
+    fun startSession(userId: UUID, scenarioId: UUID, buildSubmissionId: UUID? = null): Session {
         val scenario = scenarioRepository.findById(scenarioId)
             .orElseThrow { NotFoundException("Scenario not found: $scenarioId") }
         val version = scenarioVersionRepository
@@ -40,8 +43,24 @@ class SessionService(
         val firstStep = scenarioStepRepository.findByScenarioVersionIdAndStepOrder(version.id!!, 1)
             ?: throw IllegalStateException("Scenario version has no steps: ${version.id}")
 
+        if (buildSubmissionId != null) {
+            val buildSubmission = buildSubmissionRepository.findById(buildSubmissionId)
+                .orElseThrow { NotFoundException("Build submission not found: $buildSubmissionId") }
+            if (buildSubmission.userId != userId) {
+                throw ConflictException("Build submission $buildSubmissionId does not belong to user $userId")
+            }
+            if (buildSubmission.status != BuildSubmissionStatus.COMPLETED) {
+                throw ConflictException("Build submission $buildSubmissionId has not completed yet")
+            }
+        }
+
         val session = sessionRepository.save(
-            Session(userId = userId, scenarioVersionId = version.id!!, currentPhase = firstStep.stepType)
+            Session(
+                userId = userId,
+                scenarioVersionId = version.id!!,
+                buildSubmissionId = buildSubmissionId,
+                currentPhase = firstStep.stepType,
+            )
         )
         sessionPhaseRepository.save(
             SessionPhase(

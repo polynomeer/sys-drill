@@ -36,6 +36,11 @@ class Report(
     @Column(name = "improvement_guide", columnDefinition = "jsonb")
     var improvementGuide: String? = null,
 
+    /** Set when the session was entered via Bridge Mode — see [com.sysdrill.backend.reporting.BuildSummary]. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "build_summary", columnDefinition = "jsonb")
+    var buildSummary: String? = null,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant? = null,

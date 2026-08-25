@@ -15,6 +15,7 @@ data class ReportResponse(
     val summary: String?,
     val timelineFeedback: List<TimelineEntry>,
     val improvementGuide: List<String>,
+    val buildSummary: BuildSummary?,
     val createdAt: Instant?,
 )
 
@@ -40,6 +41,7 @@ class ReportController(
             improvementGuide = report.improvementGuide?.let {
                 objectMapper.readValue(it, Array<String>::class.java).toList()
             } ?: emptyList(),
+            buildSummary = report.buildSummary?.let { objectMapper.readValue(it, BuildSummary::class.java) },
             createdAt = report.createdAt,
         )
     }

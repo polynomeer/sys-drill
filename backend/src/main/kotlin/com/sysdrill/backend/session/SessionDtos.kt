@@ -8,6 +8,8 @@ import java.util.UUID
 data class StartSessionRequest(
     @field:NotNull val userId: UUID,
     @field:NotNull val scenarioId: UUID,
+    /** Bridge Mode: links this session to a just-completed Build submission (PLAN.md step 10). */
+    val buildSubmissionId: UUID? = null,
 )
 
 data class SubmitAnswerRequest(
@@ -22,6 +24,7 @@ data class SessionResponse(
     val currentPhase: String?,
     val currentStepPrompt: String?,
     val scenarioVersionId: UUID,
+    val buildSubmissionId: UUID?,
     val startedAt: Instant,
     val completedAt: Instant?,
 ) {
@@ -32,6 +35,7 @@ data class SessionResponse(
             currentPhase = session.currentPhase,
             currentStepPrompt = currentStepPrompt,
             scenarioVersionId = session.scenarioVersionId,
+            buildSubmissionId = session.buildSubmissionId,
             startedAt = session.startedAt,
             completedAt = session.completedAt,
         )

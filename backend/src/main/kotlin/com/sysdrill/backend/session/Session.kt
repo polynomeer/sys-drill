@@ -26,6 +26,10 @@ class Session(
     @Column(name = "scenario_version_id", nullable = false)
     var scenarioVersionId: UUID,
 
+    /** Set when this session was entered via Bridge Mode, right after completing a Build submission. */
+    @Column(name = "build_submission_id")
+    var buildSubmissionId: UUID? = null,
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     var status: SessionStatus = SessionStatus.IN_PROGRESS,
