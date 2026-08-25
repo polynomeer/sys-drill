@@ -24,17 +24,19 @@ data class SessionResponse(
     val currentPhase: String?,
     val currentStepPrompt: String?,
     val scenarioVersionId: UUID,
+    val domain: String,
     val buildSubmissionId: UUID?,
     val startedAt: Instant,
     val completedAt: Instant?,
 ) {
     companion object {
-        fun from(session: Session, currentStepPrompt: String?) = SessionResponse(
+        fun from(session: Session, currentStepPrompt: String?, domain: String) = SessionResponse(
             id = session.id!!,
             status = session.status,
             currentPhase = session.currentPhase,
             currentStepPrompt = currentStepPrompt,
             scenarioVersionId = session.scenarioVersionId,
+            domain = domain,
             buildSubmissionId = session.buildSubmissionId,
             startedAt = session.startedAt,
             completedAt = session.completedAt,

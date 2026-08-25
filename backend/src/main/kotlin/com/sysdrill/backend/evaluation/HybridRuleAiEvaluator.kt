@@ -2,6 +2,9 @@ package com.sysdrill.backend.evaluation
 
 import com.sysdrill.backend.evaluation.llm.LlmClient
 import com.sysdrill.backend.evaluation.llm.LlmEvaluationResultParser
+import com.sysdrill.backend.scenario.ScenarioRepository
+import com.sysdrill.backend.scenario.ScenarioVersionRepository
+import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.submission.Submission
 import org.springframework.stereotype.Component
 
@@ -33,6 +36,9 @@ class HybridRuleAiEvaluator(
     private val promptTemplateRepository: PromptTemplateRepository,
     private val llmClient: LlmClient,
     private val resultParser: LlmEvaluationResultParser,
+    private val sessionRepository: SessionRepository,
+    private val scenarioVersionRepository: ScenarioVersionRepository,
+    private val scenarioRepository: ScenarioRepository,
 ) {
     private val purpose = "design_evaluation"
 
@@ -40,7 +46,7 @@ class HybridRuleAiEvaluator(
         val template = promptTemplateRepository.findFirstByPurposeAndActiveTrue(purpose)
             ?: error("No active prompt template for purpose=$purpose")
 
-        val ruleFindings = RuleEvaluator.evaluate(submission.rawText)
+        val ruleFindings = RuleEvaluator.evaluate(submission.rawText, resolveDomain(submission.sessionId))
         val userPrompt = buildUserPrompt(ruleFindings, submission)
 
         val completion = llmClient.complete(template.templateBody, userPrompt)
@@ -63,6 +69,15 @@ class HybridRuleAiEvaluator(
                 RuleFinding(riskKey = "LLM_TOP_RISK", severity = "HIGH", description = it)
             },
         )
+    }
+
+    private fun resolveDomain(sessionId: java.util.UUID): String {
+        val session = sessionRepository.findById(sessionId).orElseThrow { error("Session not found: $sessionId") }
+        val version = scenarioVersionRepository.findById(session.scenarioVersionId)
+            .orElseThrow { error("Scenario version not found: ${session.scenarioVersionId}") }
+        val scenario = scenarioRepository.findById(version.scenarioId)
+            .orElseThrow { error("Scenario not found: ${version.scenarioId}") }
+        return scenario.domain
     }
 
     private fun buildUserPrompt(ruleFindings: List<RuleFinding>, submission: Submission): String = buildString {

@@ -77,6 +77,15 @@ class SessionService(
     fun getSession(sessionId: UUID): Session =
         sessionRepository.findById(sessionId).orElseThrow { NotFoundException("Session not found: $sessionId") }
 
+    /** The scenario domain (e.g. "coupon") a session belongs to — drives which Wargame actions/guidance the frontend shows. */
+    fun getScenarioDomain(session: Session): String {
+        val version = scenarioVersionRepository.findById(session.scenarioVersionId)
+            .orElseThrow { NotFoundException("Scenario version not found: ${session.scenarioVersionId}") }
+        return scenarioRepository.findById(version.scenarioId)
+            .orElseThrow { NotFoundException("Scenario not found: ${version.scenarioId}") }
+            .domain
+    }
+
     /** The "prompt" text of whichever ScenarioStep the session is currently on — what the frontend shows as the brief. */
     fun getCurrentStepPrompt(session: Session): String? {
         val phase = sessionPhaseRepository.findTopBySessionIdOrderByPhaseOrderDesc(session.id!!) ?: return null

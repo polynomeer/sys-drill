@@ -37,5 +37,5 @@ class SessionController(private val sessionService: SessionService) {
     fun advance(@PathVariable id: UUID): SessionResponse = toResponse(sessionService.advance(id))
 
     private fun toResponse(session: Session): SessionResponse =
-        SessionResponse.from(session, sessionService.getCurrentStepPrompt(session))
+        SessionResponse.from(session, sessionService.getCurrentStepPrompt(session), sessionService.getScenarioDomain(session))
 }

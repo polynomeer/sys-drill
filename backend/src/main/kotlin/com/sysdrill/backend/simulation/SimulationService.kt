@@ -1,6 +1,8 @@
 package com.sysdrill.backend.simulation
 
 import com.sysdrill.backend.common.web.NotFoundException
+import com.sysdrill.backend.scenario.ScenarioRepository
+import com.sysdrill.backend.scenario.ScenarioVersionRepository
 import com.sysdrill.backend.session.SessionRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -9,16 +11,28 @@ import java.util.UUID
 @Service
 class SimulationService(
     private val sessionRepository: SessionRepository,
+    private val scenarioVersionRepository: ScenarioVersionRepository,
+    private val scenarioRepository: ScenarioRepository,
     private val stateStore: SimulationStateStore,
     private val appliedActionRepository: AppliedActionRepository,
 ) {
 
-    /** Starts the "선착순 쿠폰" incident template (docs/PRD.md §8.1) for a session. */
+    /** Starts the session's scenario-appropriate incident template (docs/PRD.md §8). */
     fun startIncident(sessionId: UUID): SystemState {
-        requireSessionExists(sessionId)
-        val state = SimulationSessionState(incidentActive = true, traits = DesignTraits())
+        val session = sessionRepository.findById(sessionId)
+            .orElseThrow { NotFoundException("Session not found: $sessionId") }
+        val domain = resolveDomain(session.scenarioVersionId)
+        val state = SimulationSessionState(domain = domain, incidentActive = true, traits = DesignTraits())
         stateStore.save(sessionId, state)
         return SimulationEngine.computeState(state)
+    }
+
+    private fun resolveDomain(scenarioVersionId: UUID): String {
+        val version = scenarioVersionRepository.findById(scenarioVersionId)
+            .orElseThrow { NotFoundException("Scenario version not found: $scenarioVersionId") }
+        val scenario = scenarioRepository.findById(version.scenarioId)
+            .orElseThrow { NotFoundException("Scenario not found: ${version.scenarioId}") }
+        return scenario.domain
     }
 
     fun getState(sessionId: UUID): SystemState {
@@ -58,5 +72,17 @@ class SimulationService(
             "긍정 효과: DB 부하·latency 감소. 가능한 부작용: stale data 위험."
         SimulationActionType.INCREASE_DB_POOL ->
             "긍정 효과: 대기 요청 일부 감소. 가능한 부작용: DB 자체 한계 초과 가능."
+        SimulationActionType.ADD_CONSUMERS ->
+            "긍정 효과: 컨슈머 처리량 증가로 backlog 감소. 가능한 부작용: provider 동시 호출 증가, 다운스트림 부하 전이."
+        SimulationActionType.ENABLE_CIRCUIT_BREAKER ->
+            "긍정 효과: 죽은 provider를 기다리지 않아 컨슈머가 빠르게 회복. 가능한 부작용: breaker OPEN 동안 해당 provider 메시지 유실/지연 가능."
+        SimulationActionType.ADJUST_RETRY_BACKOFF ->
+            "긍정 효과: 재시도 폭풍(retry storm) 완화. 가능한 부작용: 개별 메시지의 전달 지연 증가."
+        SimulationActionType.SPLIT_CACHE_POLICY ->
+            "긍정 효과: 데이터 특성별 TTL 분리로 hit ratio 회복. 가능한 부작용: 캐시 정책 복잡도 증가."
+        SimulationActionType.ENABLE_SINGLE_FLIGHT ->
+            "긍정 효과: 동시 cache miss의 DB 요청 중복(dogpile) 제거. 가능한 부작용: 요청 간 대기(head-of-line) 발생 가능."
+        SimulationActionType.ADD_READ_REPLICA ->
+            "긍정 효과: DB read 용량 증가. 가능한 부작용: replica lag으로 인한 조회 최신성 저하."
     }
 }
