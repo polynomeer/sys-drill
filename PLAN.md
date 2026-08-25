@@ -209,18 +209,23 @@
 - FOLLOWUP 스텝의 `scenario_steps.content`를 `{"prompt": ...}` 대신 `{"variants": [...]}`로 바꾸되, INITIAL/INCIDENT 스텝은 그대로 `{"prompt": ...}` 단일 형태를 유지한다. 새 테이블(`scenario_step_variants`) 대신 기존 컬럼의 JSON 모양만 확장했다 — `(scenario_version_id, step_order)` 유니크 제약과 기존 스텝 조회 로직을 그대로 쓸 수 있고, 6단계에서 확립한 "config as data" 원칙과도 맞는다. `SessionService.extractPrompt`가 두 모양을 모두 처리한다.
 - **동점(tie) 처리를 하다 발견한 특성**: RuleEvaluator가 "그냥 API 서버 하나로 처리합니다" 같은 전형적인 초심자 답안에 대해 해당 도메인의 개념을 거의 전부(coupon 기준 4개 중 3개가 variant 대상) 동시에 flag하기 때문에, adaptive 선택에서 흔히 동점이 나고 `maxByOrNull`은 항상 먼저 나열된 variant를 고른다. 즉 "약점 신호가 아예 없는" 케이스는 생각보다 좁다(잘 쓴 답안이거나, 이미 그 도메인 밖의 약점만 있는 사용자) — seed 기반 다양성은 실제 API 호출로 4개 개념을 모두 언급한 답안으로만 직접 확인했다. 버그는 아니지만 다음 단계(SkillProfile 고도화)에서 동점 처리를 더 정교하게(예: 무작위 동점 해소) 만들지 고려할 만하다.
 
-## 13단계 — SkillProfile 고도화 (장기 추적)
+## 13단계 — SkillProfile 고도화 (장기 추적) ✅ 완료 (2026-08-25)
 
-- [ ] 약점 추이를 "최근 10개" 고정 윈도우가 아니라 장기 누적 + 최근 추세를 함께 보여주는 구조로 확장
-- [ ] 도메인별(coupon/notification/product-browsing) 약점 분리 — 현재는 riskKey가 전체 세션에 걸쳐 하나로 합산됨
-- [ ] Dashboard: "다음 추천 시나리오/스텝"을 실제 약점 기반으로 계산 (8단계에서 시나리오가 1개뿐이라 미룬 로직)
+- [x] 약점 추이를 "최근 10개" 고정 윈도우가 아니라 장기 누적 + 최근 추세를 함께 보여주는 구조로 확장 (`TREND_HISTORY_LIMIT` 10→200, `SkillProfileController`가 최근 3개 vs 그 이전 3개 평균 차이로 `trendDirection`(IMPROVING/DECLINING/STABLE/INSUFFICIENT_DATA)을 계산)
+- [x] 도메인별(coupon/notification/product-browsing) 약점 분리 — `RuleEvaluator.domainByRiskKey`(기존 concept 목록에서 역으로 파생, 새 데이터 없음)로 읽기 시점에 그룹화. 저장 형태(`SkillProfile.weaknesses`)는 그대로 flat map — riskKey 이름이 이미 도메인마다 겹치지 않으므로 스키마 변경 불필요
+- [x] Dashboard: "다음 추천"을 최다 약점의 도메인과 연결된 시나리오로 계산해 목록 맨 앞으로 정렬 + "추천" 배지 표시 (8단계에서 시나리오가 1개뿐이라 미뤄뒀던 로직)
 
-**완료 기준**: 3개 시나리오를 섞어 플레이한 사용자의 스킬 프로필이 도메인별로 구분되어 표시되고, 대시보드의 "다음 추천"이 실제 최다 약점과 연결된 시나리오를 가리키는 것을 확인.
+**완료 기준 충족**: `SkillProfileControllerIntegrationTest`(6개)로 도메인별 그룹화, IMPROVING/DECLINING/STABLE/INSUFFICIENT_DATA 4가지 추세, 200개 저장 확인. 실제 브라우저로 신규 사용자가 "선착순 쿠폰" 약한 답안 제출 → 대시보드에서 "내 약점 TOP 3"(Rate Limit/멱등성 처리/관측 가능성), "선착순 쿠폰"에 추천 배지가 붙어 목록 맨 위로 정렬, "점수 추이"에 데이터 부족 시 방향 화살표가 나타나지 않는 것까지 확인. 신규 6개 포함 백엔드 총 97개 테스트 통과.
+
+**진행 중 발견한 결정 사항**:
+- `trend`/`weaknesses`는 저장 로직(`SkillProfileService.recordEvaluation`)을 전혀 바꾸지 않고, 읽는 쪽(`SkillProfileController`)에서만 그룹화·방향 계산을 했다 — 쓰기 경로는 여전히 단순한 flat map/list이고, "도메인별", "최근 추세" 같은 해석은 API 응답을 만들 때만 계산되는 파생값이다(4단계 `SystemState`가 항상 파생값인 것과 같은 원칙).
+- 이 개발 환경은 `LLM_ANTHROPIC_API_KEY`가 없어 오프라인 폴백이 항상 고정 점수(60점)를 반환한다. 그래서 IMPROVING/DECLINING 추세는 실제 브라우저로는 재현할 수 없었다 — `SkillProfileService.recordEvaluation`을 직접 호출하는 통합 테스트로만 검증했고, 브라우저 확인은 "데이터 부족 시 화살표가 안 뜬다"는 경계 케이스로 대체했다. 실제 키를 넣은 환경에서 다양한 점수가 쌓이면 이 부분도 자연스럽게 재현 가능하다.
+- 다음 Build 과제 마이그레이션은 `V14`가 아니라 **`V15`부터** 시작한다 — `V14`는 이번 단계에서 FOLLOWUP variant 시딩에 이미 썼다(14단계 항목의 번호를 그에 맞게 수정).
 
 ## 14단계 — Build 과제 확장: Circuit Breaker
 
 - [ ] `challenges/circuit-breaker/` 템플릿 repo + stage 설계 (failure threshold, half-open, 복구 판단)
-- [ ] `V14` 마이그레이션으로 챌린지/stage 시딩
+- [ ] `V15` 마이그레이션으로 챌린지/stage 시딩
 
 **완료 기준**: 9/11단계와 동일한 패턴 — 올바른 구현은 전체 stage PASSED, 스텁은 전체 FAILED, 실제 Docker 샌드박스로 검증.
 
