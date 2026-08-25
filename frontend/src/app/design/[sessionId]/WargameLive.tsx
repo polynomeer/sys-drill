@@ -99,6 +99,23 @@ const ACTIONS_BY_DOMAIN: Record<string, ActionDef[]> = {
       effect: "긍정 효과: 재고 확인·확정 사이 경쟁으로 인한 낭비성 재시도 제거. 부작용: 원자적 처리를 위한 락/트랜잭션 범위 확대.",
     },
   ],
+  "batch-settlement": [
+    {
+      type: "ENABLE_CHECKPOINT_RESTART",
+      label: "체크포인트 재개 활성화",
+      effect: "긍정 효과: 실패 시 처음부터가 아니라 실패한 청크부터 재개해 낭비 작업량 대폭 감소. 부작용: 체크포인트 저장·조회 비용 추가.",
+    },
+    {
+      type: "REDUCE_CHUNK_SIZE",
+      label: "청크 크기 축소",
+      effect: "긍정 효과: 실패 시 재처리 범위 축소. 부작용: 청크당 커밋 오버헤드 비중 증가로 정상 처리량 감소.",
+    },
+    {
+      type: "ENABLE_IDEMPOTENT_RECONCILIATION",
+      label: "멱등한 정산 재처리",
+      effect: "긍정 효과: 재처리된 레코드가 중복 반영되지 않아 정산 정합성 유지. 부작용: 레코드별 처리 이력 저장·조회 비용 추가.",
+    },
+  ],
 };
 
 const INCIDENT_EVENT_BY_DOMAIN: Record<string, string> = {
@@ -107,6 +124,7 @@ const INCIDENT_EVENT_BY_DOMAIN: Record<string, string> = {
   "product-browsing": "인시던트 발생: hot key 트래픽 집중 → cache miss 폭증 → DB read latency 급증",
   payment: "인시던트 발생: PG timeout 급증 → outbox 재시도 폭증 → 주문 처리 지연 전이",
   reservation: "인시던트 발생: 인기 좌석에 예약 시도 집중 → 락 경합 급증 → 락 대기 시간 증가",
+  "batch-settlement": "인시던트 발생: 정산 API 응답 지연 급증 → 처리 중이던 청크 실패 → 재처리 범위 및 중복 반영 위험 증가",
 };
 
 const POLL_INTERVAL_MS = 3000;
@@ -242,6 +260,11 @@ function MetricsPanel({ state, domain }: { state: SystemState; domain: string })
       { label: "Lock Wait Queue", value: `${state.queueLag}`, colorFor: state.queueLag > 0 ? 0.9 : 0 },
       { label: "Lock Capacity", value: `${state.consumerThroughput.toFixed(1)}/s` },
       { label: "Lock Utilization", value: formatPercent(state.dbWriteLoad), colorFor: state.dbWriteLoad },
+    ],
+    "batch-settlement": [
+      { label: "재처리 대상 레코드", value: `${state.queueLag}`, colorFor: state.queueLag > 0 ? 0.9 : 0 },
+      { label: "처리 처리량", value: `${state.consumerThroughput.toFixed(1)} rec/s` },
+      { label: "재처리 부하율", value: formatPercent(state.dbWriteLoad), colorFor: state.dbWriteLoad },
     ],
   };
   const metrics = [...common, ...(domainSpecificByDomain[domain] ?? domainSpecificByDomain.coupon)];

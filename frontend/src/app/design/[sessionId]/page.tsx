@@ -73,6 +73,15 @@ const DESIGN_GUIDANCE_BY_DOMAIN: Record<string, string[]> = {
     "관측(metrics/logs/alert) 계획",
     "예상 병목과 트레이드오프",
   ],
+  "batch-settlement": [
+    "기능/비기능 요구사항 요약 (무엇을 보장하고 무엇을 포기할지)",
+    "청킹(chunking) — 대용량 레코드를 어떤 단위로 나누어 처리하는지",
+    "재시작성(restartability) — 중간 실패 시 처음부터 재실행 vs 체크포인트 재개",
+    "정산 정합성(reconciliation) — 재처리 시 중복 반영 방지",
+    "장시간 실행(long transaction)에 대한 대응",
+    "관측(metrics/logs/alert) 계획",
+    "예상 병목과 트레이드오프",
+  ],
 };
 
 const INCIDENT_GUIDANCE = [
