@@ -100,6 +100,10 @@ object RuleEvaluator {
         "product-browsing" to productBrowsingConcepts,
     )
 
+    /** Reverse lookup (riskKey -> domain), derived from [conceptsByDomain] rather than duplicated — used by SkillProfileController (PLAN.md step 13) to group weaknesses by scenario domain. */
+    val domainByRiskKey: Map<String, String> =
+        conceptsByDomain.flatMap { (domain, concepts) -> concepts.map { it.riskKey to domain } }.toMap()
+
     fun evaluate(rawText: String?, domain: String): List<RuleFinding> {
         val concepts = conceptsByDomain[domain] ?: couponConcepts
         val text = (rawText ?: "").lowercase()

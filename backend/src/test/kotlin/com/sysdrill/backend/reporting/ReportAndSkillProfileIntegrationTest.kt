@@ -90,11 +90,13 @@ class ReportAndSkillProfileIntegrationTest(
 
         mockMvc.perform(get("/users/$userId/skill-profile"))
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.weaknesses.MISSING_IDEMPOTENCY").value(3))
-            .andExpect(jsonPath("$.weaknesses.MISSING_CONCURRENCY_CONTROL").value(3))
-            .andExpect(jsonPath("$.weaknesses.MISSING_RATE_LIMIT").value(3))
-            .andExpect(jsonPath("$.weaknesses.MISSING_OBSERVABILITY").value(3))
+            .andExpect(jsonPath("$.weaknessesByDomain.coupon.MISSING_IDEMPOTENCY").value(3))
+            .andExpect(jsonPath("$.weaknessesByDomain.coupon.MISSING_CONCURRENCY_CONTROL").value(3))
+            .andExpect(jsonPath("$.weaknessesByDomain.coupon.MISSING_RATE_LIMIT").value(3))
+            .andExpect(jsonPath("$.weaknessesByDomain.coupon.MISSING_OBSERVABILITY").value(3))
             .andExpect(jsonPath("$.trend.length()").value(3))
+            .andExpect(jsonPath("$.trendDirection").value("INSUFFICIENT_DATA"))
+            .andExpect(jsonPath("$.recommendedDomain").value("coupon"))
 
         mockMvc.perform(get("/users/$userId/sessions"))
             .andExpect(status().isOk)
@@ -112,7 +114,9 @@ class ReportAndSkillProfileIntegrationTest(
     fun `skill profile defaults to empty for a user with no evaluations yet`() {
         mockMvc.perform(get("/users/${UUID.randomUUID()}/skill-profile"))
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.weaknesses").isEmpty)
+            .andExpect(jsonPath("$.weaknessesByDomain").isEmpty)
             .andExpect(jsonPath("$.trend").isEmpty)
+            .andExpect(jsonPath("$.trendDirection").value("INSUFFICIENT_DATA"))
+            .andExpect(jsonPath("$.recommendedDomain").doesNotExist())
     }
 }
