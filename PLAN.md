@@ -233,21 +233,28 @@
 - HALF_OPEN 전이를 `call()` 시점이 아니라 **`state` 프로퍼티를 읽을 때도 계산**하도록 설계했다 — 실제로는 `call()` 내부에서만 상태를 확인해도 동작은 같지만(참조 구현의 `call()`이 시작할 때 `_maybe_transition_to_half_open()`을 다시 부르므로), stage 3 테스트가 `time.sleep()` 후 `cb.state`를 직접 읽어 HALF_OPEN 전이를 확인하기 때문에 `state`가 read-only 관찰이 아니라 지연 전이를 트리거하는 능동적 프로퍼티여야 했다. 이는 ADR-0011("파생값은 항상 읽는 시점에 계산")과 같은 원칙의 또 다른 사례 — OPEN이 HALF_OPEN으로 바뀌는 시점 자체가 "지금이 recovery_timeout을 넘겼는가"에서 파생되는 값이라 어딘가에 캐싱하면 타이머를 별도로 굴려야 했을 것이다.
 - Rate Limiter(6 stage)·Queue(4 stage)에 이어 Circuit Breaker도 **4 stage**로 유지했다 — PLAN.md 체크리스트가 명시한 세 핵심 개념(failure threshold/half-open/복구 판단)이 4개 stage(정상 동작을 별도 baseline stage로 분리)로 자연스럽게 나뉘었다.
 
-## 15단계 — Build 과제 확장: Distributed Lock
+## 15단계 — Build 과제 확장: Distributed Lock ✅ 완료 (2026-08-25)
 
-- [ ] `challenges/distributed-lock/` 템플릿 repo + stage 설계 (mutual exclusion, lease/TTL, fencing token)
+- [x] `challenges/distributed-lock/` 템플릿 repo + stage 설계 (mutual exclusion, lease/TTL, fencing token) — 4 stage: 상호 배제, lease 만료, fencing token(오래된 소유자 거부), 동시성
+- [x] `V16` 마이그레이션으로 챌린지/stage 시딩
 
-**완료 기준**: 14단계와 동일한 패턴.
+**완료 기준 충족**: 14단계와 동일한 패턴 — 로컬에서 참조 구현/스텁을 실제 sandbox로 먼저 검증한 뒤 마이그레이션에 반영. `DistributedLockControllerIntegrationTest`로 올바른 구현은 4 stage 전부 PASSED(`score=4`), 스텁은 전부 FAILED 확인, 격리 실행 2회 연속 통과. 신규 2개 포함 백엔드 총 101개 테스트 통과.
+
+**진행 중 발견한 결정 사항**:
+- Rate Limiter의 `InMemoryStore`/`FaultyStore` 패턴을 그대로 재사용해 `LockStore`를 별도 클래스로 분리했다 — 여러 `DistributedLock` 인스턴스가 같은 `LockStore`를 공유하면 "여러 프로세스가 같은 외부 락 서비스(Redis 등)를 바라보는" 상황을 실제 네트워크 호출 없이 시뮬레이션할 수 있다. 9단계에서 확립한 이 패턴이 매번 재사용 가능한 표준 모양이라는 것을 이번에 다시 확인했다.
+- fencing token 검증(stage 3)이 이 챌린지의 핵심이자 가장 지도하기 어려운 부분이었다 — 단순히 "토큰이 증가한다"만 확인하는 게 아니라, **만료된 소유자가 뒤늦게 `release()`를 호출해도 현재 소유자의 락에 전혀 영향을 주지 않아야 한다**는 것까지 어서션했다(`owner_id`와 `token`이 모두 일치해야 release가 성공하도록). 분산 락에서 가장 흔한 실무 버그(락을 소유했다고 "생각하는" 죽은/멈춘 프로세스가 다른 소유자의 락을 실수로 해제하는 것)를 정확히 겨냥한다.
 
 ## 16단계 — Build 과제 확장: Retry/Backoff Middleware
 
 - [ ] `challenges/retry-backoff/` 템플릿 repo + stage 설계 (exponential backoff, jitter, retry budget)
+- [ ] `V17` 마이그레이션으로 챌린지/stage 시딩
 
 **완료 기준**: 14단계와 동일한 패턴.
 
 ## 17단계 — Build 과제 확장: Event Bus
 
 - [ ] `challenges/event-bus/` 템플릿 repo + stage 설계 (pub/sub, at-least-once delivery, ordering)
+- [ ] `V18` 마이그레이션으로 챌린지/stage 시딩
 
 **완료 기준**: 14단계와 동일한 패턴.
 
