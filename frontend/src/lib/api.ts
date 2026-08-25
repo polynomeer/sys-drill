@@ -79,6 +79,37 @@ export interface SystemState {
   externalDependencyLatencyMs: number;
 }
 
+export interface SessionSummary {
+  id: string;
+  status: SessionStatus;
+  scenarioTitle: string;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+export interface SkillProfile {
+  userId: string;
+  weaknesses: Record<string, number>;
+  trend: number[];
+}
+
+export interface TimelineEntry {
+  phase: string;
+  submissionId: string;
+  totalScore: number | null;
+  topRisks: string[];
+}
+
+export interface Report {
+  id: string;
+  sessionId: string;
+  version: number;
+  summary: string | null;
+  timelineFeedback: TimelineEntry[];
+  improvementGuide: string[];
+  createdAt: string | null;
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -160,4 +191,16 @@ export function applySimulationAction(
     method: "POST",
     body: JSON.stringify({ actionType }),
   });
+}
+
+export function getUserSessions(userId: string): Promise<SessionSummary[]> {
+  return apiFetch<SessionSummary[]>(`/users/${userId}/sessions`);
+}
+
+export function getSkillProfile(userId: string): Promise<SkillProfile> {
+  return apiFetch<SkillProfile>(`/users/${userId}/skill-profile`);
+}
+
+export function getReport(sessionId: string): Promise<Report> {
+  return apiFetch<Report>(`/sessions/${sessionId}/report`);
 }

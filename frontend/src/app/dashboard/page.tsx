@@ -1,14 +1,37 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ApiError, ScenarioSummary, listScenarios, startSession } from "@/lib/api";
+import {
+  ApiError,
+  ScenarioSummary,
+  SessionSummary,
+  SkillProfile,
+  getSkillProfile,
+  getUserSessions,
+  listScenarios,
+  startSession,
+} from "@/lib/api";
 import { getStoredNickname, getStoredUserId } from "@/lib/localSession";
+import { riskLabel } from "@/lib/riskLabels";
+
+const STATUS_LABELS: Record<string, string> = {
+  IN_PROGRESS: "진행 중",
+  SUBMITTED: "제출됨",
+  EVALUATING: "평가 중",
+  FEEDBACK_READY: "결과 확인 가능",
+  EVALUATION_FAILED: "평가 실패",
+  COMPLETED: "완료",
+  ABANDONED: "중단됨",
+};
 
 export default function DashboardPage() {
   const router = useRouter();
   const [nickname, setNickname] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [skillProfile, setSkillProfile] = useState<SkillProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startingId, setStartingId] = useState<string | null>(null);
@@ -24,9 +47,13 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setNickname(getStoredNickname());
 
-    listScenarios()
-      .then(setScenarios)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "시나리오를 불러오지 못했습니다."))
+    Promise.all([listScenarios(), getUserSessions(userId), getSkillProfile(userId)])
+      .then(([scenarioList, sessionList, profile]) => {
+        setScenarios(scenarioList);
+        setSessions(sessionList);
+        setSkillProfile(profile);
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : "정보를 불러오지 못했습니다."))
       .finally(() => setLoading(false));
   }, [router]);
 
@@ -47,6 +74,12 @@ export default function DashboardPage() {
     }
   }
 
+  const topWeaknesses = skillProfile
+    ? Object.entries(skillProfile.weaknesses)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+    : [];
+
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-8">
       <div>
@@ -56,8 +89,69 @@ export default function DashboardPage() {
         <p className="mt-1 text-sm text-zinc-500">시나리오를 선택하면 바로 설계를 시작합니다.</p>
       </div>
 
-      {loading && <p className="text-sm text-zinc-500">불러오는 중...</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {!loading && (topWeaknesses.length > 0 || (skillProfile?.trend.length ?? 0) > 0) && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {topWeaknesses.length > 0 && (
+            <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
+              <h2 className="mb-2 text-sm font-semibold text-zinc-500">내 약점 TOP 3</h2>
+              <ul className="space-y-1 text-sm">
+                {topWeaknesses.map(([key, count]) => (
+                  <li key={key} className="flex justify-between">
+                    <span>{riskLabel(key)}</span>
+                    <span className="text-zinc-500">{count}회</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {(skillProfile?.trend.length ?? 0) > 0 && (
+            <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
+              <h2 className="mb-2 text-sm font-semibold text-zinc-500">점수 추이</h2>
+              <div className="flex items-end gap-1.5" style={{ height: 48 }}>
+                {skillProfile!.trend.map((score, i) => (
+                  <div
+                    key={i}
+                    title={`${score}/100`}
+                    className="w-4 rounded-t bg-foreground/70"
+                    style={{ height: `${Math.max(4, score / 2)}px` }}
+                  />
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-zinc-500">최근 {skillProfile!.trend.length}회 · 최신 {skillProfile!.trend.at(-1)}점</p>
+            </section>
+          )}
+        </div>
+      )}
+
+      {!loading && sessions.length > 0 && (
+        <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
+          <h2 className="mb-2 text-sm font-semibold text-zinc-500">최근 진행</h2>
+          <ul className="space-y-2 text-sm">
+            {sessions.slice(0, 5).map((session) => (
+              <li key={session.id} className="flex items-center justify-between">
+                <span>{session.scenarioTitle}</span>
+                <span className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">{STATUS_LABELS[session.status] ?? session.status}</span>
+                  {session.status === "COMPLETED" ? (
+                    <Link href={`/report/${session.id}`} className="text-xs font-medium underline">
+                      리포트 보기
+                    </Link>
+                  ) : (
+                    <Link href={`/design/${session.id}`} className="text-xs font-medium underline">
+                      이어하기
+                    </Link>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {loading && <p className="text-sm text-zinc-500">불러오는 중...</p>}
 
       <ul className="flex flex-col gap-3">
         {scenarios.map((scenario) => (

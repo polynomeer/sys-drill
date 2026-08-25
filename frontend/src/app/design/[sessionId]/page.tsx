@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   ApiError,
@@ -270,8 +271,11 @@ export default function DesignWorkspacePage() {
       )}
 
       {view === "completed" && (
-        <div className="rounded border border-zinc-300 p-6 dark:border-zinc-700">
+        <div className="flex flex-col items-start gap-3 rounded border border-zinc-300 p-6 dark:border-zinc-700">
           <p className="text-sm text-zinc-500">이 세션은 이미 종료되었습니다.</p>
+          <Link href={`/report/${sessionId}`} className="rounded bg-foreground px-4 py-2 text-sm font-medium text-background">
+            리포트 보기
+          </Link>
         </div>
       )}
 
