@@ -190,8 +190,78 @@
 
 ---
 
+# Phase 2 — Personalization / 콘텐츠 확장
+
+> [docs/ROADMAP.md](docs/ROADMAP.md) Phase 2 범위를 Claude Code가 실행할 단계로 분해한 것. Phase 1과 동일하게, 각 단계는 이전 단계가 동작하는 상태로 완료된 후 커밋하고 다음 단계로 진행한다.
+
+**로드맵 원칙과의 상충에 대한 기록**: [ROADMAP.md](docs/ROADMAP.md)의 "로드맵 운영 원칙"은 "각 Phase는 이전 Phase의 핵심 검증 질문에 긍정적인 신호가 있어야 다음으로 진행한다"고 명시하지만, Phase 1의 검증 질문(11단계 셀프 점검 참고)은 아직 실사용자 신호가 없는 상태다. 그럼에도 사용자의 명시적 결정으로 Phase 2를 바로 진행한다(2026-08-25) — 이 프로젝트의 목적상 실사용자 확보보다 기능 구현 자체가 우선이라는 판단. 이후 실사용자 피드백이 이 방향과 상충하는 신호를 주면 Phase 2 범위를 재검토한다.
+
+## 12단계 — 시나리오 seed 랜덤화 + adaptive 꼬리설계
+
+- [ ] 시나리오별 FOLLOWUP(꼬리설계) variant를 여러 개 authored — 시나리오당 최소 3개, 각각 다른 조건 변경 텍스트 + 특정 리스크 개념을 겨냥하는 태그(`targetRiskKey`, nullable)
+- [ ] `sessions.seed`(기존에 있었지만 미사용이던 컬럼)를 세션 시작 시 랜덤 값으로 채우고, variant 선택에 사용 — 같은 seed면 같은 변형이 나오는 결정론적 랜덤성("통제된 랜덤성", PRD.md §7.3)
+- [ ] Adaptive 선택 우선순위: 사용자 SkillProfile에서 이 시나리오 도메인과 관련된 최다 약점 riskKey가 있으면 그 riskKey를 겨냥한 variant를 우선 선택, 없으면 seed 기반으로 나머지 variant 중 결정론적 선택
+- [ ] 이미 등록된 3개 시나리오(coupon/notification/product-browsing) 각각에 variant 데이터 추가
+
+**완료 기준**: 같은 사용자가 반복 재도전(재도전 로직은 이번 단계 범위 밖 — 새 세션을 수동으로 다시 시작하는 것으로 충분)할 때, 반복되는 약점(riskKey)이 있으면 그 약점을 겨냥한 꼬리설계 조건이 나오는 것을 통합 테스트로 확인. seed가 다르면(약점 신호가 없는 신규 사용자) 매번 같은 variant가 아니라 세션마다 달라질 수 있음을 확인.
+
+## 13단계 — SkillProfile 고도화 (장기 추적)
+
+- [ ] 약점 추이를 "최근 10개" 고정 윈도우가 아니라 장기 누적 + 최근 추세를 함께 보여주는 구조로 확장
+- [ ] 도메인별(coupon/notification/product-browsing) 약점 분리 — 현재는 riskKey가 전체 세션에 걸쳐 하나로 합산됨
+- [ ] Dashboard: "다음 추천 시나리오/스텝"을 실제 약점 기반으로 계산 (8단계에서 시나리오가 1개뿐이라 미룬 로직)
+
+**완료 기준**: 3개 시나리오를 섞어 플레이한 사용자의 스킬 프로필이 도메인별로 구분되어 표시되고, 대시보드의 "다음 추천"이 실제 최다 약점과 연결된 시나리오를 가리키는 것을 확인.
+
+## 14단계 — Build 과제 확장: Circuit Breaker
+
+- [ ] `challenges/circuit-breaker/` 템플릿 repo + stage 설계 (failure threshold, half-open, 복구 판단)
+- [ ] `V14` 마이그레이션으로 챌린지/stage 시딩
+
+**완료 기준**: 9/11단계와 동일한 패턴 — 올바른 구현은 전체 stage PASSED, 스텁은 전체 FAILED, 실제 Docker 샌드박스로 검증.
+
+## 15단계 — Build 과제 확장: Distributed Lock
+
+- [ ] `challenges/distributed-lock/` 템플릿 repo + stage 설계 (mutual exclusion, lease/TTL, fencing token)
+
+**완료 기준**: 14단계와 동일한 패턴.
+
+## 16단계 — Build 과제 확장: Retry/Backoff Middleware
+
+- [ ] `challenges/retry-backoff/` 템플릿 repo + stage 설계 (exponential backoff, jitter, retry budget)
+
+**완료 기준**: 14단계와 동일한 패턴.
+
+## 17단계 — Build 과제 확장: Event Bus
+
+- [ ] `challenges/event-bus/` 템플릿 repo + stage 설계 (pub/sub, at-least-once delivery, ordering)
+
+**완료 기준**: 14단계와 동일한 패턴.
+
+## 18단계 — 추가 시나리오: 주문/결제
+
+- [ ] docs/PRD.md §8 표의 "주문/결제"(transaction boundary, outbox/saga, idempotency / 외부 결제 timeout, retry storm, partial failure)를 9~11단계의 다른 시나리오와 같은 상세도로 콘텐츠화 (초기조건/꼬리설계/워게임 3단계 프롬프트, `SimulationEngine` 인시던트 모델, `RuleEvaluator` 평가 포인트)
+- [ ] 12단계에서 만든 꼬리설계 variant 구조를 이 시나리오에도 적용
+
+**완료 기준**: 9~11단계와 동일한 패턴 — 실제 HTTP 파이프라인으로 Design→꼬리설계→Wargame→Report 완주, 인시던트 수치 손계산 대조.
+
+## 19단계 — 추가 시나리오: 예약 시스템
+
+- [ ] docs/PRD.md §8 표의 "예약 시스템"(locking, inventory consistency, timeout / 경합, 중복 예약, lock wait) 콘텐츠화
+
+**완료 기준**: 18단계와 동일한 패턴.
+
+## 20단계 — 추가 시나리오: 배치/정산
+
+- [ ] docs/PRD.md §8 표의 "배치/정산"(chunking, restartability, reconciliation / partial failure, long transaction, 재처리) 콘텐츠화
+
+**완료 기준**: 18단계와 동일한 패턴.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
-- 이 단계 구분은 Phase 1(MVP) 한정이다. Phase 2 이후는 [docs/ROADMAP.md](docs/ROADMAP.md)를 참고하고, 그 시점에 이 문서를 이어서 갱신한다.
+- Phase 1(0~11단계)과 Phase 2(12단계~)는 같은 이 문서 안에서 이어진다. Phase 3 이후는 [docs/ROADMAP.md](docs/ROADMAP.md)를 참고하고, 그 시점에 이 문서를 이어서 갱신한다.
 - 테스트: 각 단계마다 최소한의 자동 테스트(단위 또는 통합)를 함께 작성한다. 프론트엔드 단계는 가능하면 브라우저로 직접 동작을 확인한다.
+- 하드/되돌리기 어렵고/맥락 없이 놀랍고/진짜 트레이드오프인 결정은 [CLAUDE.md](CLAUDE.md)의 ADR 절 기준에 따라 `docs/adr/`에도 별도로 기록한다.
