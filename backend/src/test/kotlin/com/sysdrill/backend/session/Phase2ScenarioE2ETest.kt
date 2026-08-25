@@ -3,6 +3,7 @@ package com.sysdrill.backend.session
 import com.jayway.jsonpath.JsonPath
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
+import com.sysdrill.backend.support.BATCH_SETTLEMENT_SCENARIO_ID
 import com.sysdrill.backend.support.PAYMENT_SCENARIO_ID
 import com.sysdrill.backend.support.RESERVATION_SCENARIO_ID
 import com.sysdrill.backend.support.startSession
@@ -24,7 +25,7 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * PLAN.md steps 18/19's "추가 시나리오" completion criterion — same pattern
+ * PLAN.md steps 18/19/20's "추가 시나리오" completion criterion — same pattern
  * as MvpScenarioE2ETest (step 11), covering scenarios added after the
  * Phase 1 MVP (주문/결제, 예약 시스템, ...). Numeric SystemState fields are
  * read via JsonPath + AssertJ rather than jsonPath(...).value(Matchers.closeTo(...))
@@ -185,5 +186,63 @@ class Phase2ScenarioE2ETest(
         mockMvc.perform(post("/sessions/$sessionId/advance"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.currentStepPrompt").value(org.hamcrest.Matchers.containsString("결제를 완료하지 않은 채 이탈")))
+    }
+
+    @Test
+    fun `batch-settlement scenario completes Design, FOLLOWUP, and Wargame with domain-specific actions`() {
+        val sessionId = mockMvc.startSession(userId, scenarioId = BATCH_SETTLEMENT_SCENARIO_ID)
+        mockMvc.perform(get("/sessions/$sessionId"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.domain").value("batch-settlement"))
+
+        submitAndWaitForFeedback(sessionId, "레코드를 청크 단위로 분할 처리하고 체크포인트로 실패 지점부터 재개합니다.")
+        mockMvc.perform(post("/sessions/$sessionId/advance")).andExpect(status().isOk)
+
+        submitAndWaitForFeedback(sessionId, "재처리 시 이미 반영된 레코드는 정합성을 위해 멱등하게 건너뜁니다.")
+        mockMvc.perform(post("/sessions/$sessionId/advance"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.currentPhase").value("INCIDENT"))
+
+        val incidentResponse = mockMvc.perform(post("/sessions/$sessionId/simulation/incident"))
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+        assertThat(JsonPath.read<Double>(incidentResponse, "$.errorRate")).isCloseTo(0.6, delta)
+        assertThat(JsonPath.read<Long>(incidentResponse, "$.queueLag")).isEqualTo(600000L)
+
+        // an out-of-domain action (coupon's) must be rejected for a batch-settlement session
+        applyAction(sessionId, "STRENGTHEN_RATE_LIMIT").andExpect(status().isConflict)
+
+        applyAction(sessionId, "ENABLE_CHECKPOINT_RESTART").andExpect(status().isOk)
+        applyAction(sessionId, "REDUCE_CHUNK_SIZE").andExpect(status().isOk)
+        val recovered = applyAction(sessionId, "ENABLE_IDEMPOTENT_RECONCILIATION")
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+        assertThat(JsonPath.read<Long>(recovered, "$.queueLag")).isEqualTo(1000L)
+        assertThat(JsonPath.read<Double>(recovered, "$.errorRate")).isCloseTo(0.0, delta)
+
+        submitAndWaitForFeedback(sessionId, "체크포인트 재개, 청크 축소, 멱등한 재처리로 대응했습니다.")
+        mockMvc.perform(post("/sessions/$sessionId/advance"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("COMPLETED"))
+
+        mockMvc.perform(get("/sessions/$sessionId/report"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.timelineFeedback.length()").value(3))
+    }
+
+    @Test
+    fun `batch-settlement FOLLOWUP variant targets the user's recorded weakness over the session seed`() {
+        // Mentions chunking and checkpoint/restart explicitly (so those
+        // concepts aren't flagged) but says nothing about reconciliation, so
+        // MISSING_RECONCILIATION is the sole recorded weakness — no tie with
+        // another concept for selectVariant to break.
+        val primerSessionId = mockMvc.startSession(userId, scenarioId = BATCH_SETTLEMENT_SCENARIO_ID, seed = "primer")
+        submitAndWaitForFeedback(primerSessionId, "레코드를 작은 단위로 분할 처리하고, 실패 시 체크포인트부터 재개합니다.")
+
+        val sessionId = mockMvc.startSession(userId, scenarioId = BATCH_SETTLEMENT_SCENARIO_ID, seed = "irrelevant-because-weakness-wins")
+        submitAndWaitForFeedback(sessionId, "청크 단위로 분할 처리하고 체크포인트로 재개합니다.")
+        mockMvc.perform(post("/sessions/$sessionId/advance"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.currentStepPrompt").value(org.hamcrest.Matchers.containsString("중복 반영")))
     }
 }

@@ -324,4 +324,70 @@ class SimulationEngineTest {
 
     private fun reservationSession(incidentActive: Boolean, traits: DesignTraits = DesignTraits()) =
         SimulationSessionState(domain = SimulationEngine.DOMAIN_RESERVATION, incidentActive = incidentActive, traits = traits)
+
+    // ---- batch-settlement (PLAN.md step 20 — restart cost of a single long-running
+    // job, not concurrent request contention; errorRate here is a reconciliation
+    // mismatch rate, not a request failure rate) ----
+
+    @Test
+    fun `baseline batch-settlement run is stable`() {
+        val state = SimulationEngine.computeState(batchSettlementSession(incidentActive = false))
+
+        assertThat(state.trafficRps).isEqualTo(20000.0)
+        assertThat(state.consumerThroughput).isCloseTo(18181.818, delta)
+        assertThat(state.queueLag).isEqualTo(0)
+        assertThat(state.errorRate).isCloseTo(0.0, delta)
+        assertThat(state.p95LatencyMs).isCloseTo(590.0, delta)
+    }
+
+    @Test
+    fun `the batch-settlement incident forces a full restart and duplicate reconciliation without mitigation`() {
+        val state = SimulationEngine.computeState(batchSettlementSession(incidentActive = true))
+
+        assertThat(state.queueLag).isEqualTo(600000)
+        assertThat(state.errorRate).isCloseTo(0.6, delta)
+        assertThat(state.consumerThroughput).isCloseTo(7272.727, delta)
+        assertThat(state.p95LatencyMs).isCloseTo(1150.0, delta)
+    }
+
+    @Test
+    fun `no single batch-settlement action alone fully recovers the session`() {
+        val checkpointOnly = SimulationEngine.computeState(
+            SimulationEngine.applyAction(batchSettlementSession(incidentActive = true), SimulationActionType.ENABLE_CHECKPOINT_RESTART)
+        )
+        val reduceChunkOnly = SimulationEngine.computeState(
+            SimulationEngine.applyAction(batchSettlementSession(incidentActive = true), SimulationActionType.REDUCE_CHUNK_SIZE)
+        )
+        val idempotentOnly = SimulationEngine.computeState(
+            SimulationEngine.applyAction(batchSettlementSession(incidentActive = true), SimulationActionType.ENABLE_IDEMPOTENT_RECONCILIATION)
+        )
+
+        // checkpointing alone shrinks the waste but doesn't eliminate the mismatch
+        assertThat(checkpointOnly.errorRate).isCloseTo(0.01, delta)
+        // without checkpointing, a smaller chunk size doesn't change anything — the
+        // whole batch still restarts from zero on failure
+        assertThat(reduceChunkOnly.errorRate).isCloseTo(0.6, delta)
+        // idempotent reconciliation alone zeroes the *correctness* metric, but the
+        // wasted-work/throughput axis is untouched — still a full restart's worth
+        assertThat(idempotentOnly.errorRate).isCloseTo(0.0, delta)
+        assertThat(idempotentOnly.queueLag).isEqualTo(600000)
+    }
+
+    @Test
+    fun `all three batch-settlement actions together recover the session`() {
+        var session = batchSettlementSession(incidentActive = true)
+        session = SimulationEngine.applyAction(session, SimulationActionType.ENABLE_CHECKPOINT_RESTART)
+        session = SimulationEngine.applyAction(session, SimulationActionType.REDUCE_CHUNK_SIZE)
+        session = SimulationEngine.applyAction(session, SimulationActionType.ENABLE_IDEMPOTENT_RECONCILIATION)
+
+        val state = SimulationEngine.computeState(session)
+
+        assertThat(state.consumerThroughput).isCloseTo(9990.0, delta)
+        assertThat(state.queueLag).isEqualTo(1000)
+        assertThat(state.errorRate).isCloseTo(0.0, delta)
+        assertThat(state.p95LatencyMs).isCloseTo(700.0, delta)
+    }
+
+    private fun batchSettlementSession(incidentActive: Boolean, traits: DesignTraits = DesignTraits()) =
+        SimulationSessionState(domain = SimulationEngine.DOMAIN_BATCH_SETTLEMENT, incidentActive = incidentActive, traits = traits)
 }

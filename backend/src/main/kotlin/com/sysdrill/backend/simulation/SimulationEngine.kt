@@ -18,6 +18,7 @@ object SimulationEngine {
     const val DOMAIN_PRODUCT_BROWSING = "product-browsing"
     const val DOMAIN_PAYMENT = "payment"
     const val DOMAIN_RESERVATION = "reservation"
+    const val DOMAIN_BATCH_SETTLEMENT = "batch-settlement"
 
     /**
      * utilization = incoming_load / max_capacity bands, per docs/ARCHITECTURE.md §6:
@@ -49,6 +50,7 @@ object SimulationEngine {
         DOMAIN_PRODUCT_BROWSING -> ProductBrowsing.computeState(session)
         DOMAIN_PAYMENT -> Payment.computeState(session)
         DOMAIN_RESERVATION -> Reservation.computeState(session)
+        DOMAIN_BATCH_SETTLEMENT -> BatchSettlement.computeState(session)
         else -> error("Unknown simulation domain: ${session.domain}")
     }
 
@@ -59,6 +61,7 @@ object SimulationEngine {
             DOMAIN_PRODUCT_BROWSING -> current.copy(traits = ProductBrowsing.applyAction(current.traits, action))
             DOMAIN_PAYMENT -> current.copy(traits = Payment.applyAction(current.traits, action))
             DOMAIN_RESERVATION -> current.copy(traits = Reservation.applyAction(current.traits, action))
+            DOMAIN_BATCH_SETTLEMENT -> current.copy(traits = BatchSettlement.applyAction(current.traits, action))
             else -> error("Unknown simulation domain: ${current.domain}")
         }
 
@@ -411,5 +414,91 @@ object SimulationEngine {
         }
 
         private const val MIN_HOLD_TIMEOUT_SECONDS = 30
+    }
+
+    /**
+     * docs/PRD.md §8 "배치/정산" — 야간 정산 배치가 record 단위로 청크를
+     * 처리하던 중 정산 API가 저하되면 청크 하나가 실패한다. 이전 5개
+     * 도메인과 축이 또 다르다(ADR-0010/0012): 동시 요청 트래픽이 자원을
+     * 두고 경합하는 게 아니라, **하나의 연속된 작업이 중간에 끊겼을 때
+     * 무엇을 다시 해야 하는가**가 핵심이다. 체크포인트 없이 재시작하면
+     * (checkpointingEnabled=false) 실패 시점까지 이미 처리한 레코드까지
+     * 전부 버려지고 처음부터 다시 돌아야 한다 — 반대로 실패한 청크만
+     * 재개하면 낭비가 청크 크기로 줄어든다. 청크를 잘게 쪼갤수록
+     * (chunkSize↓) 실패 시 버리는 양은 줄지만, 청크마다 붙는 커밋
+     * 오버헤드가 상대적으로 커져 정상 처리량 자체가 낮아진다 — locking
+     * 세분화(reservation)처럼 "작을수록 무조건 좋다"가 아니라 처리량과
+     * 재처리 비용이 서로를 깎아먹는 진짜 트레이드오프다. 재처리된
+     * 레코드가 멱등하게 처리되지 않으면(idempotentReconciliationEnabled=false)
+     * 이미 반영된 정산 결과가 중복 반영된다 — errorRate가 여기서는
+     * "요청 실패율"이 아니라 **정산 정합성이 깨진 레코드 비율**이라는
+     * 점도 이전 도메인들과 다르다. 그래서 이 도메인만 latencyMultiplier/
+     * errorRateFor 공용 utilization 밴드를 쓰지 않는다 — 정합성 붕괴는
+     * 시스템이 "포화"돼서가 아니라 설계 구멍 때문에 생기는 것이라 부하
+     * 구간과 결부시킬 이유가 없다.
+     */
+    private object BatchSettlement {
+        private const val TOTAL_RECORDS = 1_000_000.0
+        private const val PROGRESS_AT_FAILURE_FRACTION = 0.6 // PRD.md §8 워게임: partial failure — 진행 60% 시점에 정산 API 저하
+
+        private const val BASE_SETTLEMENT_API_LATENCY_MS = 40.0
+        private const val INCIDENT_API_DEGRADATION_FACTOR = 15.0
+
+        private const val CHUNK_OVERHEAD_MS = 50.0 // 청크마다 붙는 고정 커밋/체크포인트 오버헤드
+        private const val RECORD_PROCESSING_MS = 0.05
+
+        private const val BASELINE_INGESTION_RPS = 20000.0
+
+        fun computeState(session: SimulationSessionState): SystemState {
+            val traits = session.traits
+            val externalLatencyMs = if (session.incidentActive) {
+                BASE_SETTLEMENT_API_LATENCY_MS * INCIDENT_API_DEGRADATION_FACTOR
+            } else {
+                BASE_SETTLEMENT_API_LATENCY_MS
+            }
+
+            // Restartability: 체크포인트가 없으면 실패 시점까지 처리한 전체 레코드를
+            // 버리고 처음부터 다시 시작해야 한다. 있으면 실패한 청크 하나만 버린다.
+            val wastedRecords = if (!session.incidentActive) {
+                0.0
+            } else if (traits.checkpointingEnabled) {
+                traits.chunkSize.toDouble()
+            } else {
+                TOTAL_RECORDS * PROGRESS_AT_FAILURE_FRACTION
+            }
+            val recoveryOverheadFraction = wastedRecords / TOTAL_RECORDS
+
+            // Reconciliation: 재처리가 멱등하지 않으면 버려진 게 아니라 이미 반영된
+            // 레코드까지 다시 쓰여 정산 결과가 중복된다.
+            val mismatchFraction = if (traits.idempotentReconciliationEnabled) 0.0 else recoveryOverheadFraction
+
+            val chunkProcessingMs = traits.chunkSize * RECORD_PROCESSING_MS + CHUNK_OVERHEAD_MS
+            val baseThroughput = traits.chunkSize / (chunkProcessingMs / 1000.0)
+            val effectiveThroughput = baseThroughput * (1 - recoveryOverheadFraction)
+
+            return SystemState(
+                trafficRps = BASELINE_INGESTION_RPS,
+                p95LatencyMs = chunkProcessingMs + externalLatencyMs,
+                errorRate = mismatchFraction,
+                availability = 1.0 - mismatchFraction,
+                dbReadLoad = 0.0,
+                dbWriteLoad = recoveryOverheadFraction,
+                connectionPoolUsage = 0.0,
+                cacheHitRatio = 0.0,
+                cacheLatencyMs = 0.0,
+                queueLag = wastedRecords.toLong(),
+                consumerThroughput = effectiveThroughput,
+                externalDependencyLatencyMs = externalLatencyMs,
+            )
+        }
+
+        fun applyAction(traits: DesignTraits, action: SimulationActionType): DesignTraits = when (action) {
+            SimulationActionType.ENABLE_CHECKPOINT_RESTART -> traits.copy(checkpointingEnabled = true)
+            SimulationActionType.REDUCE_CHUNK_SIZE -> traits.copy(chunkSize = MIN_CHUNK_SIZE)
+            SimulationActionType.ENABLE_IDEMPOTENT_RECONCILIATION -> traits.copy(idempotentReconciliationEnabled = true)
+            else -> error("$action does not apply to the batch-settlement incident")
+        }
+
+        private const val MIN_CHUNK_SIZE = 1000
     }
 }

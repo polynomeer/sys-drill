@@ -138,12 +138,32 @@ object RuleEvaluator {
         ),
     )
 
+    /** docs/PRD.md §8 "배치/정산" 평가 포인트: chunking, restartability, reconciliation. */
+    private val batchSettlementConcepts = listOf(
+        Concept(
+            "MISSING_CHUNKING",
+            listOf("청킹", "chunk", "배치 크기", "batch size", "분할 처리"),
+            "대용량 배치를 작은 단위로 나누어 처리하는 전략(chunking)에 대한 언급이 없습니다. 청크 크기가 실패 시 재처리 범위와 처리량에 미치는 영향을 확인이 필요합니다.",
+        ),
+        Concept(
+            "MISSING_RESTARTABILITY",
+            listOf("재시작", "restart", "체크포인트", "checkpoint", "재개"),
+            "중간 실패 시 처음부터 재실행하지 않고 이어서 재개(restartability)하는 전략에 대한 언급이 없습니다. 체크포인트 없이 실패하면 이미 처리한 작업까지 모두 낭비됩니다.",
+        ),
+        Concept(
+            "MISSING_RECONCILIATION",
+            listOf("정합성", "reconciliation", "재처리", "중복 정산", "대사"),
+            "재처리 시 이미 처리된 레코드가 중복 반영되지 않도록 하는 정산 정합성(reconciliation) 처리에 대한 언급이 없습니다.",
+        ),
+    )
+
     private val conceptsByDomain = mapOf(
         "coupon" to couponConcepts,
         "notification" to notificationConcepts,
         "product-browsing" to productBrowsingConcepts,
         "payment" to paymentConcepts,
         "reservation" to reservationConcepts,
+        "batch-settlement" to batchSettlementConcepts,
     )
 
     /** Reverse lookup (riskKey -> domain), derived from [conceptsByDomain] rather than duplicated — used by SkillProfileController (PLAN.md step 13) to group weaknesses by scenario domain. */

@@ -71,4 +71,21 @@ class SimulationSessionStateCodecTest {
 
         assertThat(decoded).isEqualTo(original)
     }
+
+    @Test
+    fun `round-trips batch-settlement traits`() {
+        val original = SimulationSessionState(
+            domain = "batch-settlement",
+            incidentActive = true,
+            traits = DesignTraits(
+                checkpointingEnabled = true,
+                chunkSize = 1000,
+                idempotentReconciliationEnabled = true,
+            ),
+        )
+
+        val decoded = SimulationSessionStateCodec.decode(SimulationSessionStateCodec.encode(original))
+
+        assertThat(decoded).isEqualTo(original)
+    }
 }

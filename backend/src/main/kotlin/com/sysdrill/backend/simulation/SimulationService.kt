@@ -96,5 +96,11 @@ class SimulationService(
             "긍정 효과: 결제 미완료로 이탈한 홀드가 자원을 점유하는 시간 감소. 가능한 부작용: 정상 사용자가 실제로 필요한 시간보다 일찍 홀드가 풀릴 위험."
         SimulationActionType.ENABLE_ATOMIC_INVENTORY_CHECK ->
             "긍정 효과: 재고 확인과 확정 사이의 경쟁으로 인한 낭비성 재시도 제거. 가능한 부작용: 원자적 처리를 위한 락/트랜잭션 범위 확대."
+        SimulationActionType.ENABLE_CHECKPOINT_RESTART ->
+            "긍정 효과: 실패 시 처음부터가 아니라 실패한 청크부터 재개하여 낭비되는 작업량 대폭 감소. 가능한 부작용: 체크포인트 저장·조회 비용 추가."
+        SimulationActionType.REDUCE_CHUNK_SIZE ->
+            "긍정 효과: 실패 시 재처리해야 할 레코드 범위 축소. 가능한 부작용: 청크당 커밋 오버헤드 비중 증가로 정상 처리량 자체는 감소."
+        SimulationActionType.ENABLE_IDEMPOTENT_RECONCILIATION ->
+            "긍정 효과: 재처리된 레코드가 중복 반영되지 않아 정산 정합성 유지. 가능한 부작용: 레코드별 처리 이력 저장·조회 비용 추가."
     }
 }

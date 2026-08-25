@@ -136,4 +136,32 @@ class RuleEvaluatorTest {
 
         assertThat(reservationKeys).doesNotContainAnyElementsOf(otherKeys)
     }
+
+    @Test
+    fun `flags all three batch-settlement concepts when the submission mentions none of them`() {
+        val findings = RuleEvaluator.evaluate("그냥 전체 레코드를 한 번에 처리합니다.", "batch-settlement")
+
+        assertThat(findings.map { it.riskKey }).containsExactlyInAnyOrder(
+            "MISSING_CHUNKING",
+            "MISSING_RESTARTABILITY",
+            "MISSING_RECONCILIATION",
+        )
+    }
+
+    @Test
+    fun `does not flag restartability when the submission mentions checkpoint`() {
+        val findings = RuleEvaluator.evaluate("매 청크마다 체크포인트를 저장해 실패 시 이어서 재개합니다.", "batch-settlement")
+
+        assertThat(findings.map { it.riskKey }).doesNotContain("MISSING_RESTARTABILITY")
+    }
+
+    @Test
+    fun `batch-settlement riskKeys do not collide with any other domain's riskKeys`() {
+        val batchSettlementKeys = RuleEvaluator.evaluate(null, "batch-settlement").map { it.riskKey }.toSet()
+        val otherKeys = listOf("coupon", "notification", "product-browsing", "payment", "reservation")
+            .flatMap { RuleEvaluator.evaluate(null, it).map { finding -> finding.riskKey } }
+            .toSet()
+
+        assertThat(batchSettlementKeys).doesNotContainAnyElementsOf(otherKeys)
+    }
 }

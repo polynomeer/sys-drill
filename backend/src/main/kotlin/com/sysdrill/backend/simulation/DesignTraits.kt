@@ -29,6 +29,10 @@ data class DesignTraits(
     val fineGrainedLockingEnabled: Boolean = false,
     val holdTimeoutSeconds: Int = DEFAULT_HOLD_TIMEOUT_SECONDS,
     val atomicInventoryCheckEnabled: Boolean = false,
+    // batch-settlement
+    val checkpointingEnabled: Boolean = false,
+    val chunkSize: Int = DEFAULT_CHUNK_SIZE,
+    val idempotentReconciliationEnabled: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_CACHE_TTL_SECONDS = 10
@@ -37,5 +41,6 @@ data class DesignTraits(
         const val DEFAULT_RETRY_BACKOFF_MULTIPLIER = 1
         const val DEFAULT_DISPATCHER_WORKERS = 4
         const val DEFAULT_HOLD_TIMEOUT_SECONDS = 300
+        const val DEFAULT_CHUNK_SIZE = 10000
     }
 }
