@@ -24,16 +24,38 @@ import {
 import { WargameLive } from "./WargameLive";
 import { BridgeProgress } from "@/components/BridgeProgress";
 
-const DESIGN_GUIDANCE = [
-  "기능/비기능 요구사항 요약 (무엇을 보장하고 무엇을 포기할지)",
-  "고수준 아키텍처와 요청 흐름",
-  "저장소 선택과 읽기/쓰기 패턴",
-  "동시성·멱등성 처리 (중복 발급 방지)",
-  "캐시/락 전략과 실패 시 대응",
-  "Rate limit 등 트래픽 보호 전략",
-  "관측(metrics/logs/alert) 계획",
-  "예상 병목과 트레이드오프",
-];
+const DESIGN_GUIDANCE_BY_DOMAIN: Record<string, string[]> = {
+  coupon: [
+    "기능/비기능 요구사항 요약 (무엇을 보장하고 무엇을 포기할지)",
+    "고수준 아키텍처와 요청 흐름",
+    "저장소 선택과 읽기/쓰기 패턴",
+    "동시성·멱등성 처리 (중복 발급 방지)",
+    "캐시/락 전략과 실패 시 대응",
+    "Rate limit 등 트래픽 보호 전략",
+    "관측(metrics/logs/alert) 계획",
+    "예상 병목과 트레이드오프",
+  ],
+  notification: [
+    "기능/비기능 요구사항 요약 (무엇을 보장하고 무엇을 포기할지)",
+    "비동기 처리 경계 (이벤트 발행 vs 알림 전송)",
+    "idempotent consumer — 재시도로 인한 중복 발송 방지",
+    "retry/backoff 전략",
+    "DLQ(dead letter queue) — poison message 격리",
+    "provider별 circuit breaker",
+    "관측(metrics/logs/alert) 계획",
+    "예상 병목과 트레이드오프",
+  ],
+  "product-browsing": [
+    "기능/비기능 요구사항 요약 (무엇을 보장하고 무엇을 포기할지)",
+    "고수준 아키텍처와 요청 흐름",
+    "데이터별 캐시 정책 분리 (가격 vs 리뷰)",
+    "hot key 분산 전략",
+    "single-flight/lock — 동시 cache miss 중복 요청 방지",
+    "read replica를 통한 읽기 확장",
+    "관측(metrics/logs/alert) 계획",
+    "예상 병목과 트레이드오프",
+  ],
+};
 
 const INCIDENT_GUIDANCE = [
   "가장 먼저 확인한 지표와 그 이유",
@@ -192,7 +214,8 @@ export default function DesignWorkspacePage() {
 
   const isFollowup = session?.currentPhase === "FOLLOWUP";
   const isIncident = session?.currentPhase === "INCIDENT";
-  const guidance = isIncident ? INCIDENT_GUIDANCE : DESIGN_GUIDANCE;
+  const domain = session?.domain ?? "coupon";
+  const guidance = isIncident ? INCIDENT_GUIDANCE : (DESIGN_GUIDANCE_BY_DOMAIN[domain] ?? DESIGN_GUIDANCE_BY_DOMAIN.coupon);
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
@@ -220,7 +243,7 @@ export default function DesignWorkspacePage() {
         </section>
       )}
 
-      {isIncident && (view === "editing" || view === "submitting") && <WargameLive sessionId={sessionId} />}
+      {isIncident && (view === "editing" || view === "submitting") && <WargameLive sessionId={sessionId} domain={domain} />}
 
       {(view === "editing" || view === "submitting") && (
         <>

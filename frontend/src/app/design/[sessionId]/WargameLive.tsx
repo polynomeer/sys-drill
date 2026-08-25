@@ -11,29 +11,75 @@ import {
 } from "@/lib/api";
 import { formatMs, formatPercent, utilizationColorClass } from "@/lib/metrics";
 
-const ACTIONS: { type: SimulationActionType; label: string; effect: string }[] = [
-  {
-    type: "STRENGTHEN_RATE_LIMIT",
-    label: "Rate Limit 강화",
-    effect: "긍정 효과: DB/다운스트림 보호. 부작용: 일부 사용자 거절, UX 저하.",
-  },
-  {
-    type: "INCREASE_CACHE_TTL",
-    label: "Cache TTL 조정",
-    effect: "긍정 효과: DB 부하·latency 감소. 부작용: stale data 위험.",
-  },
-  {
-    type: "INCREASE_DB_POOL",
-    label: "DB Pool 증가",
-    effect: "긍정 효과: 대기 요청 일부 감소. 부작용: DB 자체 한계 초과 가능.",
-  },
-];
+type ActionDef = { type: SimulationActionType; label: string; effect: string };
+
+const ACTIONS_BY_DOMAIN: Record<string, ActionDef[]> = {
+  coupon: [
+    {
+      type: "STRENGTHEN_RATE_LIMIT",
+      label: "Rate Limit 강화",
+      effect: "긍정 효과: DB/다운스트림 보호. 부작용: 일부 사용자 거절, UX 저하.",
+    },
+    {
+      type: "INCREASE_CACHE_TTL",
+      label: "Cache TTL 조정",
+      effect: "긍정 효과: DB 부하·latency 감소. 부작용: stale data 위험.",
+    },
+    {
+      type: "INCREASE_DB_POOL",
+      label: "DB Pool 증가",
+      effect: "긍정 효과: 대기 요청 일부 감소. 부작용: DB 자체 한계 초과 가능.",
+    },
+  ],
+  notification: [
+    {
+      type: "ENABLE_CIRCUIT_BREAKER",
+      label: "Circuit Breaker 활성화",
+      effect: "긍정 효과: 죽은 provider를 기다리지 않아 컨슈머가 빠르게 회복. 부작용: breaker OPEN 동안 해당 provider 메시지 유실/지연 가능.",
+    },
+    {
+      type: "ADD_CONSUMERS",
+      label: "컨슈머 증설",
+      effect: "긍정 효과: 처리량 증가로 backlog 감소. 부작용: provider 동시 호출 증가.",
+    },
+    {
+      type: "ADJUST_RETRY_BACKOFF",
+      label: "Retry Backoff 조정",
+      effect: "긍정 효과: 재시도 폭풍(retry storm) 완화. 부작용: 개별 메시지 전달 지연 증가.",
+    },
+  ],
+  "product-browsing": [
+    {
+      type: "SPLIT_CACHE_POLICY",
+      label: "캐시 정책 분리",
+      effect: "긍정 효과: 데이터 특성별 TTL 분리로 hit ratio 회복. 부작용: 캐시 정책 복잡도 증가.",
+    },
+    {
+      type: "ENABLE_SINGLE_FLIGHT",
+      label: "Single-flight 적용",
+      effect: "긍정 효과: 동시 cache miss의 DB 요청 중복(dogpile) 제거. 부작용: 요청 간 대기 발생 가능.",
+    },
+    {
+      type: "ADD_READ_REPLICA",
+      label: "Read Replica 추가",
+      effect: "긍정 효과: DB read 용량 증가. 부작용: replica lag으로 조회 최신성 저하.",
+    },
+  ],
+};
+
+const INCIDENT_EVENT_BY_DOMAIN: Record<string, string> = {
+  coupon: "인시던트 발생: 트래픽 20배 급증, Redis latency 상승 → DB write hotspot",
+  notification: "인시던트 발생: provider timeout → 재시도 폭증 → consumer lag 증가",
+  "product-browsing": "인시던트 발생: hot key 트래픽 집중 → cache miss 폭증 → DB read latency 급증",
+};
 
 const POLL_INTERVAL_MS = 3000;
 
 /** PLAN.md step 7's MetricsPanel/ActionPanel — EventStream/Timeline are merged into
- * one client-side log below since there's no backend timeline API yet. */
-export function WargameLive({ sessionId }: { sessionId: string }) {
+ * one client-side log below since there's no backend timeline API yet. Actions and
+ * the incident event text are keyed by scenario domain (PLAN.md step 11). */
+export function WargameLive({ sessionId, domain }: { sessionId: string; domain: string }) {
+  const ACTIONS = ACTIONS_BY_DOMAIN[domain] ?? ACTIONS_BY_DOMAIN.coupon;
   const [state, setState] = useState<SystemState | null>(null);
   const [appliedActions, setAppliedActions] = useState<Set<SimulationActionType>>(new Set());
   const [events, setEvents] = useState<string[]>([]);
@@ -54,10 +100,10 @@ export function WargameLive({ sessionId }: { sessionId: string }) {
         started.current = true;
         const initial = await startIncident(sessionId);
         setState(initial);
-        addEvent("인시던트 발생: 트래픽 20배 급증, Redis latency 상승 → DB write hotspot");
+        addEvent(INCIDENT_EVENT_BY_DOMAIN[domain] ?? INCIDENT_EVENT_BY_DOMAIN.coupon);
       }
     }
-  }, [sessionId, addEvent]);
+  }, [sessionId, domain, addEvent]);
 
   useEffect(() => {
     // Data fetch on mount, not a cascading render loop.
@@ -88,7 +134,7 @@ export function WargameLive({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <MetricsPanel state={state} />
+      <MetricsPanel state={state} domain={domain} />
       <div className="grid gap-4 md:grid-cols-2">
         <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
           <h2 className="mb-3 text-sm font-semibold text-zinc-500">대응 액션</h2>
@@ -126,17 +172,34 @@ export function WargameLive({ sessionId }: { sessionId: string }) {
   );
 }
 
-function MetricsPanel({ state }: { state: SystemState }) {
-  const metrics: { label: string; value: string; colorFor?: number }[] = [
+type Metric = { label: string; value: string; colorFor?: number };
+
+function MetricsPanel({ state, domain }: { state: SystemState; domain: string }) {
+  const common: Metric[] = [
     { label: "Traffic", value: `${state.trafficRps.toFixed(0)} rps` },
     { label: "p95 Latency", value: formatMs(state.p95LatencyMs) },
     { label: "Error Rate", value: formatPercent(state.errorRate), colorFor: state.errorRate },
     { label: "Availability", value: formatPercent(state.availability) },
-    { label: "DB Read Load", value: formatPercent(state.dbReadLoad), colorFor: state.dbReadLoad },
-    { label: "DB Write Load", value: formatPercent(state.dbWriteLoad), colorFor: state.dbWriteLoad },
-    { label: "Cache Hit Ratio", value: formatPercent(state.cacheHitRatio) },
-    { label: "Cache Latency", value: formatMs(state.cacheLatencyMs) },
   ];
+  const domainSpecific: Metric[] =
+    domain === "notification"
+      ? [
+          { label: "Queue Lag", value: `${state.queueLag}`, colorFor: state.queueLag > 0 ? 0.9 : 0 },
+          { label: "Consumer Throughput", value: `${state.consumerThroughput.toFixed(1)}/s` },
+          { label: "Provider Latency", value: formatMs(state.externalDependencyLatencyMs) },
+        ]
+      : domain === "product-browsing"
+        ? [
+            { label: "DB Read Load", value: formatPercent(state.dbReadLoad), colorFor: state.dbReadLoad },
+            { label: "Cache Hit Ratio", value: formatPercent(state.cacheHitRatio) },
+          ]
+        : [
+            { label: "DB Read Load", value: formatPercent(state.dbReadLoad), colorFor: state.dbReadLoad },
+            { label: "DB Write Load", value: formatPercent(state.dbWriteLoad), colorFor: state.dbWriteLoad },
+            { label: "Cache Hit Ratio", value: formatPercent(state.cacheHitRatio) },
+            { label: "Cache Latency", value: formatMs(state.cacheLatencyMs) },
+          ];
+  const metrics = [...common, ...domainSpecific];
 
   return (
     <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">

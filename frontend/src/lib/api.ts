@@ -29,6 +29,7 @@ export interface SessionResponse {
   currentPhase: string | null;
   currentStepPrompt: string | null;
   scenarioVersionId: string;
+  domain: string;
   buildSubmissionId: string | null;
   startedAt: string;
   completedAt: string | null;
@@ -63,7 +64,16 @@ export interface EvaluationFeedback {
   createdAt: string | null;
 }
 
-export type SimulationActionType = "STRENGTHEN_RATE_LIMIT" | "INCREASE_CACHE_TTL" | "INCREASE_DB_POOL";
+export type SimulationActionType =
+  | "STRENGTHEN_RATE_LIMIT"
+  | "INCREASE_CACHE_TTL"
+  | "INCREASE_DB_POOL"
+  | "ADD_CONSUMERS"
+  | "ENABLE_CIRCUIT_BREAKER"
+  | "ADJUST_RETRY_BACKOFF"
+  | "SPLIT_CACHE_POLICY"
+  | "ENABLE_SINGLE_FLIGHT"
+  | "ADD_READ_REPLICA";
 
 export interface SystemState {
   trafficRps: number;
