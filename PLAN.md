@@ -156,12 +156,18 @@
 - 이번 단계는 **CLI/API만 구현하고 프론트엔드 UI는 만들지 않았다.** PRD.md §7.1 기준 Build Mode의 P0 검증 대상은 "샌드박스 채점 파이프라인이 실제로 동작하는가"이고, 사용자는 로컬 템플릿 repo(`challenges/rate-limiter/`)에서 `git`/`submit.sh`로 제출하는 방식으로 이미 완결된 루프를 수행할 수 있다. Bridge Mode(10단계)에서 Build→Design→Wargame을 한 화면 흐름으로 엮을 때 Build 제출 UI도 함께 만드는 것이 중복 작업을 피하는 길이라 그때로 미뤘다.
 - **레이스 컨디션 버그를 발견/수정**했다: `BuildSubmissionService.submit()`이 `@Transactional` 메서드 안에서 `BuildJobQueue.enqueue()`를 직접 호출했는데, 이는 DB 커밋 이전에 Redis에 job이 올라가는 것이라 워커가 아직 안 보이는 트랜잭션의 row를 `findById`로 조회해 못 찾고 조용히 job을 버리는 경우가 있었다 (`BuildControllerIntegrationTest`가 간헐적으로 60초 타임아웃). 3/5/8단계에서 확립한 `EvaluationRequestPublisher`의 `@TransactionalEventListener(phase = AFTER_COMMIT)` 패턴을 그대로 적용해(`BuildSubmissionRequested` 이벤트 + `BuildJobPublisher`) 해결 — 커밋 이후에만 큐에 적재하도록 고쳤다. 격리 실행 3회 연속 통과로 재현 불가 확인.
 
-## 10단계 — Bridge Mode 연결
+## 10단계 — Bridge Mode 연결 ✅ 완료 (2026-08-25)
 
-- [ ] Build(Rate Limiter) 완료 → 선착순 쿠폰 Design → 꼬리설계 → Wargame으로 이어지는 단일 흐름 구현
-- [ ] Bridge 진행률 UI, 통합 평가(구현+설계+운영) 리포트
+- [x] Build(Rate Limiter) 완료 → 선착순 쿠폰 Design → 꼬리설계 → Wargame으로 이어지는 단일 흐름 구현 (`/bridge` 페이지에서 Build 제출 → `POST /sessions`에 `buildSubmissionId` 전달 → 세션에 영구 링크)
+- [x] Bridge 진행률 UI, 통합 평가(구현+설계+운영) 리포트 (`BridgeProgress` 컴포넌트, `ReportService`가 세션의 Build 제출을 조회해 리포트에 `buildSummary`로 포함)
 
-**완료 기준**: 하나의 연속된 세션에서 Build→Design→Wargame 전체 루프를 완주할 수 있다.
+**완료 기준 충족**: 실제 브라우저로 `/bridge`에서 Rate Limiter 스텁을 제출(6 stage 모두 FAILED, score 0/6) → 완료 즉시 "다음: 선착순 쿠폰로 이동" → Design(초기 설계) → 꼬리설계(조건 변경 배너) → Wargame Live(인시던트 발생 → Rate Limit 강화 액션 적용) → 회고 제출 → 세션 COMPLETED → 리포트 페이지에서 "Build — Build your own Rate Limiter: 0/6" 섹션과 3단계 타임라인이 하나의 리포트에 함께 표시되는 것을 확인. 백엔드 통합 테스트(`BridgeModeIntegrationTest` 3개 — 소유자 불일치 거부, 미완료 제출 거부, 전체 흐름) 포함 총 70개 테스트 통과.
+
+**진행 중 발견한 결정 사항**:
+- Bridge를 별도 도메인 개념으로 만들지 않고 **`sessions.build_submission_id`(nullable, `build_submissions` FK) 한 컬럼으로만 연결**했다 (`V10` 마이그레이션). `SessionService.startSession`이 이 값을 검증(제출자 일치, `COMPLETED` 상태)한 뒤 세션에 저장하고, `ReportService`가 세션 완료 시 이 링크를 따라가 `reports.build_summary`(jsonb)에 챌린지 제목/점수/stage 수를 스냅샷으로 남긴다 — 별도 Bridge 테이블이나 상태 머신을 만들지 않아도 기존 세션/리포트 파이프라인이 그대로 동작한다.
+- 9단계에서 미뤄뒀던 **Build 제출 프론트엔드를 이번 단계에서 만들었다** (`/bridge` 페이지) — 코드를 붙여넣는 단일 textarea로, 로컬 CLI(`challenges/rate-limiter/submit.sh`) 제출과 동일한 API를 호출한다. 정답 구현을 요구하지 않는다: score와 무관하게 제출이 `COMPLETED`이기만 하면 Design으로 넘어갈 수 있다 — Bridge의 핵심은 "구현했다는 사실"과 "설계·운영에서 그 구현의 한계를 경험하는 것"의 연결이지, Build 단계에서 만점을 강제하는 게 아니기 때문이다.
+- 연결 대상 시나리오는 하드코딩된 UUID 대신 **`GET /scenarios` 목록에서 `domain === "coupon"`으로 찾는다** (`findBridgeScenario`). 시나리오가 하나뿐인 현재는 사실상 고정이지만, 11단계에서 시나리오가 늘어나도 프론트 코드를 고치지 않고 동작한다.
+- `BridgeProgress` 컴포넌트는 세션/리포트에 Build 링크가 있을 때만 표시된다 (`session.buildSubmissionId`/`report.buildSummary`가 null이면 렌더링 안 함) — Bridge를 거치지 않고 대시보드에서 바로 "선착순 쿠폰"을 시작하는 기존 경로는 그대로 영향 없이 동작한다.
 
 ## 11단계 — MVP 콘텐츠 완성 및 통합 테스트
 
