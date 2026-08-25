@@ -196,14 +196,18 @@
 
 **로드맵 원칙과의 상충에 대한 기록**: [ROADMAP.md](docs/ROADMAP.md)의 "로드맵 운영 원칙"은 "각 Phase는 이전 Phase의 핵심 검증 질문에 긍정적인 신호가 있어야 다음으로 진행한다"고 명시하지만, Phase 1의 검증 질문(11단계 셀프 점검 참고)은 아직 실사용자 신호가 없는 상태다. 그럼에도 사용자의 명시적 결정으로 Phase 2를 바로 진행한다(2026-08-25) — 이 프로젝트의 목적상 실사용자 확보보다 기능 구현 자체가 우선이라는 판단. 이후 실사용자 피드백이 이 방향과 상충하는 신호를 주면 Phase 2 범위를 재검토한다.
 
-## 12단계 — 시나리오 seed 랜덤화 + adaptive 꼬리설계
+## 12단계 — 시나리오 seed 랜덤화 + adaptive 꼬리설계 ✅ 완료 (2026-08-25)
 
-- [ ] 시나리오별 FOLLOWUP(꼬리설계) variant를 여러 개 authored — 시나리오당 최소 3개, 각각 다른 조건 변경 텍스트 + 특정 리스크 개념을 겨냥하는 태그(`targetRiskKey`, nullable)
-- [ ] `sessions.seed`(기존에 있었지만 미사용이던 컬럼)를 세션 시작 시 랜덤 값으로 채우고, variant 선택에 사용 — 같은 seed면 같은 변형이 나오는 결정론적 랜덤성("통제된 랜덤성", PRD.md §7.3)
-- [ ] Adaptive 선택 우선순위: 사용자 SkillProfile에서 이 시나리오 도메인과 관련된 최다 약점 riskKey가 있으면 그 riskKey를 겨냥한 variant를 우선 선택, 없으면 seed 기반으로 나머지 variant 중 결정론적 선택
-- [ ] 이미 등록된 3개 시나리오(coupon/notification/product-browsing) 각각에 variant 데이터 추가
+- [x] 시나리오별 FOLLOWUP(꼬리설계) variant를 여러 개 authored — 시나리오당 3개, 각각 다른 조건 변경 텍스트 + 특정 리스크 개념을 겨냥하는 태그(`targetRiskKey`, nullable) (`V14` 마이그레이션)
+- [x] `sessions.seed`(기존에 있었지만 미사용이던 컬럼)를 세션 시작 시 랜덤 값으로 채우고, variant 선택에 사용 — 같은 seed면 같은 변형이 나오는 결정론적 랜덤성("통제된 랜덤성", PRD.md §7.3). `POST /sessions`가 `seed`를 선택적으로 받을 수 있게 해 테스트/재현이 가능하도록 함
+- [x] Adaptive 선택 우선순위: 사용자 SkillProfile에서 이 시나리오 도메인과 관련된 최다 약점 riskKey가 있으면 그 riskKey를 겨냥한 variant를 우선 선택, 없으면 seed 기반으로 나머지 variant 중 결정론적 선택 (`SessionService.selectVariant`)
+- [x] 이미 등록된 3개 시나리오(coupon/notification/product-browsing) 각각에 variant 데이터 추가
 
-**완료 기준**: 같은 사용자가 반복 재도전(재도전 로직은 이번 단계 범위 밖 — 새 세션을 수동으로 다시 시작하는 것으로 충분)할 때, 반복되는 약점(riskKey)이 있으면 그 약점을 겨냥한 꼬리설계 조건이 나오는 것을 통합 테스트로 확인. seed가 다르면(약점 신호가 없는 신규 사용자) 매번 같은 variant가 아니라 세션마다 달라질 수 있음을 확인.
+**완료 기준 충족**: `FollowupVariantIntegrationTest` — 같은 seed를 가진 서로 다른 두 신규 사용자(약점 신호 없음)가 같은 variant를 받는 것, 그리고 약점(`MISSING_RATE_LIMIT`)을 미리 기록해둔 사용자는 seed와 무관하게 그 약점을 겨냥한 variant를 받는 것을 확인. 실제 API로도 확인: 4개 개념을 모두 놓친 답안(전형적인 초심자 답안)은 매번 같은 variant로 수렴하고(동점 처리가 항상 먼저 등록된 variant를 고르므로 — 아래 결정 사항 참고), 4개 개념을 모두 언급한 "약점 없는" 답안은 seed에 따라 3개 variant가 골고루 나오는 것을 5개 seed로 직접 확인. 신규 3개 포함 백엔드 총 91개 테스트 통과.
+
+**진행 중 발견한 결정 사항**:
+- FOLLOWUP 스텝의 `scenario_steps.content`를 `{"prompt": ...}` 대신 `{"variants": [...]}`로 바꾸되, INITIAL/INCIDENT 스텝은 그대로 `{"prompt": ...}` 단일 형태를 유지한다. 새 테이블(`scenario_step_variants`) 대신 기존 컬럼의 JSON 모양만 확장했다 — `(scenario_version_id, step_order)` 유니크 제약과 기존 스텝 조회 로직을 그대로 쓸 수 있고, 6단계에서 확립한 "config as data" 원칙과도 맞는다. `SessionService.extractPrompt`가 두 모양을 모두 처리한다.
+- **동점(tie) 처리를 하다 발견한 특성**: RuleEvaluator가 "그냥 API 서버 하나로 처리합니다" 같은 전형적인 초심자 답안에 대해 해당 도메인의 개념을 거의 전부(coupon 기준 4개 중 3개가 variant 대상) 동시에 flag하기 때문에, adaptive 선택에서 흔히 동점이 나고 `maxByOrNull`은 항상 먼저 나열된 variant를 고른다. 즉 "약점 신호가 아예 없는" 케이스는 생각보다 좁다(잘 쓴 답안이거나, 이미 그 도메인 밖의 약점만 있는 사용자) — seed 기반 다양성은 실제 API 호출로 4개 개념을 모두 언급한 답안으로만 직접 확인했다. 버그는 아니지만 다음 단계(SkillProfile 고도화)에서 동점 처리를 더 정교하게(예: 무작위 동점 해소) 만들지 고려할 만하다.
 
 ## 13단계 — SkillProfile 고도화 (장기 추적)
 
