@@ -1,5 +1,6 @@
 package com.sysdrill.backend.evaluation
 
+import com.sysdrill.backend.identity.SkillProfileService
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.session.SessionStatus
 import com.sysdrill.backend.submission.SubmissionRepository
@@ -36,6 +37,7 @@ class EvaluationWorker(
     private val submissionRepository: SubmissionRepository,
     private val sessionRepository: SessionRepository,
     private val hybridRuleAiEvaluator: HybridRuleAiEvaluator,
+    private val skillProfileService: SkillProfileService,
     private val objectMapper: ObjectMapper,
     @Qualifier("transactionTemplate") private val transactionTemplate: TransactionTemplate,
     @Value("\${sysdrill.evaluation.max-attempts}") private val maxAttempts: Int,
@@ -123,6 +125,14 @@ class EvaluationWorker(
                         )
                     }
                 )
+                sessionRepository.findById(submission.sessionId).ifPresent { session ->
+                    skillProfileService.recordEvaluation(
+                        userId = session.userId,
+                        ruleRiskKeys = outcome.riskFlags.filter { it.riskKey != "LLM_TOP_RISK" }.map { it.riskKey },
+                        totalScore = outcome.totalScore,
+                    )
+                }
+
                 val transitioned = sessionRepository.compareAndSetStatus(
                     submission.sessionId,
                     SessionStatus.EVALUATING,

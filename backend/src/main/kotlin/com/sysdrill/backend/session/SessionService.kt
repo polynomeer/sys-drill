@@ -6,6 +6,7 @@ import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.scenario.ScenarioRepository
 import com.sysdrill.backend.scenario.ScenarioStepRepository
 import com.sysdrill.backend.scenario.ScenarioVersionRepository
+import com.sysdrill.backend.reporting.ReportService
 import com.sysdrill.backend.scenario.ScenarioStep
 import com.sysdrill.backend.submission.Submission
 import com.sysdrill.backend.submission.SubmissionRepository
@@ -25,6 +26,7 @@ class SessionService(
     private val scenarioStepRepository: ScenarioStepRepository,
     private val submissionRepository: SubmissionRepository,
     private val eventPublisher: ApplicationEventPublisher,
+    private val reportService: ReportService,
     private val objectMapper: ObjectMapper,
 ) {
 
@@ -143,6 +145,10 @@ class SessionService(
         } else {
             refreshed.completedAt = Instant.now()
         }
-        return sessionRepository.save(refreshed)
+        val saved = sessionRepository.save(refreshed)
+        if (nextStep == null) {
+            reportService.generate(sessionId)
+        }
+        return saved
     }
 }

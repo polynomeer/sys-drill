@@ -22,6 +22,8 @@ interface SessionRepository : JpaRepository<Session, UUID> {
             "where s.id = :id and s.status = :from"
     )
     fun compareAndSetStatus(id: UUID, from: SessionStatus, to: SessionStatus): Int
+
+    fun findByUserIdOrderByStartedAtDesc(userId: UUID): List<Session>
 }
 
 interface SessionPhaseRepository : JpaRepository<SessionPhase, UUID> {

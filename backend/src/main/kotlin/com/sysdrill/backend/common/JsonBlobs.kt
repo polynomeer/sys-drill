@@ -1,11 +1,14 @@
-package com.sysdrill.backend.evaluation
+package com.sysdrill.backend.common
 
 import tools.jackson.databind.ObjectMapper
 
-/** Small helpers for reading the jsonb-backed String columns on [Evaluation] back into real types. */
+/** Small helpers for reading jsonb-backed String columns back into real types. */
 
 fun ObjectMapper.readStringList(json: String?): List<String> =
     if (json.isNullOrBlank()) emptyList() else readValue(json, Array<String>::class.java).toList()
+
+fun ObjectMapper.readIntList(json: String?): List<Int> =
+    if (json.isNullOrBlank()) emptyList() else readValue(json, Array<Int>::class.java).toList()
 
 @Suppress("UNCHECKED_CAST")
 fun ObjectMapper.readIntMap(json: String?): Map<String, Int> =

@@ -5,4 +5,5 @@ import java.util.UUID
 
 interface SubmissionRepository : JpaRepository<Submission, UUID> {
     fun findBySessionIdAndClientRequestId(sessionId: UUID, clientRequestId: String): Submission?
+    fun findBySessionIdOrderByCreatedAtAsc(sessionId: UUID): List<Submission>
 }
