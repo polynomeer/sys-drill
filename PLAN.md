@@ -284,15 +284,18 @@
 - RuleEvaluator concept를 설계하다가 **riskKey 충돌을 직접 만들 뻔했다** — "MISSING_RETRY_BACKOFF"(notification이 이미 사용 중)와 "MISSING_OBSERVABILITY"(coupon이 이미 사용 중)를 그대로 재사용하려다, `domainByRiskKey`가 riskKey 하나당 도메인 하나를 가정한다는 것을 뒤늦게 떠올려 `MISSING_PG_RETRY_BACKOFF`로 도메인 한정 이름을 짓고 observability 개념 자체를 뺐다(notification/product-browsing도 PRD가 명시한 개념만 쓰고 별도 관측 개념을 추가하지 않은 기존 패턴과 일치). 이 충돌을 다시 만들지 않도록 `payment riskKeys do not collide with notification or coupon riskKeys` 회귀 테스트를 추가했다 — 새 도메인을 추가할 때마다 이 검증을 거칠 것.
 - 결제 도메인은 트래픽 배수(20배/10배 같은)를 쓰지 않았다 — 인시던트의 트리거가 "트래픽 급증"이 아니라 순수하게 "외부 PG 저하"이기 때문에, 평시와 동일한 주문량(30 rps)에서 PG latency만 20배로 나빠지는 모델로 설계했다. 세 도메인 모두 "트래픽 급증"이었던 것과 달리 이번엔 트래픽이 전혀 늘지 않아도 터지는 장애라는 점이 도메인상 차별점이다.
 
-## 19단계 — 추가 시나리오: 예약 시스템
+## 19단계 — 추가 시나리오: 예약 시스템 ✅ 완료 (2026-08-25)
 
-- [ ] docs/PRD.md §8 표의 "예약 시스템"(locking, inventory consistency, timeout / 경합, 중복 예약, lock wait) 콘텐츠화
+- [x] docs/PRD.md §8 표의 "예약 시스템"(locking, inventory consistency, timeout / 경합, 중복 예약, lock wait) 콘텐츠화 — `V20` 마이그레이션, 3개 FOLLOWUP variant 포함
 
-## 19단계 — 추가 시나리오: 예약 시스템
+**완료 기준 충족**: 18단계와 동일한 패턴 — `python3` 스크립트로 인시던트 수치 사전 검증 → `SimulationEngineTest`(4개)로 Kotlin 구현 대조 → `Phase2ScenarioE2ETest`(2개)로 실제 HTTP 파이프라인 확인 → 실제 브라우저로 전체 흐름(INITIAL→FOLLOWUP(adaptive variant: "결제 미완료 이탈" 목표)→Wargame) 확인. 인시던트 수치(traffic=300rps/p95=320ms/error=30%/Lock Wait Queue=880/Lock Capacity=20.0/s/Lock Utilization=4500%)가 손계산과 정확히 일치, 3개 액션 순차 적용 후 완전 회복(Lock Capacity=3400.0/s/Lock Utilization=8.8%/error=0.1%/p95=40ms/Lock Wait Queue=0). 신규 10개 포함 백엔드 총 125개 테스트 통과.
 
-- [ ] docs/PRD.md §8 표의 "예약 시스템"(locking, inventory consistency, timeout / 경합, 중복 예약, lock wait) 콘텐츠화
+**진행 중 발견한 결정 사항**:
+- ADR-0012에 따라 이번에도 **완전히 다른 메커니즘**을 설계했다 — 다운스트림 의존성 저하(payment/notification)도, 캐시 스탬피드(product-browsing)도 아니라 **락 자체의 세분화 수준이 유효 처리 용량을 결정**하는 모델이다. 좌석 전체를 하나의 락으로 묶으면(coarse-grained) 무관한 좌석에 대한 요청까지 서로 줄을 서고, 좌석 단위로 세분화하면(fine-grained) 처리 용량이 20배 뛴다 — 지금까지의 도메인 중 유일하게 "용량 자체가 설계 선택에 따라 수십 배 차이 나는" 축이다.
+- "유령 홀드"(결제 미완료 이탈)를 **가용 용량을 깎아먹는 요소**로 모델링했다(payment의 "유실 후 재시도가 유효 부하를 늘린다"와는 반대 방향 — 부하를 늘리는 게 아니라 용량을 줄인다). `holdTimeoutSeconds`가 길수록 더 많은 처리 용량이 이미 이탈한 사용자의 홀드를 위해 영구히 묶여 있는 셈이라, `SHORTEN_HOLD_TIMEOUT` 액션이 직접 용량을 갉아먹는 비율을 줄인다.
+- 이 도메인은 트래픽 배수(15배)를 쓰지만, payment처럼 트래픽이 늘지 않는 장애도 아니고 coupon처럼 순수 트래픽 문제도 아닌 **중간 지점**이다 — 트래픽 급증이 "경합"을 유발하는 트리거이긴 하지만, 실제로 사용자를 구하는 것은 트래픽을 줄이는 게 아니라 락 구조 자체를 바꾸는 것(fine-grained locking)이다.
 
-**완료 기준**: 18단계와 동일한 패턴.
+## 19단계와 20단계 사이 참고: `challenges/event-bus` 이후 Build 마이그레이션은 `V21`부터 시작한다 — `V19`(payment)/`V20`(reservation)을 시나리오 시딩에 이미 썼다.
 
 ## 20단계 — 추가 시나리오: 배치/정산
 
