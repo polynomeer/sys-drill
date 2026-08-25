@@ -142,13 +142,19 @@
 - `EvaluationWorker`에서 `SkillProfileService.recordEvaluation` 호출 시 `save()`가 아니라 `saveAndFlush()`가 필요했다 — 이번에도 `compareAndSetStatus`의 `clearAutomatically=true`가 미플러시 저장을 조용히 버리는 동일한 함정이었다 (3, 5단계에 이어 세 번째 재현). 이 패턴을 쓰는 곳마다 flush 필요 여부를 반드시 확인할 것.
 - 참고: 이번 단계 도중 Docker Desktop이 재시작되며 postgres/redis 컨테이너가 멈춰 있었다. `docker compose up -d`로 재기동했고, named volume 덕분에 데이터는 그대로 보존되었다 — 로컬 개발 시 이런 재시작이 있을 수 있다는 점 참고.
 
-## 9단계 — Build Mode (Rate Limiter)
+## 9단계 — Build Mode (Rate Limiter) ✅ 완료 (2026-08-25)
 
-- [ ] Build Runner: Docker 기반 격리 워커, CPU/메모리/timeout 제한, outbound network 차단
-- [ ] Rate Limiter 챌린지 stage 1~6 정의 ([PRD.md](docs/PRD.md) §7.1, 원본 문서 stage 표 참고)
-- [ ] 제출(Job Queue 적재) → Sandbox 실행/테스트 → 결과 저장 → 피드백
+- [x] Build Runner: Docker 기반 격리 워커, CPU/메모리/timeout 제한, outbound network 차단 (`SandboxExecutor` — `docker run --rm --network none --cpus 0.5 --memory 128m --pids-limit 64`)
+- [x] Rate Limiter 챌린지 stage 1~6 정의 (고정 윈도우 → 슬라이딩/토큰버킷 → 동시성 → 분산 스토어 → fail-open/closed → 메트릭; 원본 문서(`docs/archive`) stage 표 기반, "선착순 쿠폰" 시나리오로의 Bridge 연결점 포함)
+- [x] 제출(Job Queue 적재) → Sandbox 실행/테스트 → 결과 저장 → 피드백 (`BuildJobPublisher`가 AFTER_COMMIT에 `BuildJobQueue`로 적재 → `BuildRunnerWorker`가 stage별 순차 실행 → `BuildStageResult` 저장 → `GET /build-submissions/{id}`로 조회)
 
-**완료 기준**: 로컬 템플릿 repo에서 Rate Limiter를 구현해 CLI/git으로 제출하면 stage별 테스트 결과와 리스크 피드백을 받는다.
+**완료 기준 충족**: `challenges/rate-limiter/` 템플릿 repo(스텁 구현 + `submit.sh`)를 실제로 올바르게 구현해 `POST /build-challenges/rate-limiter/submissions`로 제출 → 6개 stage 전부 실제 `docker run` 샌드박스에서 PASSED, `score=6` 확인. 스텁(미구현) 제출은 6개 전부 FAILED, 구체적 실패 사유("not implemented") 포함 확인. 통합 테스트(`BuildControllerIntegrationTest`) + 단위 테스트(`SandboxExecutorTest`, 격리/타임아웃/net 차단 확인) 포함 총 67개 테스트 통과.
+
+**진행 중 발견한 결정 사항**:
+- 샌드박스 실행 언어로 **Python을 채택**했다 (Kotlin/JVM이 아니라) — 챌린지 자체가 언어 불문 설계 문제(Rate Limiter 알고리즘/동시성/장애 대응)이고, Python은 컨테이너 기동이 가볍고 표준 라이브러리만으로 `threading`/소켓 테스트가 가능해 stage 테스트 스크립트를 짧게 유지할 수 있었다. 챌린지가 늘어나면 언어별 이미지를 추가하는 구조(`sysdrill.build.sandbox-image`가 이미 설정값)로 확장한다.
+- 5~8단계에서 반복 적용한 "config as data" 원칙을 그대로 따라 **stage별 테스트 스크립트 전체를 DB 컬럼(`build_stages.test_script`)에 저장**했다 (파일 경로가 아니라). 시딩은 `V9` 마이그레이션에서 `$...$` 달러 인용으로 임베드.
+- 이번 단계는 **CLI/API만 구현하고 프론트엔드 UI는 만들지 않았다.** PRD.md §7.1 기준 Build Mode의 P0 검증 대상은 "샌드박스 채점 파이프라인이 실제로 동작하는가"이고, 사용자는 로컬 템플릿 repo(`challenges/rate-limiter/`)에서 `git`/`submit.sh`로 제출하는 방식으로 이미 완결된 루프를 수행할 수 있다. Bridge Mode(10단계)에서 Build→Design→Wargame을 한 화면 흐름으로 엮을 때 Build 제출 UI도 함께 만드는 것이 중복 작업을 피하는 길이라 그때로 미뤘다.
+- **레이스 컨디션 버그를 발견/수정**했다: `BuildSubmissionService.submit()`이 `@Transactional` 메서드 안에서 `BuildJobQueue.enqueue()`를 직접 호출했는데, 이는 DB 커밋 이전에 Redis에 job이 올라가는 것이라 워커가 아직 안 보이는 트랜잭션의 row를 `findById`로 조회해 못 찾고 조용히 job을 버리는 경우가 있었다 (`BuildControllerIntegrationTest`가 간헐적으로 60초 타임아웃). 3/5/8단계에서 확립한 `EvaluationRequestPublisher`의 `@TransactionalEventListener(phase = AFTER_COMMIT)` 패턴을 그대로 적용해(`BuildSubmissionRequested` 이벤트 + `BuildJobPublisher`) 해결 — 커밋 이후에만 큐에 적재하도록 고쳤다. 격리 실행 3회 연속 통과로 재현 불가 확인.
 
 ## 10단계 — Bridge Mode 연결
 
