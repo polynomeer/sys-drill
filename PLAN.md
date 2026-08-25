@@ -297,11 +297,19 @@
 
 ## 19단계와 20단계 사이 참고: `challenges/event-bus` 이후 Build 마이그레이션은 `V21`부터 시작한다 — `V19`(payment)/`V20`(reservation)을 시나리오 시딩에 이미 썼다.
 
-## 20단계 — 추가 시나리오: 배치/정산
+## 20단계 — 추가 시나리오: 배치/정산 ✅ 완료 (2026-08-26)
 
-- [ ] docs/PRD.md §8 표의 "배치/정산"(chunking, restartability, reconciliation / partial failure, long transaction, 재처리) 콘텐츠화
+- [x] docs/PRD.md §8 표의 "배치/정산"(chunking, restartability, reconciliation / partial failure, long transaction, 재처리) 콘텐츠화 — `V21` 마이그레이션, 3개 FOLLOWUP variant 포함
 
-**완료 기준**: 18단계와 동일한 패턴.
+**완료 기준 충족**: 18/19단계와 동일한 패턴 — `python3` 스크립트로 인시던트 수치 사전 검증 → `SimulationEngineTest`(4개)로 Kotlin 구현 대조 → `Phase2ScenarioE2ETest`(2개)로 실제 HTTP 파이프라인 확인 → 실제 브라우저로 전체 흐름(INITIAL→FOLLOWUP(adaptive variant: "중복 반영" 목표)→Wargame) 확인. 인시던트 수치(traffic=20000rps/p95=1150ms/error=60.0%/재처리 대상 레코드=600000/처리 처리량=7272.7rec/s/재처리 부하율=60.0%)가 손계산과 정확히 일치, 3개 액션 순차 적용 후 완전 회복(p95=700ms/error=0.0%/availability=100.0%/재처리 대상 레코드=1000/처리 처리량=9990.0rec/s/재처리 부하율=0.1%). 신규 10개 포함 백엔드 총 135개 테스트 통과, `Phase2ScenarioE2ETest`는 격리 재실행 2회로 플레이키니스 없음을 재확인.
+
+**진행 중 발견한 결정 사항**:
+- ADR-0012에 따라 이번에도 **완전히 다른 메커니즘**을 설계했다 — 이전 5개 도메인 전부가 "동시 요청이 하나의 자원을 두고 경합"하는 모양이었다면, 배치/정산은 **하나의 연속된 작업이 중간에 끊겼을 때 무엇을 다시 해야 하는가**가 핵심이다. 체크포인트가 없으면(checkpointingEnabled=false) 실패 시점까지 이미 처리한 레코드 전부를 버리고 처음부터 재시작해야 하고, 있으면 실패한 청크 하나만 버린다.
+- 청크 크기(chunkSize)는 reservation의 락 세분화처럼 "작을수록 무조건 좋다"가 아니라 진짜 트레이드오프다 — 작을수록 실패 시 버리는 양은 줄지만, 청크마다 붙는 고정 커밋 오버헤드 비중이 커져 정상 처리량 자체가 낮아진다(청크 10000 기준 처리량 18181.8rec/s → 청크 1000 기준 10000.0rec/s). 그래서 `REDUCE_CHUNK_SIZE` 단독 적용은 checkpointing 없이는 아무 효과가 없다 — 체크포인트가 없으면 어차피 처음부터 재시작이라 청크 크기가 재처리 범위에 영향을 주지 못한다는 점을 `SimulationEngineTest`의 "no single action alone recovers" 테스트로 명시적으로 검증했다.
+- **errorRate의 의미 자체가 다르다**: 이전 도메인들은 errorRate가 "요청 실패율"(포화로 인한 타임아웃/거절)이었지만, 배치/정산에서는 **정산 정합성이 깨진 레코드 비율**(재처리로 인한 중복 반영)이다. 데이터 정합성 문제는 시스템이 "포화"돼서가 아니라 멱등성 설계 구멍 때문에 생기는 것이라, 이 도메인만 `latencyMultiplier`/`errorRateFor` 공용 utilization 밴드를 쓰지 않고 직접 계산한다 — `ENABLE_IDEMPOTENT_RECONCILIATION` 단독 적용 시 errorRate는 즉시 0으로 떨어지지만 재처리 대상 레코드/처리량은 그대로 나쁜 상태로 남는 것으로 이를 확인했다(정합성 축과 낭비 작업량 축이 서로 독립적).
+- 19단계의 교훈을 그대로 적용해 riskKey 충돌을 사전에 grep으로 확인하고, "다른 4개 도메인과 겹치지 않는다"는 회귀 테스트를 먼저 작성한 뒤 구현했다.
+
+## Phase 2 완료 — MVP 3개 + 신규 3개(payment/reservation/batch-settlement) 총 6개 도메인. 다음은 콘텐츠 확장(추가 도메인)이 아니라 실제 사용자 검증(원래 로드맵 원칙으로의 복귀) 또는 남은 UX/운영 이슈 처리 방향을 사용자와 논의한다.
 
 ---
 
