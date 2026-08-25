@@ -26,6 +26,13 @@ const STATUS_LABELS: Record<string, string> = {
   ABANDONED: "중단됨",
 };
 
+const TREND_DIRECTION_LABELS: Record<string, { text: string; className: string }> = {
+  IMPROVING: { text: "▲ 상승", className: "text-emerald-600 dark:text-emerald-400" },
+  DECLINING: { text: "▼ 하락", className: "text-red-600 dark:text-red-400" },
+  STABLE: { text: "▬ 안정", className: "text-zinc-500" },
+  INSUFFICIENT_DATA: { text: "", className: "text-zinc-500" },
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [nickname, setNickname] = useState<string | null>(null);
@@ -75,10 +82,18 @@ export default function DashboardPage() {
   }
 
   const topWeaknesses = skillProfile
-    ? Object.entries(skillProfile.weaknesses)
+    ? Object.values(skillProfile.weaknessesByDomain)
+        .flatMap((domainWeaknesses) => Object.entries(domainWeaknesses))
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3)
     : [];
+
+  const recommendedScenario = skillProfile?.recommendedDomain
+    ? scenarios.find((s) => s.domain === skillProfile.recommendedDomain)
+    : undefined;
+  const orderedScenarios = recommendedScenario
+    ? [recommendedScenario, ...scenarios.filter((s) => s.id !== recommendedScenario.id)]
+    : scenarios;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-8">
@@ -120,9 +135,16 @@ export default function DashboardPage() {
 
           {(skillProfile?.trend.length ?? 0) > 0 && (
             <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-              <h2 className="mb-2 text-sm font-semibold text-zinc-500">점수 추이</h2>
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-zinc-500">점수 추이</h2>
+                {skillProfile && TREND_DIRECTION_LABELS[skillProfile.trendDirection].text && (
+                  <span className={`text-xs font-medium ${TREND_DIRECTION_LABELS[skillProfile.trendDirection].className}`}>
+                    {TREND_DIRECTION_LABELS[skillProfile.trendDirection].text}
+                  </span>
+                )}
+              </div>
               <div className="flex items-end gap-1.5" style={{ height: 48 }}>
-                {skillProfile!.trend.map((score, i) => (
+                {skillProfile!.trend.slice(-20).map((score, i) => (
                   <div
                     key={i}
                     title={`${score}/100`}
@@ -131,7 +153,7 @@ export default function DashboardPage() {
                   />
                 ))}
               </div>
-              <p className="mt-1 text-xs text-zinc-500">최근 {skillProfile!.trend.length}회 · 최신 {skillProfile!.trend.at(-1)}점</p>
+              <p className="mt-1 text-xs text-zinc-500">누적 {skillProfile!.trend.length}회 · 최신 {skillProfile!.trend.at(-1)}점</p>
             </section>
           )}
         </div>
@@ -165,13 +187,24 @@ export default function DashboardPage() {
       {loading && <p className="text-sm text-zinc-500">불러오는 중...</p>}
 
       <ul className="flex flex-col gap-3">
-        {scenarios.map((scenario) => (
+        {orderedScenarios.map((scenario) => (
           <li
             key={scenario.id}
-            className="flex items-center justify-between rounded border border-zinc-300 p-4 dark:border-zinc-700"
+            className={`flex items-center justify-between rounded border p-4 ${
+              scenario.id === recommendedScenario?.id
+                ? "border-foreground/40 bg-zinc-50 dark:bg-zinc-900"
+                : "border-zinc-300 dark:border-zinc-700"
+            }`}
           >
             <div>
-              <p className="font-medium">{scenario.title}</p>
+              <p className="font-medium">
+                {scenario.title}
+                {scenario.id === recommendedScenario?.id && (
+                  <span className="ml-2 rounded bg-foreground px-1.5 py-0.5 align-middle text-[10px] font-medium text-background">
+                    추천
+                  </span>
+                )}
+              </p>
               <p className="text-xs text-zinc-500">
                 {scenario.domain}
                 {scenario.difficulty ? ` · ${scenario.difficulty}` : ""}

@@ -98,10 +98,14 @@ export interface SessionSummary {
   completedAt: string | null;
 }
 
+export type TrendDirection = "IMPROVING" | "DECLINING" | "STABLE" | "INSUFFICIENT_DATA";
+
 export interface SkillProfile {
   userId: string;
-  weaknesses: Record<string, number>;
+  weaknessesByDomain: Record<string, Record<string, number>>;
   trend: number[];
+  trendDirection: TrendDirection;
+  recommendedDomain: string | null;
 }
 
 export interface TimelineEntry {
