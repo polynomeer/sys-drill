@@ -272,12 +272,21 @@
 - [ ] docs/PRD.md §8 표의 "주문/결제"(transaction boundary, outbox/saga, idempotency / 외부 결제 timeout, retry storm, partial failure)를 9~11단계의 다른 시나리오와 같은 상세도로 콘텐츠화 (초기조건/꼬리설계/워게임 3단계 프롬프트, `SimulationEngine` 인시던트 모델, `RuleEvaluator` 평가 포인트)
 - [ ] 12단계에서 만든 꼬리설계 variant 구조를 이 시나리오에도 적용
 
-## 18단계 — 추가 시나리오: 주문/결제
+## 18단계 — 추가 시나리오: 주문/결제 ✅ 완료 (2026-08-25)
 
-- [ ] docs/PRD.md §8 표의 "주문/결제"(transaction boundary, outbox/saga, idempotency / 외부 결제 timeout, retry storm, partial failure)를 9~11단계의 다른 시나리오와 같은 상세도로 콘텐츠화 (초기조건/꼬리설계/워게임 3단계 프롬프트, `SimulationEngine` 인시던트 모델, `RuleEvaluator` 평가 포인트)
-- [ ] 12단계에서 만든 꼬리설계 variant 구조를 이 시나리오에도 적용
+- [x] docs/PRD.md §8 표의 "주문/결제"(transaction boundary, outbox/saga, idempotency / 외부 결제 timeout, retry storm, partial failure)를 9~11단계의 다른 시나리오와 같은 상세도로 콘텐츠화 (초기조건/꼬리설계/워게임 3단계 프롬프트, `SimulationEngine` 인시던트 모델, `RuleEvaluator` 평가 포인트) — `V19` 마이그레이션
+- [x] 12단계에서 만든 꼬리설계 variant 구조를 이 시나리오에도 적용 (3개 variant: 범용/이중결제(멱등성)/트랜잭션 경계)
 
-**완료 기준**: 9~11단계와 동일한 패턴 — 실제 HTTP 파이프라인으로 Design→꼬리설계→Wargame→Report 완주, 인시던트 수치 손계산 대조.
+**완료 기준 충족**: 실제 HTTP 파이프라인으로 Design→꼬리설계(adaptive variant)→Wargame→Report 완주(`Phase2ScenarioE2ETest` 2개), 인시던트 수치를 손으로 미리 계산해(`python3` 스크립트로 사전 검증) `SimulationEngineTest`로 대조. 실제 브라우저로 전체 흐름 확인 — INITIAL(outbox 언급 시 트랜잭션 경계 리스크 미검출), FOLLOWUP(직전 약점=멱등성 → adaptive하게 "이중 결제" variant 선택), Wargame(인시던트 수치 traffic=30rps/p95=480ms/error=30%/backlog=116/pool=312%/PG latency=1000ms 전부 손계산과 정확히 일치) → 3개 액션 순차 적용 → 완전 회복(pool=20%/error=0.1%/p95=60ms, backlog는 18로 잔존 — 격리는 전이를 막을 뿐 backlog 자체를 없애지 않는다는 설계 의도 그대로 확인). 신규 10개 포함 백엔드 총 115개 테스트 통과.
+
+**진행 중 발견한 결정 사항**:
+- **ADR-0010("SimulationEngine은 도메인별 독립 함수")과의 긴장을 의식적으로 다뤘다.** PRD.md §8의 "외부 결제 timeout, retry storm"는 표면적으로 notification의 "provider timeout → consumer lag"와 같은 모양처럼 보였지만, 그대로 재사용하지 않고 **완전히 다른 축의 메커니즘**(outbox backlog가 격리되지 않은 공유 커넥션 풀로 번지는 계단식 장애 — bulkhead 패턴)을 설계했다. `queueLag`/`consumerThroughput`/`externalDependencyLatencyMs` 필드는 재사용했지만(이미 있는 필드라 굳이 새로 안 만듦), 실제로 상태를 결정하는 것은 `connectionPoolUsage`(DB 커넥션 풀 압력)이지 처리량 붕괴가 아니다 — 그래서 세 액션(디스패처 증설/멱등성 키/풀 격리) 중 "풀 격리" 하나만 적용해도 사용자 체감 에러율은 크게 개선되지만(0.30→0.02) backlog 자체(116)는 그대로 남는다는, notification에는 없는 새로운 교훈(격리는 전이를 막을 뿐 근본 원인을 고치지 않는다)을 넣을 수 있었다.
+- RuleEvaluator concept를 설계하다가 **riskKey 충돌을 직접 만들 뻔했다** — "MISSING_RETRY_BACKOFF"(notification이 이미 사용 중)와 "MISSING_OBSERVABILITY"(coupon이 이미 사용 중)를 그대로 재사용하려다, `domainByRiskKey`가 riskKey 하나당 도메인 하나를 가정한다는 것을 뒤늦게 떠올려 `MISSING_PG_RETRY_BACKOFF`로 도메인 한정 이름을 짓고 observability 개념 자체를 뺐다(notification/product-browsing도 PRD가 명시한 개념만 쓰고 별도 관측 개념을 추가하지 않은 기존 패턴과 일치). 이 충돌을 다시 만들지 않도록 `payment riskKeys do not collide with notification or coupon riskKeys` 회귀 테스트를 추가했다 — 새 도메인을 추가할 때마다 이 검증을 거칠 것.
+- 결제 도메인은 트래픽 배수(20배/10배 같은)를 쓰지 않았다 — 인시던트의 트리거가 "트래픽 급증"이 아니라 순수하게 "외부 PG 저하"이기 때문에, 평시와 동일한 주문량(30 rps)에서 PG latency만 20배로 나빠지는 모델로 설계했다. 세 도메인 모두 "트래픽 급증"이었던 것과 달리 이번엔 트래픽이 전혀 늘지 않아도 터지는 장애라는 점이 도메인상 차별점이다.
+
+## 19단계 — 추가 시나리오: 예약 시스템
+
+- [ ] docs/PRD.md §8 표의 "예약 시스템"(locking, inventory consistency, timeout / 경합, 중복 예약, lock wait) 콘텐츠화
 
 ## 19단계 — 추가 시나리오: 예약 시스템
 
