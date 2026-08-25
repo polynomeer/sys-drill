@@ -14,3 +14,4 @@ Short records of decisions that are hard to reverse, would surprise a future rea
 | [0008](0008-python-for-build-challenges.md) | Build Mode challenges run in Python, independent of the backend's Kotlin/JVM stack |
 | [0009](0009-bridge-mode-as-a-single-fk-column.md) | Bridge Mode is a nullable FK column on Session, not a separate domain |
 | [0010](0010-simulation-engine-per-domain-functions.md) | SimulationEngine is three domain-specific pure functions, not a generic scenario-driven engine |
+| [0011](0011-derived-values-are-never-persisted.md) | Interpreted/derived values are computed at read time, never stored |
