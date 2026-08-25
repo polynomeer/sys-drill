@@ -25,6 +25,10 @@ data class DesignTraits(
     val dispatcherWorkers: Int = DEFAULT_DISPATCHER_WORKERS,
     val idempotentPgRetryEnabled: Boolean = false,
     val paymentPoolIsolated: Boolean = false,
+    // reservation
+    val fineGrainedLockingEnabled: Boolean = false,
+    val holdTimeoutSeconds: Int = DEFAULT_HOLD_TIMEOUT_SECONDS,
+    val atomicInventoryCheckEnabled: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_CACHE_TTL_SECONDS = 10
@@ -32,5 +36,6 @@ data class DesignTraits(
         const val DEFAULT_CONSUMER_COUNT = 4
         const val DEFAULT_RETRY_BACKOFF_MULTIPLIER = 1
         const val DEFAULT_DISPATCHER_WORKERS = 4
+        const val DEFAULT_HOLD_TIMEOUT_SECONDS = 300
     }
 }

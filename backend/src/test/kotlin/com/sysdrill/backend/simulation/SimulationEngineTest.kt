@@ -266,4 +266,62 @@ class SimulationEngineTest {
 
     private fun paymentSession(incidentActive: Boolean, traits: DesignTraits = DesignTraits()) =
         SimulationSessionState(domain = SimulationEngine.DOMAIN_PAYMENT, incidentActive = incidentActive, traits = traits)
+
+    // ---- reservation (PLAN.md step 19 — lock contention, not a downstream dependency or cache) ----
+
+    @Test
+    fun `baseline reservation traffic is stable`() {
+        val state = SimulationEngine.computeState(reservationSession(incidentActive = false))
+
+        assertThat(state.trafficRps).isEqualTo(20.0)
+        assertThat(state.consumerThroughput).isCloseTo(200.0, delta)
+        assertThat(state.queueLag).isEqualTo(0)
+        assertThat(state.errorRate).isCloseTo(0.001, delta)
+    }
+
+    @Test
+    fun `the reservation incident collapses lock capacity under contention and abandoned holds`() {
+        val state = SimulationEngine.computeState(reservationSession(incidentActive = true))
+
+        assertThat(state.trafficRps).isEqualTo(300.0)
+        assertThat(state.consumerThroughput).isCloseTo(20.0, delta)
+        assertThat(state.queueLag).isEqualTo(880)
+        assertThat(state.errorRate).isCloseTo(0.30, delta)
+        assertThat(state.p95LatencyMs).isCloseTo(320.0, delta)
+    }
+
+    @Test
+    fun `no single reservation action alone fully recovers the session`() {
+        val fineGrainedOnly = SimulationEngine.computeState(
+            SimulationEngine.applyAction(reservationSession(incidentActive = true), SimulationActionType.ENABLE_FINE_GRAINED_LOCKING)
+        )
+        val shortenTimeoutOnly = SimulationEngine.computeState(
+            SimulationEngine.applyAction(reservationSession(incidentActive = true), SimulationActionType.SHORTEN_HOLD_TIMEOUT)
+        )
+        val atomicOnly = SimulationEngine.computeState(
+            SimulationEngine.applyAction(reservationSession(incidentActive = true), SimulationActionType.ENABLE_ATOMIC_INVENTORY_CHECK)
+        )
+
+        assertThat(fineGrainedOnly.errorRate).isCloseTo(0.30, delta)
+        assertThat(shortenTimeoutOnly.errorRate).isCloseTo(0.30, delta)
+        assertThat(atomicOnly.errorRate).isCloseTo(0.30, delta)
+    }
+
+    @Test
+    fun `all three reservation actions together recover the session`() {
+        var session = reservationSession(incidentActive = true)
+        session = SimulationEngine.applyAction(session, SimulationActionType.ENABLE_FINE_GRAINED_LOCKING)
+        session = SimulationEngine.applyAction(session, SimulationActionType.SHORTEN_HOLD_TIMEOUT)
+        session = SimulationEngine.applyAction(session, SimulationActionType.ENABLE_ATOMIC_INVENTORY_CHECK)
+
+        val state = SimulationEngine.computeState(session)
+
+        assertThat(state.consumerThroughput).isCloseTo(3400.0, delta)
+        assertThat(state.queueLag).isEqualTo(0)
+        assertThat(state.errorRate).isCloseTo(0.001, delta)
+        assertThat(state.p95LatencyMs).isCloseTo(40.0, delta)
+    }
+
+    private fun reservationSession(incidentActive: Boolean, traits: DesignTraits = DesignTraits()) =
+        SimulationSessionState(domain = SimulationEngine.DOMAIN_RESERVATION, incidentActive = incidentActive, traits = traits)
 }

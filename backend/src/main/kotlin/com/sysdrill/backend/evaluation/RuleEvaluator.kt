@@ -119,11 +119,31 @@ object RuleEvaluator {
         ),
     )
 
+    /** docs/PRD.md §8 "예약 시스템" 평가 포인트: locking, inventory consistency, timeout. */
+    private val reservationConcepts = listOf(
+        Concept(
+            "MISSING_RESERVATION_LOCKING",
+            listOf("락", "lock", "잠금", "동시성"),
+            "동시 예약 요청 시 자원(좌석/슬롯) 잠금을 어떻게 관리하는지에 대한 언급이 없습니다. 락의 세분화 수준(전체 vs 개별 자원)까지 확인이 필요합니다.",
+        ),
+        Concept(
+            "MISSING_INVENTORY_CONSISTENCY",
+            listOf("재고", "inventory", "정합성", "원자적", "atomic", "compare-and-swap", "cas"),
+            "예약 가능 수량 확인과 예약 확정을 원자적으로 처리하는지(재고 정합성)에 대한 언급이 없습니다. 중복 예약(overbooking) 위험을 어떻게 막는지 확인이 필요합니다.",
+        ),
+        Concept(
+            "MISSING_RESERVATION_TIMEOUT",
+            listOf("타임아웃", "timeout", "홀드", "hold", "자동 해제", "만료"),
+            "예약 홀드(hold) 시간 초과 시 자동 해제 처리에 대한 언급이 없습니다. 결제를 완료하지 않고 이탈한 예약이 자원을 계속 점유하지 않는지 확인이 필요합니다.",
+        ),
+    )
+
     private val conceptsByDomain = mapOf(
         "coupon" to couponConcepts,
         "notification" to notificationConcepts,
         "product-browsing" to productBrowsingConcepts,
         "payment" to paymentConcepts,
+        "reservation" to reservationConcepts,
     )
 
     /** Reverse lookup (riskKey -> domain), derived from [conceptsByDomain] rather than duplicated — used by SkillProfileController (PLAN.md step 13) to group weaknesses by scenario domain. */

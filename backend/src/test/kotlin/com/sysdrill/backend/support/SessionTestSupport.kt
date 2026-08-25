@@ -19,6 +19,9 @@ val PRODUCT_BROWSING_SCENARIO_ID: UUID = UUID.fromString("d0000000-0000-0000-000
 /** Fixed id seeded by V19__seed_payment_scenario.sql ("주문/결제"). */
 val PAYMENT_SCENARIO_ID: UUID = UUID.fromString("b1000000-0000-0000-0000-000000000002")
 
+/** Fixed id seeded by V20__seed_reservation_scenario.sql ("예약 시스템"). */
+val RESERVATION_SCENARIO_ID: UUID = UUID.fromString("b2000000-0000-0000-0000-000000000002")
+
 fun MockMvc.startSession(
     userId: UUID,
     scenarioId: UUID = COUPON_SCENARIO_ID,

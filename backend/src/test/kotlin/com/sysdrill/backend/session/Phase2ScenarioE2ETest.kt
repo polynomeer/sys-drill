@@ -4,6 +4,7 @@ import com.jayway.jsonpath.JsonPath
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.support.PAYMENT_SCENARIO_ID
+import com.sysdrill.backend.support.RESERVATION_SCENARIO_ID
 import com.sysdrill.backend.support.startSession
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.data.Offset
@@ -23,11 +24,11 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * PLAN.md step 18's "추가 시나리오: 주문/결제" completion criterion — same
- * pattern as MvpScenarioE2ETest (step 11), covering scenarios added after
- * the Phase 1 MVP. Numeric SystemState fields are read via JsonPath +
- * AssertJ rather than jsonPath(...).value(Matchers.closeTo(...)) — see
- * PLAN.md step 4 notes on Hamcrest's closeTo misbehaving against the
+ * PLAN.md steps 18/19's "추가 시나리오" completion criterion — same pattern
+ * as MvpScenarioE2ETest (step 11), covering scenarios added after the
+ * Phase 1 MVP (주문/결제, 예약 시스템, ...). Numeric SystemState fields are
+ * read via JsonPath + AssertJ rather than jsonPath(...).value(Matchers.closeTo(...))
+ * — see PLAN.md step 4 notes on Hamcrest's closeTo misbehaving against the
  * BigDecimal JsonPath returns.
  */
 @SpringBootTest
@@ -127,5 +128,62 @@ class Phase2ScenarioE2ETest(
         mockMvc.perform(post("/sessions/$sessionId/advance"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.currentStepPrompt").value(org.hamcrest.Matchers.containsString("하나의 트랜잭션으로 묶을 수 없다")))
+    }
+
+    @Test
+    fun `reservation scenario completes Design, FOLLOWUP, and Wargame with domain-specific actions`() {
+        val sessionId = mockMvc.startSession(userId, scenarioId = RESERVATION_SCENARIO_ID)
+        mockMvc.perform(get("/sessions/$sessionId"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.domain").value("reservation"))
+
+        submitAndWaitForFeedback(sessionId, "좌석별로 락을 걸고 재고를 compare-and-swap으로 원자적으로 확정합니다.")
+        mockMvc.perform(post("/sessions/$sessionId/advance")).andExpect(status().isOk)
+
+        submitAndWaitForFeedback(sessionId, "예약 홀드 타임아웃을 짧게 설정해 자동 해제합니다.")
+        mockMvc.perform(post("/sessions/$sessionId/advance"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.currentPhase").value("INCIDENT"))
+
+        val incidentResponse = mockMvc.perform(post("/sessions/$sessionId/simulation/incident"))
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+        assertThat(JsonPath.read<Double>(incidentResponse, "$.errorRate")).isCloseTo(0.30, delta)
+        assertThat(JsonPath.read<Long>(incidentResponse, "$.queueLag")).isEqualTo(880L)
+
+        // an out-of-domain action (coupon's) must be rejected for a reservation session
+        applyAction(sessionId, "STRENGTHEN_RATE_LIMIT").andExpect(status().isConflict)
+
+        applyAction(sessionId, "ENABLE_FINE_GRAINED_LOCKING").andExpect(status().isOk)
+        applyAction(sessionId, "SHORTEN_HOLD_TIMEOUT").andExpect(status().isOk)
+        val recovered = applyAction(sessionId, "ENABLE_ATOMIC_INVENTORY_CHECK")
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+        assertThat(JsonPath.read<Long>(recovered, "$.queueLag")).isEqualTo(0L)
+        assertThat(JsonPath.read<Double>(recovered, "$.errorRate")).isCloseTo(0.001, delta)
+
+        submitAndWaitForFeedback(sessionId, "락 세분화, 홀드 타임아웃 단축, 원자적 재고 확인으로 대응했습니다.")
+        mockMvc.perform(post("/sessions/$sessionId/advance"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("COMPLETED"))
+
+        mockMvc.perform(get("/sessions/$sessionId/report"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.timelineFeedback.length()").value(3))
+    }
+
+    @Test
+    fun `reservation FOLLOWUP variant targets the user's recorded weakness over the session seed`() {
+        // Mentions locking and inventory consistency explicitly (so those
+        // concepts aren't flagged) but says nothing about hold timeouts, so
+        // MISSING_RESERVATION_TIMEOUT is the sole recorded weakness.
+        val primerSessionId = mockMvc.startSession(userId, scenarioId = RESERVATION_SCENARIO_ID, seed = "primer")
+        submitAndWaitForFeedback(primerSessionId, "락으로 좌석 잠금을 관리하고 재고를 원자적으로 compare-and-swap으로 확정합니다.")
+
+        val sessionId = mockMvc.startSession(userId, scenarioId = RESERVATION_SCENARIO_ID, seed = "irrelevant-because-weakness-wins")
+        submitAndWaitForFeedback(sessionId, "락과 compare-and-swap으로 대응합니다.")
+        mockMvc.perform(post("/sessions/$sessionId/advance"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.currentStepPrompt").value(org.hamcrest.Matchers.containsString("결제를 완료하지 않은 채 이탈")))
     }
 }

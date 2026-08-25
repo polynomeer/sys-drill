@@ -11,7 +11,7 @@ data class SimulationSessionState(
     val traits: DesignTraits,
 )
 
-/** "domain|incidentActive|rateLimitEnabled|cacheTtlSeconds|dbPoolSize|consumerCount|circuitBreakerEnabled|retryBackoffMultiplier|cachePolicySplit|singleFlightEnabled|readReplicaCount|dispatcherWorkers|idempotentPgRetryEnabled|paymentPoolIsolated" — see EvaluationQueue for the same low-tech-on-purpose approach. */
+/** "domain|incidentActive|rateLimitEnabled|cacheTtlSeconds|dbPoolSize|consumerCount|circuitBreakerEnabled|retryBackoffMultiplier|cachePolicySplit|singleFlightEnabled|readReplicaCount|dispatcherWorkers|idempotentPgRetryEnabled|paymentPoolIsolated|fineGrainedLockingEnabled|holdTimeoutSeconds|atomicInventoryCheckEnabled" — see EvaluationQueue for the same low-tech-on-purpose approach. */
 object SimulationSessionStateCodec {
 
     fun encode(state: SimulationSessionState): String =
@@ -30,6 +30,9 @@ object SimulationSessionStateCodec {
             state.traits.dispatcherWorkers,
             state.traits.idempotentPgRetryEnabled,
             state.traits.paymentPoolIsolated,
+            state.traits.fineGrainedLockingEnabled,
+            state.traits.holdTimeoutSeconds,
+            state.traits.atomicInventoryCheckEnabled,
         ).joinToString("|")
 
     fun decode(raw: String): SimulationSessionState {
@@ -50,6 +53,9 @@ object SimulationSessionStateCodec {
                 dispatcherWorkers = parts[11].toInt(),
                 idempotentPgRetryEnabled = parts[12].toBoolean(),
                 paymentPoolIsolated = parts[13].toBoolean(),
+                fineGrainedLockingEnabled = parts[14].toBoolean(),
+                holdTimeoutSeconds = parts[15].toInt(),
+                atomicInventoryCheckEnabled = parts[16].toBoolean(),
             ),
         )
     }

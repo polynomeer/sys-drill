@@ -90,5 +90,11 @@ class SimulationService(
             "긍정 효과: 응답 유실로 인한 재시도가 중복 처리를 만들지 않아 유효 부하 감소. 가능한 부작용: 멱등성 키 저장·조회 비용 추가."
         SimulationActionType.ISOLATE_PAYMENT_POOL ->
             "긍정 효과: outbox backlog가 주문 처리용 커넥션 풀로 번지지 않음(bulkhead). 가능한 부작용: 결제 전용 풀 자체가 포화되면 그 풀 안에서는 여전히 지연."
+        SimulationActionType.ENABLE_FINE_GRAINED_LOCKING ->
+            "긍정 효과: 무관한 좌석 간 락 경합 제거로 유효 처리 용량 증가. 가능한 부작용: 락 구현·관리 복잡도 증가(좌석 수만큼 락 필요)."
+        SimulationActionType.SHORTEN_HOLD_TIMEOUT ->
+            "긍정 효과: 결제 미완료로 이탈한 홀드가 자원을 점유하는 시간 감소. 가능한 부작용: 정상 사용자가 실제로 필요한 시간보다 일찍 홀드가 풀릴 위험."
+        SimulationActionType.ENABLE_ATOMIC_INVENTORY_CHECK ->
+            "긍정 효과: 재고 확인과 확정 사이의 경쟁으로 인한 낭비성 재시도 제거. 가능한 부작용: 원자적 처리를 위한 락/트랜잭션 범위 확대."
     }
 }

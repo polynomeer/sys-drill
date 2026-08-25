@@ -108,4 +108,32 @@ class RuleEvaluatorTest {
         assertThat(paymentKeys).doesNotContainAnyElementsOf(notificationKeys)
         assertThat(paymentKeys).doesNotContainAnyElementsOf(couponKeys)
     }
+
+    @Test
+    fun `flags all three reservation concepts when the submission mentions none of them`() {
+        val findings = RuleEvaluator.evaluate("그냥 API 서버 하나로 처리합니다.", "reservation")
+
+        assertThat(findings.map { it.riskKey }).containsExactlyInAnyOrder(
+            "MISSING_RESERVATION_LOCKING",
+            "MISSING_INVENTORY_CONSISTENCY",
+            "MISSING_RESERVATION_TIMEOUT",
+        )
+    }
+
+    @Test
+    fun `does not flag inventory consistency when the submission mentions atomic compare-and-swap`() {
+        val findings = RuleEvaluator.evaluate("재고 확인과 확정을 compare-and-swap으로 원자적으로 처리합니다.", "reservation")
+
+        assertThat(findings.map { it.riskKey }).doesNotContain("MISSING_INVENTORY_CONSISTENCY")
+    }
+
+    @Test
+    fun `reservation riskKeys do not collide with any other domain's riskKeys`() {
+        val reservationKeys = RuleEvaluator.evaluate(null, "reservation").map { it.riskKey }.toSet()
+        val otherKeys = listOf("coupon", "notification", "product-browsing", "payment")
+            .flatMap { RuleEvaluator.evaluate(null, it).map { finding -> finding.riskKey } }
+            .toSet()
+
+        assertThat(reservationKeys).doesNotContainAnyElementsOf(otherKeys)
+    }
 }

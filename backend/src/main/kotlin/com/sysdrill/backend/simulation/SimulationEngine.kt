@@ -17,6 +17,7 @@ object SimulationEngine {
     const val DOMAIN_NOTIFICATION = "notification"
     const val DOMAIN_PRODUCT_BROWSING = "product-browsing"
     const val DOMAIN_PAYMENT = "payment"
+    const val DOMAIN_RESERVATION = "reservation"
 
     /**
      * utilization = incoming_load / max_capacity bands, per docs/ARCHITECTURE.md §6:
@@ -47,6 +48,7 @@ object SimulationEngine {
         DOMAIN_NOTIFICATION -> Notification.computeState(session)
         DOMAIN_PRODUCT_BROWSING -> ProductBrowsing.computeState(session)
         DOMAIN_PAYMENT -> Payment.computeState(session)
+        DOMAIN_RESERVATION -> Reservation.computeState(session)
         else -> error("Unknown simulation domain: ${session.domain}")
     }
 
@@ -56,6 +58,7 @@ object SimulationEngine {
             DOMAIN_NOTIFICATION -> current.copy(traits = Notification.applyAction(current.traits, action))
             DOMAIN_PRODUCT_BROWSING -> current.copy(traits = ProductBrowsing.applyAction(current.traits, action))
             DOMAIN_PAYMENT -> current.copy(traits = Payment.applyAction(current.traits, action))
+            DOMAIN_RESERVATION -> current.copy(traits = Reservation.applyAction(current.traits, action))
             else -> error("Unknown simulation domain: ${current.domain}")
         }
 
@@ -328,5 +331,85 @@ object SimulationEngine {
             SimulationActionType.ISOLATE_PAYMENT_POOL -> traits.copy(paymentPoolIsolated = true)
             else -> error("$action does not apply to the payment incident")
         }
+    }
+
+    /**
+     * docs/PRD.md §8 "예약 시스템" — 인기 좌석에 예약 시도가 몰리면 락 경합이
+     * 커진다. 이전 도메인들과 축이 다르다(ADR-0010/0012): 다운스트림 의존성이나
+     * 캐시가 아니라, **락 자체의 세분화 수준**이 유효 처리 용량을 결정한다.
+     * 좌석 단위가 아니라 전체를 하나의 락으로 묶으면 무관한 좌석에 대한
+     * 요청까지 서로 줄을 선다. 결제를 완료하지 않고 이탈한 "유령 홀드"는
+     * hold timeout이 지날 때까지 용량을 계속 깎아먹고, 재고 확인과 확정이
+     * 원자적이지 않으면 그 사이 경쟁에서 진 요청들의 재시도가 유효 부하를
+     * 늘린다 — payment의 "유실 후 재시도 낭비"와 같은 모양이지만 여기서는
+     * DB 커넥션 풀이 아니라 락 서비스 용량 자체에 적용된다.
+     */
+    private object Reservation {
+        private const val BASELINE_RESERVATION_RPS = 20.0
+        private const val INCIDENT_MULTIPLIER = 15.0 // PRD.md §8 워게임: 경합 급증
+
+        private const val BASE_CAPACITY_RPS = 200.0 // 좌석 전체를 하나의 락으로 묶었을 때
+        private const val LOCK_PARALLELISM_FACTOR = 20.0 // 좌석별로 락을 세분화했을 때의 용량 배수
+
+        private const val ABANDONED_HOLD_RATE = 0.15 // 결제 미완료로 이탈, hold timeout까지 자원 점유
+        private const val REFERENCE_TIMEOUT_SECONDS = 30.0
+        private const val MAX_TIMEOUT_PRESSURE_FRACTION = 0.9
+
+        private const val INVENTORY_RACE_WASTE_FACTOR = 2.0 // 재고 확인/확정이 원자적이지 않을 때의 재시도 낭비
+
+        private const val BASE_RESERVATION_LATENCY_MS = 40.0
+
+        fun computeState(session: SimulationSessionState): SystemState {
+            val traits = session.traits
+            val incomingRps = if (session.incidentActive) {
+                BASELINE_RESERVATION_RPS * INCIDENT_MULTIPLIER
+            } else {
+                BASELINE_RESERVATION_RPS
+            }
+
+            val timeoutPressureFraction = if (session.incidentActive) {
+                minOf(
+                    MAX_TIMEOUT_PRESSURE_FRACTION,
+                    ABANDONED_HOLD_RATE * (traits.holdTimeoutSeconds / REFERENCE_TIMEOUT_SECONDS),
+                )
+            } else {
+                0.0
+            }
+            val baseCapacity = BASE_CAPACITY_RPS * (if (traits.fineGrainedLockingEnabled) LOCK_PARALLELISM_FACTOR else 1.0)
+            val effectiveCapacity = baseCapacity * (1 - timeoutPressureFraction)
+
+            val retryWasteFactor = if (session.incidentActive && !traits.atomicInventoryCheckEnabled) {
+                INVENTORY_RACE_WASTE_FACTOR
+            } else {
+                0.0
+            }
+            val effectiveIncomingRps = incomingRps * (1 + retryWasteFactor)
+
+            val utilization = effectiveIncomingRps / effectiveCapacity
+
+            return SystemState(
+                trafficRps = incomingRps,
+                p95LatencyMs = BASE_RESERVATION_LATENCY_MS * latencyMultiplier(utilization),
+                errorRate = errorRateFor(utilization),
+                availability = 1.0 - errorRateFor(utilization),
+                dbReadLoad = 0.0,
+                dbWriteLoad = utilization,
+                connectionPoolUsage = 0.0,
+                cacheHitRatio = 0.0,
+                cacheLatencyMs = 0.0,
+                queueLag = max(0.0, effectiveIncomingRps - effectiveCapacity).toLong(),
+                consumerThroughput = effectiveCapacity,
+                externalDependencyLatencyMs = 0.0,
+            )
+        }
+
+        fun applyAction(traits: DesignTraits, action: SimulationActionType): DesignTraits = when (action) {
+            SimulationActionType.ENABLE_FINE_GRAINED_LOCKING -> traits.copy(fineGrainedLockingEnabled = true)
+            SimulationActionType.SHORTEN_HOLD_TIMEOUT -> traits.copy(holdTimeoutSeconds = MIN_HOLD_TIMEOUT_SECONDS)
+            SimulationActionType.ENABLE_ATOMIC_INVENTORY_CHECK -> traits.copy(atomicInventoryCheckEnabled = true)
+            else -> error("$action does not apply to the reservation incident")
+        }
+
+        private const val MIN_HOLD_TIMEOUT_SECONDS = 30
     }
 }
