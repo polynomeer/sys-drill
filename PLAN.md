@@ -222,12 +222,16 @@
 - 이 개발 환경은 `LLM_ANTHROPIC_API_KEY`가 없어 오프라인 폴백이 항상 고정 점수(60점)를 반환한다. 그래서 IMPROVING/DECLINING 추세는 실제 브라우저로는 재현할 수 없었다 — `SkillProfileService.recordEvaluation`을 직접 호출하는 통합 테스트로만 검증했고, 브라우저 확인은 "데이터 부족 시 화살표가 안 뜬다"는 경계 케이스로 대체했다. 실제 키를 넣은 환경에서 다양한 점수가 쌓이면 이 부분도 자연스럽게 재현 가능하다.
 - 다음 Build 과제 마이그레이션은 `V14`가 아니라 **`V15`부터** 시작한다 — `V14`는 이번 단계에서 FOLLOWUP variant 시딩에 이미 썼다(14단계 항목의 번호를 그에 맞게 수정).
 
-## 14단계 — Build 과제 확장: Circuit Breaker
+## 14단계 — Build 과제 확장: Circuit Breaker ✅ 완료 (2026-08-25)
 
-- [ ] `challenges/circuit-breaker/` 템플릿 repo + stage 설계 (failure threshold, half-open, 복구 판단)
-- [ ] `V15` 마이그레이션으로 챌린지/stage 시딩
+- [x] `challenges/circuit-breaker/` 템플릿 repo + stage 설계 (failure threshold, half-open, 복구 판단) — 4 stage: CLOSED pass-through, threshold 도달 시 OPEN(fail fast), recovery timeout 후 HALF_OPEN 복구, HALF_OPEN 시도 실패 시 재차단
+- [x] `V15` 마이그레이션으로 챌린지/stage 시딩
 
-**완료 기준**: 9/11단계와 동일한 패턴 — 올바른 구현은 전체 stage PASSED, 스텁은 전체 FAILED, 실제 Docker 샌드박스로 검증.
+**완료 기준 충족**: 9/11단계와 동일한 패턴 — 로컬에서 참조 구현/스텁을 실제 sandbox(`docker run`)로 먼저 검증한 뒤 마이그레이션에 반영. `CircuitBreakerControllerIntegrationTest`로 올바른 구현은 4 stage 전부 PASSED(`score=4`), 스텁은 전부 FAILED("not implemented" 피드백 포함) 확인, 격리 실행 2회 연속 통과. 신규 2개 포함 백엔드 총 99개 테스트 통과.
+
+**진행 중 발견한 결정 사항**:
+- HALF_OPEN 전이를 `call()` 시점이 아니라 **`state` 프로퍼티를 읽을 때도 계산**하도록 설계했다 — 실제로는 `call()` 내부에서만 상태를 확인해도 동작은 같지만(참조 구현의 `call()`이 시작할 때 `_maybe_transition_to_half_open()`을 다시 부르므로), stage 3 테스트가 `time.sleep()` 후 `cb.state`를 직접 읽어 HALF_OPEN 전이를 확인하기 때문에 `state`가 read-only 관찰이 아니라 지연 전이를 트리거하는 능동적 프로퍼티여야 했다. 이는 ADR-0011("파생값은 항상 읽는 시점에 계산")과 같은 원칙의 또 다른 사례 — OPEN이 HALF_OPEN으로 바뀌는 시점 자체가 "지금이 recovery_timeout을 넘겼는가"에서 파생되는 값이라 어딘가에 캐싱하면 타이머를 별도로 굴려야 했을 것이다.
+- Rate Limiter(6 stage)·Queue(4 stage)에 이어 Circuit Breaker도 **4 stage**로 유지했다 — PLAN.md 체크리스트가 명시한 세 핵심 개념(failure threshold/half-open/복구 판단)이 4개 stage(정상 동작을 별도 baseline stage로 분리)로 자연스럽게 나뉘었다.
 
 ## 15단계 — Build 과제 확장: Distributed Lock
 
