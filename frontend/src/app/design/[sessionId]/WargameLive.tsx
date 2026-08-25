@@ -65,12 +65,30 @@ const ACTIONS_BY_DOMAIN: Record<string, ActionDef[]> = {
       effect: "긍정 효과: DB read 용량 증가. 부작용: replica lag으로 조회 최신성 저하.",
     },
   ],
+  payment: [
+    {
+      type: "ADD_DISPATCHER_WORKERS",
+      label: "디스패처 증설",
+      effect: "긍정 효과: outbox 처리량 증가로 backlog 감소. 부작용: 외부 PG에 대한 동시 호출 증가.",
+    },
+    {
+      type: "ENABLE_IDEMPOTENT_PG_RETRY",
+      label: "멱등성 키 적용",
+      effect: "긍정 효과: 응답 유실로 인한 재시도가 중복 처리를 만들지 않음. 부작용: 멱등성 키 저장·조회 비용 추가.",
+    },
+    {
+      type: "ISOLATE_PAYMENT_POOL",
+      label: "결제 커넥션 풀 격리",
+      effect: "긍정 효과: outbox backlog가 주문 처리용 풀로 번지지 않음(bulkhead). 부작용: 결제 전용 풀 자체가 포화되면 그 안에서는 여전히 지연.",
+    },
+  ],
 };
 
 const INCIDENT_EVENT_BY_DOMAIN: Record<string, string> = {
   coupon: "인시던트 발생: 트래픽 20배 급증, Redis latency 상승 → DB write hotspot",
   notification: "인시던트 발생: provider timeout → 재시도 폭증 → consumer lag 증가",
   "product-browsing": "인시던트 발생: hot key 트래픽 집중 → cache miss 폭증 → DB read latency 급증",
+  payment: "인시던트 발생: PG timeout 급증 → outbox 재시도 폭증 → 주문 처리 지연 전이",
 };
 
 const POLL_INTERVAL_MS = 3000;
@@ -181,25 +199,29 @@ function MetricsPanel({ state, domain }: { state: SystemState; domain: string })
     { label: "Error Rate", value: formatPercent(state.errorRate), colorFor: state.errorRate },
     { label: "Availability", value: formatPercent(state.availability) },
   ];
-  const domainSpecific: Metric[] =
-    domain === "notification"
-      ? [
-          { label: "Queue Lag", value: `${state.queueLag}`, colorFor: state.queueLag > 0 ? 0.9 : 0 },
-          { label: "Consumer Throughput", value: `${state.consumerThroughput.toFixed(1)}/s` },
-          { label: "Provider Latency", value: formatMs(state.externalDependencyLatencyMs) },
-        ]
-      : domain === "product-browsing"
-        ? [
-            { label: "DB Read Load", value: formatPercent(state.dbReadLoad), colorFor: state.dbReadLoad },
-            { label: "Cache Hit Ratio", value: formatPercent(state.cacheHitRatio) },
-          ]
-        : [
-            { label: "DB Read Load", value: formatPercent(state.dbReadLoad), colorFor: state.dbReadLoad },
-            { label: "DB Write Load", value: formatPercent(state.dbWriteLoad), colorFor: state.dbWriteLoad },
-            { label: "Cache Hit Ratio", value: formatPercent(state.cacheHitRatio) },
-            { label: "Cache Latency", value: formatMs(state.cacheLatencyMs) },
-          ];
-  const metrics = [...common, ...domainSpecific];
+  const domainSpecificByDomain: Record<string, Metric[]> = {
+    notification: [
+      { label: "Queue Lag", value: `${state.queueLag}`, colorFor: state.queueLag > 0 ? 0.9 : 0 },
+      { label: "Consumer Throughput", value: `${state.consumerThroughput.toFixed(1)}/s` },
+      { label: "Provider Latency", value: formatMs(state.externalDependencyLatencyMs) },
+    ],
+    "product-browsing": [
+      { label: "DB Read Load", value: formatPercent(state.dbReadLoad), colorFor: state.dbReadLoad },
+      { label: "Cache Hit Ratio", value: formatPercent(state.cacheHitRatio) },
+    ],
+    payment: [
+      { label: "Outbox Backlog", value: `${state.queueLag}`, colorFor: state.queueLag > 0 ? 0.9 : 0 },
+      { label: "Connection Pool", value: formatPercent(state.connectionPoolUsage), colorFor: state.connectionPoolUsage },
+      { label: "PG Latency", value: formatMs(state.externalDependencyLatencyMs) },
+    ],
+    coupon: [
+      { label: "DB Read Load", value: formatPercent(state.dbReadLoad), colorFor: state.dbReadLoad },
+      { label: "DB Write Load", value: formatPercent(state.dbWriteLoad), colorFor: state.dbWriteLoad },
+      { label: "Cache Hit Ratio", value: formatPercent(state.cacheHitRatio) },
+      { label: "Cache Latency", value: formatMs(state.cacheLatencyMs) },
+    ],
+  };
+  const metrics = [...common, ...(domainSpecificByDomain[domain] ?? domainSpecificByDomain.coupon)];
 
   return (
     <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">

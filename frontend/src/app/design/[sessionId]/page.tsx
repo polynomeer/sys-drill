@@ -55,6 +55,15 @@ const DESIGN_GUIDANCE_BY_DOMAIN: Record<string, string[]> = {
     "관측(metrics/logs/alert) 계획",
     "예상 병목과 트레이드오프",
   ],
+  payment: [
+    "기능/비기능 요구사항 요약 (무엇을 보장하고 무엇을 포기할지)",
+    "트랜잭션 경계 — DB 트랜잭션과 외부 PG 호출을 어떻게 분리했는지 (outbox/saga)",
+    "결제 멱등성 — 재시도 시 이중 결제 방지",
+    "PG 장애 시 retry/backoff 전략과 partial failure 대응",
+    "결제 상태와 주문 상태의 일관성 보장 방법",
+    "관측(metrics/logs/alert) 계획",
+    "예상 병목과 트레이드오프",
+  ],
 };
 
 const INCIDENT_GUIDANCE = [

@@ -73,7 +73,10 @@ export type SimulationActionType =
   | "ADJUST_RETRY_BACKOFF"
   | "SPLIT_CACHE_POLICY"
   | "ENABLE_SINGLE_FLIGHT"
-  | "ADD_READ_REPLICA";
+  | "ADD_READ_REPLICA"
+  | "ADD_DISPATCHER_WORKERS"
+  | "ENABLE_IDEMPOTENT_PG_RETRY"
+  | "ISOLATE_PAYMENT_POOL";
 
 export interface SystemState {
   trafficRps: number;
