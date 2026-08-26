@@ -231,8 +231,9 @@ export function advanceSession(sessionId: string): Promise<SessionResponse> {
   return apiFetch<SessionResponse>(`/sessions/${sessionId}/advance`, { method: "POST" });
 }
 
-export function startIncident(sessionId: string): Promise<SystemState> {
-  return apiFetch<SystemState>(`/sessions/${sessionId}/simulation/incident`, { method: "POST" });
+export function startIncident(sessionId: string, realInfra = false): Promise<SystemState> {
+  const query = realInfra ? "?realInfra=true" : "";
+  return apiFetch<SystemState>(`/sessions/${sessionId}/simulation/incident${query}`, { method: "POST" });
 }
 
 export function getSimulationState(sessionId: string): Promise<SystemState> {

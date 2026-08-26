@@ -141,6 +141,12 @@ export function WargameLive({ sessionId, domain }: { sessionId: string; domain: 
   const [applying, setApplying] = useState<SimulationActionType | null>(null);
   const started = useRef(false);
 
+  // PLAN.md step 21 — only the coupon domain has a real-infra opt-in, so only it
+  // ever shows this pre-start gate; every other domain keeps auto-starting
+  // immediately, unchanged.
+  const [awaitingStartChoice, setAwaitingStartChoice] = useState(domain === "coupon");
+  const [realInfraChoice, setRealInfraChoice] = useState(false);
+
   const addEvent = useCallback((message: string) => {
     setEvents((prev) => [...prev, `${new Date().toLocaleTimeString()} — ${message}`]);
   }, []);
@@ -160,12 +166,29 @@ export function WargameLive({ sessionId, domain }: { sessionId: string; domain: 
   }, [sessionId, domain, addEvent]);
 
   useEffect(() => {
+    if (awaitingStartChoice) return;
     // Data fetch on mount, not a cascading render loop.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshState();
     const timer = setInterval(refreshState, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [refreshState]);
+  }, [refreshState, awaitingStartChoice]);
+
+  async function handleManualStart() {
+    started.current = true;
+    setAwaitingStartChoice(false);
+    try {
+      const initial = await startIncident(sessionId, realInfraChoice);
+      setState(initial);
+      addEvent(
+        realInfraChoice
+          ? "실전 인프라 인시던트 시작: 실제 Postgres 전용 스키마·커넥션 풀과 실제 k6 부하로 지표를 측정합니다."
+          : (INCIDENT_EVENT_BY_DOMAIN[domain] ?? INCIDENT_EVENT_BY_DOMAIN.coupon)
+      );
+    } catch {
+      setError("인시던트를 시작하지 못했습니다.");
+    }
+  }
 
   async function handleApply(actionType: SimulationActionType) {
     setApplying(actionType);
@@ -180,6 +203,32 @@ export function WargameLive({ sessionId, domain }: { sessionId: string; domain: 
     } finally {
       setApplying(null);
     }
+  }
+
+  if (awaitingStartChoice) {
+    return (
+      <div className="flex flex-col gap-4 rounded border border-zinc-300 p-4 dark:border-zinc-700">
+        <h2 className="text-sm font-semibold text-zinc-500">인시던트 시작 방식 선택</h2>
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={realInfraChoice}
+            onChange={(e) => setRealInfraChoice(e.target.checked)}
+            className="mt-1"
+          />
+          <span>
+            실전 인프라로 시작 (실험적) — 실제 Postgres 전용 스키마·커넥션 풀과 실제 k6 부하로 지표를 측정합니다.
+            체크하지 않으면 기존과 동일한 규칙 기반 시뮬레이션입니다.
+          </span>
+        </label>
+        <button
+          onClick={handleManualStart}
+          className="self-start rounded border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-700"
+        >
+          인시던트 시작
+        </button>
+      </div>
+    );
   }
 
   if (!state) {
