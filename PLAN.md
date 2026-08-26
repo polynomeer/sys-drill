@@ -313,6 +313,40 @@
 
 ---
 
+## Phase 3 — Real Runtime (docs/ROADMAP.md)
+
+사용자가 `docs/ROADMAP.md` 운영 원칙("Phase 3는 비용이 크므로 Phase 1~2 검증 신호 확인 후에만 투자한다")을 명시적으로 우회하고 착수를 선택했다(AskUserQuestion, "권장 아님" 프레이밍 인지 후 선택). ROADMAP.md의 Phase 3 범위 전체(실제 컨테이너 인프라, k6/Locust, Toxiproxy, OpenTelemetry, Incident Replay, Postmortem, 고급 Kafka/K8s 시나리오, 면접형 타이머)는 한 스텝에 담기엔 너무 커서, 아래처럼 순서를 나눈다. 21단계만 완료했고, 22단계 이후는 헤더만 미리 스케치한 backlog — 순서/범위는 ROADMAP 운영 원칙에 따라 이전 스텝 결과를 보고 조정한다.
+
+### 21단계 — SimulationEngine 인터페이스 추출 + 쿠폰 도메인 실전 인프라 파일럿 ✅ 완료 (2026-08-26)
+
+- [x] `SimulationEngine`을 인터페이스로 추출, 기존 로직은 `RuleBasedSimulationEngine`으로 이동 (수식/상수 무변경, 6개 도메인 전부 회귀 없음)
+- [x] `RealInfraCouponEngine` 신규: 세션 전용 Postgres 스키마(`CouponSchemaProvisioner`) + 세션 전용 `HikariDataSource`(`SessionDataSourceRegistry`, 2~20 커넥션 캡) + 실제 Redis 캐시 + 실제 k6 부하(`CouponLoadRunner`, `docker run grafana/k6`)로 `SystemState`를 실측
+- [x] `SimulationService`/`SimulationController`에 `realInfra` 옵트인 쿼리 파라미터 추가 (쿠폰 도메인 전용, 다른 5개 도메인·기존 규칙 기반 쿠폰은 완전히 무변경)
+- [x] 프론트엔드: 쿠폰 도메인에서만 "인시던트 시작 방식 선택" 게이트(체크박스) 노출, 나머지 5개 도메인은 기존 즉시 자동 시작 그대로
+- [x] 신규 테스트 9개(`CouponSchemaProvisionerTest`, `SessionDataSourceRegistryTest`, `RealInfraCouponEngineTest` — 실제 Docker/k6 사용, 범위·상대 비교 검증)
+- [x] ADR-0013(스키마-per-세션 결정), ADR-0014(범위/상대 비교 테스트 규범 예외) 작성
+
+**완료 기준 충족**: 실제 브라우저로 전체 흐름(게이트 체크 → 인시던트 시작 → 3개 액션 적용) 확인 — 인시던트 시 실측 p95=91ms, cacheHitRatio=52.1%, Traffic≈2950rps; rate limit/cache TTL/DB pool 3개 액션 적용 후 실측 p95=4ms, cacheHitRatio=99.0%로 회복. `docker exec`로 세션 전용 Postgres 스키마(`realinfra_<uuid>`)와 `coupon_inventory` 테이블이 실제로 존재/갱신됨을 직접 확인. 신규 9개 포함 백엔드 총 145개 테스트 통과, `realinfra` 패키지 테스트는 격리 재실행 3회로 안정성 재확인.
+
+**진행 중 발견한 결정 사항**:
+- **매 액션마다 스키마를 재생성(DROP+CREATE)하면 안 된다** — 실제로 시도했다가 `DROP SCHEMA CASCADE`가 이전(포화 상태였던) 프로브의 아직 처리 중인 요청이 세션 전용 풀을 계속 쓰고 있어 DDL 락 대기로 23초 이상 멎는 것을 실측으로 발견했다. 수정: 스키마 프로비저닝은 `startIncident`의 첫 `computeState`에서 단 한 번만 하고, 이후 `applyAction`은 기존 스키마/데이터를 그대로 재사용한다(오히려 클릭마다 재고가 1000으로 초기화되지 않고 실제 청구 내역이 누적되는 게 더 정직하다).
+- **`SimulationService.applyAction`이 상태를 실제 엔진 실행 *이후*에만 Redis에 저장한다**는 기존 설계가 실전 인프라 경로에서는 버그가 된다 — k6가 실제로 요청을 보내는 동안 `RealInfraCouponController`가 Redis에서 읽는 traits는 여전히 액션 적용 *이전* 값이라, DB Pool 증가 액션에서 엔진과 컨트롤러가 서로 다른 풀 크기로 풀을 재구축하며 충돌했다(연결 사용량이 항상 0으로 측정되는 버그로 발견). 수정: `RealInfraCouponEngine.applyAction`이 프로브 실행 *전에* 먼저 `SimulationStateStore`에 새 traits를 저장한다.
+- 이 기기에서는 4-커넥션 풀이 단순 쿼리 기준 초당 ~2000요청까지는 거의 무증상이고, 실제 포화(p95가 5ms대에서 80ms+ 대로)는 ~3000rps부터 나타났다 — 규칙 기반 엔진의 트래픽 상수(300/6000)를 그대로 재사용하지 않고 별도 설정값(`incident-rps` 기본 3000)으로 분리한 이유. 기기마다 다를 수 있어 설정으로 뺐다(ADR-0013).
+- Hikari의 기본 `connectionTimeout`(30초)이 너무 길어 실전 인프라 세션 전용 풀에는 3초로 단축했다 — 실제 경합이 에러가 아니라 지연으로 먼저 나타나는 것을 관측했고(`errorRate`는 3000rps에서도 0.0%에 가까웠던 반면 p95는 255ms까지 치솟음), 이 때문에 rate-limit 효과 검증 테스트도 errorRate가 아니라 p95LatencyMs 비교로 설계했다(ADR-0014).
+- k6의 `--summary-export` JSON은 문서로 짐작하지 않고 실제 실행 결과로 확인했다 — `http_req_duration`/`http_reqs`는 필드가 최상위에 바로 있고(`values` wrapper 없음), `http_req_failed`는 `rate`가 아니라 `value` 필드가 실패율이다.
+- `sysdrill.simulation.realinfra.app-base-url`의 기본값이 `${local.server.port}`를 참조하는데, 이 프로퍼티는 웹 서버가 실제로 뜬 뒤에야 채워져 생성자 `@Value` 주입 시점엔 아직 없다 — `CouponLoadRunner`가 `Environment`를 주입받아 실제 프로브 실행 시점(호출 시점)에 지연 해석하도록 수정. 이 덕분에 테스트도 `RANDOM_PORT`로 돌릴 수 있게 되어, 개발 환경에 이미 8081을 쓰는 무관한 서비스가 떠 있어도 충돌하지 않는다(실제로 이 문제를 겪고 고쳤다).
+
+### 22단계 — 실전 인프라 세션 정리 자동화 (만료된 스키마/풀 스윕)
+### 23단계 — Toxiproxy 기반 네트워크 fault injection
+### 24단계 — OpenTelemetry 기반 실측 metrics/traces 파이프라인
+### 25단계 — Incident Replay
+### 26단계 — Postmortem 작성 기능
+### 27단계 — 고급 Kafka 시나리오 (실제 컨테이너)
+### 28단계 — 면접형 타이머 모드
+### 29단계 — 고급 Kubernetes 시나리오 (로컬/CI 제약상 그 시점에 범위 재검토)
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
