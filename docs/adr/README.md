@@ -16,3 +16,5 @@ Short records of decisions that are hard to reverse, would surprise a future rea
 | [0010](0010-simulation-engine-per-domain-functions.md) | SimulationEngine is three domain-specific pure functions, not a generic scenario-driven engine |
 | [0011](0011-derived-values-are-never-persisted.md) | Interpreted/derived values are computed at read time, never stored |
 | [0012](0012-new-incident-domains-get-distinct-mechanisms.md) | A new SimulationEngine domain gets a genuinely distinct mechanism, not a relabeled copy of an existing one |
+| [0013](0013-coupon-real-infra-pilot-schema-per-session.md) | Coupon gets an opt-in real-infra SimulationEngine, schema-per-session instead of container-per-session |
+| [0014](0014-real-infra-tests-use-range-assertions.md) | Real-infra simulation tests assert ranges and relative comparisons, not exact hand-computed values |

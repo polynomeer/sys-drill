@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
@@ -14,8 +15,11 @@ import org.springframework.web.bind.annotation.RestController
 class SimulationController(private val simulationService: SimulationService) {
 
     @PostMapping("/incident")
-    fun startIncident(@PathVariable sessionId: UUID): SystemStateResponse =
-        SystemStateResponse.from(simulationService.startIncident(sessionId))
+    fun startIncident(
+        @PathVariable sessionId: UUID,
+        @RequestParam(defaultValue = "false") realInfra: Boolean,
+    ): SystemStateResponse =
+        SystemStateResponse.from(simulationService.startIncident(sessionId, realInfra))
 
     @GetMapping("/state")
     fun getState(@PathVariable sessionId: UUID): SystemStateResponse =

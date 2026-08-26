@@ -18,7 +18,7 @@ class SimulationStateStore(private val redisTemplate: StringRedisTemplate) {
     }
 
     fun find(sessionId: UUID): SimulationSessionState? =
-        redisTemplate.opsForValue().get(key(sessionId))?.let(SimulationSessionStateCodec::decode)
+        redisTemplate.opsForValue().get(key(sessionId))?.let { SimulationSessionStateCodec.decode(sessionId, it) }
 
     private fun key(sessionId: UUID) = "sysdrill:simulation:$sessionId"
 

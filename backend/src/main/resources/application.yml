@@ -37,6 +37,26 @@ sysdrill:
     queue-key: ${BUILD_QUEUE_KEY:sysdrill:build:jobs}
     sandbox-image: ${BUILD_SANDBOX_IMAGE:python:3.12-slim}
     timeout-seconds: ${BUILD_TIMEOUT_SECONDS:10}
+  simulation:
+    realinfra:
+      # PLAN.md step 21 — coupon-only real-infra pilot. baseline/incident-rps are
+      # deliberately NOT the rule-based engine's 300/6000 — that would saturate a
+      # laptop's shared Postgres container on machine limits, not on the trait
+      # being taught. Tune empirically per environment.
+      # Empirically calibrated against this project's dev Postgres container
+      # (PLAN.md step 21 notes): a 4-connection dedicated pool doing trivial
+      # single-row queries barely blinks below ~2000rps — real saturation
+      # (p95 jumping from ~5ms to 80ms+) only shows up around 3000rps. Tune
+      # per environment; faster/slower machines will need different values.
+      k6-image: ${REALINFRA_K6_IMAGE:grafana/k6}
+      probe-duration-seconds: ${REALINFRA_PROBE_DURATION_SECONDS:3}
+      baseline-rps: ${REALINFRA_BASELINE_RPS:10}
+      incident-rps: ${REALINFRA_INCIDENT_RPS:3000}
+      max-db-pool-size: ${REALINFRA_MAX_DB_POOL_SIZE:20}
+      # local.server.port (not server.port) — Spring Boot always publishes the
+      # actual bound port under this key, whether fixed or random, so this
+      # works unchanged for RANDOM_PORT tests and isn't hardcoded to 8081.
+      app-base-url: ${REALINFRA_APP_BASE_URL:http://host.docker.internal:${local.server.port}}
 
 management:
   endpoints:

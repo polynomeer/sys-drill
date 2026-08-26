@@ -1,9 +1,11 @@
 package com.sysdrill.backend.simulation
 
+import com.sysdrill.backend.common.web.BadRequestException
 import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.scenario.ScenarioRepository
 import com.sysdrill.backend.scenario.ScenarioVersionRepository
 import com.sysdrill.backend.session.SessionRepository
+import com.sysdrill.backend.simulation.realinfra.RealInfraCouponEngine
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -15,16 +17,32 @@ class SimulationService(
     private val scenarioRepository: ScenarioRepository,
     private val stateStore: SimulationStateStore,
     private val appliedActionRepository: AppliedActionRepository,
+    private val realInfraCouponEngine: RealInfraCouponEngine,
 ) {
 
-    /** Starts the session's scenario-appropriate incident template (docs/PRD.md §8). */
-    fun startIncident(sessionId: UUID): SystemState {
+    /**
+     * Starts the session's scenario-appropriate incident template (docs/PRD.md §8).
+     * [realInfra] opts into PLAN.md step 21's real-infra pilot — only valid for
+     * the "coupon" domain (ADR-0013); every other domain, and non-opted-in
+     * coupon sessions, are completely unaffected by its existence.
+     */
+    fun startIncident(sessionId: UUID, realInfra: Boolean = false): SystemState {
         val session = sessionRepository.findById(sessionId)
             .orElseThrow { NotFoundException("Session not found: $sessionId") }
         val domain = resolveDomain(session.scenarioVersionId)
-        val state = SimulationSessionState(domain = domain, incidentActive = true, traits = DesignTraits())
+        if (realInfra && domain != RuleBasedSimulationEngine.DOMAIN_COUPON) {
+            throw BadRequestException("Real-infra mode is only available for the coupon domain, not: $domain")
+        }
+        val traits = if (realInfra) DesignTraits(dbPoolSize = RealInfraCouponEngine.INITIAL_DB_POOL_SIZE) else DesignTraits()
+        val state = SimulationSessionState(
+            sessionId = sessionId,
+            domain = domain,
+            incidentActive = true,
+            traits = traits,
+            engineMode = if (realInfra) EngineMode.REAL_INFRA else EngineMode.RULE_BASED,
+        )
         stateStore.save(sessionId, state)
-        return SimulationEngine.computeState(state)
+        return engineFor(state).computeState(state)
     }
 
     private fun resolveDomain(scenarioVersionId: UUID): String {
@@ -39,7 +57,7 @@ class SimulationService(
         requireSessionExists(sessionId)
         val state = stateStore.find(sessionId)
             ?: throw NotFoundException("No simulation in progress for session $sessionId — start an incident first")
-        return SimulationEngine.computeState(state)
+        return engineFor(state).computeState(state)
     }
 
     @Transactional
@@ -48,15 +66,18 @@ class SimulationService(
         val current = stateStore.find(sessionId)
             ?: throw NotFoundException("No simulation in progress for session $sessionId — start an incident first")
 
-        val updated = SimulationEngine.applyAction(current, actionType)
+        val updated = engineFor(current).applyAction(current, actionType)
         stateStore.save(sessionId, updated)
 
         appliedActionRepository.save(
             AppliedAction(sessionId = sessionId, actionType = actionType.name, effect = describe(actionType))
         )
 
-        return SimulationEngine.computeState(updated)
+        return engineFor(updated).computeState(updated)
     }
+
+    private fun engineFor(state: SimulationSessionState): SimulationEngine =
+        if (state.engineMode == EngineMode.REAL_INFRA) realInfraCouponEngine else RuleBasedSimulationEngine
 
     private fun requireSessionExists(sessionId: UUID) {
         if (!sessionRepository.existsById(sessionId)) {

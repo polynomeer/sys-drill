@@ -17,4 +17,8 @@ class GlobalExceptionHandler {
     @ExceptionHandler(ConflictException::class, IllegalStateException::class)
     fun handleConflict(ex: RuntimeException): ResponseEntity<ApiError> =
         ResponseEntity.status(HttpStatus.CONFLICT).body(ApiError(HttpStatus.CONFLICT.value(), ex.message))
+
+    @ExceptionHandler(BadRequestException::class)
+    fun handleBadRequest(ex: BadRequestException): ResponseEntity<ApiError> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiError(HttpStatus.BAD_REQUEST.value(), ex.message))
 }

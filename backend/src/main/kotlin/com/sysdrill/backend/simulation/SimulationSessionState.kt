@@ -1,17 +1,34 @@
 package com.sysdrill.backend.simulation
 
+import java.util.UUID
+
 /**
  * The mutable inputs for one session's simulation, stored in Redis
  * (docs/ARCHITECTURE.md §9) and encoded/decoded by [SimulationSessionStateCodec].
  * [SystemState] itself is always recomputed from this, never stored.
+ *
+ * [sessionId] is NOT part of the encoded string — it's already the Redis key,
+ * so [SimulationSessionStateCodec.decode] takes it as a separate parameter and
+ * [SimulationStateStore] fills it in on both save and find. It exists on this
+ * data class (rather than being threaded as a separate argument everywhere)
+ * because PLAN.md step 21's real-infra engine needs to know which session's
+ * schema/pool/cache to touch, while [RuleBasedSimulationEngine] ignores it.
  */
 data class SimulationSessionState(
+    val sessionId: UUID,
     val domain: String,
     val incidentActive: Boolean,
     val traits: DesignTraits,
+    val engineMode: EngineMode = EngineMode.RULE_BASED,
 )
 
-/** "domain|incidentActive|rateLimitEnabled|cacheTtlSeconds|dbPoolSize|consumerCount|circuitBreakerEnabled|retryBackoffMultiplier|cachePolicySplit|singleFlightEnabled|readReplicaCount|dispatcherWorkers|idempotentPgRetryEnabled|paymentPoolIsolated|fineGrainedLockingEnabled|holdTimeoutSeconds|atomicInventoryCheckEnabled|checkpointingEnabled|chunkSize|idempotentReconciliationEnabled" — see EvaluationQueue for the same low-tech-on-purpose approach. */
+/** PLAN.md step 21 — which [SimulationEngine] implementation serves this session. */
+enum class EngineMode {
+    RULE_BASED,
+    REAL_INFRA,
+}
+
+/** "domain|incidentActive|rateLimitEnabled|cacheTtlSeconds|dbPoolSize|consumerCount|circuitBreakerEnabled|retryBackoffMultiplier|cachePolicySplit|singleFlightEnabled|readReplicaCount|dispatcherWorkers|idempotentPgRetryEnabled|paymentPoolIsolated|fineGrainedLockingEnabled|holdTimeoutSeconds|atomicInventoryCheckEnabled|checkpointingEnabled|chunkSize|idempotentReconciliationEnabled|engineMode" — see EvaluationQueue for the same low-tech-on-purpose approach. sessionId is deliberately excluded (see [SimulationSessionState] doc) and supplied to [decode] separately. */
 object SimulationSessionStateCodec {
 
     fun encode(state: SimulationSessionState): String =
@@ -36,11 +53,13 @@ object SimulationSessionStateCodec {
             state.traits.checkpointingEnabled,
             state.traits.chunkSize,
             state.traits.idempotentReconciliationEnabled,
+            state.engineMode.name,
         ).joinToString("|")
 
-    fun decode(raw: String): SimulationSessionState {
+    fun decode(sessionId: UUID, raw: String): SimulationSessionState {
         val parts = raw.split("|")
         return SimulationSessionState(
+            sessionId = sessionId,
             domain = parts[0],
             incidentActive = parts[1].toBoolean(),
             traits = DesignTraits(
@@ -63,6 +82,7 @@ object SimulationSessionStateCodec {
                 chunkSize = parts[18].toInt(),
                 idempotentReconciliationEnabled = parts[19].toBoolean(),
             ),
+            engineMode = EngineMode.valueOf(parts[20]),
         )
     }
 }
