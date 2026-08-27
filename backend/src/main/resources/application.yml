@@ -42,12 +42,10 @@ sysdrill:
       # PLAN.md step 21 — coupon-only real-infra pilot. baseline/incident-rps are
       # deliberately NOT the rule-based engine's 300/6000 — that would saturate a
       # laptop's shared Postgres container on machine limits, not on the trait
-      # being taught. Tune empirically per environment.
-      # Empirically calibrated against this project's dev Postgres container
-      # (PLAN.md step 21 notes): a 4-connection dedicated pool doing trivial
-      # single-row queries barely blinks below ~2000rps — real saturation
-      # (p95 jumping from ~5ms to 80ms+) only shows up around 3000rps. Tune
-      # per environment; faster/slower machines will need different values.
+      # being taught. Empirically calibrated against this project's dev Postgres
+      # container: a 4-connection dedicated pool doing trivial single-row queries
+      # barely blinks below ~2000rps — real saturation (p95 jumping from ~5ms to
+      # 80ms+) only shows up around 3000rps. Tune per environment.
       k6-image: ${REALINFRA_K6_IMAGE:grafana/k6}
       probe-duration-seconds: ${REALINFRA_PROBE_DURATION_SECONDS:3}
       baseline-rps: ${REALINFRA_BASELINE_RPS:10}
@@ -57,6 +55,13 @@ sysdrill:
       # actual bound port under this key, whether fixed or random, so this
       # works unchanged for RANDOM_PORT tests and isn't hardcoded to 8081.
       app-base-url: ${REALINFRA_APP_BASE_URL:http://host.docker.internal:${local.server.port}}
+      # PLAN.md step 22 — abandoned sessions' Postgres schema/HikariDataSource
+      # don't expire on their own; a background sweep checks every
+      # sweep-interval-minutes and drops anything untouched for longer than
+      # session-idle-timeout-minutes (matches SimulationStateStore's 6h TTL —
+      # same "idle session" definition used everywhere else).
+      sweep-interval-minutes: ${REALINFRA_SWEEP_INTERVAL_MINUTES:30}
+      session-idle-timeout-minutes: ${REALINFRA_SESSION_IDLE_TIMEOUT_MINUTES:360}
 
 management:
   endpoints:

@@ -31,6 +31,7 @@ class RealInfraCouponEngine(
     private val loadRunner: CouponLoadRunner,
     private val stats: RealInfraCouponStats,
     private val stateStore: SimulationStateStore,
+    private val sessionTracker: RealInfraSessionTracker,
     @Value("\${sysdrill.simulation.realinfra.max-db-pool-size}") private val maxPoolSize: Int,
     @Value("\${sysdrill.simulation.realinfra.baseline-rps}") private val baselineRps: Int,
     @Value("\${sysdrill.simulation.realinfra.incident-rps}") private val incidentRps: Int,
@@ -87,6 +88,11 @@ class RealInfraCouponEngine(
     private fun probeAndCache(sessionId: UUID, traits: DesignTraits, incidentActive: Boolean, provisionSchema: Boolean): SystemState {
         val lock = sessionLocks.computeIfAbsent(sessionId) { Any() }
         synchronized(lock) {
+            // Refreshes this session's "last active" timestamp so
+            // RealInfraSessionSweepWorker (PLAN.md step 22) never sweeps a
+            // session that's still genuinely in use — only ones abandoned longer
+            // than the configured idle timeout.
+            sessionTracker.touch(sessionId)
             val schema = if (provisionSchema) schemaProvisioner.provision(sessionId) else schemaProvisioner.schemaName(sessionId)
             val poolSize = traits.dbPoolSize.coerceIn(MIN_DB_POOL_SIZE, maxPoolSize)
             val dataSource = dataSourceRegistry.poolFor(sessionId, schema, poolSize)
