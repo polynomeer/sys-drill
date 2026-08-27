@@ -336,7 +336,20 @@
 - k6의 `--summary-export` JSON은 문서로 짐작하지 않고 실제 실행 결과로 확인했다 — `http_req_duration`/`http_reqs`는 필드가 최상위에 바로 있고(`values` wrapper 없음), `http_req_failed`는 `rate`가 아니라 `value` 필드가 실패율이다.
 - `sysdrill.simulation.realinfra.app-base-url`의 기본값이 `${local.server.port}`를 참조하는데, 이 프로퍼티는 웹 서버가 실제로 뜬 뒤에야 채워져 생성자 `@Value` 주입 시점엔 아직 없다 — `CouponLoadRunner`가 `Environment`를 주입받아 실제 프로브 실행 시점(호출 시점)에 지연 해석하도록 수정. 이 덕분에 테스트도 `RANDOM_PORT`로 돌릴 수 있게 되어, 개발 환경에 이미 8081을 쓰는 무관한 서비스가 떠 있어도 충돌하지 않는다(실제로 이 문제를 겪고 고쳤다).
 
-### 22단계 — 실전 인프라 세션 정리 자동화 (만료된 스키마/풀 스윕)
+### 22단계 — 실전 인프라 세션 정리 자동화 (만료된 스키마/풀 스윕) ✅ 완료 (2026-08-27)
+
+- [x] `RealInfraSessionTracker` 신규: Redis sorted set으로 세션별 "마지막 활동 시각" 추적 (`SimulationStateStore`의 TTL과 별개 — 그 TTL은 시뮬레이션 *상태*만 만료시킬 뿐, 스키마/풀을 정리하라고 알려주지 않는다)
+- [x] `RealInfraCouponEngine.probeAndCache`가 매 실제 프로브(최초 진입 + 액션 적용)마다 `touch()`를 호출 — 실제로 쓰이고 있는 세션은 절대 스윕되지 않는다
+- [x] `RealInfraSessionSweepWorker` 신규: `BuildRunnerWorker`/`EvaluationWorker`와 동일한 단일 백그라운드 스레드 패턴(`@EventListener(ApplicationReadyEvent)` + `@PreDestroy`), 다만 큐를 비우는 blocking-poll이 아니라 `sweep-interval-minutes`(기본 30분)마다 깨어나는 sleep 루프. `session-idle-timeout-minutes`(기본 360분, `SimulationStateStore`의 6h TTL과 동일한 "idle" 정의)보다 오래 방치된 세션을 찾아 스키마 drop + 풀 evict + 캐시/통계 정리
+- [x] 신규 테스트 4개: `RealInfraSessionTrackerTest`(실제 Redis), `RealInfraSessionSweepWorkerTest`(실제 Postgres/HikariDataSource로 방치된 세션은 정리되고 활성 세션은 보존됨을 확인 — `sweepOnce()`를 `internal`로 열어 30분 타이머를 기다리지 않고 결정론적으로 호출)
+
+**완료 기준 충족**: 신규 4개 포함 백엔드 총 149개 테스트 통과. `RealInfraSessionSweepWorkerTest`가 실제 Postgres 스키마를 프로비저닝한 뒤 하나는 인위적으로 과거 타임스탬프로, 하나는 방금 touch된 상태로 만들고 `sweepOnce()`를 직접 호출 — 방치된 스키마는 실제로 사라지고(`BadSqlGrammarException`으로 확인) 활성 스키마는 데이터가 그대로 남아있음을 실제 DB 조회로 검증했다. `realinfra` 패키지 테스트 재실행 시 `RealInfraCouponEngineTest`(21단계, 실제 k6 타이밍 기반)에서 근소한 차이(576.68ms vs 569.99ms)로 1회 실패가 있었으나 재실행 시 통과 — ADR-0014가 이미 문서화한 실기기 타이밍 편차 범위 내이며 22단계 변경과는 무관함을 확인.
+
+**진행 중 발견한 결정 사항**:
+- 정리 로직을 `@Scheduled`가 아니라 `BuildRunnerWorker`/`EvaluationWorker`와 동일한 손수 작성한 단일 스레드 루프로 만들었다 — 이 앱 어디에도 `@EnableScheduling`이 켜져 있지 않고, 기존 두 워커가 이미 확립한 패턴을 그대로 따르는 게 새 인프라(스케줄러 추상화)를 하나 더 들이는 것보다 일관적이다.
+- "활동"의 정의를 `computeState`의 캐시 히트 경로(단순 폴링)가 아니라 `probeAndCache`(실제 k6 프로브가 도는 순간)로만 좁혔다 — `SimulationStateStore`도 조회가 아니라 저장 시점에만 TTL을 갱신하는 것과 동일한 기존 관례를 따른 것으로, 새로운 불일치를 만들지 않는다.
+- 테스트에서 "방치된 지 오래됨"을 재현하려고 `RealInfraSessionTracker`에 임의 타임스탬프 설정 API를 새로 만들지 않고, 테스트가 같은 Redis sorted set에 직접 backdated score를 써넣는 방식을 택했다 — 프로덕션 코드에 테스트 전용 진입점을 추가하지 않기 위함.
+
 ### 23단계 — Toxiproxy 기반 네트워크 fault injection
 ### 24단계 — OpenTelemetry 기반 실측 metrics/traces 파이프라인
 ### 25단계 — Incident Replay
