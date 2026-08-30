@@ -370,7 +370,23 @@
 - **스키마 프로비저닝처럼, Toxiproxy 프록시도 세션당 1회만 생성하고 액션 적용 시 재사용한다** — 21단계에서 배운 "재프로비저닝은 DDL 락 hang을 유발한다"는 교훈을 그대로 적용해, `RealInfraCouponEngine.applyAction`에서 `toxiproxy.jdbcUrlFor()`가 idempotent하게 기존 프록시를 반환하도록 설계했다.
 - Toxiproxy의 `upstream`은 앱 자신이 쓰는 `DB_HOST:DB_PORT`(호스트 포트 5433)가 아니라 docker-compose 서비스명과 컨테이너 내부 포트(`postgres:5432`)를 가리켜야 한다는 걸 실측으로 확인했다 — Toxiproxy는 앱과 달리 컨테이너 안에서 compose 네트워크로 직접 Postgres에 도달하기 때문.
 
-### 24단계 — OpenTelemetry 기반 실측 metrics/traces 파이프라인
+### 24단계 — OpenTelemetry 기반 실측 metrics/traces 파이프라인 ✅ 완료 (2026-08-30)
+
+- [x] `docker-compose.yml`에 `jaeger`(all-in-one, OTLP 네이티브 수신) 서비스 추가 — UI 16686, OTLP gRPC/HTTP 4317/4318
+- [x] `spring-boot-starter-opentelemetry` 추가 — Spring MVC HTTP 요청 처리와 Lettuce Redis 호출이 자동으로 계측됨 (코드 변경 없이)
+- [x] `RealInfraCouponController`의 두 JDBC 호출(`/remaining` 조회, `/claim` 갱신)을 `ObservationRegistry` 기반 명시적 span(`coupon.db.select_remaining`, `coupon.db.claim`)으로 감쌈 — JDBC는 프록시 라이브러리 없이는 자동 계측되지 않고, 이 스팬이야말로 실제 Toxiproxy 지연이 드러나는 지점이기 때문
+- [x] 신규 테스트 1개(`RealInfraCouponTracingTest`, 실제 HTTP 요청 → 실제 Jaeger 조회 API로 트레이스 검증)
+- [x] `management.tracing.sampling.probability=1.0`(파일럿 규모라 전량 샘플링), OTLP 메트릭 export는 비활성화(Jaeger는 트레이스만 수신)
+
+**완료 기준 충족**: 실제 HTTP 요청(`POST .../claim`) → 실제 Jaeger 조회 API로 확인한 트레이스가 `http post .../claim`(314.38ms) → `coupon.db.claim`(**300.46ms**, 설정된 Toxiproxy 지연 300ms와 사실상 일치) → `get`/`del`(Redis, 각각 1ms 미만) 순으로 정확히 중첩되어 나타남을 확인 — 21~23단계에서 숫자로만 보던 "실제 지연"이 이번엔 실제 분산 트레이스의 스팬 구조로 눈에 보이게 됐다. 신규 1개 포함 백엔드 총 153개 테스트 통과, `realinfra` 패키지는 격리 재실행 3회로 안정성 재확인.
+
+**진행 중 발견한 결정 사항**:
+- **Spring Boot 3.x 시절 방식(`micrometer-tracing-bridge-otel` + `opentelemetry-exporter-otlp` 수동 조합)은 컴파일은 되지만 트레이스를 하나도 만들지 않았다** — 이 프로젝트가 쓰는 Spring Boot 4.1.1은 tracing autoconfiguration을 `spring-boot-actuator-autoconfigure`에서 완전히 빼내 `spring-boot-starter-opentelemetry`라는 전용 스타터로 옮겼다. `--debug` 조건 평가 리포트로 `OtlpTracingAutoConfiguration`/`OpenTelemetryTracingAutoConfiguration`이 아예 평가조차 안 되고 있음을 확인하고서야 원인을 찾았다 — 최신 프레임워크 버전을 쓸 때는 예전 지식(3.x 문서)을 그대로 믿지 말고 실제 조건 평가 결과로 검증해야 한다는 교훈.
+- **프로퍼티 네임스페이스도 통째로 바뀌었다**: 익숙한 `management.otlp.tracing.endpoint`는 이 버전에서 메타데이터에는 남아있지만 조용히 무시된다 — 실제로 동작하는 키는 `management.opentelemetry.tracing.export.otlp.endpoint`. 스팬이 `SdkSpan` 레벨에서는 실제로 생성되고 있는데(DEBUG 로그로 확인) Jaeger에는 하나도 안 뜨는 증상으로 이 문제를 좁혀나갔다 — "코드는 도는데 관측되지 않는다"는 실전 인프라 디버깅에서 반복되는 패턴.
+- **`spring-boot-starter-opentelemetry`는 트레이스뿐 아니라 OTLP 메트릭 export도 기본 활성화한다** — Jaeger가 메트릭을 안 받아서 매 export 주기마다 404 에러 로그가 쌓였다. `management.otlp.metrics.export.enabled=false`로 껐다(이 키는 실제로 동작 — 메트릭 쪽은 네임스페이스가 안 바뀐 것으로 보인다).
+- **DB 스팬의 지속시간을 "실측"이 아니라 "설정값을 그대로 노출"하는 21~23단계의 패턴과 달리, 이번엔 진짜로 매번 다시 측정된다** — `Observation.observe { }`가 실제 JDBC 호출을 감싸므로 매 요청마다 실제 걸린 시간이 스팬에 기록된다. Toxiproxy 지연은 상수지만, 스팬 자체는 요청마다 실측되는 진짜 관측 데이터라는 점에서 21단계의 "설정값 그대로 노출"과 다른 성격이다.
+- 새 ADR은 쓰지 않았다 — 이번 발견들은 "여러 대안 중 하나를 의도적으로 골랐다"기보다는 "제대로 동작하는 유일한 방법을 찾았다"에 가까워, ADR의 세 조건(되돌리기 어려움/맥락 없이 놀라움/진짜 대안 존재) 중 세 번째가 성립하지 않는다고 판단했다.
+
 ### 25단계 — Incident Replay
 ### 26단계 — Postmortem 작성 기능
 ### 27단계 — 고급 Kafka 시나리오 (실제 컨테이너)
