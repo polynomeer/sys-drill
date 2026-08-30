@@ -18,8 +18,13 @@ export const options = {
       rate: RATE,
       timeUnit: '1s',
       duration: DURATION,
-      preAllocatedVUs: Math.min(Math.max(Math.ceil(RATE / 2), 2), 300),
-      maxVUs: Math.min(Math.max(RATE, 2), 500),
+      // PLAN.md step 23 — a Toxiproxy-injected latency floor (~300ms) means each
+      // iteration now takes much longer than pre-toxic requests did, so VUs need
+      // more headroom per unit of arrival rate than a low-latency system would
+      // (in-flight iterations ~= rate * avg latency) — otherwise k6 itself
+      // becomes the bottleneck (dropped_iterations) rather than the app.
+      preAllocatedVUs: Math.min(Math.max(RATE, 2), 300),
+      maxVUs: Math.min(Math.max(RATE * 3, 2), 500),
     },
   },
 };

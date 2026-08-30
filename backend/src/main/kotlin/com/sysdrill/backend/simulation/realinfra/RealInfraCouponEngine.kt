@@ -21,7 +21,10 @@ import java.util.concurrent.atomic.AtomicInteger
  * re-running k6 on every poll would be expensive and would visibly restart
  * traffic in the UI. Only `applyAction` (and the very first `computeState`
  * after an incident starts, on a cache miss) triggers a real probe: a fresh
- * k6 run against this session's dedicated Postgres schema/pool/Redis cache.
+ * k6 run against this session's dedicated Postgres schema/pool/Redis cache,
+ * itself routed through a per-session Toxiproxy proxy injecting a real,
+ * constant network fault (PLAN.md step 23, ADR-0015) on top of whatever
+ * load-driven contention k6 itself produces.
  */
 @Component
 class RealInfraCouponEngine(
@@ -32,6 +35,7 @@ class RealInfraCouponEngine(
     private val stats: RealInfraCouponStats,
     private val stateStore: SimulationStateStore,
     private val sessionTracker: RealInfraSessionTracker,
+    private val toxiproxy: ToxiproxySessionProxy,
     @Value("\${sysdrill.simulation.realinfra.max-db-pool-size}") private val maxPoolSize: Int,
     @Value("\${sysdrill.simulation.realinfra.baseline-rps}") private val baselineRps: Int,
     @Value("\${sysdrill.simulation.realinfra.incident-rps}") private val incidentRps: Int,
@@ -95,7 +99,10 @@ class RealInfraCouponEngine(
             sessionTracker.touch(sessionId)
             val schema = if (provisionSchema) schemaProvisioner.provision(sessionId) else schemaProvisioner.schemaName(sessionId)
             val poolSize = traits.dbPoolSize.coerceIn(MIN_DB_POOL_SIZE, maxPoolSize)
-            val dataSource = dataSourceRegistry.poolFor(sessionId, schema, poolSize)
+            // Routes this session's pool through its Toxiproxy proxy (ADR-0015) —
+            // idempotent, so this is a no-op lookup after the first call.
+            val jdbcUrl = toxiproxy.jdbcUrlFor(sessionId)
+            val dataSource = dataSourceRegistry.poolFor(sessionId, schema, poolSize, jdbcUrl)
 
             val rateLimitCeiling = if (traits.rateLimitEnabled) baselineRps else Int.MAX_VALUE
             stats.resetLimiter(sessionId, rateLimitCeiling, RATE_LIMIT_WINDOW_MILLIS)
@@ -135,7 +142,10 @@ class RealInfraCouponEngine(
                 cacheLatencyMs = 0.0,
                 queueLag = 0,
                 consumerThroughput = summary.achievedRps,
-                externalDependencyLatencyMs = 0.0,
+                // The Toxiproxy-injected latency (ADR-0015) — a known, constant,
+                // real fault distinct from p95LatencyMs (which also reflects
+                // load-driven queueing on top of this).
+                externalDependencyLatencyMs = toxiproxy.configuredLatencyMs.toDouble(),
             )
             measurementStore.save(sessionId, state)
             return state

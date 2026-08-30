@@ -29,6 +29,7 @@ class RealInfraCouponEngineTest(
     @Autowired val engine: RealInfraCouponEngine,
     @Autowired val schemaProvisioner: CouponSchemaProvisioner,
     @Autowired val dataSourceRegistry: SessionDataSourceRegistry,
+    @Autowired val toxiproxy: ToxiproxySessionProxy,
 ) {
     private val provisionedSessions = mutableListOf<UUID>()
 
@@ -36,6 +37,7 @@ class RealInfraCouponEngineTest(
     fun cleanUp() {
         provisionedSessions.forEach {
             dataSourceRegistry.evict(it)
+            toxiproxy.evict(it)
             schemaProvisioner.drop(it)
         }
         provisionedSessions.clear()

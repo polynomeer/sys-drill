@@ -12,8 +12,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Sweeps abandoned real-infra coupon sessions (PLAN.md step 22) — dedicated
- * Postgres schemas and HikariDataSource pools don't expire on their own the
- * way [SimulationStateStore][com.sysdrill.backend.simulation.SimulationStateStore]'s
+ * Postgres schemas, HikariDataSource pools, and (PLAN.md step 23) Toxiproxy
+ * proxies don't expire on their own the way
+ * [SimulationStateStore][com.sysdrill.backend.simulation.SimulationStateStore]'s
  * Redis TTL does (PLAN.md step 21 notes flagged this as an explicit
  * fast-follow, not an oversight). Same single-background-thread shape as
  * `BuildRunnerWorker`/`EvaluationWorker`, but sleep-based instead of
@@ -26,6 +27,7 @@ class RealInfraSessionSweepWorker(
     private val sessionTracker: RealInfraSessionTracker,
     private val schemaProvisioner: CouponSchemaProvisioner,
     private val dataSourceRegistry: SessionDataSourceRegistry,
+    private val toxiproxy: ToxiproxySessionProxy,
     private val measurementStore: RealInfraMeasurementStore,
     private val stats: RealInfraCouponStats,
     @Value("\${sysdrill.simulation.realinfra.sweep-interval-minutes}") sweepIntervalMinutes: Long,
@@ -72,6 +74,7 @@ class RealInfraSessionSweepWorker(
         for (sessionId in expired) {
             runCatching {
                 dataSourceRegistry.evict(sessionId)
+                toxiproxy.evict(sessionId)
                 schemaProvisioner.drop(sessionId)
                 measurementStore.evict(sessionId)
                 stats.evict(sessionId)

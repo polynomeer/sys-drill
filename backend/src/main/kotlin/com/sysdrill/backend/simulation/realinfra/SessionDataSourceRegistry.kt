@@ -14,21 +14,26 @@ import java.util.concurrent.ConcurrentHashMap
  * size" (PLAN.md step 21) rebuilds the pool rather than mutating a live one —
  * infrequent/interactive, not a hot path — and always closes the pool it
  * replaces so the housekeeper thread doesn't leak.
+ *
+ * [jdbcUrl] defaults to the app's own direct connection, but PLAN.md step 23
+ * has callers pass [ToxiproxySessionProxy.jdbcUrlFor] instead, so every query
+ * this session's pool makes actually flows through that session's Toxiproxy
+ * proxy (and its injected latency) rather than bypassing it.
  */
 @Component
 class SessionDataSourceRegistry(
-    @Value("\${spring.datasource.url}") private val jdbcUrl: String,
+    @Value("\${spring.datasource.url}") private val defaultJdbcUrl: String,
     @Value("\${spring.datasource.username}") private val username: String,
     @Value("\${spring.datasource.password}") private val password: String,
 ) {
     private val pools = ConcurrentHashMap<UUID, Pool>()
 
-    private data class Pool(val dataSource: HikariDataSource, val maxPoolSize: Int)
+    private data class Pool(val dataSource: HikariDataSource, val maxPoolSize: Int, val jdbcUrl: String)
 
     @Synchronized
-    fun poolFor(sessionId: UUID, schemaName: String, maxPoolSize: Int): HikariDataSource {
+    fun poolFor(sessionId: UUID, schemaName: String, maxPoolSize: Int, jdbcUrl: String = defaultJdbcUrl): HikariDataSource {
         val existing = pools[sessionId]
-        if (existing != null && existing.maxPoolSize == maxPoolSize) return existing.dataSource
+        if (existing != null && existing.maxPoolSize == maxPoolSize && existing.jdbcUrl == jdbcUrl) return existing.dataSource
 
         existing?.dataSource?.close()
 
@@ -45,7 +50,7 @@ class SessionDataSourceRegistry(
         config.connectionTimeout = CONNECTION_TIMEOUT_MILLIS
         val dataSource = HikariDataSource(config)
 
-        pools[sessionId] = Pool(dataSource, maxPoolSize)
+        pools[sessionId] = Pool(dataSource, maxPoolSize, jdbcUrl)
         return dataSource
     }
 

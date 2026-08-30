@@ -42,14 +42,17 @@ sysdrill:
       # PLAN.md step 21 — coupon-only real-infra pilot. baseline/incident-rps are
       # deliberately NOT the rule-based engine's 300/6000 — that would saturate a
       # laptop's shared Postgres container on machine limits, not on the trait
-      # being taught. Empirically calibrated against this project's dev Postgres
-      # container: a 4-connection dedicated pool doing trivial single-row queries
-      # barely blinks below ~2000rps — real saturation (p95 jumping from ~5ms to
-      # 80ms+) only shows up around 3000rps. Tune per environment.
+      # being taught. Re-calibrated in step 23: once every query has a real
+      # ~300ms Toxiproxy latency floor, a 4-connection pool caps out around
+      # 4/0.3s ≈ 13 req/s — incident-rps=3000 (step 21's pre-toxic value) made
+      # essentially every request hit k6's own 5s client timeout. incident-rps
+      # of just 30 already produces a dramatic, real p95 (baseline ~1.3s,
+      # recovered ~0.7s — better, but never near the pre-toxic floor, since
+      # none of the three actions fix network latency itself; ADR-0015).
       k6-image: ${REALINFRA_K6_IMAGE:grafana/k6}
       probe-duration-seconds: ${REALINFRA_PROBE_DURATION_SECONDS:3}
       baseline-rps: ${REALINFRA_BASELINE_RPS:10}
-      incident-rps: ${REALINFRA_INCIDENT_RPS:3000}
+      incident-rps: ${REALINFRA_INCIDENT_RPS:30}
       max-db-pool-size: ${REALINFRA_MAX_DB_POOL_SIZE:20}
       # local.server.port (not server.port) — Spring Boot always publishes the
       # actual bound port under this key, whether fixed or random, so this
@@ -62,6 +65,21 @@ sysdrill:
       # same "idle session" definition used everywhere else).
       sweep-interval-minutes: ${REALINFRA_SWEEP_INTERVAL_MINUTES:30}
       session-idle-timeout-minutes: ${REALINFRA_SESSION_IDLE_TIMEOUT_MINUTES:360}
+      toxiproxy:
+        # PLAN.md step 23 — a real, controllable network fault (added DB
+        # latency) injected via a per-session Toxiproxy proxy, instead of
+        # relying purely on k6 load volume to make contention visible.
+        # postgres-upstream uses the compose SERVICE name/internal port
+        # (5432), not DB_HOST/DB_PORT above (those are the HOST-published
+        # 5433 the app itself uses) — Toxiproxy reaches Postgres over the
+        # docker-compose network directly, bypassing the host port mapping.
+        admin-url: ${REALINFRA_TOXIPROXY_ADMIN_URL:http://localhost:8474}
+        postgres-upstream: ${REALINFRA_TOXIPROXY_PG_UPSTREAM:postgres:5432}
+        db-name: ${DB_NAME:sysdrill}
+        port-range-start: ${REALINFRA_TOXIPROXY_PORT_RANGE_START:20000}
+        port-range-size: ${REALINFRA_TOXIPROXY_PORT_RANGE_SIZE:50}
+        latency-ms: ${REALINFRA_TOXIPROXY_LATENCY_MS:300}
+        jitter-ms: ${REALINFRA_TOXIPROXY_JITTER_MS:50}
 
 management:
   endpoints:

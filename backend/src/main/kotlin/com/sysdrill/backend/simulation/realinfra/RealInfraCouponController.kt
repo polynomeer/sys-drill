@@ -19,8 +19,10 @@ import java.util.UUID
  * Target endpoints for [CouponLoadRunner]'s k6 script (PLAN.md step 21) —
  * NOT called by the frontend. Reads/writes go through the session's
  * dedicated pool ([SessionDataSourceRegistry]) and schema
- * ([CouponSchemaProvisioner]), so every number k6 measures reflects
- * genuinely isolated real infra, not a formula.
+ * ([CouponSchemaProvisioner]), itself routed through the session's
+ * [ToxiproxySessionProxy] (PLAN.md step 23) — so every number k6 measures
+ * reflects genuinely isolated real infra under a real injected network
+ * fault, not a formula.
  */
 @RestController
 @RequestMapping("/sessions/{sessionId}/simulation/realinfra/coupon")
@@ -28,6 +30,7 @@ class RealInfraCouponController(
     private val stateStore: SimulationStateStore,
     private val schemaProvisioner: CouponSchemaProvisioner,
     private val dataSourceRegistry: SessionDataSourceRegistry,
+    private val toxiproxy: ToxiproxySessionProxy,
     private val redisTemplate: StringRedisTemplate,
     private val stats: RealInfraCouponStats,
     @Value("\${sysdrill.simulation.realinfra.max-db-pool-size}") private val maxPoolSize: Int,
@@ -68,7 +71,11 @@ class RealInfraCouponController(
     private fun jdbcTemplateFor(sessionId: UUID, traits: DesignTraits): JdbcTemplate {
         val schema = schemaProvisioner.schemaName(sessionId)
         val poolSize = traits.dbPoolSize.coerceIn(MIN_DB_POOL_SIZE, maxPoolSize)
-        return JdbcTemplate(dataSourceRegistry.poolFor(sessionId, schema, poolSize))
+        // Same jdbcUrl the engine's probe used (toxiproxy.provision is
+        // idempotent) — without this, k6's requests would bypass the injected
+        // latency entirely, defeating the fault injection.
+        val jdbcUrl = toxiproxy.jdbcUrlFor(sessionId)
+        return JdbcTemplate(dataSourceRegistry.poolFor(sessionId, schema, poolSize, jdbcUrl))
     }
 
     private fun currentTraits(sessionId: UUID): DesignTraits = stateStore.find(sessionId)?.traits ?: DesignTraits()

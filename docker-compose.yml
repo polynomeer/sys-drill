@@ -25,5 +25,16 @@ services:
       timeout: 5s
       retries: 10
 
+  # PLAN.md step 23 — real-infra coupon pilot only. The app (a host JVM
+  # process, not containerized) reaches the admin API and each dynamically
+  # created per-session proxy via localhost, so both the admin port and the
+  # whole proxy port range must be published. 50 ports = 50 concurrent
+  # real-infra sessions max, plenty for a pilot.
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    ports:
+      - "8474:8474"
+      - "20000-20049:20000-20049"
+
 volumes:
   sysdrill_postgres_data:
