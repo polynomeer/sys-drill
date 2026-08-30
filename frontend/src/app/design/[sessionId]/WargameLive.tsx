@@ -182,7 +182,7 @@ export function WargameLive({ sessionId, domain }: { sessionId: string; domain: 
       setState(initial);
       addEvent(
         realInfraChoice
-          ? "실전 인프라 인시던트 시작: 실제 Postgres 전용 스키마·커넥션 풀과 실제 k6 부하로 지표를 측정합니다."
+          ? "실전 인프라 인시던트 시작: 실제 Postgres 전용 스키마·커넥션 풀, Toxiproxy로 주입한 실제 네트워크 지연, 실제 k6 부하로 지표를 측정합니다."
           : (INCIDENT_EVENT_BY_DOMAIN[domain] ?? INCIDENT_EVENT_BY_DOMAIN.coupon)
       );
     } catch {
@@ -217,8 +217,8 @@ export function WargameLive({ sessionId, domain }: { sessionId: string; domain: 
             className="mt-1"
           />
           <span>
-            실전 인프라로 시작 (실험적) — 실제 Postgres 전용 스키마·커넥션 풀과 실제 k6 부하로 지표를 측정합니다.
-            체크하지 않으면 기존과 동일한 규칙 기반 시뮬레이션입니다.
+            실전 인프라로 시작 (실험적) — 실제 Postgres 전용 스키마·커넥션 풀, 실제 네트워크 지연(Toxiproxy 주입),
+            실제 k6 부하로 지표를 측정합니다. 체크하지 않으면 기존과 동일한 규칙 기반 시뮬레이션입니다.
           </span>
         </label>
         <button
@@ -304,6 +304,9 @@ function MetricsPanel({ state, domain }: { state: SystemState; domain: string })
       { label: "DB Write Load", value: formatPercent(state.dbWriteLoad), colorFor: state.dbWriteLoad },
       { label: "Cache Hit Ratio", value: formatPercent(state.cacheHitRatio) },
       { label: "Cache Latency", value: formatMs(state.cacheLatencyMs) },
+      // Always 0ms for the rule-based engine — only real-infra sessions (PLAN.md
+      // step 23) inject a genuine network fault here via Toxiproxy.
+      { label: "DB 네트워크 지연 (실전 인프라)", value: formatMs(state.externalDependencyLatencyMs) },
     ],
     reservation: [
       { label: "Lock Wait Queue", value: `${state.queueLag}`, colorFor: state.queueLag > 0 ? 0.9 : 0 },
