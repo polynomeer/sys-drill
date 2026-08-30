@@ -92,3 +92,31 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  tracing:
+    sampling:
+      # PLAN.md step 24 — this is a low-traffic dev pilot; sample everything
+      # so the coupon real-infra spans always show up in Jaeger. Auto-
+      # instruments Spring MVC request handling for free; JDBC calls (the
+      # part that actually matters — showing the real Toxiproxy-injected
+      # latency) are NOT auto-instrumented without a JDBC proxy dependency,
+      # so RealInfraCouponController wraps those explicitly instead.
+      probability: ${OTEL_TRACES_SAMPLER_PROBABILITY:1.0}
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          # NOT management.otlp.tracing.endpoint (Boot 3.x's key, still present
+          # in this version's metadata but silently a no-op with the new
+          # spring-boot-starter-opentelemetry) — confirmed empirically by
+          # traces reaching the SdkSpan layer (visible in DEBUG logs, so
+          # spans genuinely existed) but never showing up in Jaeger until
+          # this property was set under the new management.opentelemetry.*
+          # namespace instead.
+          endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+  otlp:
+    metrics:
+      export:
+        # spring-boot-starter-opentelemetry enables OTLP metrics export by
+        # default too — Jaeger only ingests traces, so this just 404s on
+        # every export cycle. Traces are the only signal this step adds.
+        enabled: false

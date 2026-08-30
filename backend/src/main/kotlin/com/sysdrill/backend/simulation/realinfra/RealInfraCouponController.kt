@@ -2,6 +2,8 @@ package com.sysdrill.backend.simulation.realinfra
 
 import com.sysdrill.backend.simulation.DesignTraits
 import com.sysdrill.backend.simulation.SimulationStateStore
+import io.micrometer.observation.Observation
+import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.http.HttpStatus
@@ -22,7 +24,12 @@ import java.util.UUID
  * ([CouponSchemaProvisioner]), itself routed through the session's
  * [ToxiproxySessionProxy] (PLAN.md step 23) — so every number k6 measures
  * reflects genuinely isolated real infra under a real injected network
- * fault, not a formula.
+ * fault, not a formula. The actual DB calls are wrapped in a named
+ * [Observation] (PLAN.md step 24) — Spring auto-instruments HTTP request
+ * handling once micrometer-tracing is on the classpath, but a plain JDBC
+ * call through a manually-built HikariDataSource is not auto-instrumented
+ * without a JDBC proxy dependency, and the DB span is the one that actually
+ * shows the real Toxiproxy-injected latency in the resulting Jaeger trace.
  */
 @RestController
 @RequestMapping("/sessions/{sessionId}/simulation/realinfra/coupon")
@@ -33,6 +40,7 @@ class RealInfraCouponController(
     private val toxiproxy: ToxiproxySessionProxy,
     private val redisTemplate: StringRedisTemplate,
     private val stats: RealInfraCouponStats,
+    private val observationRegistry: ObservationRegistry,
     @Value("\${sysdrill.simulation.realinfra.max-db-pool-size}") private val maxPoolSize: Int,
 ) {
     @GetMapping("/remaining")
@@ -45,8 +53,9 @@ class RealInfraCouponController(
             return ResponseEntity.ok(mapOf("remaining" to cached.toInt()))
         }
         stats.recordCacheMiss(sessionId)
-        val remaining = jdbcTemplateFor(sessionId, traits)
-            .queryForObject("SELECT remaining FROM coupon_inventory WHERE id = 1", Int::class.java) ?: 0
+        val remaining = dbObservation("coupon.db.select_remaining", sessionId) {
+            jdbcTemplateFor(sessionId, traits).queryForObject("SELECT remaining FROM coupon_inventory WHERE id = 1", Int::class.java) ?: 0
+        }
         redisTemplate.opsForValue().set(cacheKey, remaining.toString(), Duration.ofSeconds(traits.cacheTtlSeconds.toLong().coerceAtLeast(1)))
         return ResponseEntity.ok(mapOf("remaining" to remaining))
     }
@@ -57,8 +66,9 @@ class RealInfraCouponController(
         if (traits.rateLimitEnabled && !stats.tryAcquire(sessionId)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(mapOf("status" to "rate_limited"))
         }
-        val updated = jdbcTemplateFor(sessionId, traits)
-            .update("UPDATE coupon_inventory SET remaining = remaining - 1 WHERE id = 1 AND remaining > 0")
+        val updated = dbObservation("coupon.db.claim", sessionId) {
+            jdbcTemplateFor(sessionId, traits).update("UPDATE coupon_inventory SET remaining = remaining - 1 WHERE id = 1 AND remaining > 0")
+        }
         // A successful claim invalidates the cached "remaining" count so the next read reflects reality.
         redisTemplate.delete(cacheKey(sessionId))
         return if (updated > 0) {
@@ -67,6 +77,14 @@ class RealInfraCouponController(
             ResponseEntity.status(HttpStatus.CONFLICT).body(mapOf("status" to "sold_out"))
         }
     }
+
+    // highCardinalityKeyValue, not low — a session id is unbounded/unique per
+    // session, which is exactly what that attribute class exists for (trace
+    // detail only, never aggregated into a metric's tag set).
+    private fun <T> dbObservation(name: String, sessionId: UUID, block: () -> T): T =
+        Observation.createNotStarted(name, observationRegistry)
+            .highCardinalityKeyValue("sysdrill.session_id", sessionId.toString())
+            .observe(block)!!
 
     private fun jdbcTemplateFor(sessionId: UUID, traits: DesignTraits): JdbcTemplate {
         val schema = schemaProvisioner.schemaName(sessionId)

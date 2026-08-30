@@ -36,5 +36,18 @@ services:
       - "8474:8474"
       - "20000-20049:20000-20049"
 
+  # PLAN.md step 24 — real distributed tracing, real-infra coupon pilot only.
+  # all-in-one accepts OTLP natively (no separate Collector needed for a
+  # pilot at this scale). UI on 16686; OTLP gRPC/HTTP on 4317/4318 published
+  # for the app (a host JVM process) to export to.
+  jaeger:
+    image: jaegertracing/all-in-one:1.65.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+
 volumes:
   sysdrill_postgres_data:

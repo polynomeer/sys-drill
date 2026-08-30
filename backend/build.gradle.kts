@@ -27,6 +27,16 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-flyway")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
+	// PLAN.md step 24 — real distributed tracing for the real-infra coupon
+	// pilot, exported via OTLP to a real Jaeger container (docker-compose).
+	// Spring Boot 4's dedicated starter, not the manual Boot-3-era combo of
+	// micrometer-tracing-bridge-otel + opentelemetry-exporter-otlp directly —
+	// without this starter, Boot 4's tracing autoconfiguration classes
+	// (OtlpTracingAutoConfiguration etc.) never even get evaluated, since
+	// they moved out of spring-boot-actuator-autoconfigure into a module this
+	// starter alone pulls in (confirmed empirically: the manual combo
+	// compiled fine but silently produced zero traces).
+	implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
 	implementation("org.flywaydb:flyway-database-postgresql")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("tools.jackson.module:jackson-module-kotlin")
