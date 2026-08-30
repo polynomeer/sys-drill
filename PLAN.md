@@ -350,7 +350,26 @@
 - "활동"의 정의를 `computeState`의 캐시 히트 경로(단순 폴링)가 아니라 `probeAndCache`(실제 k6 프로브가 도는 순간)로만 좁혔다 — `SimulationStateStore`도 조회가 아니라 저장 시점에만 TTL을 갱신하는 것과 동일한 기존 관례를 따른 것으로, 새로운 불일치를 만들지 않는다.
 - 테스트에서 "방치된 지 오래됨"을 재현하려고 `RealInfraSessionTracker`에 임의 타임스탬프 설정 API를 새로 만들지 않고, 테스트가 같은 Redis sorted set에 직접 backdated score를 써넣는 방식을 택했다 — 프로덕션 코드에 테스트 전용 진입점을 추가하지 않기 위함.
 
-### 23단계 — Toxiproxy 기반 네트워크 fault injection
+### 23단계 — Toxiproxy 기반 네트워크 fault injection ✅ 완료 (2026-08-30)
+
+- [x] `docker-compose.yml`에 `toxiproxy` 서비스 추가 (admin API 8474 + 세션당 동적 프록시용 포트 20000~20049, 최대 동시 실전 인프라 세션 50개)
+- [x] `ToxiproxySessionProxy` 신규: 세션별 Toxiproxy 프록시를 실제 Postgres 앞에 생성하고 `latency` toxic(기본 300ms±50ms)을 주입, 세션 전용 `HikariDataSource`가 이 프록시를 거쳐 연결되도록 `SessionDataSourceRegistry.poolFor`에 jdbcUrl override 파라미터 추가
+- [x] `RealInfraCouponEngine`/`RealInfraCouponController` 양쪽 모두 세션의 toxiproxy 라우팅 JDBC URL을 사용 — k6 요청이 실제로 주입된 지연을 통과하도록
+- [x] `RealInfraSessionSweepWorker`가 방치된 세션의 Toxiproxy 프록시도 함께 정리
+- [x] `SystemState.externalDependencyLatencyMs`에 실제 주입된 지연값을 노출, `WargameLive.tsx` 쿠폰 도메인 지표 패널에 "DB 네트워크 지연 (실전 인프라)" 항목 추가
+- [x] **실측으로 재보정**: 21단계에서 정한 `incident-rps=3000`은 300ms 지연 하에서 완전히 무의미해짐(모든 요청이 k6 자체 5초 타임아웃에 걸림) — `incident-rps=30`으로 재보정, k6 스크립트의 VU 배정 공식도 지연 증가를 반영해 상향
+- [x] 신규 테스트 3개(`ToxiproxySessionProxyTest`, 실제 Toxiproxy 컨테이너 사용) — 프록시 생성/삭제, 멱등성, 그리고 프록시를 거친 쿼리가 직결 쿼리보다 실제로 느림을 실측 검증
+- [x] ADR-0015 작성
+
+**완료 기준 충족**: 실제 브라우저로 전체 흐름(게이트 → 실전 인프라 시작 → 3개 액션 적용) 확인 — 인시던트 시 실측 p95=2426ms, DB 네트워크 지연=300ms(주입값과 정확히 일치); 3개 액션 적용 후에도 DB 네트워크 지연은 여전히 300ms로 불변이고 p95는 부분적으로만 개선(이번 실행에서는 3253ms로 오히려 더 나쁘게 나왔는데, 이는 기기 부하 변동 폭 안에 있는 것으로 ADR-0014가 이미 문서화한 현상 — 오히려 "기존 3개 액션이 네트워크 결함 자체는 못 고친다"는 ADR-0015의 요점을 더 뚜렷하게 보여줌). `docker exec`로 세션 전용 스키마와 실제 청구 데이터(remaining=887/1000)가 남아있음을 확인. Postgres 스키마 프로비저닝을 세션당 1회로 제한한 21단계의 교훈처럼, 이번에도 실측 중 진짜 버그 2개(테스트 정리 누락으로 인한 포트 누수, 실패 시 포트 미반환)를 찾아 고쳤다. 신규 3개 포함 백엔드 총 152개 테스트 통과, `realinfra` 패키지는 격리 재실행 3회로 안정성 재확인.
+
+**진행 중 발견한 결정 사항**:
+- **21단계의 calibration은 "지연이 거의 0"이라는 전제 위에 있었다** — Toxiproxy로 진짜 300ms 지연을 주입하자마자 그 전제가 깨졌다. 4-커넥션 풀의 이론적 처리량 상한이 `pool/latency ≈ 4/0.3 ≈ 13 req/s`까지 떨어져, 기존 `incident-rps=3000`은 거의 모든 요청이 k6 자체 5초 클라이언트 타임아웃에 걸리는 값이 됐다 — 실측(RATE 20/30/40/60/100 비교)으로 `incident-rps=30`이 "극적이지만 완전히 죽지는 않는" 딱 맞는 지점임을 다시 찾았다.
+- **에러율이 아니라 p95/지연이 진짜 신호라는 21단계 교훈이 여기서도 반복됐다** — 300ms 지연 자체는 `errorRate`를 거의 올리지 않는다(연결이 실패하는 게 아니라 그냥 느려질 뿐이므로). `externalDependencyLatencyMs`를 "실제로 측정된 값"이 아니라 "설정된 주입값을 그대로 노출"하는 방식을 택했다 — 이 값은 애초에 세션마다 고정된 상수이니 매번 다시 측정할 이유가 없다.
+- **왜 기존 3개 액션에 새 액션을 추가하지 않았는가(ADR-0015)**: retry/circuit breaker 같은 액션을 추가해 "이번에도 3개를 다 누르면 완전히 회복된다"는 기존 패턴을 유지할 수도 있었지만, 그러면 배울 게 없어진다. 애플리케이션 레벨 레버(rate limit/cache TTL/pool 크기)로는 네트워크 왕복 자체를 빠르게 만들 수 없다는 것 — 일부 실전 인프라 문제는 지금 화면에 있는 도구가 아니라 다른 종류의 해법(타임아웃 튜닝, 재시도, 서킷 브레이커, 혹은 네트워크 자체 수정)이 필요하다는 것을 의도적으로 미해결로 남겼다.
+- **스키마 프로비저닝처럼, Toxiproxy 프록시도 세션당 1회만 생성하고 액션 적용 시 재사용한다** — 21단계에서 배운 "재프로비저닝은 DDL 락 hang을 유발한다"는 교훈을 그대로 적용해, `RealInfraCouponEngine.applyAction`에서 `toxiproxy.jdbcUrlFor()`가 idempotent하게 기존 프록시를 반환하도록 설계했다.
+- Toxiproxy의 `upstream`은 앱 자신이 쓰는 `DB_HOST:DB_PORT`(호스트 포트 5433)가 아니라 docker-compose 서비스명과 컨테이너 내부 포트(`postgres:5432`)를 가리켜야 한다는 걸 실측으로 확인했다 — Toxiproxy는 앱과 달리 컨테이너 안에서 compose 네트워크로 직접 Postgres에 도달하기 때문.
+
 ### 24단계 — OpenTelemetry 기반 실측 metrics/traces 파이프라인
 ### 25단계 — Incident Replay
 ### 26단계 — Postmortem 작성 기능
