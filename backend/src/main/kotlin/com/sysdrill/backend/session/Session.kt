@@ -30,6 +30,10 @@ class Session(
     @Column(name = "build_submission_id")
     var buildSubmissionId: UUID? = null,
 
+    /** PLAN.md step 28 — opt-in at session start; drives per-phase time limits (sysdrill.session.interview-timer.*). */
+    @Column(name = "interview_mode", nullable = false)
+    var interviewMode: Boolean = false,
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     var status: SessionStatus = SessionStatus.IN_PROGRESS,

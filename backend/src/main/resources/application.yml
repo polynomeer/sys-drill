@@ -37,6 +37,16 @@ sysdrill:
     queue-key: ${BUILD_QUEUE_KEY:sysdrill:build:jobs}
     sandbox-image: ${BUILD_SANDBOX_IMAGE:python:3.12-slim}
     timeout-seconds: ${BUILD_TIMEOUT_SECONDS:10}
+  session:
+    # PLAN.md step 28 — per-phase time limit when a session opts into
+    # interview-timer mode (docs/PRD.md §12's "Advanced/Interview" tier).
+    # Deliberately per-phase-type, not one flat number: INCIDENT is shorter
+    # than INITIAL/FOLLOWUP because it's a live-response phase, not a design
+    # writeup, mirroring a real system-design interview's time budget.
+    interview-timer:
+      initial-seconds: ${INTERVIEW_TIMER_INITIAL_SECONDS:600}
+      followup-seconds: ${INTERVIEW_TIMER_FOLLOWUP_SECONDS:600}
+      incident-seconds: ${INTERVIEW_TIMER_INCIDENT_SECONDS:480}
   simulation:
     realinfra:
       # PLAN.md step 21 — coupon-only real-infra pilot. baseline/incident-rps are

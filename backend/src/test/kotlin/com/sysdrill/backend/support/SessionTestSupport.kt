@@ -30,11 +30,13 @@ fun MockMvc.startSession(
     scenarioId: UUID = COUPON_SCENARIO_ID,
     buildSubmissionId: UUID? = null,
     seed: String? = null,
+    interviewMode: Boolean = false,
 ): UUID {
     val body = buildString {
         append("""{"userId":"$userId","scenarioId":"$scenarioId"""")
         if (buildSubmissionId != null) append(""","buildSubmissionId":"$buildSubmissionId"""")
         if (seed != null) append(""","seed":"$seed"""")
+        if (interviewMode) append(""","interviewMode":true""")
         append("}")
     }
     val response = perform(post("/sessions").contentType(MediaType.APPLICATION_JSON).content(body))

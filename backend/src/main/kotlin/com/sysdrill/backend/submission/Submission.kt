@@ -40,6 +40,10 @@ class Submission(
     @Column(name = "client_request_id")
     var clientRequestId: String? = null,
 
+    /** PLAN.md step 28 — null when the session isn't in interview-timer mode (not "false": not applicable, not late). */
+    @Column(name = "on_time")
+    var onTime: Boolean? = null,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant? = null,

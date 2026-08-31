@@ -18,6 +18,8 @@ data class TimelineEntry(
     val submissionId: UUID,
     val totalScore: Int?,
     val topRisks: List<String>,
+    /** PLAN.md step 28 — null unless the session was in interview-timer mode. */
+    val onTime: Boolean?,
 )
 
 /** Bridge Mode (PLAN.md step 10): the Build submission a session was entered from, folded into its report. */
@@ -60,6 +62,7 @@ class ReportService(
                 submissionId = submission.id!!,
                 totalScore = evaluation.totalScore,
                 topRisks = risks,
+                onTime = submission.onTime,
             )
         }
 

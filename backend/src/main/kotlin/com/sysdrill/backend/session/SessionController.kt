@@ -17,7 +17,9 @@ class SessionController(private val sessionService: SessionService) {
 
     @PostMapping
     fun start(@Valid @RequestBody request: StartSessionRequest): ResponseEntity<SessionResponse> {
-        val session = sessionService.startSession(request.userId, request.scenarioId, request.buildSubmissionId, request.seed)
+        val session = sessionService.startSession(
+            request.userId, request.scenarioId, request.buildSubmissionId, request.seed, request.interviewMode,
+        )
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(session))
     }
 
@@ -37,5 +39,10 @@ class SessionController(private val sessionService: SessionService) {
     fun advance(@PathVariable id: UUID): SessionResponse = toResponse(sessionService.advance(id))
 
     private fun toResponse(session: Session): SessionResponse =
-        SessionResponse.from(session, sessionService.getCurrentStepPrompt(session), sessionService.getScenarioDomain(session))
+        SessionResponse.from(
+            session,
+            sessionService.getCurrentStepPrompt(session),
+            sessionService.getScenarioDomain(session),
+            sessionService.getPhaseDeadline(session),
+        )
 }

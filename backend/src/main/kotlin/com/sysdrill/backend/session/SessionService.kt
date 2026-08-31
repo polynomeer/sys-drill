@@ -14,6 +14,7 @@ import com.sysdrill.backend.reporting.ReportService
 import com.sysdrill.backend.scenario.ScenarioStep
 import com.sysdrill.backend.submission.Submission
 import com.sysdrill.backend.submission.SubmissionRepository
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -34,10 +35,19 @@ class SessionService(
     private val buildSubmissionRepository: BuildSubmissionRepository,
     private val skillProfileRepository: SkillProfileRepository,
     private val objectMapper: ObjectMapper,
+    @Value("\${sysdrill.session.interview-timer.initial-seconds}") private val initialTimerSeconds: Long,
+    @Value("\${sysdrill.session.interview-timer.followup-seconds}") private val followupTimerSeconds: Long,
+    @Value("\${sysdrill.session.interview-timer.incident-seconds}") private val incidentTimerSeconds: Long,
 ) {
 
     @Transactional
-    fun startSession(userId: UUID, scenarioId: UUID, buildSubmissionId: UUID? = null, seed: String? = null): Session {
+    fun startSession(
+        userId: UUID,
+        scenarioId: UUID,
+        buildSubmissionId: UUID? = null,
+        seed: String? = null,
+        interviewMode: Boolean = false,
+    ): Session {
         val scenario = scenarioRepository.findById(scenarioId)
             .orElseThrow { NotFoundException("Scenario not found: $scenarioId") }
         val version = scenarioVersionRepository
@@ -62,6 +72,7 @@ class SessionService(
                 userId = userId,
                 scenarioVersionId = version.id!!,
                 buildSubmissionId = buildSubmissionId,
+                interviewMode = interviewMode,
                 currentPhase = firstStep.stepType,
                 // Drives deterministic variant selection for steps with multiple
                 // authored versions (PLAN.md step 12) — PRD.md §7.3's "통제된
@@ -85,6 +96,21 @@ class SessionService(
 
     fun getSession(sessionId: UUID): Session =
         sessionRepository.findById(sessionId).orElseThrow { NotFoundException("Session not found: $sessionId") }
+
+    private fun phaseTimeLimitSeconds(phaseType: String): Long = when (phaseType) {
+        "INITIAL" -> initialTimerSeconds
+        "FOLLOWUP" -> followupTimerSeconds
+        "INCIDENT" -> incidentTimerSeconds
+        else -> incidentTimerSeconds
+    }
+
+    /** Null unless [Session.interviewMode] — the frontend's countdown is driven entirely by this one field, not by re-deriving the time limit itself. */
+    fun getPhaseDeadline(session: Session): Instant? {
+        if (!session.interviewMode) return null
+        val phase = sessionPhaseRepository.findTopBySessionIdOrderByPhaseOrderDesc(session.id!!) ?: return null
+        val startedAt = phase.startedAt ?: return null
+        return startedAt.plusSeconds(phaseTimeLimitSeconds(phase.phaseType))
+    }
 
     /** The scenario domain (e.g. "coupon") a session belongs to — drives which Wargame actions/guidance the frontend shows. */
     fun getScenarioDomain(session: Session): String {
@@ -148,6 +174,11 @@ class SessionService(
         val session = getSession(sessionId)
         SessionStateMachine.requireTransition(session.status, SessionStatus.SUBMITTED)
 
+        // Read before compareAndSetStatus flips it, not after — the deadline is
+        // computed from the phase row that's about to be marked complete, and
+        // this is the last moment "now" still means "at submission time".
+        val deadline = getPhaseDeadline(session)
+
         val updated = sessionRepository.compareAndSetStatus(sessionId, session.status, SessionStatus.SUBMITTED)
         if (updated == 0) {
             throw ConflictException("Session $sessionId is not accepting submissions right now")
@@ -160,6 +191,7 @@ class SessionService(
                 rawText = rawText,
                 structuredJson = structuredJson,
                 clientRequestId = clientRequestId,
+                onTime = deadline?.let { !Instant.now().isAfter(it) },
             )
         )
         // Delivered after this transaction commits (EvaluationRequestPublisher), so the
