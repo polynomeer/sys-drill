@@ -107,6 +107,34 @@ export interface TimelineStep {
   systemState: SystemState;
 }
 
+export interface PostmortemActionSummary {
+  actionType: string;
+  label: string;
+  elapsedSeconds: number;
+}
+
+export interface Postmortem {
+  sessionId: string;
+  saved: boolean;
+  mttdSeconds: number | null;
+  mttrSeconds: number | null;
+  actionsTimeline: PostmortemActionSummary[];
+  metricsBefore: SystemState | null;
+  metricsAfter: SystemState | null;
+  rootCause: string | null;
+  mitigationActions: string[];
+  rootFixActions: string[];
+  preventionItems: string[];
+  updatedAt: string | null;
+}
+
+export interface SavePostmortemRequest {
+  rootCause: string;
+  mitigationActions: string[];
+  rootFixActions: string[];
+  preventionItems: string[];
+}
+
 export interface SessionSummary {
   id: string;
   status: SessionStatus;
@@ -260,6 +288,17 @@ export function applySimulationAction(
 
 export function getSimulationTimeline(sessionId: string): Promise<TimelineStep[]> {
   return apiFetch<TimelineStep[]>(`/sessions/${sessionId}/simulation/timeline`);
+}
+
+export function getPostmortem(sessionId: string): Promise<Postmortem> {
+  return apiFetch<Postmortem>(`/sessions/${sessionId}/postmortem`);
+}
+
+export function savePostmortem(sessionId: string, request: SavePostmortemRequest): Promise<Postmortem> {
+  return apiFetch<Postmortem>(`/sessions/${sessionId}/postmortem`, {
+    method: "PUT",
+    body: JSON.stringify(request),
+  });
 }
 
 export function getUserSessions(userId: string): Promise<SessionSummary[]> {

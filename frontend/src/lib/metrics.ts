@@ -14,3 +14,10 @@ export function formatPercent(value: number): string {
 export function formatMs(value: number): string {
   return `${value.toFixed(0)}ms`;
 }
+
+export function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}초`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${minutes}분 ${rest}초`;
+}

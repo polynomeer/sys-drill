@@ -49,6 +49,9 @@ export default function ReportPage() {
           <Link href={`/design/${sessionId}/replay`} className="text-sm underline">
             인시던트 리플레이
           </Link>
+          <Link href={`/design/${sessionId}/postmortem`} className="text-sm underline">
+            포스트모템
+          </Link>
           <Link href="/dashboard" className="text-sm underline">
             대시보드로
           </Link>
