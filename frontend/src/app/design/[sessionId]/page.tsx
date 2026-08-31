@@ -23,6 +23,7 @@ import {
 } from "@/lib/localSession";
 import { WargameLive } from "./WargameLive";
 import { BridgeProgress } from "@/components/BridgeProgress";
+import { PhaseTimer } from "@/components/PhaseTimer";
 
 const DESIGN_GUIDANCE_BY_DOMAIN: Record<string, string[]> = {
   coupon: [
@@ -206,17 +207,18 @@ export default function DesignWorkspacePage() {
     saveDraft(sessionId, value);
   }
 
-  async function handleSubmit() {
-    if (!answer.trim()) {
+  async function handleSubmit(auto = false) {
+    if (!auto && !answer.trim()) {
       setError("답안을 입력해주세요.");
       return;
     }
+    const textToSubmit = answer.trim() ? answer : "(시간 초과로 자동 제출됨 — 작성한 내용 없음)";
     setView("submitting");
     setError(null);
     try {
       const clientRequestId =
         typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}`;
-      const submission = await submitAnswer(sessionId, answer, clientRequestId);
+      const submission = await submitAnswer(sessionId, textToSubmit, clientRequestId);
       saveSubmissionId(sessionId, submission.id);
       clearDraft(sessionId);
       setView("waiting");
@@ -250,7 +252,12 @@ export default function DesignWorkspacePage() {
         <h1 className="text-xl font-semibold">
           {isIncident ? "Wargame Live" : "System Design Workspace"}
         </h1>
-        {session?.buildSubmissionId && <BridgeProgress current={isIncident ? "wargame" : "design"} />}
+        <div className="flex items-center gap-3">
+          {session?.interviewMode && session.phaseDeadlineAt && view === "editing" && (
+            <PhaseTimer deadlineAt={session.phaseDeadlineAt} onExpire={() => handleSubmit(true)} />
+          )}
+          {session?.buildSubmissionId && <BridgeProgress current={isIncident ? "wargame" : "design"} />}
+        </div>
       </div>
 
       {view === "loading" && <p className="text-sm text-zinc-500">불러오는 중...</p>}
@@ -299,7 +306,7 @@ export default function DesignWorkspacePage() {
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <button
-            onClick={handleSubmit}
+            onClick={() => handleSubmit()}
             disabled={view === "submitting"}
             className="self-start rounded bg-foreground px-5 py-2 font-medium text-background disabled:opacity-50"
           >

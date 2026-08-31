@@ -89,7 +89,19 @@ export default function ReportPage() {
               {report.timelineFeedback.map((entry) => (
                 <li key={entry.submissionId} className="border-t border-zinc-200 pt-3 first:border-t-0 first:pt-0 dark:border-zinc-800">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{PHASE_LABELS[entry.phase] ?? entry.phase}</span>
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      {PHASE_LABELS[entry.phase] ?? entry.phase}
+                      {entry.onTime === false && (
+                        <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950 dark:text-red-300">
+                          시간 초과
+                        </span>
+                      )}
+                      {entry.onTime === true && (
+                        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                          시간 내 제출
+                        </span>
+                      )}
+                    </span>
                     <span className="font-mono text-sm">{entry.totalScore ?? "-"} / 100</span>
                   </div>
                   {entry.topRisks.length > 0 && (

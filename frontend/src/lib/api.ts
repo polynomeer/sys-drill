@@ -31,6 +31,8 @@ export interface SessionResponse {
   scenarioVersionId: string;
   domain: string;
   buildSubmissionId: string | null;
+  interviewMode: boolean;
+  phaseDeadlineAt: string | null;
   startedAt: string;
   completedAt: string | null;
 }
@@ -40,6 +42,7 @@ export interface SubmissionResponse {
   sessionId: string;
   phase: string;
   revisionNo: number;
+  onTime: boolean | null;
 }
 
 export interface RiskFlag {
@@ -158,6 +161,7 @@ export interface TimelineEntry {
   submissionId: string;
   totalScore: number | null;
   topRisks: string[];
+  onTime: boolean | null;
 }
 
 export interface BuildSummary {
@@ -237,10 +241,12 @@ export function startSession(
   userId: string,
   scenarioId: string,
   buildSubmissionId?: string,
+  seed?: string,
+  interviewMode?: boolean,
 ): Promise<SessionResponse> {
   return apiFetch<SessionResponse>("/sessions", {
     method: "POST",
-    body: JSON.stringify({ userId, scenarioId, buildSubmissionId }),
+    body: JSON.stringify({ userId, scenarioId, buildSubmissionId, seed, interviewMode }),
   });
 }
 

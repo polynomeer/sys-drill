@@ -42,6 +42,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startingId, setStartingId] = useState<string | null>(null);
+  const [interviewMode, setInterviewMode] = useState(false);
 
   useEffect(() => {
     const userId = getStoredUserId();
@@ -73,7 +74,7 @@ export default function DashboardPage() {
     setStartingId(scenarioId);
     setError(null);
     try {
-      const session = await startSession(userId, scenarioId);
+      const session = await startSession(userId, scenarioId, undefined, undefined, interviewMode);
       router.push(`/design/${session.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "세션을 시작하지 못했습니다.");
@@ -185,6 +186,19 @@ export default function DashboardPage() {
       )}
 
       {loading && <p className="text-sm text-zinc-500">불러오는 중...</p>}
+
+      <label className="flex items-start gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+        <input
+          type="checkbox"
+          checked={interviewMode}
+          onChange={(e) => setInterviewMode(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span>
+          면접형 타이머 모드로 시작 — 각 단계마다 제한 시간이 표시되고, 시간이 다 되면 현재까지 작성한 내용이 자동
+          제출됩니다.
+        </span>
+      </label>
 
       <ul className="flex flex-col gap-3">
         {orderedScenarios.map((scenario) => (
