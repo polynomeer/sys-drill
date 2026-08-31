@@ -129,6 +129,22 @@ const INCIDENT_EVENT_BY_DOMAIN: Record<string, string> = {
 
 const POLL_INTERVAL_MS = 3000;
 
+// PLAN.md step 21/27 — domains with a real-infra opt-in path, and the
+// domain-specific description/event text for each one's pre-start gate.
+const REAL_INFRA_DOMAINS = new Set(["coupon", "notification"]);
+
+const REAL_INFRA_GATE_DESCRIPTION: Record<string, string> = {
+  coupon:
+    "실제 Postgres 전용 스키마·커넥션 풀, 실제 네트워크 지연(Toxiproxy 주입), 실제 k6 부하로 지표를 측정합니다.",
+  notification:
+    "실제 Kafka 토픽·컨슈머 그룹으로 실제 프로듀서/컨슈머를 띄우고, 실제 처리 지연·백로그(consumer lag)·지연 도착 실패율로 지표를 측정합니다.",
+};
+
+const REAL_INFRA_START_EVENT: Record<string, string> = {
+  coupon: "실전 인프라 인시던트 시작: 실제 Postgres 전용 스키마·커넥션 풀, Toxiproxy로 주입한 실제 네트워크 지연, 실제 k6 부하로 지표를 측정합니다.",
+  notification: "실전 인프라 인시던트 시작: 실제 Kafka 토픽·컨슈머 그룹, 실제 프로듀서/컨슈머로 지표를 측정합니다.",
+};
+
 /** PLAN.md step 7's MetricsPanel/ActionPanel — EventStream/Timeline are merged into
  * one client-side log below since there's no backend timeline API yet. Actions and
  * the incident event text are keyed by scenario domain (PLAN.md step 11). */
@@ -141,10 +157,10 @@ export function WargameLive({ sessionId, domain }: { sessionId: string; domain: 
   const [applying, setApplying] = useState<SimulationActionType | null>(null);
   const started = useRef(false);
 
-  // PLAN.md step 21 — only the coupon domain has a real-infra opt-in, so only it
-  // ever shows this pre-start gate; every other domain keeps auto-starting
+  // PLAN.md step 21/27 — only domains with a real-infra opt-in (REAL_INFRA_DOMAINS)
+  // ever show this pre-start gate; every other domain keeps auto-starting
   // immediately, unchanged.
-  const [awaitingStartChoice, setAwaitingStartChoice] = useState(domain === "coupon");
+  const [awaitingStartChoice, setAwaitingStartChoice] = useState(REAL_INFRA_DOMAINS.has(domain));
   const [realInfraChoice, setRealInfraChoice] = useState(false);
 
   const addEvent = useCallback((message: string) => {
@@ -182,7 +198,7 @@ export function WargameLive({ sessionId, domain }: { sessionId: string; domain: 
       setState(initial);
       addEvent(
         realInfraChoice
-          ? "실전 인프라 인시던트 시작: 실제 Postgres 전용 스키마·커넥션 풀, Toxiproxy로 주입한 실제 네트워크 지연, 실제 k6 부하로 지표를 측정합니다."
+          ? (REAL_INFRA_START_EVENT[domain] ?? REAL_INFRA_START_EVENT.coupon)
           : (INCIDENT_EVENT_BY_DOMAIN[domain] ?? INCIDENT_EVENT_BY_DOMAIN.coupon)
       );
     } catch {
@@ -217,8 +233,8 @@ export function WargameLive({ sessionId, domain }: { sessionId: string; domain: 
             className="mt-1"
           />
           <span>
-            실전 인프라로 시작 (실험적) — 실제 Postgres 전용 스키마·커넥션 풀, 실제 네트워크 지연(Toxiproxy 주입),
-            실제 k6 부하로 지표를 측정합니다. 체크하지 않으면 기존과 동일한 규칙 기반 시뮬레이션입니다.
+            실전 인프라로 시작 (실험적) — {REAL_INFRA_GATE_DESCRIPTION[domain] ?? REAL_INFRA_GATE_DESCRIPTION.coupon}
+            체크하지 않으면 기존과 동일한 규칙 기반 시뮬레이션입니다.
           </span>
         </label>
         <button
