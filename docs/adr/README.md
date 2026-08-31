@@ -19,3 +19,4 @@ Short records of decisions that are hard to reverse, would surprise a future rea
 | [0013](0013-coupon-real-infra-pilot-schema-per-session.md) | Coupon gets an opt-in real-infra SimulationEngine, schema-per-session instead of container-per-session |
 | [0014](0014-real-infra-tests-use-range-assertions.md) | Real-infra simulation tests assert ranges and relative comparisons, not exact hand-computed values |
 | [0015](0015-toxiproxy-fault-has-no-mitigating-action.md) | The Toxiproxy-injected network fault has no mitigating action in this pilot |
+| [0016](0016-incident-replay-snapshots-only-for-real-infra.md) | Incident replay reconstructs rule-based timelines by recomputation, but persists real-infra snapshots |

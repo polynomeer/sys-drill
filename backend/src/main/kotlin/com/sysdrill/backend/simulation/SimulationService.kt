@@ -8,7 +8,38 @@ import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.simulation.realinfra.RealInfraCouponEngine
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.ObjectMapper
+import java.time.Instant
 import java.util.UUID
+
+/**
+ * What [AppliedAction.parameters] actually holds (PLAN.md step 25 / ADR-0016)
+ * — every row records which engine served the session ([engineMode], really
+ * only meaningful on the first "INCIDENT_STARTED" row, but harmless and
+ * simpler to write on every row than to special-case the first one).
+ * [systemState] is populated only for real-infra sessions: a rule-based
+ * session's state at any point is a pure function of
+ * (domain, incidentActive, traits-after-N-actions) and can always be
+ * recomputed later (ADR-0011) — a real-infra session's state came from an
+ * actual k6 run against actual infra and cannot be recomputed after the
+ * fact, so it has to be captured at the moment it happened or it's lost.
+ */
+data class AppliedActionSnapshot(
+    val engineMode: String,
+    val systemState: SystemState? = null,
+)
+
+/** One point on an incident's replay timeline (PLAN.md step 25) — [actionType] is null only for the synthetic first "incident started" step. */
+data class TimelineStep(
+    val step: Int,
+    val actionType: String?,
+    val label: String,
+    val appliedAt: Instant,
+    val systemState: SystemState,
+)
+
+/** Sentinel [AppliedAction.actionType] for the incident-start row — deliberately not a [SimulationActionType] member, since it isn't a user-applicable action. */
+const val INCIDENT_STARTED = "INCIDENT_STARTED"
 
 @Service
 class SimulationService(
@@ -18,6 +49,7 @@ class SimulationService(
     private val stateStore: SimulationStateStore,
     private val appliedActionRepository: AppliedActionRepository,
     private val realInfraCouponEngine: RealInfraCouponEngine,
+    private val objectMapper: ObjectMapper,
 ) {
 
     /**
@@ -26,6 +58,7 @@ class SimulationService(
      * the "coupon" domain (ADR-0013); every other domain, and non-opted-in
      * coupon sessions, are completely unaffected by its existence.
      */
+    @Transactional
     fun startIncident(sessionId: UUID, realInfra: Boolean = false): SystemState {
         val session = sessionRepository.findById(sessionId)
             .orElseThrow { NotFoundException("Session not found: $sessionId") }
@@ -34,15 +67,32 @@ class SimulationService(
             throw BadRequestException("Real-infra mode is only available for the coupon domain, not: $domain")
         }
         val traits = if (realInfra) DesignTraits(dbPoolSize = RealInfraCouponEngine.INITIAL_DB_POOL_SIZE) else DesignTraits()
+        val engineMode = if (realInfra) EngineMode.REAL_INFRA else EngineMode.RULE_BASED
         val state = SimulationSessionState(
             sessionId = sessionId,
             domain = domain,
             incidentActive = true,
             traits = traits,
-            engineMode = if (realInfra) EngineMode.REAL_INFRA else EngineMode.RULE_BASED,
+            engineMode = engineMode,
         )
         stateStore.save(sessionId, state)
-        return engineFor(state).computeState(state)
+        val computed = engineFor(state).computeState(state)
+
+        // Step 0 of the incident replay timeline (PLAN.md step 25) — without this
+        // row, a replay would have no way to know which engine served the session
+        // once SimulationStateStore's 6h Redis TTL expires, and (for real-infra)
+        // no way to recover the very first measurement at all.
+        appliedActionRepository.save(
+            AppliedAction(
+                sessionId = sessionId,
+                actionType = INCIDENT_STARTED,
+                effect = "인시던트 시작",
+                parameters = objectMapper.writeValueAsString(
+                    AppliedActionSnapshot(engineMode = engineMode.name, systemState = computed.takeIf { realInfra })
+                ),
+            )
+        )
+        return computed
     }
 
     private fun resolveDomain(scenarioVersionId: UUID): String {
@@ -68,13 +118,79 @@ class SimulationService(
 
         val updated = engineFor(current).applyAction(current, actionType)
         stateStore.save(sessionId, updated)
+        // For real-infra, engineFor(current).applyAction(...) above already ran the
+        // real probe and cached its result — this computeState call is a cheap
+        // cache read (RealInfraCouponEngine's doc comment), not a second probe.
+        val resultState = engineFor(updated).computeState(updated)
 
         appliedActionRepository.save(
-            AppliedAction(sessionId = sessionId, actionType = actionType.name, effect = describe(actionType))
+            AppliedAction(
+                sessionId = sessionId,
+                actionType = actionType.name,
+                effect = describe(actionType),
+                parameters = objectMapper.writeValueAsString(
+                    AppliedActionSnapshot(
+                        engineMode = updated.engineMode.name,
+                        systemState = resultState.takeIf { updated.engineMode == EngineMode.REAL_INFRA },
+                    )
+                ),
+            )
         )
 
-        return engineFor(updated).computeState(updated)
+        return resultState
     }
+
+    /**
+     * Reconstructs the incident's metrics-over-time timeline (PLAN.md step 25,
+     * ADR-0016) from [AppliedAction] rows — never a second, separately-tracked
+     * history. A rule-based session's steps are replayed by re-running
+     * [RuleBasedSimulationEngine] over the stored action sequence starting from
+     * default [DesignTraits] (ADR-0011: derived, not persisted); a real-infra
+     * session's steps are read directly from each row's stored snapshot, since
+     * those numbers came from real infra and can't be recomputed after the fact.
+     */
+    fun getTimeline(sessionId: UUID): List<TimelineStep> {
+        requireSessionExists(sessionId)
+        val events = appliedActionRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)
+        if (events.isEmpty()) return emptyList()
+
+        val firstSnapshot = readSnapshot(events.first())
+        return if (firstSnapshot?.engineMode == EngineMode.REAL_INFRA.name) {
+            events.mapIndexed { index, event ->
+                val snapshot = readSnapshot(event)
+                    ?: error("Real-infra session $sessionId is missing a state snapshot on action ${event.id}")
+                TimelineStep(
+                    step = index,
+                    actionType = event.actionType.takeIf { it != INCIDENT_STARTED },
+                    label = event.effect ?: event.actionType,
+                    appliedAt = event.createdAt!!,
+                    systemState = snapshot.systemState
+                        ?: error("Real-infra session $sessionId is missing a state snapshot on action ${event.id}"),
+                )
+            }
+        } else {
+            val session = sessionRepository.findById(sessionId)
+                .orElseThrow { NotFoundException("Session not found: $sessionId") }
+            val domain = resolveDomain(session.scenarioVersionId)
+            var replayState = SimulationSessionState(sessionId, domain, incidentActive = true, traits = DesignTraits())
+            events.mapIndexed { index, event ->
+                if (index > 0) {
+                    val actionType = SimulationActionType.valueOf(event.actionType)
+                    replayState = RuleBasedSimulationEngine.applyAction(replayState, actionType)
+                }
+                TimelineStep(
+                    step = index,
+                    actionType = event.actionType.takeIf { it != INCIDENT_STARTED },
+                    label = event.effect ?: event.actionType,
+                    appliedAt = event.createdAt!!,
+                    systemState = RuleBasedSimulationEngine.computeState(replayState),
+                )
+            }
+        }
+    }
+
+    private fun readSnapshot(event: AppliedAction): AppliedActionSnapshot? =
+        event.parameters?.let { objectMapper.readValue(it, AppliedActionSnapshot::class.java) }
 
     private fun engineFor(state: SimulationSessionState): SimulationEngine =
         if (state.engineMode == EngineMode.REAL_INFRA) realInfraCouponEngine else RuleBasedSimulationEngine

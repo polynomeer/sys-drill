@@ -79,4 +79,43 @@ class SimulationControllerIntegrationTest(
         assertThat(JsonPath.read<Double>(finalState, "$.dbReadLoad")).isLessThan(0.6)
         assertThat(JsonPath.read<Double>(finalState, "$.dbWriteLoad")).isLessThan(0.6)
     }
+
+    @Test
+    fun `the timeline replays each step's metrics for a rule-based session, from AppliedAction rows alone`() {
+        val sessionId = mockMvc.startSession(userId)
+
+        mockMvc.perform(post("/sessions/$sessionId/simulation/incident")).andExpect(status().isOk)
+        applyAction(sessionId, SimulationActionType.STRENGTHEN_RATE_LIMIT)
+        applyAction(sessionId, SimulationActionType.INCREASE_CACHE_TTL)
+        applyAction(sessionId, SimulationActionType.INCREASE_DB_POOL)
+
+        val timeline = mockMvc.perform(get("/sessions/$sessionId/simulation/timeline"))
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+
+        assertThat(JsonPath.read<Int>(timeline, "$.length()")).isEqualTo(4)
+
+        // Step 0 — synthetic "incident started" step, no action, matches the raw incident state.
+        assertThat(JsonPath.read<Any?>(timeline, "$[0].actionType")).isNull()
+        assertThat(JsonPath.read<Double>(timeline, "$[0].systemState.trafficRps")).isEqualTo(6000.0)
+        assertThat(JsonPath.read<Double>(timeline, "$[0].systemState.errorRate")).isEqualTo(0.3)
+
+        // Steps 1-3 — each stored action, replayed in order.
+        assertThat(JsonPath.read<String>(timeline, "$[1].actionType")).isEqualTo("STRENGTHEN_RATE_LIMIT")
+        assertThat(JsonPath.read<String>(timeline, "$[2].actionType")).isEqualTo("INCREASE_CACHE_TTL")
+        assertThat(JsonPath.read<String>(timeline, "$[3].actionType")).isEqualTo("INCREASE_DB_POOL")
+
+        // Final replayed step matches the live /state endpoint's already-verified recovery numbers.
+        assertThat(JsonPath.read<Double>(timeline, "$[3].systemState.errorRate")).isEqualTo(0.001)
+        assertThat(JsonPath.read<Double>(timeline, "$[3].systemState.p95LatencyMs")).isEqualTo(80.0)
+    }
+
+    @Test
+    fun `the timeline is empty for a session with no incident started`() {
+        val sessionId = mockMvc.startSession(userId)
+
+        mockMvc.perform(get("/sessions/$sessionId/simulation/timeline"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.length()").value(0))
+    }
 }

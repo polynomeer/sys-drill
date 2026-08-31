@@ -1,6 +1,7 @@
 package com.sysdrill.backend.simulation
 
 import jakarta.validation.constraints.NotNull
+import java.time.Instant
 
 data class SystemStateResponse(
     val trafficRps: Double,
@@ -35,3 +36,21 @@ data class SystemStateResponse(
 }
 
 data class ApplyActionRequest(@field:NotNull val actionType: SimulationActionType)
+
+data class TimelineStepResponse(
+    val step: Int,
+    val actionType: String?,
+    val label: String,
+    val appliedAt: Instant,
+    val systemState: SystemStateResponse,
+) {
+    companion object {
+        fun from(step: TimelineStep) = TimelineStepResponse(
+            step = step.step,
+            actionType = step.actionType,
+            label = step.label,
+            appliedAt = step.appliedAt,
+            systemState = SystemStateResponse.from(step.systemState),
+        )
+    }
+}

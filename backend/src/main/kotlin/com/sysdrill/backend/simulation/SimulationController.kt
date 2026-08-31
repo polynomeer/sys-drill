@@ -31,4 +31,8 @@ class SimulationController(private val simulationService: SimulationService) {
         @Valid @RequestBody request: ApplyActionRequest,
     ): SystemStateResponse =
         SystemStateResponse.from(simulationService.applyAction(sessionId, request.actionType))
+
+    @GetMapping("/timeline")
+    fun getTimeline(@PathVariable sessionId: UUID): List<TimelineStepResponse> =
+        simulationService.getTimeline(sessionId).map(TimelineStepResponse::from)
 }
