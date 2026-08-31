@@ -80,6 +80,28 @@ sysdrill:
         port-range-size: ${REALINFRA_TOXIPROXY_PORT_RANGE_SIZE:50}
         latency-ms: ${REALINFRA_TOXIPROXY_LATENCY_MS:300}
         jitter-ms: ${REALINFRA_TOXIPROXY_JITTER_MS:50}
+      # PLAN.md step 27 — notification-only real-infra pilot: a real, shared,
+      # single-node Kafka broker (docker-compose), topic-per-session (ADR-0013's
+      # schema-per-session reasoning, applied to Kafka). No external load-gen
+      # container (ADR-0017) — the producer/consumer threads run in-process,
+      # using the plain kafka-clients library directly.
+      kafka:
+        bootstrap-servers: ${REALINFRA_KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
+        # Real partition count caps real consumer parallelism per session —
+        # Kafka simply won't assign more consumers than partitions to one
+        # group, so this is also ADD_CONSUMERS' real ceiling.
+        partitions-per-session: ${REALINFRA_KAFKA_PARTITIONS:6}
+        probe-duration-seconds: ${REALINFRA_KAFKA_PROBE_DURATION_SECONDS:6}
+        # Extra time consumers keep draining after the producer stops, before
+        # being interrupted — lets the probe's own tail backlog actually get
+        # measured as "processed or expired" instead of just abandoned mid-poll.
+        drain-buffer-ms: ${REALINFRA_KAFKA_DRAIN_BUFFER_MS:2000}
+        baseline-event-rate: ${REALINFRA_KAFKA_BASELINE_EVENT_RATE:20}
+        incident-event-rate: ${REALINFRA_KAFKA_INCIDENT_EVENT_RATE:150}
+        # A message counts as failed (published-to-DLQ-equivalent, counted into
+        # errorRate) if its real end-to-end (publish -> consume) latency exceeds
+        # this — "the notification arrived so late it's no longer useful".
+        expiry-ms: ${REALINFRA_KAFKA_EXPIRY_MS:800}
 
 management:
   endpoints:

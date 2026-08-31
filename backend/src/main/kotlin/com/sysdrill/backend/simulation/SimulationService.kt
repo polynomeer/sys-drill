@@ -6,6 +6,7 @@ import com.sysdrill.backend.scenario.ScenarioRepository
 import com.sysdrill.backend.scenario.ScenarioVersionRepository
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.simulation.realinfra.RealInfraCouponEngine
+import com.sysdrill.backend.simulation.realinfra.RealInfraNotificationEngine
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
@@ -49,24 +50,43 @@ class SimulationService(
     private val stateStore: SimulationStateStore,
     private val appliedActionRepository: AppliedActionRepository,
     private val realInfraCouponEngine: RealInfraCouponEngine,
+    private val realInfraNotificationEngine: RealInfraNotificationEngine,
     private val objectMapper: ObjectMapper,
 ) {
 
     /**
+     * Which [SimulationEngine] serves [EngineMode.REAL_INFRA] for each opted-in
+     * domain (PLAN.md step 27 generalizes this from step 21's single
+     * coupon-only field) — the set of keys IS the set of domains real-infra
+     * mode is valid for; [startIncident] and [engineFor] both derive from it
+     * so a third real-infra domain only ever needs one new map entry.
+     */
+    private val realInfraEngines: Map<String, SimulationEngine> = mapOf(
+        RuleBasedSimulationEngine.DOMAIN_COUPON to realInfraCouponEngine,
+        RuleBasedSimulationEngine.DOMAIN_NOTIFICATION to realInfraNotificationEngine,
+    )
+
+    /**
      * Starts the session's scenario-appropriate incident template (docs/PRD.md §8).
      * [realInfra] opts into PLAN.md step 21's real-infra pilot — only valid for
-     * the "coupon" domain (ADR-0013); every other domain, and non-opted-in
-     * coupon sessions, are completely unaffected by its existence.
+     * domains in [realInfraEngines] (ADR-0013); every other domain, and
+     * non-opted-in sessions of an eligible domain, are completely unaffected
+     * by its existence.
      */
     @Transactional
     fun startIncident(sessionId: UUID, realInfra: Boolean = false): SystemState {
         val session = sessionRepository.findById(sessionId)
             .orElseThrow { NotFoundException("Session not found: $sessionId") }
         val domain = resolveDomain(session.scenarioVersionId)
-        if (realInfra && domain != RuleBasedSimulationEngine.DOMAIN_COUPON) {
-            throw BadRequestException("Real-infra mode is only available for the coupon domain, not: $domain")
+        if (realInfra && domain !in realInfraEngines) {
+            throw BadRequestException("Real-infra mode is not available for domain: $domain")
         }
-        val traits = if (realInfra) DesignTraits(dbPoolSize = RealInfraCouponEngine.INITIAL_DB_POOL_SIZE) else DesignTraits()
+        val traits = when {
+            !realInfra -> DesignTraits()
+            domain == RuleBasedSimulationEngine.DOMAIN_COUPON -> DesignTraits(dbPoolSize = RealInfraCouponEngine.INITIAL_DB_POOL_SIZE)
+            domain == RuleBasedSimulationEngine.DOMAIN_NOTIFICATION -> DesignTraits(consumerCount = RealInfraNotificationEngine.INITIAL_CONSUMER_COUNT)
+            else -> DesignTraits()
+        }
         val engineMode = if (realInfra) EngineMode.REAL_INFRA else EngineMode.RULE_BASED
         val state = SimulationSessionState(
             sessionId = sessionId,
@@ -193,7 +213,7 @@ class SimulationService(
         event.parameters?.let { objectMapper.readValue(it, AppliedActionSnapshot::class.java) }
 
     private fun engineFor(state: SimulationSessionState): SimulationEngine =
-        if (state.engineMode == EngineMode.REAL_INFRA) realInfraCouponEngine else RuleBasedSimulationEngine
+        if (state.engineMode == EngineMode.REAL_INFRA) realInfraEngines.getValue(state.domain) else RuleBasedSimulationEngine
 
     private fun requireSessionExists(sessionId: UUID) {
         if (!sessionRepository.existsById(sessionId)) {

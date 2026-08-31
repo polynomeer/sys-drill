@@ -38,6 +38,14 @@ dependencies {
 	// compiled fine but silently produced zero traces).
 	implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
 	implementation("org.flywaydb:flyway-database-postgresql")
+	// PLAN.md step 27 — real-infra notification pilot only. The plain Kafka
+	// client library (producer/consumer/admin), not spring-kafka's managed
+	// listener containers — this pilot needs to dynamically resize how many
+	// consumer threads run per session on every action, which is simpler to
+	// drive directly than through Spring's declarative @KafkaListener beans
+	// (same "raw client over framework abstraction" choice as CouponLoadRunner
+	// shelling out to `docker run` instead of using testcontainers).
+	implementation("org.apache.kafka:kafka-clients:3.9.0")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("tools.jackson.module:jackson-module-kotlin")
 	runtimeOnly("org.postgresql:postgresql")

@@ -11,9 +11,10 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Sweeps abandoned real-infra coupon sessions (PLAN.md step 22) — dedicated
- * Postgres schemas, HikariDataSource pools, and (PLAN.md step 23) Toxiproxy
- * proxies don't expire on their own the way
+ * Sweeps abandoned real-infra sessions across every real-infra domain
+ * (coupon's Postgres schema/pool/Toxiproxy proxy since PLAN.md step 22/23;
+ * notification's Kafka topic since step 27, via [RealInfraResourceCleaner]) —
+ * none of these expire on their own the way
  * [SimulationStateStore][com.sysdrill.backend.simulation.SimulationStateStore]'s
  * Redis TTL does (PLAN.md step 21 notes flagged this as an explicit
  * fast-follow, not an oversight). Same single-background-thread shape as
@@ -25,11 +26,14 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Component
 class RealInfraSessionSweepWorker(
     private val sessionTracker: RealInfraSessionTracker,
-    private val schemaProvisioner: CouponSchemaProvisioner,
-    private val dataSourceRegistry: SessionDataSourceRegistry,
-    private val toxiproxy: ToxiproxySessionProxy,
     private val measurementStore: RealInfraMeasurementStore,
-    private val stats: RealInfraCouponStats,
+    // PLAN.md step 27 — one bean per real-infra domain (coupon, notification),
+    // Spring auto-collects every RealInfraResourceCleaner implementation into
+    // this list. Cleaning up ALL of them for every expired session id (instead
+    // of first figuring out which domain a session belongs to) is safe because
+    // each domain's own cleanup calls are already idempotent no-ops when there
+    // was nothing of theirs to clean up.
+    private val cleaners: List<RealInfraResourceCleaner>,
     @Value("\${sysdrill.simulation.realinfra.sweep-interval-minutes}") sweepIntervalMinutes: Long,
     @Value("\${sysdrill.simulation.realinfra.session-idle-timeout-minutes}") idleTimeoutMinutes: Long,
 ) {
@@ -73,11 +77,8 @@ class RealInfraSessionSweepWorker(
         val expired = sessionTracker.findExpired(idleTimeout)
         for (sessionId in expired) {
             runCatching {
-                dataSourceRegistry.evict(sessionId)
-                toxiproxy.evict(sessionId)
-                schemaProvisioner.drop(sessionId)
+                cleaners.forEach { it.cleanup(sessionId) }
                 measurementStore.evict(sessionId)
-                stats.evict(sessionId)
                 sessionTracker.forget(sessionId)
                 log.info("Swept abandoned real-infra session {}", sessionId)
             }.onFailure { log.warn("Failed to sweep real-infra session {}: {}", sessionId, it.message) }
