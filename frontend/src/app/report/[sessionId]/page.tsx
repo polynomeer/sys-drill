@@ -45,9 +45,14 @@ export default function ReportPage() {
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">세션 리포트</h1>
-        <Link href="/dashboard" className="text-sm underline">
-          대시보드로
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href={`/design/${sessionId}/replay`} className="text-sm underline">
+            인시던트 리플레이
+          </Link>
+          <Link href="/dashboard" className="text-sm underline">
+            대시보드로
+          </Link>
+        </div>
       </div>
 
       {report?.buildSummary && (

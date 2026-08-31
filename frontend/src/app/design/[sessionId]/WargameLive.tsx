@@ -277,7 +277,7 @@ export function WargameLive({ sessionId, domain }: { sessionId: string; domain: 
 
 type Metric = { label: string; value: string; colorFor?: number };
 
-function MetricsPanel({ state, domain }: { state: SystemState; domain: string }) {
+export function MetricsPanel({ state, domain }: { state: SystemState; domain: string }) {
   const common: Metric[] = [
     { label: "Traffic", value: `${state.trafficRps.toFixed(0)} rps` },
     { label: "p95 Latency", value: formatMs(state.p95LatencyMs) },

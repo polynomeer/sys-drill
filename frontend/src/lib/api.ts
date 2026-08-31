@@ -99,6 +99,14 @@ export interface SystemState {
   externalDependencyLatencyMs: number;
 }
 
+export interface TimelineStep {
+  step: number;
+  actionType: string | null;
+  label: string;
+  appliedAt: string;
+  systemState: SystemState;
+}
+
 export interface SessionSummary {
   id: string;
   status: SessionStatus;
@@ -248,6 +256,10 @@ export function applySimulationAction(
     method: "POST",
     body: JSON.stringify({ actionType }),
   });
+}
+
+export function getSimulationTimeline(sessionId: string): Promise<TimelineStep[]> {
+  return apiFetch<TimelineStep[]>(`/sessions/${sessionId}/simulation/timeline`);
 }
 
 export function getUserSessions(userId: string): Promise<SessionSummary[]> {
