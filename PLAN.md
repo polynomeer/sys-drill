@@ -421,7 +421,26 @@
 - **MTTD/MTTR/조치 타임라인/전후 지표를 `postmortems` 테이블에 저장하지 않았다.** ADR-0011(파생값은 저장하지 않는다)과 25단계/ADR-0016의 계보를 그대로 따른 것 — `AppliedAction`이 이미 진실의 원천이고, 이번 스텝은 그 위에 사용자 서술 필드만 얹었다. 이 결정 자체는 놀랍지 않다(이미 두 번 확립된 패턴을 그대로 반복)고 판단해 별도 ADR은 쓰지 않았다.
 - **`describe(actionType)`가 이미 만들어 두던 "긍정 효과/가능한 부작용" 텍스트(`AppliedAction.effect`)를 포스트모템의 조치 타임라인에 그대로 재사용했다.** 이 텍스트는 PRD의 핵심 가설("어떤 조치가 어떤 부작용을 만드는지 반복 경험")을 이미 담고 있어서, 포스트모템을 위해 새로 쓸 이유가 없었다.
 
-### 27단계 — 고급 Kafka 시나리오 (실제 컨테이너)
+### 27단계 — 고급 Kafka 시나리오 (실제 컨테이너) ✅ 완료 (2026-09-01)
+
+- [x] `docker-compose.yml`에 실제 단일 노드 KRaft Kafka 브로커(`apache/kafka:3.9.0`) 추가 — 호스트 포트 19092(기본 9092 아님, postgres의 5433과 동일한 이유로 다른 로컬 Kafka와의 충돌 회피)
+- [x] `RealInfraNotificationEngine` — "notification" 도메인 전용 실전 인프라 `SimulationEngine`(ADR-0013의 스키마-per-세션을 Kafka에 적용, 세션당 실제 토픽)
+- [x] `NotificationLoadRunner` — 별도 로드 생성 컨테이너 없이 `kafka-clients` 라이브러리로 인프로세스에서 실제 프로듀서/컨슈머 스레드를 직접 구동(ADR-0017)
+- [x] 실측 지표: `queueLag`은 AdminClient로 조회한 진짜 커밋 오프셋 대비 최신 오프셋 차이, `p95LatencyMs`/`errorRate`는 발행~소비 실측 레이턴시(`expiry-ms` 초과 시 실패로 집계), `consumerThroughput`/`trafficRps`는 실측 처리량
+- [x] `SimulationService`의 실전 인프라 엔진 선택을 coupon 전용 하드코딩에서 `domain → SimulationEngine` 맵으로 일반화(ADR-0018), 두 번째 실전 인프라 도메인 추가를 위한 구조 변경
+- [x] `RealInfraSessionSweepWorker`를 `RealInfraResourceCleaner` 인터페이스 기반으로 일반화(coupon/notification 각각 구현체) — 세 번째 실전 인프라 도메인이 와도 스윕 워커 자체는 수정 불필요
+- [x] 프론트엔드: `WargameLive.tsx`의 "실전 인프라로 시작" 게이트를 `REAL_INFRA_DOMAINS` 집합 기반으로 일반화, notification 도메인 전용 설명 문구 추가
+- [x] 신규 백엔드 테스트 5개(토픽 생성/삭제 3개, 실측 엔진 동작 2개)
+- [x] ADR-0017(인프로세스 클라이언트 vs 외부 로드젠 컨테이너), ADR-0018(도메인→엔진 맵 일반화) 작성
+
+**완료 기준 충족**: 실제 브라우저로 notification 도메인 세션을 INCIDENT phase까지 진행 → "실전 인프라로 시작" 체크 → 인시던트 시작 시 실제 Kafka 토픽·컨슈머 그룹이 생성되고 심각한 실측 장애 상태(Traffic 362rps, p95 7547ms, Error Rate 92.3%, Queue Lag 2166, Consumer Throughput 0.3/s) 확인 → Circuit Breaker/컨슈머 증설/Retry Backoff 조정 3개 조치를 순서대로 적용하며 매번 실측값이 일관되게 개선됨을 확인(p95 7547→5101→2799ms, Error Rate 92.3%→87.3%→72.3%, Queue Lag 2166→1775→138, Consumer Throughput 0.3→14.3→50.3/s) — 규칙 기반 엔진의 "세 조치를 모두 적용해야 회복된다"는 설계 의도와 일치하는 실측 결과. 신규 5개 포함 백엔드 총 165개 테스트 통과.
+
+**진행 중 발견한 결정 사항**:
+- **Kafka Docker 이미지의 `listeners` 호스트는 `0.0.0.0`이 아니라 빈 문자열이어야 한다** — `KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,...`로 두면 `advertised.listeners`가 `KAFKA_ADVERTISED_LISTENERS`로 명시하지 않은 리스너(CONTROLLER)에 대해 `listeners`의 호스트값을 그대로 물려받는데, 이때 `0.0.0.0`이 "advertised 불가능한 non-routable 주소"로 검증에 걸려 기동이 즉시 실패한다(`requirement failed: advertised.listeners cannot use the nonroutable meta-address 0.0.0.0`). 이미지 자체의 기본 템플릿처럼 `PLAINTEXT://:9092,CONTROLLER://:9093`(빈 호스트 = "모든 인터페이스에 바인드"라는 관용구이되 advertise 후보로는 취급되지 않음)로 바꾸자 즉시 해결 — 컨테이너 내부에서 `KafkaDockerWrapper setup` 스텝만 따로 실행해 실제 생성되는 `server.properties`를 직접 비교하며 원인을 좁혔다.
+- **세션당 하나의 고정 컨슈머 그룹을 유지하는 "백로그 이월" 설계를 시도했다가 되돌렸다.** coupon 파일럿의 "재고는 액션 사이에 리셋하지 않는다"는 철학(ADR-0013)을 그대로 옮겨 하나의 컨슈머 그룹을 세션 내내 재사용해봤는데, 심각한 인시던트로 한 번 수천 건 백로그가 쌓이면 Kafka는 그 그룹에게 항상 "가장 오래된 안 읽은 메시지"부터 넘겨주므로, 이후 모든 프로브가 몇 분 전 메시지의 실측 지연만 측정하게 되어 조치를 아무리 적용해도 p95/errorRate가 계속 악화되기만 하는 상황을 실제로 관찰했다(2번째 액션에서 p95가 7.5초→74초로 폭증). 매 프로브(=매 액션 적용)마다 `latest`부터 읽는 새 컨슈머 그룹을 쓰도록 바꿔, "지금 이 설정이 방금 발행된 부하를 얼마나 잘 따라가는가"만 측정하도록 스코프를 좁혔다 — 토픽 자체는 재생성하지 않아(ADR-0013의 "provisionSchema=false"와 동일 이유) 오버헤드는 없다.
+- **DLQ 토픽은 이번 스텝 범위에서 의도적으로 제외했다.** "실패"는 별도 토픽으로 라우팅하지 않고, 발행~소비 지연이 `expiry-ms`를 넘긴 메시지를 카운터로만 집계한다 — 두 번째 토픽과 그 생명주기 관리를 추가하는 대신, 첫 슬라이스는 측정 파이프라인 자체를 검증하는 데 집중했다(21단계가 컨테이너-per-세션 대신 스키마-per-세션을 고른 것과 동일한 스코프 컷 정신).
+- **`RealInfraSessionSweepWorker`를 `List<RealInfraResourceCleaner>` 기반으로 리팩터했다.** 기존엔 coupon 전용 컴포넌트 4개를 직접 주입받아 정리했는데, 두 번째 실전 인프라 도메인이 생기자 이 워커가 "어떤 세션이 어떤 도메인인지" 알아야 하는 문제가 생겼다. 각 도메인의 정리 호출이 이미 멱등(없는 걸 지우려 해도 에러 없음)이라는 점을 이용해, 만료된 세션마다 등록된 모든 cleaner를 그냥 다 호출하도록 단순화 — 세 번째 도메인이 와도 이 워커는 전혀 손댈 필요가 없다.
+
 ### 28단계 — 면접형 타이머 모드
 ### 29단계 — 고급 Kubernetes 시나리오 (로컬/CI 제약상 그 시점에 범위 재검토)
 
