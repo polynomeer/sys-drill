@@ -1,3 +1,5 @@
+import { getStoredToken } from "./localSession";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8081";
 
 export interface UserResponse {
@@ -5,6 +7,11 @@ export interface UserResponse {
   nickname: string;
   experienceYears: number | null;
   primaryStack: string | null;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: UserResponse;
 }
 
 export interface ScenarioSummary {
@@ -216,9 +223,14 @@ export class ApiError extends Error {
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getStoredToken();
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers ?? {}),
+    },
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -228,20 +240,26 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-export function createUser(input: {
+export function signup(input: {
+  email: string;
+  password: string;
   nickname: string;
   experienceYears?: number;
   primaryStack?: string;
-}): Promise<UserResponse> {
-  return apiFetch<UserResponse>("/users", { method: "POST", body: JSON.stringify(input) });
+}): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>("/auth/signup", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function login(email: string, password: string): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
 }
 
 export function listScenarios(): Promise<ScenarioSummary[]> {
   return apiFetch<ScenarioSummary[]>("/scenarios");
 }
 
+/** PLAN.md step 30 — no userId param: POST /sessions derives the owner from the caller's stored auth token (see apiFetch), not from client-supplied input. */
 export function startSession(
-  userId: string,
   scenarioId: string,
   buildSubmissionId?: string,
   seed?: string,
@@ -249,7 +267,7 @@ export function startSession(
 ): Promise<SessionResponse> {
   return apiFetch<SessionResponse>("/sessions", {
     method: "POST",
-    body: JSON.stringify({ userId, scenarioId, buildSubmissionId, seed, interviewMode }),
+    body: JSON.stringify({ scenarioId, buildSubmissionId, seed, interviewMode }),
   });
 }
 

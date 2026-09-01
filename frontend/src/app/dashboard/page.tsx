@@ -13,7 +13,7 @@ import {
   listScenarios,
   startSession,
 } from "@/lib/api";
-import { getStoredNickname, getStoredUserId } from "@/lib/localSession";
+import { clearStoredUser, getStoredNickname, getStoredUserId } from "@/lib/localSession";
 import { riskLabel } from "@/lib/riskLabels";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -74,7 +74,7 @@ export default function DashboardPage() {
     setStartingId(scenarioId);
     setError(null);
     try {
-      const session = await startSession(userId, scenarioId, undefined, undefined, interviewMode);
+      const session = await startSession(scenarioId, undefined, undefined, interviewMode);
       router.push(`/design/${session.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "세션을 시작하지 못했습니다.");
@@ -98,11 +98,22 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-8">
-      <div>
-        <h1 className="text-2xl font-semibold">
-          {nickname ? `${nickname}님, 오늘의 훈련을 시작해보세요` : "훈련 시나리오"}
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">시나리오를 선택하면 바로 설계를 시작합니다.</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">
+            {nickname ? `${nickname}님, 오늘의 훈련을 시작해보세요` : "훈련 시나리오"}
+          </h1>
+          <p className="mt-1 text-sm text-zinc-500">시나리오를 선택하면 바로 설계를 시작합니다.</p>
+        </div>
+        <button
+          onClick={() => {
+            clearStoredUser();
+            router.replace("/login");
+          }}
+          className="text-sm text-zinc-500 underline"
+        >
+          로그아웃
+        </button>
       </div>
 
       <Link

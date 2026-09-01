@@ -1,24 +1,42 @@
-// Browser-only persistence for the "guest identity" onboarding flow (no real
-// auth yet — see backend UserController's kdoc) and per-session drafts, so a
-// refresh doesn't lose the user's typed answer or their place in a submit ->
-// poll -> feedback flow.
+// Browser-only persistence for the signed-in identity (PLAN.md step 30's
+// real auth) and per-session drafts, so a refresh doesn't lose the user's
+// typed answer or their place in a submit -> poll -> feedback flow.
 
 const USER_ID_KEY = "sysdrill:userId";
 const USER_NICKNAME_KEY = "sysdrill:userNickname";
+const TOKEN_KEY = "sysdrill:token";
 
 export function getStoredUserId(): string | null {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem(USER_ID_KEY);
 }
 
-export function storeUser(id: string, nickname: string): void {
+export function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(TOKEN_KEY);
+}
+
+/**
+ * `userId` is still stored alongside the token — PLAN.md step 30 only
+ * protects `POST /sessions` with the token (점진적 마이그레이션); every other
+ * user-scoped endpoint (skill-profile, session list, ...) still takes a
+ * plain `userId` until 31단계 migrates them too. Remove this once that's done.
+ */
+export function storeUser(id: string, nickname: string, token: string): void {
   window.localStorage.setItem(USER_ID_KEY, id);
   window.localStorage.setItem(USER_NICKNAME_KEY, nickname);
+  window.localStorage.setItem(TOKEN_KEY, token);
 }
 
 export function getStoredNickname(): string | null {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem(USER_NICKNAME_KEY);
+}
+
+export function clearStoredUser(): void {
+  window.localStorage.removeItem(USER_ID_KEY);
+  window.localStorage.removeItem(USER_NICKNAME_KEY);
+  window.localStorage.removeItem(TOKEN_KEY);
 }
 
 function draftKey(sessionId: string): string {

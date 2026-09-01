@@ -151,7 +151,7 @@ export default function BridgePage() {
     setStartingSession(true);
     setError(null);
     try {
-      const session = await startSession(userId, scenario.id, submission.id);
+      const session = await startSession(scenario.id, submission.id);
       router.push(`/design/${session.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "설계 세션을 시작하지 못했습니다.");
