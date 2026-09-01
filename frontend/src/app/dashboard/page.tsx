@@ -103,15 +103,20 @@ export default function DashboardPage() {
           </h1>
           <p className="mt-1 text-sm text-zinc-500">시나리오를 선택하면 바로 설계를 시작합니다.</p>
         </div>
-        <button
-          onClick={() => {
-            clearStoredUser();
-            router.replace("/login");
-          }}
-          className="text-sm text-zinc-500 underline"
-        >
-          로그아웃
-        </button>
+        <div className="flex items-center gap-4">
+          <Link href="/organizations" className="text-sm text-zinc-500 underline">
+            조직
+          </Link>
+          <button
+            onClick={() => {
+              clearStoredUser();
+              router.replace("/login");
+            }}
+            className="text-sm text-zinc-500 underline"
+          >
+            로그아웃
+          </button>
+        </div>
       </div>
 
       <Link

@@ -14,6 +14,46 @@ export interface AuthResponse {
   user: UserResponse;
 }
 
+export type OrganizationRole = "ADMIN" | "MEMBER";
+
+export interface OrganizationSummary {
+  id: string;
+  name: string;
+  myRole: OrganizationRole;
+}
+
+export interface OrganizationMember {
+  userId: string;
+  nickname: string;
+  email: string;
+  role: OrganizationRole;
+  joinedAt: string | null;
+}
+
+export interface OrganizationDetail {
+  id: string;
+  name: string;
+  myRole: OrganizationRole;
+  members: OrganizationMember[];
+}
+
+export interface OrganizationInvitation {
+  id: string;
+  inviteeEmail: string;
+  role: OrganizationRole;
+  token: string;
+  expiresAt: string;
+  expired: boolean;
+}
+
+export interface InvitationPreview {
+  organizationName: string;
+  inviteeEmail: string;
+  role: OrganizationRole;
+  expired: boolean;
+  alreadyResolved: boolean;
+}
+
 export interface ScenarioSummary {
   id: string;
   domain: string;
@@ -352,4 +392,47 @@ export function submitBuildChallenge(slug: string, sourceCode: string): Promise<
 
 export function getBuildSubmission(submissionId: string): Promise<BuildSubmissionResponse> {
   return apiFetch<BuildSubmissionResponse>(`/build-submissions/${submissionId}`);
+}
+
+export function createOrganization(name: string): Promise<OrganizationDetail> {
+  return apiFetch<OrganizationDetail>("/organizations", { method: "POST", body: JSON.stringify({ name }) });
+}
+
+export function listOrganizations(): Promise<OrganizationSummary[]> {
+  return apiFetch<OrganizationSummary[]>("/organizations");
+}
+
+export function getOrganization(orgId: string): Promise<OrganizationDetail> {
+  return apiFetch<OrganizationDetail>(`/organizations/${orgId}`);
+}
+
+export function inviteMember(orgId: string, email: string, role: OrganizationRole): Promise<OrganizationInvitation> {
+  return apiFetch<OrganizationInvitation>(`/organizations/${orgId}/invitations`, {
+    method: "POST",
+    body: JSON.stringify({ email, role }),
+  });
+}
+
+export function listInvitations(orgId: string): Promise<OrganizationInvitation[]> {
+  return apiFetch<OrganizationInvitation[]>(`/organizations/${orgId}/invitations`);
+}
+
+export function revokeInvitation(orgId: string, invitationId: string): Promise<void> {
+  return apiFetch<void>(`/organizations/${orgId}/invitations/${invitationId}`, { method: "DELETE" });
+}
+
+export function previewInvitation(token: string): Promise<InvitationPreview> {
+  return apiFetch<InvitationPreview>(`/organizations/invitations/${token}`);
+}
+
+export function acceptInvitation(token: string): Promise<OrganizationDetail> {
+  return apiFetch<OrganizationDetail>(`/organizations/invitations/${token}/accept`, { method: "POST" });
+}
+
+export function removeMember(orgId: string, targetUserId: string): Promise<void> {
+  return apiFetch<void>(`/organizations/${orgId}/members/${targetUserId}`, { method: "DELETE" });
+}
+
+export function leaveOrganization(orgId: string): Promise<void> {
+  return apiFetch<void>(`/organizations/${orgId}/leave`, { method: "POST" });
 }
