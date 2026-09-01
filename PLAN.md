@@ -457,7 +457,23 @@
 - **`phaseDeadlineAt`을 서버가 계산해 내려주고, 프론트는 제한 시간 자체를 전혀 모른다.** 클라이언트가 "이 phase 유형의 제한 시간이 몇 초인지"를 알 필요가 없게 만들어, 설정값이 바뀌어도(`application.yml`) 프론트 배포 없이 즉시 반영되고, phase 유형별 서로 다른 제한 시간을 프론트가 별도로 하드코딩할 필요가 없다.
 - **`onTime: Boolean?`을 `false`가 아니라 `null`을 "해당 없음"으로 썼다.** 면접형이 아닌 세션의 모든 제출은 `null`이고, 면접형 세션의 제출만 `true`/`false`를 갖는다 — 리포트 페이지에서 "시간 초과"/"시간 내 제출" 배지가 면접형이 아닌 세션엔 아예 나타나지 않는 것도 이 구분 덕분(early `false`였다면 모든 비면접형 제출에 "시간 초과"가 잘못 표시됐을 것).
 
-### 29단계 — 고급 Kubernetes 시나리오 (로컬/CI 제약상 그 시점에 범위 재검토)
+### 29단계 — 고급 Kubernetes 시나리오 ✅ 완료 (2026-09-01)
+
+로컬/CI 제약(실제 K8s 클러스터 없음)을 실제로 재검토한 결과, 사용자에게 세 가지 선택지(규칙 기반 신규 도메인 / Phase 3 백로그 종료 / kind·minikube로 실제 클러스터)를 직접 물어 "규칙 기반 신규 도메인"으로 확정했다(ADR-0019).
+
+- [x] 7번째 시나리오 "실시간 추천 API"(domain: `autoscaling`) 신규 추가 — INITIAL/FOLLOWUP(3개 variant)/INCIDENT 시드 마이그레이션(V24)
+- [x] `RuleBasedSimulationEngine.Autoscaling` — 기존 6개 도메인과 다른 메커니즘(ADR-0010/0012): 유효 Pod 용량을 **두 개의 독립적인 승법 패널티**(리소스 제한 미조정으로 인한 OOM 크래시루프, 무중단 배포 안전장치 부재로 인한 롤아웃 중 용량 감소)가 깎는다 — 그래서 Pod 증설만으로는 거의 개선되지 않는다(새 Pod도 똑같이 불안정)는, 이전 도메인엔 없던 교훈
+- [x] `SimulationActionType` 3개 추가(`SCALE_OUT_REPLICAS`/`TUNE_RESOURCE_LIMITS`/`ENABLE_ROLLOUT_SAFEGUARD`), `DesignTraits`에 `podReplicas`/`resourceLimitsTuned`/`rolloutSafeguardEnabled` 추가, 코덱 인코딩에 반영
+- [x] `RuleEvaluator`에 `autoscalingConcepts`(오토스케일링/리소스 제한/무중단 배포 3개 리스크 키) 추가
+- [x] 프론트엔드: `ACTIONS_BY_DOMAIN`/`INCIDENT_EVENT_BY_DOMAIN`/`MetricsPanel`/`DESIGN_GUIDANCE_BY_DOMAIN`에 autoscaling 항목 추가
+- [x] 신규 백엔드 테스트 5개(엔진 4개 — 기준/인시던트/단일 조치로는 미회복/3개 조치 모두 적용 시 회복, 코덱 라운드트립 1개) — 손으로 계산한 수치와 정확히 일치
+- [x] ADR-0019 작성 (규칙 기반 vs 실제 클러스터 선택 근거)
+
+**완료 기준 충족**: 손으로 계산한 수치(기준 errorRate 0.001/p95 45ms, 인시던트 errorRate 0.30/p95 360ms/재시작 Pod 2개, 3개 조치 모두 적용 시 errorRate 0.001/p95 45ms로 완전 회복)가 신규 테스트와 정확히 일치. 실제 브라우저·API로 새 세션을 INITIAL→FOLLOWUP→INCIDENT까지 진행 → 인시던트 시작 시 위와 동일한 실측값 확인 → SCALE_OUT_REPLICAS만 적용해도 여전히 errorRate 0.30(설계 의도대로 "Pod만 늘려선 소용없음" 확인) → 3개 조치 모두 적용 시 완전 회복 → 리스크 키워드가 빠진 회고문 제출 시 RuleEvaluator가 3개 리스크(MISSING_AUTOSCALING/MISSING_RESOURCE_LIMITS/MISSING_ROLLOUT_SAFETY)를 정확히 검출해 리포트에 표시됨을 확인. 신규 5개 포함 백엔드 총 173개 테스트 통과.
+
+**진행 중 발견한 결정 사항**:
+- **"고급 Kubernetes 시나리오"를 coupon/notification처럼 기존 도메인에 real-infra 경로를 추가하는 방식으로 풀 수 없었다.** 그 두 파일럿은 모두 이미 존재하는 규칙 기반 도메인에 옵트인 real-infra 엔진을 "얹은" 것이었는데, Kubernetes는 애초에 얹을 기존 도메인이 없다 — "이 도메인에도 real-infra를 추가할까"가 아니라 "완전히 새로운 무거운 인프라(실제 클러스터)를 이 개발 환경에 들일까"라는, 이전 두 파일럿과는 질적으로 다른 제품 범위 판단이라 사용자에게 직접 물어 확정했다.
+- **utilization 밴드 자체는 재사용하되(coupon 이후 모든 도메인의 공용 `latencyMultiplier`/`errorRateFor`), "무엇이 그 utilization을 만드는가"의 구조를 완전히 새로 설계했다.** 두 개의 독립적인 승법 패널티가 유효 용량을 깎는다는 구조는 payment의 "격리 여부"나 reservation의 "락 세분화"와도 다르다 — Pod 수(분자가 아니라 분모의 배수 항)를 늘리는 조치가 있다는 점에서 이전 도메인들과 표면적으로 비슷해 보일 수 있지만, "용량을 늘리는 조치 하나만으로는 안정성 문제를 대신 해결해주지 않는다"는 것이 이 도메인만의 교훈이다.
 
 ---
 
