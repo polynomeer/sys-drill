@@ -116,6 +116,23 @@ const ACTIONS_BY_DOMAIN: Record<string, ActionDef[]> = {
       effect: "긍정 효과: 재처리된 레코드가 중복 반영되지 않아 정산 정합성 유지. 부작용: 레코드별 처리 이력 저장·조회 비용 추가.",
     },
   ],
+  autoscaling: [
+    {
+      type: "SCALE_OUT_REPLICAS",
+      label: "Pod 증설",
+      effect: "긍정 효과: Pod 수 증가로 이론적 처리 용량 확대. 부작용: 리소스 제한·롤아웃 안전장치가 없으면 늘어난 Pod도 똑같이 불안정.",
+    },
+    {
+      type: "TUNE_RESOURCE_LIMITS",
+      label: "리소스 제한 조정",
+      effect: "긍정 효과: 메모리 사용량이 request/limit에 맞게 조정돼 OOM kill로 인한 재시작 반복 해소. 부작용: limit을 너무 낮게 잡으면 정상 부하에서도 스로틀링.",
+    },
+    {
+      type: "ENABLE_ROLLOUT_SAFEGUARD",
+      label: "무중단 배포 안전장치 활성화",
+      effect: "긍정 효과: readiness probe/PodDisruptionBudget으로 배포 중에도 가용 용량 유지. 부작용: 배포 자체의 소요 시간 증가.",
+    },
+  ],
 };
 
 const INCIDENT_EVENT_BY_DOMAIN: Record<string, string> = {
@@ -125,6 +142,7 @@ const INCIDENT_EVENT_BY_DOMAIN: Record<string, string> = {
   payment: "인시던트 발생: PG timeout 급증 → outbox 재시도 폭증 → 주문 처리 지연 전이",
   reservation: "인시던트 발생: 인기 좌석에 예약 시도 집중 → 락 경합 급증 → 락 대기 시간 증가",
   "batch-settlement": "인시던트 발생: 정산 API 응답 지연 급증 → 처리 중이던 청크 실패 → 재처리 범위 및 중복 반영 위험 증가",
+  autoscaling: "인시던트 발생: 트래픽 10배 급증 + 롤링 배포 겹침 → Pod OOM kill 재시작 반복, 가용 용량 붕괴",
 };
 
 const POLL_INTERVAL_MS = 3000;
@@ -333,6 +351,10 @@ export function MetricsPanel({ state, domain }: { state: SystemState; domain: st
       { label: "재처리 대상 레코드", value: `${state.queueLag}`, colorFor: state.queueLag > 0 ? 0.9 : 0 },
       { label: "처리 처리량", value: `${state.consumerThroughput.toFixed(1)} rec/s` },
       { label: "재처리 부하율", value: formatPercent(state.dbWriteLoad), colorFor: state.dbWriteLoad },
+    ],
+    autoscaling: [
+      { label: "재시작 중인 Pod 수", value: `${state.queueLag}`, colorFor: state.queueLag > 0 ? 0.9 : 0 },
+      { label: "가용 처리 용량", value: `${state.consumerThroughput.toFixed(0)} rps` },
     ],
   };
   const metrics = [...common, ...(domainSpecificByDomain[domain] ?? domainSpecificByDomain.coupon)];

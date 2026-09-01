@@ -83,6 +83,16 @@ const DESIGN_GUIDANCE_BY_DOMAIN: Record<string, string[]> = {
     "관측(metrics/logs/alert) 계획",
     "예상 병목과 트레이드오프",
   ],
+  autoscaling: [
+    "기능/비기능 요구사항 요약 (무엇을 보장하고 무엇을 포기할지)",
+    "고수준 아키텍처와 요청 흐름",
+    "Pod 오토스케일링(HPA) 전략",
+    "리소스 request/limit 설정 기준",
+    "무중단 배포(readiness probe/PodDisruptionBudget) 전략",
+    "트래픽 급증 대응 전략",
+    "관측(metrics/logs/alert) 계획",
+    "예상 병목과 트레이드오프",
+  ],
 };
 
 const INCIDENT_GUIDANCE = [
