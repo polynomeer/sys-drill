@@ -33,6 +33,10 @@ data class DesignTraits(
     val checkpointingEnabled: Boolean = false,
     val chunkSize: Int = DEFAULT_CHUNK_SIZE,
     val idempotentReconciliationEnabled: Boolean = false,
+    // autoscaling (PLAN.md step 29)
+    val podReplicas: Int = DEFAULT_POD_REPLICAS,
+    val resourceLimitsTuned: Boolean = false,
+    val rolloutSafeguardEnabled: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_CACHE_TTL_SECONDS = 10
@@ -42,5 +46,6 @@ data class DesignTraits(
         const val DEFAULT_DISPATCHER_WORKERS = 4
         const val DEFAULT_HOLD_TIMEOUT_SECONDS = 300
         const val DEFAULT_CHUNK_SIZE = 10000
+        const val DEFAULT_POD_REPLICAS = 4
     }
 }

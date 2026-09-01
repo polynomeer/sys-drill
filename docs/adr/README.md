@@ -22,3 +22,4 @@ Short records of decisions that are hard to reverse, would surprise a future rea
 | [0016](0016-incident-replay-snapshots-only-for-real-infra.md) | Incident replay reconstructs rule-based timelines by recomputation, but persists real-infra snapshots |
 | [0017](0017-notification-real-infra-pilot-in-process-clients.md) | Notification's real-infra pilot drives Kafka with in-process clients, not an external load-gen container |
 | [0018](0018-real-infra-engine-selection-by-domain-map.md) | Real-infra engine selection generalizes from a single coupon field to a domain→engine map |
+| [0019](0019-autoscaling-domain-rule-based-no-real-cluster.md) | The "autoscaling" domain stays rule-based — no real Kubernetes cluster, unlike coupon/notification's real-infra pilots |

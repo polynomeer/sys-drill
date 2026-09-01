@@ -98,6 +98,24 @@ class SimulationSessionStateCodecTest {
     }
 
     @Test
+    fun `round-trips autoscaling traits`() {
+        val original = SimulationSessionState(
+            sessionId = sessionId,
+            domain = "autoscaling",
+            incidentActive = true,
+            traits = DesignTraits(
+                podReplicas = 40,
+                resourceLimitsTuned = true,
+                rolloutSafeguardEnabled = true,
+            ),
+        )
+
+        val decoded = SimulationSessionStateCodec.decode(sessionId, SimulationSessionStateCodec.encode(original))
+
+        assertThat(decoded).isEqualTo(original)
+    }
+
+    @Test
     fun `round-trips engineMode`() {
         val original = SimulationSessionState(
             sessionId = sessionId,

@@ -157,6 +157,25 @@ object RuleEvaluator {
         ),
     )
 
+    /** docs/PRD.md §8 "실시간 추천 API" 평가 포인트: 오토스케일링, 리소스 request/limit, 무중단 배포 안전장치. */
+    private val autoscalingConcepts = listOf(
+        Concept(
+            "MISSING_AUTOSCALING",
+            listOf("오토스케일", "autoscal", "hpa", "수평 확장", "horizontal pod", "replica"),
+            "오토스케일링(HPA)에 대한 언급이 없습니다. 트래픽 급증에 맞춰 Pod 수를 어떻게 조절하는지 확인이 필요합니다.",
+        ),
+        Concept(
+            "MISSING_RESOURCE_LIMITS",
+            listOf("리소스 제한", "resource limit", "requests", "limits", "메모리 제한", "cpu 제한", "oom"),
+            "Pod의 리소스 request/limit 설정에 대한 언급이 없습니다. 메모리 초과로 인한 OOM kill·재시작 반복을 어떻게 막는지 확인이 필요합니다.",
+        ),
+        Concept(
+            "MISSING_ROLLOUT_SAFETY",
+            listOf("롤링", "rolling update", "readiness", "무중단", "maxunavailable", "pdb", "disruption budget"),
+            "무중단 배포(readiness probe/PodDisruptionBudget)에 대한 언급이 없습니다. 배포 도중 가용 용량이 줄어들지 않는지 확인이 필요합니다.",
+        ),
+    )
+
     private val conceptsByDomain = mapOf(
         "coupon" to couponConcepts,
         "notification" to notificationConcepts,
@@ -164,6 +183,7 @@ object RuleEvaluator {
         "payment" to paymentConcepts,
         "reservation" to reservationConcepts,
         "batch-settlement" to batchSettlementConcepts,
+        "autoscaling" to autoscalingConcepts,
     )
 
     /** Reverse lookup (riskKey -> domain), derived from [conceptsByDomain] rather than duplicated — used by SkillProfileController (PLAN.md step 13) to group weaknesses by scenario domain. */

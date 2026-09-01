@@ -24,6 +24,7 @@ object RuleBasedSimulationEngine : SimulationEngine {
     const val DOMAIN_PAYMENT = "payment"
     const val DOMAIN_RESERVATION = "reservation"
     const val DOMAIN_BATCH_SETTLEMENT = "batch-settlement"
+    const val DOMAIN_AUTOSCALING = "autoscaling"
 
     /**
      * utilization = incoming_load / max_capacity bands, per docs/ARCHITECTURE.md §6:
@@ -56,6 +57,7 @@ object RuleBasedSimulationEngine : SimulationEngine {
         DOMAIN_PAYMENT -> Payment.computeState(session)
         DOMAIN_RESERVATION -> Reservation.computeState(session)
         DOMAIN_BATCH_SETTLEMENT -> BatchSettlement.computeState(session)
+        DOMAIN_AUTOSCALING -> Autoscaling.computeState(session)
         else -> error("Unknown simulation domain: ${session.domain}")
     }
 
@@ -67,6 +69,7 @@ object RuleBasedSimulationEngine : SimulationEngine {
             DOMAIN_PAYMENT -> current.copy(traits = Payment.applyAction(current.traits, action))
             DOMAIN_RESERVATION -> current.copy(traits = Reservation.applyAction(current.traits, action))
             DOMAIN_BATCH_SETTLEMENT -> current.copy(traits = BatchSettlement.applyAction(current.traits, action))
+            DOMAIN_AUTOSCALING -> current.copy(traits = Autoscaling.applyAction(current.traits, action))
             else -> error("Unknown simulation domain: ${current.domain}")
         }
 
@@ -505,5 +508,69 @@ object RuleBasedSimulationEngine : SimulationEngine {
         }
 
         private const val MIN_CHUNK_SIZE = 1000
+    }
+
+    /**
+     * PLAN.md step 29 — 트래픽이 튀는 실시간 추천 API가 Kubernetes 위에서
+     * 운영되다가, 트래픽 폭증과 롤링 배포가 겹쳐 발생하는 인시던트. 이전
+     * 6개 도메인과 축이 다르다(ADR-0010/0012): 여기서는 "수평 확장 자체가
+     * 유효한가"를 두 개의 **독립적인 승법 패널티**가 결정한다 — 리소스
+     * request/limit이 안 맞으면 일부 Pod가 OOM kill로 재시작을 반복해
+     * 가용 Pod 비율이 깎이고(oomAvailability), 무중단 배포 안전장치
+     * (readiness probe/PodDisruptionBudget) 없이 인시던트 중 롤링 배포가
+     * 겹치면 또 별도로 깎인다(rolloutAvailability). 두 패널티는 서로
+     * 독립적이라 곱해진다 — 그래서 Pod 수만 늘리는 조치(SCALE_OUT_REPLICAS)
+     * 하나만으로는 거의 개선되지 않는다(새로 늘어난 Pod도 똑같이 OOM
+     * kill되거나 롤아웃에 휩쓸린다): 수평 확장은 안정성 문제를 대신
+     * 해결해주지 않는다는, 이전 도메인들엔 없던 교훈이다.
+     */
+    private object Autoscaling {
+        private const val BASELINE_TRAFFIC_RPS = 100.0
+        private const val INCIDENT_MULTIPLIER = 10.0 // 인기 콘텐츠 바이럴: 트래픽 10배 폭증
+
+        private const val PER_POD_CAPACITY_RPS = 50.0
+
+        private const val OOM_CRASH_LOOP_AVAILABILITY = 0.4 // 리소스 제한 미조정 시, 유효 가용 Pod 비율
+        private const val ROLLOUT_CAPACITY_RETENTION = 0.7 // 롤아웃 안전장치 없을 시, 배포 중 유효 가용 Pod 비율
+
+        private const val BASE_LATENCY_MS = 45.0
+
+        fun computeState(session: SimulationSessionState): SystemState {
+            val traits = session.traits
+            val incomingRps = if (session.incidentActive) BASELINE_TRAFFIC_RPS * INCIDENT_MULTIPLIER else BASELINE_TRAFFIC_RPS
+
+            val oomAvailability = if (session.incidentActive && !traits.resourceLimitsTuned) OOM_CRASH_LOOP_AVAILABILITY else 1.0
+            val rolloutAvailability = if (session.incidentActive && !traits.rolloutSafeguardEnabled) ROLLOUT_CAPACITY_RETENTION else 1.0
+
+            val effectiveReplicas = traits.podReplicas * oomAvailability * rolloutAvailability
+            val crashLoopingPods = (traits.podReplicas * (1 - oomAvailability)).toLong()
+
+            val totalCapacity = effectiveReplicas * PER_POD_CAPACITY_RPS
+            val utilization = incomingRps / totalCapacity
+
+            return SystemState(
+                trafficRps = incomingRps,
+                p95LatencyMs = BASE_LATENCY_MS * latencyMultiplier(utilization),
+                errorRate = errorRateFor(utilization),
+                availability = 1.0 - errorRateFor(utilization),
+                dbReadLoad = 0.0,
+                dbWriteLoad = 0.0,
+                connectionPoolUsage = 0.0,
+                cacheHitRatio = 0.0,
+                cacheLatencyMs = 0.0,
+                queueLag = crashLoopingPods,
+                consumerThroughput = totalCapacity,
+                externalDependencyLatencyMs = 0.0,
+            )
+        }
+
+        fun applyAction(traits: DesignTraits, action: SimulationActionType): DesignTraits = when (action) {
+            SimulationActionType.SCALE_OUT_REPLICAS -> traits.copy(podReplicas = traits.podReplicas + SCALE_OUT_STEP)
+            SimulationActionType.TUNE_RESOURCE_LIMITS -> traits.copy(resourceLimitsTuned = true)
+            SimulationActionType.ENABLE_ROLLOUT_SAFEGUARD -> traits.copy(rolloutSafeguardEnabled = true)
+            else -> error("$action does not apply to the autoscaling incident")
+        }
+
+        private const val SCALE_OUT_STEP = 36
     }
 }

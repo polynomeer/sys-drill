@@ -394,4 +394,67 @@ class SimulationEngineTest {
 
     private fun batchSettlementSession(incidentActive: Boolean, traits: DesignTraits = DesignTraits()) =
         SimulationSessionState(sessionId = dummySessionId, domain = RuleBasedSimulationEngine.DOMAIN_BATCH_SETTLEMENT, incidentActive = incidentActive, traits = traits)
+
+    // ---- autoscaling (PLAN.md step 29 — two INDEPENDENT multiplicative
+    // penalties on effective pod capacity (OOM crash-loop, unsafe rollout);
+    // scaling out alone barely helps since the new pods are equally broken) ----
+
+    @Test
+    fun `baseline autoscaling traffic is stable`() {
+        val state = RuleBasedSimulationEngine.computeState(autoscalingSession(incidentActive = false))
+
+        assertThat(state.trafficRps).isEqualTo(100.0)
+        assertThat(state.consumerThroughput).isCloseTo(200.0, delta)
+        assertThat(state.queueLag).isEqualTo(0)
+        assertThat(state.errorRate).isCloseTo(0.001, delta)
+        assertThat(state.p95LatencyMs).isCloseTo(45.0, delta)
+    }
+
+    @Test
+    fun `the autoscaling incident collapses effective pod capacity from OOM crash-loop and an unsafe rollout`() {
+        val state = RuleBasedSimulationEngine.computeState(autoscalingSession(incidentActive = true))
+
+        assertThat(state.trafficRps).isEqualTo(1000.0)
+        assertThat(state.consumerThroughput).isCloseTo(56.0, delta)
+        assertThat(state.queueLag).isEqualTo(2)
+        assertThat(state.errorRate).isCloseTo(0.30, delta)
+        assertThat(state.p95LatencyMs).isCloseTo(360.0, delta)
+    }
+
+    @Test
+    fun `no single autoscaling action alone fully recovers the session`() {
+        val scaleOutOnly = RuleBasedSimulationEngine.computeState(
+            RuleBasedSimulationEngine.applyAction(autoscalingSession(incidentActive = true), SimulationActionType.SCALE_OUT_REPLICAS)
+        )
+        val resourceLimitsOnly = RuleBasedSimulationEngine.computeState(
+            RuleBasedSimulationEngine.applyAction(autoscalingSession(incidentActive = true), SimulationActionType.TUNE_RESOURCE_LIMITS)
+        )
+        val rolloutSafeguardOnly = RuleBasedSimulationEngine.computeState(
+            RuleBasedSimulationEngine.applyAction(autoscalingSession(incidentActive = true), SimulationActionType.ENABLE_ROLLOUT_SAFEGUARD)
+        )
+
+        // adding replicas alone doesn't help much — the new pods crash-loop and get
+        // swept up in the rollout too, same as the originals
+        assertThat(scaleOutOnly.errorRate).isCloseTo(0.30, delta)
+        assertThat(resourceLimitsOnly.errorRate).isCloseTo(0.30, delta)
+        assertThat(rolloutSafeguardOnly.errorRate).isCloseTo(0.30, delta)
+    }
+
+    @Test
+    fun `all three autoscaling actions together recover the session`() {
+        var session = autoscalingSession(incidentActive = true)
+        session = RuleBasedSimulationEngine.applyAction(session, SimulationActionType.SCALE_OUT_REPLICAS)
+        session = RuleBasedSimulationEngine.applyAction(session, SimulationActionType.TUNE_RESOURCE_LIMITS)
+        session = RuleBasedSimulationEngine.applyAction(session, SimulationActionType.ENABLE_ROLLOUT_SAFEGUARD)
+
+        val state = RuleBasedSimulationEngine.computeState(session)
+
+        assertThat(state.consumerThroughput).isCloseTo(2000.0, delta)
+        assertThat(state.queueLag).isEqualTo(0)
+        assertThat(state.errorRate).isCloseTo(0.001, delta)
+        assertThat(state.p95LatencyMs).isCloseTo(45.0, delta)
+    }
+
+    private fun autoscalingSession(incidentActive: Boolean, traits: DesignTraits = DesignTraits()) =
+        SimulationSessionState(sessionId = dummySessionId, domain = RuleBasedSimulationEngine.DOMAIN_AUTOSCALING, incidentActive = incidentActive, traits = traits)
 }

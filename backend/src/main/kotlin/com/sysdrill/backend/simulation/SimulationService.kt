@@ -259,5 +259,11 @@ class SimulationService(
             "긍정 효과: 실패 시 재처리해야 할 레코드 범위 축소. 가능한 부작용: 청크당 커밋 오버헤드 비중 증가로 정상 처리량 자체는 감소."
         SimulationActionType.ENABLE_IDEMPOTENT_RECONCILIATION ->
             "긍정 효과: 재처리된 레코드가 중복 반영되지 않아 정산 정합성 유지. 가능한 부작용: 레코드별 처리 이력 저장·조회 비용 추가."
+        SimulationActionType.SCALE_OUT_REPLICAS ->
+            "긍정 효과: Pod 수 증가로 이론적 처리 용량 확대. 가능한 부작용: 리소스 제한·롤아웃 안전장치가 없으면 늘어난 Pod도 똑같이 불안정해 효과가 제한적일 수 있음."
+        SimulationActionType.TUNE_RESOURCE_LIMITS ->
+            "긍정 효과: 메모리 사용량이 request/limit에 맞게 조정돼 OOM kill로 인한 Pod 재시작 반복 해소. 가능한 부작용: limit을 너무 낮게 잡으면 정상 부하에서도 스로틀링 발생 가능."
+        SimulationActionType.ENABLE_ROLLOUT_SAFEGUARD ->
+            "긍정 효과: readiness probe/PodDisruptionBudget으로 롤링 배포 중에도 가용 용량 유지. 가능한 부작용: 배포 자체의 소요 시간 증가."
     }
 }

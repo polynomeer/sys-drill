@@ -28,7 +28,7 @@ enum class EngineMode {
     REAL_INFRA,
 }
 
-/** "domain|incidentActive|rateLimitEnabled|cacheTtlSeconds|dbPoolSize|consumerCount|circuitBreakerEnabled|retryBackoffMultiplier|cachePolicySplit|singleFlightEnabled|readReplicaCount|dispatcherWorkers|idempotentPgRetryEnabled|paymentPoolIsolated|fineGrainedLockingEnabled|holdTimeoutSeconds|atomicInventoryCheckEnabled|checkpointingEnabled|chunkSize|idempotentReconciliationEnabled|engineMode" — see EvaluationQueue for the same low-tech-on-purpose approach. sessionId is deliberately excluded (see [SimulationSessionState] doc) and supplied to [decode] separately. */
+/** "domain|incidentActive|rateLimitEnabled|cacheTtlSeconds|dbPoolSize|consumerCount|circuitBreakerEnabled|retryBackoffMultiplier|cachePolicySplit|singleFlightEnabled|readReplicaCount|dispatcherWorkers|idempotentPgRetryEnabled|paymentPoolIsolated|fineGrainedLockingEnabled|holdTimeoutSeconds|atomicInventoryCheckEnabled|checkpointingEnabled|chunkSize|idempotentReconciliationEnabled|podReplicas|resourceLimitsTuned|rolloutSafeguardEnabled|engineMode" — see EvaluationQueue for the same low-tech-on-purpose approach. sessionId is deliberately excluded (see [SimulationSessionState] doc) and supplied to [decode] separately. */
 object SimulationSessionStateCodec {
 
     fun encode(state: SimulationSessionState): String =
@@ -53,6 +53,9 @@ object SimulationSessionStateCodec {
             state.traits.checkpointingEnabled,
             state.traits.chunkSize,
             state.traits.idempotentReconciliationEnabled,
+            state.traits.podReplicas,
+            state.traits.resourceLimitsTuned,
+            state.traits.rolloutSafeguardEnabled,
             state.engineMode.name,
         ).joinToString("|")
 
@@ -81,8 +84,11 @@ object SimulationSessionStateCodec {
                 checkpointingEnabled = parts[17].toBoolean(),
                 chunkSize = parts[18].toInt(),
                 idempotentReconciliationEnabled = parts[19].toBoolean(),
+                podReplicas = parts[20].toInt(),
+                resourceLimitsTuned = parts[21].toBoolean(),
+                rolloutSafeguardEnabled = parts[22].toBoolean(),
             ),
-            engineMode = EngineMode.valueOf(parts[20]),
+            engineMode = EngineMode.valueOf(parts[23]),
         )
     }
 }
