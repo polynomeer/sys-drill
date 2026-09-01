@@ -540,7 +540,23 @@ Phase 4의 첫 실제 기능. `docs/ROADMAP.md`의 한 줄짜리 항목 외에�
 - **개발 중 발견한 프로세스 이슈(코드 문제 아님): 이번에도 로컬 8081 포트가 다른 무관한 프로세스에 점유돼 있어 검증은 8095 포트로 우회했다.** 31단계에서와 같은 패턴 — 다른 세션/프로세스를 죽이지 않고 우회.
 - **테스트 실행 중간에 실패가 났던 원인은 이번 스텝의 코드가 아니라, 이전(31단계) curl 검증 때 남겨둔 Toxiproxy 프록시 2개가 포트 20000/20001을 계속 점유하고 있었기 때문이었다** — `ToxiproxySessionProxyTest`가 새 프록시를 같은 포트에 만들려다 충돌. Toxiproxy admin API로 직접 정리한 뒤 통과 — 실전 인프라 세션 정리 자동화(22단계)가 스키마/HikariDataSource만 다루고 Toxiproxy 프록시 정리는 다루지 않는다는 기존 갭이 실제로 발현된 사례로 기록해둔다(이번 스텝에서 고치지는 않음).
 
-### 33단계 — 팀 대시보드 (예정)
+### 33단계 — 팀 대시보드 (멤버별 훈련 로스터) ✅ 완료 (2026-09-01)
+
+`docs/PRD.md`의 "팀 대시보드" 한 줄 언급 외 스펙이 없어, 사용자와 스코프를 논의했다(AskUserQuestion). 후보 3개(멤버별 훈련 로스터 / +조직 집계 지표 / +도메인별 팀 리스크 히트맵) 중 최소 스코프인 **멤버별 훈련 로스터**를 선택 — 32단계의 멤버십 데이터와 기존 개인 약점 프로필(`GET /skill-profile`)을 조합해, ADMIN이 조직 상세 페이지에서 각 멤버의 완료 세션 수·마지막 활동·최근 추세를 한눈에 보는 화면.
+
+- [x] `SkillProfileController`에 있던 `TrendDirection` enum과 `trendDirection()` 계산을 `SkillProfileService`로 옮겨 공용화 — 개인 대시보드와 팀 대시보드가 같은 추세 판정 로직(윈도우 3/임계값 3.0)을 공유
+- [x] `SessionRepository.completionStatsByUserIds(userIds)` — 멤버별 COMPLETED 세션 수 + 마지막 완료 시각을 `GROUP BY`로 한 번에 (N+1 방지, JPA 프로젝션 인터페이스 `SessionCompletionStats`)
+- [x] `SkillProfileRepository.findByUserIdIn(userIds)` — 동일한 이유로 벌크 조회
+- [x] `GET /organizations/{orgId}/dashboard` 신규, **ADMIN 전용** — 32단계의 `OrganizationAccessGuard.requireAdmin`을 그대로 재사용해 비회원/비-ADMIN 모두 404로 통일(기존 초대 관련 엔드포인트와 동일 컨벤션)
+- [x] 프론트엔드: `frontend/src/app/organizations/[orgId]/dashboard/page.tsx` 신규(멤버별 테이블 — 닉네임/이메일/역할/완료 세션 수/마지막 활동/추세 뱃지, 개인 대시보드의 뱃지 스타일 재사용), 조직 상세 페이지에 ADMIN에게만 보이는 "팀 대시보드 보기" 링크 추가
+- [x] 신규 `OrganizationControllerIntegrationTest` 3개(ADMIN 조회 시 멤버별 수치 정확성 — 훈련 이력 있는 멤버 vs 없는 멤버, 비-ADMIN 멤버 404, 비회원 404)
+
+**완료 기준 충족**: 신규 3개 포함 백엔드 전체 197개 테스트 통과(0 실패). 실제 브라우저로 계정 A(ADMIN) 가입 → 조직 생성 → 계정 B 이메일로 초대·가입·수락 → (LLM 평가까지 포함한 전체 시나리오 완주는 비용·시간이 커서, DB에 B의 COMPLETED 세션 1건 + 상승 추세 SkillProfile을 직접 삽입해 "훈련을 마친 상태"를 재현) → 계정 A의 팀 대시보드에서 B는 완료 세션=1/마지막 활동 시각 표시/추세 "▲ 상승", A 자신은 완료 세션=0/"훈련 이력 없음"/"데이터 부족"으로 정확히 표시됨을 확인 → 계정 B(MEMBER)로 로그인해 대시보드 URL에 직접 접근 시 "이 대시보드는 관리자만 볼 수 있습니다" 오류 화면(404) 확인.
+
+**진행 중 발견한 결정 사항**:
+- **팀 대시보드 접근을 ADMIN 전용으로 제한했다.** MEMBER가 다른 멤버의 개인 훈련 현황(완료 세션 수·추세)을 보는 것은 "관리자가 팀 훈련 상태를 파악한다"는 PRD의 Team/Enterprise 티어 취지를 벗어난 프라이버시 노출이 될 수 있어, 32단계에서 이미 확립된 `requireAdmin`(비회원·비-ADMIN 모두 404) 컨벤션을 그대로 재사용했다.
+- **집계를 멤버 수만큼 N+1 쿼리로 하지 않고 벌크 쿼리 2개로 묶었다.** 이번 구현에서는 멤버 수가 적어 체감 차이가 없지만, 조직 규모가 커질 걸 감안해 처음부터 `IN`/`GROUP BY` 기반으로 작성 — 별도 트레이드오프가 있는 결정이 아니라 그냥 더 나은 기본형이라 ADR은 남기지 않았다.
+
 ### 34단계 — Private/커스텀 시나리오 (예정)
 ### 35단계+ — Game Day, RBAC, SSO, Audit Log, 온보딩 커리큘럼 (34단계까지의 진행을 보고 그때 다시 스코프 판단)
 
