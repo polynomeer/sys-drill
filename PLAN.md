@@ -501,7 +501,25 @@ Phase 3(21~29단계)가 모두 완료되어, 사용자가 다음 우선순위로
 - **CORS preflight 버그는 curl 검증만으로는 잡을 수 없었다** — curl은 브라우저의 preflight 메커니즘 자체가 없어 이 세션의 "실제 브라우저로 검증" 원칙(프론트엔드 변경 단계마다 반복)이 실제로 버그를 잡아낸 사례. 인증이 걸린 엔드포인트를 프론트에서 호출하는 모든 향후 단계(31단계 포함)에 동일 패턴(OPTIONS 조기 반환)이 필요함을 기록해둔다.
 - **`TestJwtIssuer`를 실제 `/auth/signup` 호출이 아니라 `JwtService`를 직접 주입받아 토큰만 발급하는 방식으로 만들었다.** BCrypt는 의도적으로 느린 해시라, 수십~수백 개 테스트마다 실제 회원가입 흐름을 태우면 테스트 스위트 전체가 크게 느려진다 — 인증 자체를 검증하는 `AuthControllerIntegrationTest`만 실제 BCrypt 경로를 타고, 나머지는 토큰 발급만 재사용한다.
 
-### 31단계 — 기존 엔드포인트 토큰 기반 인증으로 순차 마이그레이션 (예정)
+### 31단계 — 기존 엔드포인트 토큰 기반 인증으로 순차 마이그레이션 ✅ 완료 (2026-09-01)
+
+30단계가 예고한 나머지 조각 — `POST /sessions` 하나만 보호하고 남겨뒀던 15개+ 엔드포인트 전부를 토큰 기반으로 마이그레이션했다. Explore 에이전트로 전체 엔드포인트 인벤토리를 조사하고 Plan 에이전트로 설계를 검증받았다(AuthWebConfig 경로 패턴 확장, 소유권 검사 헬퍼 설계, 프론트엔드 userId 저장 제거 여부).
+
+- [x] `AuthWebConfig`가 `/sessions`, `/sessions/**`, `/submissions/**`, `/build-challenges/**`, `/build-submissions/**`, `/skill-profile`에 인터셉터를 등록하되, k6가 직접 때리는 `RealInfraCouponController`(`/sessions/*/simulation/realinfra/coupon/**`)만 `excludePathPatterns`로 명시적으로 제외(ADR-0021)
+- [x] 신규 `SessionAccessGuard`(`requireOwner`, `requireOwnerOfSubmission`) — sessionId/submissionId로만 스코프돼 있어 소유권 검사 자체가 없던 `SessionController`(get/submit/advance)/`SimulationController`(4개)/`ReportController`/`PostmortemController`(get/save)/`EvaluationController.getFeedback`에 전부 배선. "내 것이 아님"도 새 403이 아니라 기존 `NotFoundException`(404)으로 통일 — 리소스 존재 여부 자체를 노출하지 않기 위함
+- [x] `GET /users/{userId}/sessions` → `GET /sessions`(`SessionController`에 흡수, `UserSessionController.kt` 삭제), `GET /users/{userId}/skill-profile` → `GET /skill-profile` — 둘 다 경로의 `userId`를 없애고 토큰에서 유도
+- [x] `POST /build-challenges/{slug}/submissions`의 body `userId` 필드 제거, `@AuthenticatedUserId`로 대체. `GET /build-submissions/{id}`는 `BuildSubmission.userId`가 직접 있어 가드 없이 컨트롤러에서 바로 비교
+- [x] 아무도 호출하지 않는 `UserController.kt`(`GET /users/{id}`)와 그 테스트를 삭제(`UserDtos.kt`의 `UserResponse`는 `AuthDtos.kt`가 여전히 쓰므로 유지)
+- [x] 프론트엔드: `api.ts`의 `getUserSessions`/`getSkillProfile`/`submitBuildChallenge`에서 `userId` 파라미터 전부 제거. `localSession.ts`의 `getStoredUserId()`/`sysdrill:userId` 저장을 완전히 삭제(모든 실제 사용처가 이제 토큰만으로 충분) — 로그인 게이트로 쓰던 6개 페이지(`dashboard`/`bridge`/`design/[sessionId]`/`replay`/`postmortem`/`report`)를 `getStoredToken()` 체크로 교체
+- [x] 테스트: 신규 `backend/.../support/BuildTestSupport.kt`(`MockMvc.submitBuildChallenge`)로 Build 챌린지 테스트 6개 파일의 거의 동일한 로컬 `submit()` 헬퍼를 통일(`SessionTestSupport.startSession`과 같은 "단일 지점 변경" 설계). 소유권 검사가 새로 걸린 기존 통합 테스트 전체(session/simulation/postmortem/evaluation/reporting 패키지)에 `Authorization` 헤더 추가. 신규 "다른 사용자의 세션/피드백은 404" 테스트 3개 추가
+
+**완료 기준 충족**: 백엔드 전체 179개 테스트 통과(0 실패). curl로 토큰 없이 `GET /sessions`/`GET /skill-profile`/`GET /sessions/{id}`/`GET /sessions/{id}/report` 전부 401 확인 → 세션 소유자가 아닌 다른 사용자 토큰으로 조회 시 404 확인(소유권 검사 실제 동작) → 본인 토큰으로는 200 확인 → `POST /sessions/{id}/simulation/realinfra/coupon/claim`을 인증 헤더 없이 호출해도(실제 인프라로 세션을 프로비저닝한 뒤) 여전히 200으로 성공함을 확인(exclude 패턴이 정확히 먹었음을 검증). 실제 브라우저로 가입 → 대시보드(새 `GET /sessions`/`GET /skill-profile` 정상 로딩) → 쿠폰 세션 시작 → 초기 설계 제출/피드백 → 꼬리설계 → 장애 대응(인시던트 시작 → 조치 적용) → 세션 완료 → 리포트까지 전 구간을 새 무-userId 경로로 정상 진행함을 확인.
+
+**진행 중 발견한 결정 사항**:
+- **`RealInfraCouponController`를 이번 광범위한 인증 확장에서 의도적으로 제외했다(ADR-0021).** 이 컨트롤러는 `/sessions/**` 바로 아래에 있어 인터셉터 패턴만 보면 자동으로 포함됐을 것이지만, k6 Docker 컨테이너가 직접 때리는 대상이라 사용자 JWT를 보낼 방법이 없다 — 포함시켰다면 21단계의 실전 인프라 쿠폰 시뮬레이션 자체가 깨졌을 것.
+- **개발 중 발견한 프로세스 이슈(코드 문제 아님): 로컬 8081 포트를 다른(무관한) 프로젝트의 백엔드가 이미 점유하고 있어, 이번 curl/브라우저 검증은 임시로 8095 포트 + 그에 맞춘 `SYSDRILL_FRONTEND_ORIGIN`으로 진행했다.** 다른 세션의 프로세스를 죽이지 않고 우회한 것 — 실제 배포/평상시 개발에는 영향 없음.
+- **소유권 위반을 403이 아니라 기존 404로 통일한 것은 30단계의 "예외 하나 = 상태코드 하나" 패턴을 그대로 따른 선택이다.** 새 예외 타입을 추가하지 않고, "존재하지 않음"과 "내 것이 아님"을 응답만으로 구분할 수 없게 만들어 리소스 존재 여부 자체가 새어나가지 않도록 했다.
+
 ### 32단계 — Organization/Team 데이터 모델 + 멤버십(초대, ADMIN/MEMBER 역할) (예정)
 ### 33단계 — 팀 대시보드 (예정)
 ### 34단계 — Private/커스텀 시나리오 (예정)

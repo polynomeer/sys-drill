@@ -24,3 +24,4 @@ Short records of decisions that are hard to reverse, would surprise a future rea
 | [0018](0018-real-infra-engine-selection-by-domain-map.md) | Real-infra engine selection generalizes from a single coupon field to a domain→engine map |
 | [0019](0019-autoscaling-domain-rule-based-no-real-cluster.md) | The "autoscaling" domain stays rule-based — no real Kubernetes cluster, unlike coupon/notification's real-infra pilots |
 | [0020](0020-incremental-real-auth-rollout-guest-flow-fully-replaced.md) | Real auth rollout protects only `POST /sessions` for now, and fully replaces the guest flow with no account-linking path |
+| [0021](0021-realinfra-coupon-endpoints-excluded-from-step31-auth-rollout.md) | RealInfraCouponController stays unauthenticated even after the rest of the API requires a token |
