@@ -5,8 +5,8 @@ import jakarta.validation.constraints.NotNull
 import java.time.Instant
 import java.util.UUID
 
+/** PLAN.md step 30 — no userId field: the session owner comes from the verified Authorization token (see AuthenticatedUserId), not client-supplied input. */
 data class StartSessionRequest(
-    @field:NotNull val userId: UUID,
     @field:NotNull val scenarioId: UUID,
     /** Bridge Mode: links this session to a just-completed Build submission (PLAN.md step 10). */
     val buildSubmissionId: UUID? = null,

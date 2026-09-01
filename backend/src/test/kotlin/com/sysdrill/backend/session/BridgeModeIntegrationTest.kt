@@ -4,6 +4,7 @@ import com.jayway.jsonpath.JsonPath
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.support.COUPON_SCENARIO_ID
+import com.sysdrill.backend.support.TestJwtIssuer
 import com.sysdrill.backend.support.startSession
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -96,15 +97,23 @@ class BridgeModeIntegrationTest(
         val submissionId = submitBuild(otherUserId)
         awaitBuildCompleted(submissionId)
 
-        val body = """{"userId":"$userId","scenarioId":"${COUPON_SCENARIO_ID}","buildSubmissionId":"$submissionId"}"""
-        mockMvc.perform(post("/sessions").contentType(MediaType.APPLICATION_JSON).content(body))
+        val body = """{"scenarioId":"${COUPON_SCENARIO_ID}","buildSubmissionId":"$submissionId"}"""
+        mockMvc.perform(
+            post("/sessions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer ${TestJwtIssuer.current.issue(userId)}")
+                .content(body)
+        )
             .andExpect(status().isConflict)
     }
 
     @Test
     fun `starting a session rejects a build submission that has not completed`() {
-        val body = """{"userId":"$userId","scenarioId":"${COUPON_SCENARIO_ID}","buildSubmissionId":"${UUID.randomUUID()}"}"""
-        mockMvc.perform(post("/sessions").contentType(MediaType.APPLICATION_JSON).content(body))
+        val body = """{"scenarioId":"${COUPON_SCENARIO_ID}","buildSubmissionId":"${UUID.randomUUID()}"}"""
+        mockMvc.perform(
+            post("/sessions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer ${TestJwtIssuer.current.issue(userId)}")
+                .content(body)
+        )
             .andExpect(status().isNotFound)
     }
 

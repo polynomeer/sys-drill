@@ -1,5 +1,6 @@
 package com.sysdrill.backend.session
 
+import com.sysdrill.backend.auth.AuthenticatedUserId
 import jakarta.validation.Valid
 import java.util.UUID
 import org.springframework.http.HttpStatus
@@ -15,10 +16,14 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/sessions")
 class SessionController(private val sessionService: SessionService) {
 
+    /** PLAN.md step 30 — @AuthenticatedUserId, not a client-supplied userId in the body: this is the one write endpoint this step protects (see AuthWebConfig). */
     @PostMapping
-    fun start(@Valid @RequestBody request: StartSessionRequest): ResponseEntity<SessionResponse> {
+    fun start(
+        @AuthenticatedUserId userId: UUID,
+        @Valid @RequestBody request: StartSessionRequest,
+    ): ResponseEntity<SessionResponse> {
         val session = sessionService.startSession(
-            request.userId, request.scenarioId, request.buildSubmissionId, request.seed, request.interviewMode,
+            userId, request.scenarioId, request.buildSubmissionId, request.seed, request.interviewMode,
         )
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(session))
     }

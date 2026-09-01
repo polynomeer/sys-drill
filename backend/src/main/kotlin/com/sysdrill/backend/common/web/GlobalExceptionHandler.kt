@@ -21,4 +21,8 @@ class GlobalExceptionHandler {
     @ExceptionHandler(BadRequestException::class)
     fun handleBadRequest(ex: BadRequestException): ResponseEntity<ApiError> =
         ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiError(HttpStatus.BAD_REQUEST.value(), ex.message))
+
+    @ExceptionHandler(UnauthorizedException::class)
+    fun handleUnauthorized(ex: UnauthorizedException): ResponseEntity<ApiError> =
+        ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiError(HttpStatus.UNAUTHORIZED.value(), ex.message))
 }

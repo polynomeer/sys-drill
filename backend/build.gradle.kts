@@ -46,6 +46,19 @@ dependencies {
 	// (same "raw client over framework abstraction" choice as CouponLoadRunner
 	// shelling out to `docker run` instead of using testcontainers).
 	implementation("org.apache.kafka:kafka-clients:3.9.0")
+	// PLAN.md step 30 — real authentication. Just the crypto module for
+	// BCryptPasswordEncoder, not the full spring-boot-starter-security — that
+	// starter auto-configures a filter chain/CSRF/default login page that
+	// would collide with this app's existing plain-REST CORS setup
+	// (CorsConfig.kt). Version comes from Spring Boot's own dependency BOM
+	// (io.spring.dependency-management), same as every other unversioned
+	// implementation() line here.
+	implementation("org.springframework.security:spring-security-crypto")
+	// Token signing is the one place in this codebase that deliberately does
+	// NOT follow the "hand-roll something low-tech" pattern used elsewhere
+	// (EvaluationQueue's Redis encoding, CouponLoadRunner's raw docker CLI) —
+	// a well-audited JWT library, not hand-rolled HMAC signing.
+	implementation("com.auth0:java-jwt:4.4.0")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("tools.jackson.module:jackson-module-kotlin")
 	runtimeOnly("org.postgresql:postgresql")

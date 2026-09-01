@@ -21,6 +21,12 @@ spring:
 
 sysdrill:
   frontend-origin: ${FRONTEND_ORIGIN:http://localhost:3000}
+  auth:
+    # PLAN.md step 30 — HMAC signing secret for issued JWTs. The dev default
+    # is fine for local/demo use (same trust boundary ADR-0003 already
+    # accepted); a real deployment must override this via env var.
+    jwt-secret: ${SYSDRILL_AUTH_JWT_SECRET:dev-only-insecure-secret-change-me}
+    token-ttl-days: ${SYSDRILL_AUTH_TOKEN_TTL_DAYS:30}
   evaluation:
     queue-key: ${EVALUATION_QUEUE_KEY:sysdrill:evaluation:jobs}
     dead-letter-key: ${EVALUATION_DEAD_LETTER_KEY:sysdrill:evaluation:dead-letter}

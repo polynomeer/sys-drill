@@ -3,6 +3,7 @@ package com.sysdrill.backend.session
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.support.COUPON_SCENARIO_ID
+import com.sysdrill.backend.support.TestJwtIssuer
 import com.sysdrill.backend.support.startSession
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -47,8 +48,12 @@ class SessionControllerIntegrationTest(
 
     @Test
     fun `starting a session returns the first scenario step in IN_PROGRESS`() {
-        val body = """{"userId":"$userId","scenarioId":"$COUPON_SCENARIO_ID"}"""
-        mockMvc.perform(post("/sessions").contentType(MediaType.APPLICATION_JSON).content(body))
+        val body = """{"scenarioId":"$COUPON_SCENARIO_ID"}"""
+        mockMvc.perform(
+            post("/sessions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer ${TestJwtIssuer.current.issue(userId)}")
+                .content(body)
+        )
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
             .andExpect(jsonPath("$.currentPhase").value("INITIAL"))
@@ -57,9 +62,20 @@ class SessionControllerIntegrationTest(
 
     @Test
     fun `starting a session for an unknown scenario returns 404`() {
-        val body = """{"userId":"$userId","scenarioId":"${UUID.randomUUID()}"}"""
-        mockMvc.perform(post("/sessions").contentType(MediaType.APPLICATION_JSON).content(body))
+        val body = """{"scenarioId":"${UUID.randomUUID()}"}"""
+        mockMvc.perform(
+            post("/sessions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer ${TestJwtIssuer.current.issue(userId)}")
+                .content(body)
+        )
             .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `starting a session without a valid token is rejected as unauthorized`() {
+        val body = """{"scenarioId":"$COUPON_SCENARIO_ID"}"""
+        mockMvc.perform(post("/sessions").contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isUnauthorized)
     }
 
     @Test
