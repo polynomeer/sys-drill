@@ -258,6 +258,16 @@ export function listScenarios(): Promise<ScenarioSummary[]> {
   return apiFetch<ScenarioSummary[]>("/scenarios");
 }
 
+/** PLAN.md step 31 — no userId param: GET /sessions lists the caller's own sessions, derived from their token. */
+export function getUserSessions(): Promise<SessionSummary[]> {
+  return apiFetch<SessionSummary[]>("/sessions");
+}
+
+/** PLAN.md step 31 — no userId param: GET /skill-profile is the caller's own profile, derived from their token. */
+export function getSkillProfile(): Promise<SkillProfile> {
+  return apiFetch<SkillProfile>("/skill-profile");
+}
+
 /** PLAN.md step 30 — no userId param: POST /sessions derives the owner from the caller's stored auth token (see apiFetch), not from client-supplied input. */
 export function startSession(
   scenarioId: string,
@@ -328,26 +338,15 @@ export function savePostmortem(sessionId: string, request: SavePostmortemRequest
   });
 }
 
-export function getUserSessions(userId: string): Promise<SessionSummary[]> {
-  return apiFetch<SessionSummary[]>(`/users/${userId}/sessions`);
-}
-
-export function getSkillProfile(userId: string): Promise<SkillProfile> {
-  return apiFetch<SkillProfile>(`/users/${userId}/skill-profile`);
-}
-
 export function getReport(sessionId: string): Promise<Report> {
   return apiFetch<Report>(`/sessions/${sessionId}/report`);
 }
 
-export function submitBuildChallenge(
-  slug: string,
-  userId: string,
-  sourceCode: string,
-): Promise<BuildSubmissionResponse> {
+/** PLAN.md step 31 — no userId param: the submission's owner is derived from the caller's token. */
+export function submitBuildChallenge(slug: string, sourceCode: string): Promise<BuildSubmissionResponse> {
   return apiFetch<BuildSubmissionResponse>(`/build-challenges/${slug}/submissions`, {
     method: "POST",
-    body: JSON.stringify({ userId, sourceCode }),
+    body: JSON.stringify({ sourceCode }),
   });
 }
 

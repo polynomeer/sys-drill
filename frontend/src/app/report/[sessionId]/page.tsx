@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ApiError, Report, getReport } from "@/lib/api";
-import { getStoredUserId } from "@/lib/localSession";
+import { getStoredToken } from "@/lib/localSession";
 import { BridgeProgress } from "@/components/BridgeProgress";
 
 const PHASE_LABELS: Record<string, string> = {
@@ -23,7 +23,7 @@ export default function ReportPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!getStoredUserId()) {
+    if (!getStoredToken()) {
       router.replace("/onboarding");
       return;
     }

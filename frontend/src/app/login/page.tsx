@@ -23,7 +23,7 @@ export default function LoginPage() {
     setError(null);
     try {
       const { token, user } = await login(email.trim(), password);
-      storeUser(user.id, user.nickname, token);
+      storeUser(user.nickname, token);
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof ApiError && err.status === 401 ? "이메일 또는 비밀번호가 올바르지 않습니다." : "로그인 중 오류가 발생했습니다.");

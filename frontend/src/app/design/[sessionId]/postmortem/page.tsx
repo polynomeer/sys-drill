@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ApiError, Postmortem, getPostmortem, savePostmortem } from "@/lib/api";
-import { getStoredUserId } from "@/lib/localSession";
+import { getStoredToken } from "@/lib/localSession";
 import { formatDuration, formatMs, formatPercent } from "@/lib/metrics";
 
 const toLines = (value: string): string[] =>
@@ -45,7 +45,7 @@ export default function PostmortemPage() {
   }, [sessionId]);
 
   useEffect(() => {
-    if (!getStoredUserId()) {
+    if (!getStoredToken()) {
       router.replace("/onboarding");
       return;
     }

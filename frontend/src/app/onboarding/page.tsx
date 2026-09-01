@@ -32,7 +32,7 @@ export default function OnboardingPage() {
         experienceYears: experienceYears ? Number(experienceYears) : undefined,
         primaryStack: primaryStack.trim() || undefined,
       });
-      storeUser(user.id, user.nickname, token);
+      storeUser(user.nickname, token);
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "가입 중 오류가 발생했습니다.");

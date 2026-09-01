@@ -15,7 +15,7 @@ import {
 } from "@/lib/api";
 import {
   clearDraft,
-  getStoredUserId,
+  getStoredToken,
   loadDraft,
   loadSubmissionId,
   saveDraft,
@@ -196,7 +196,7 @@ export default function DesignWorkspacePage() {
   }, [sessionId, resolveOutcome, startPolling]);
 
   useEffect(() => {
-    if (!getStoredUserId()) {
+    if (!getStoredToken()) {
       router.replace("/onboarding");
       return;
     }

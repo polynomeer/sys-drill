@@ -2,28 +2,16 @@
 // real auth) and per-session drafts, so a refresh doesn't lose the user's
 // typed answer or their place in a submit -> poll -> feedback flow.
 
-const USER_ID_KEY = "sysdrill:userId";
 const USER_NICKNAME_KEY = "sysdrill:userNickname";
 const TOKEN_KEY = "sysdrill:token";
-
-export function getStoredUserId(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(USER_ID_KEY);
-}
 
 export function getStoredToken(): string | null {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem(TOKEN_KEY);
 }
 
-/**
- * `userId` is still stored alongside the token — PLAN.md step 30 only
- * protects `POST /sessions` with the token (점진적 마이그레이션); every other
- * user-scoped endpoint (skill-profile, session list, ...) still takes a
- * plain `userId` until 31단계 migrates them too. Remove this once that's done.
- */
-export function storeUser(id: string, nickname: string, token: string): void {
-  window.localStorage.setItem(USER_ID_KEY, id);
+/** PLAN.md step 31 — every endpoint is now token-derived, so only the token and a display nickname need to persist. */
+export function storeUser(nickname: string, token: string): void {
   window.localStorage.setItem(USER_NICKNAME_KEY, nickname);
   window.localStorage.setItem(TOKEN_KEY, token);
 }
@@ -34,7 +22,6 @@ export function getStoredNickname(): string | null {
 }
 
 export function clearStoredUser(): void {
-  window.localStorage.removeItem(USER_ID_KEY);
   window.localStorage.removeItem(USER_NICKNAME_KEY);
   window.localStorage.removeItem(TOKEN_KEY);
 }

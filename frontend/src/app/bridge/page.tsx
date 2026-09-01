@@ -11,7 +11,7 @@ import {
   startSession,
   submitBuildChallenge,
 } from "@/lib/api";
-import { getStoredUserId, loadBuildDraft, saveBuildDraft, saveBuildSubmissionId } from "@/lib/localSession";
+import { getStoredToken, loadBuildDraft, saveBuildDraft, saveBuildSubmissionId } from "@/lib/localSession";
 import { BridgeProgress } from "@/components/BridgeProgress";
 
 const CHALLENGE_SLUG = "rate-limiter";
@@ -76,8 +76,7 @@ export default function BridgePage() {
   }, []);
 
   useEffect(() => {
-    const userId = getStoredUserId();
-    if (!userId) {
+    if (!getStoredToken()) {
       router.replace("/onboarding");
       return;
     }
@@ -122,8 +121,7 @@ export default function BridgePage() {
   }
 
   async function handleSubmit() {
-    const userId = getStoredUserId();
-    if (!userId) {
+    if (!getStoredToken()) {
       router.replace("/onboarding");
       return;
     }
@@ -134,7 +132,7 @@ export default function BridgePage() {
     setView("submitting");
     setError(null);
     try {
-      const created = await submitBuildChallenge(CHALLENGE_SLUG, userId, sourceCode);
+      const created = await submitBuildChallenge(CHALLENGE_SLUG, sourceCode);
       saveBuildSubmissionId(CHALLENGE_SLUG, created.id);
       setSubmission(created);
       setView("waiting");
@@ -146,8 +144,7 @@ export default function BridgePage() {
   }
 
   async function handleContinueToDesign() {
-    const userId = getStoredUserId();
-    if (!userId || !scenario || !submission) return;
+    if (!getStoredToken() || !scenario || !submission) return;
     setStartingSession(true);
     setError(null);
     try {

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { TimelineStep, getSession, getSimulationTimeline } from "@/lib/api";
-import { getStoredUserId } from "@/lib/localSession";
+import { getStoredToken } from "@/lib/localSession";
 import { MetricsPanel } from "../WargameLive";
 
 const AUTO_PLAY_INTERVAL_MS = 1800;
@@ -23,7 +23,7 @@ export default function IncidentReplayPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (!getStoredUserId()) {
+    if (!getStoredToken()) {
       router.replace("/onboarding");
       return;
     }

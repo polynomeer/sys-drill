@@ -13,7 +13,7 @@ import {
   listScenarios,
   startSession,
 } from "@/lib/api";
-import { clearStoredUser, getStoredNickname, getStoredUserId } from "@/lib/localSession";
+import { clearStoredUser, getStoredNickname, getStoredToken } from "@/lib/localSession";
 import { riskLabel } from "@/lib/riskLabels";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -45,8 +45,7 @@ export default function DashboardPage() {
   const [interviewMode, setInterviewMode] = useState(false);
 
   useEffect(() => {
-    const userId = getStoredUserId();
-    if (!userId) {
+    if (!getStoredToken()) {
       router.replace("/onboarding");
       return;
     }
@@ -55,7 +54,7 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setNickname(getStoredNickname());
 
-    Promise.all([listScenarios(), getUserSessions(userId), getSkillProfile(userId)])
+    Promise.all([listScenarios(), getUserSessions(), getSkillProfile()])
       .then(([scenarioList, sessionList, profile]) => {
         setScenarios(scenarioList);
         setSessions(sessionList);
@@ -66,8 +65,7 @@ export default function DashboardPage() {
   }, [router]);
 
   async function handleStart(scenarioId: string) {
-    const userId = getStoredUserId();
-    if (!userId) {
+    if (!getStoredToken()) {
       router.replace("/onboarding");
       return;
     }
