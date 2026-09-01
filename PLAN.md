@@ -520,7 +520,26 @@ Phase 3(21~29단계)가 모두 완료되어, 사용자가 다음 우선순위로
 - **개발 중 발견한 프로세스 이슈(코드 문제 아님): 로컬 8081 포트를 다른(무관한) 프로젝트의 백엔드가 이미 점유하고 있어, 이번 curl/브라우저 검증은 임시로 8095 포트 + 그에 맞춘 `SYSDRILL_FRONTEND_ORIGIN`으로 진행했다.** 다른 세션의 프로세스를 죽이지 않고 우회한 것 — 실제 배포/평상시 개발에는 영향 없음.
 - **소유권 위반을 403이 아니라 기존 404로 통일한 것은 30단계의 "예외 하나 = 상태코드 하나" 패턴을 그대로 따른 선택이다.** 새 예외 타입을 추가하지 않고, "존재하지 않음"과 "내 것이 아님"을 응답만으로 구분할 수 없게 만들어 리소스 존재 여부 자체가 새어나가지 않도록 했다.
 
-### 32단계 — Organization/Team 데이터 모델 + 멤버십(초대, ADMIN/MEMBER 역할) (예정)
+### 32단계 — Organization/Team 데이터 모델 + 멤버십(초대, ADMIN/MEMBER 역할) ✅ 완료 (2026-09-01)
+
+Phase 4의 첫 실제 기능. `docs/ROADMAP.md`의 한 줄짜리 항목 외에는 스펙이 전혀 없는 완전한 백지상태임을 Explore 에이전트로 확인했다(PRD.md/ARCHITECTURE.md/archive/FUTURE_EXPLORATIONS.md 전수 검색). 사용자에게 초대 방식을 확인했다: **이메일 지정 초대**(실제 이메일 발송 없음, 관리자가 초대 대상 이메일을 지정하고 그 이메일로 가입/로그인한 사용자만 수락 가능 — 관리자가 링크를 Slack 등으로 직접 전달).
+
+- [x] 신규 패키지 `backend/.../organization/` — `Organization`(집합체 루트) + `OrganizationMembership`/`OrganizationInvitation`(자식, `organization_id`만 `on delete cascade`) 3테이블(`V25__create_organizations.sql`). 멤버십은 이 코드베이스 최초의 다대다 관계이지만 JPA `@ManyToMany` 없이 ADR-0001("집합체 경계를 넘는 참조는 순수 UUID 스칼라")을 그대로 적용
+- [x] 초대 상태는 `PENDING`/`ACCEPTED`/`REVOKED` 3개뿐 — `EXPIRED`를 두지 않고 `expires_at < now()`로 매번 계산(ADR-0011 재적용, 별도 스윕 잡 불필요)
+- [x] 초대 토큰은 서명 JWT가 아니라 `UUID.randomUUID().toString()`을 DB에 저장해 조회(ADR-0022) — `SessionService.startSession`의 `seed` 생성과 동일한 관례 재사용
+- [x] 신규 `OrganizationAccessGuard` — `SessionAccessGuard`와 동일한 형태(주입 가능한 평범한 컴포넌트, "멤버 아님"과 "ADMIN 아님" 둘 다 기존 `NotFoundException`(404)으로 통일). `OrganizationService`가 마지막 남은 ADMIN의 제거/탈퇴를 409로 차단
+- [x] 엔드포인트 10개(`POST/GET /organizations`, `GET /organizations/{orgId}`, `POST/GET /organizations/{orgId}/invitations`, `DELETE .../invitations/{id}`, `GET /organizations/invitations/{token}`(미리보기), `POST .../accept`, `DELETE /organizations/{orgId}/members/{userId}`, `POST /organizations/{orgId}/leave`) — `AuthWebConfig`에 `/organizations`, `/organizations/**` 추가
+- [x] 프론트엔드: `frontend/src/app/organizations/page.tsx`(내 조직 목록+생성), `[orgId]/page.tsx`(멤버 목록/초대 폼·초대 링크 표시/대기 초대 목록, ADMIN 전용 UI 분기), `invitations/[token]/page.tsx`(미리보기→수락), `dashboard/page.tsx` 헤더에 "조직" 링크 추가
+- [x] 신규 `OrganizationControllerIntegrationTest` 14개(생성 시 ADMIN 자동 등록, 비멤버 404, 비-ADMIN 초대 404, 이메일 일치/불일치 수락, 중복 PENDING 초대 409, 이미 멤버인 이메일 수락 409, 마지막 ADMIN 제거·탈퇴 차단 양쪽 경로, 일반 멤버 제거/자진 탈퇴, 만료 초대 409, 초대 취소→REVOKED, 무인증 401)
+- [x] ADR 2개 작성 (0022: 초대 토큰이 서명 JWT가 아닌 이유, 0023: 이메일 지정+실 발송 없음+기존 계정 필요 결정)
+
+**완료 기준 충족**: 백엔드 전체 193개 테스트 통과(기존 179개 + 신규 14개, 0 실패). curl로 무인증 401 → 조직 생성 → 비멤버 조회 404 → 초대 생성 → 잘못된 이메일 계정으로 수락 시도 404 → 올바른 계정으로 수락 200 → 멤버 목록 반영 확인 → 멤버(비-ADMIN) 탈퇴 204 → 마지막 ADMIN 탈퇴 시도 409를 각각 확인. 실제 브라우저로 계정 A 가입 → 조직 생성 → 계정 B 이메일로 초대 → 발급된 초대 링크 확인 → 계정 B 가입 → 초대 링크 방문 → 미리보기(조직명/역할/이메일) 확인 → 수락 → 조직 상세 페이지로 자동 이동, 멤버 목록에 B가 MEMBER로 즉시 반영됨을 확인 → 계정 A로 재로그인해 멤버 목록(2명)과 대기 초대 목록(비어있음, 수락으로 소진됨)이 정확히 갱신됐음을 확인.
+
+**진행 중 발견한 결정 사항**:
+- **초대 수락 미리보기(`GET /organizations/invitations/{token}`)는 이메일 일치 검사를 하지 않는다.** 수락(`POST .../accept`)만 `OrganizationAccessGuard.requireInvitationRecipient`로 이메일을 검사한다 — 다른 계정으로 로그인한 사용자도 "이 초대가 누구에게, 어느 조직에 발송됐는지"는 볼 수 있어야 "계정을 잘못 열었다"는 걸 스스로 알아챌 수 있기 때문. 신원 확인이 필요한 지점(수락)과 단순 정보 열람(미리보기)을 의도적으로 분리했다.
+- **개발 중 발견한 프로세스 이슈(코드 문제 아님): 이번에도 로컬 8081 포트가 다른 무관한 프로세스에 점유돼 있어 검증은 8095 포트로 우회했다.** 31단계에서와 같은 패턴 — 다른 세션/프로세스를 죽이지 않고 우회.
+- **테스트 실행 중간에 실패가 났던 원인은 이번 스텝의 코드가 아니라, 이전(31단계) curl 검증 때 남겨둔 Toxiproxy 프록시 2개가 포트 20000/20001을 계속 점유하고 있었기 때문이었다** — `ToxiproxySessionProxyTest`가 새 프록시를 같은 포트에 만들려다 충돌. Toxiproxy admin API로 직접 정리한 뒤 통과 — 실전 인프라 세션 정리 자동화(22단계)가 스키마/HikariDataSource만 다루고 Toxiproxy 프록시 정리는 다루지 않는다는 기존 갭이 실제로 발현된 사례로 기록해둔다(이번 스텝에서 고치지는 않음).
+
 ### 33단계 — 팀 대시보드 (예정)
 ### 34단계 — Private/커스텀 시나리오 (예정)
 ### 35단계+ — Game Day, RBAC, SSO, Audit Log, 온보딩 커리큘럼 (34단계까지의 진행을 보고 그때 다시 스코프 판단)

@@ -25,3 +25,5 @@ Short records of decisions that are hard to reverse, would surprise a future rea
 | [0019](0019-autoscaling-domain-rule-based-no-real-cluster.md) | The "autoscaling" domain stays rule-based — no real Kubernetes cluster, unlike coupon/notification's real-infra pilots |
 | [0020](0020-incremental-real-auth-rollout-guest-flow-fully-replaced.md) | Real auth rollout protects only `POST /sessions` for now, and fully replaces the guest flow with no account-linking path |
 | [0021](0021-realinfra-coupon-endpoints-excluded-from-step31-auth-rollout.md) | RealInfraCouponController stays unauthenticated even after the rest of the API requires a token |
+| [0022](0022-organization-invitation-token-is-an-opaque-db-code-not-a-jwt.md) | Organization invitation tokens are opaque DB-stored codes, not signed JWTs |
+| [0023](0023-organization-invitations-are-email-bound-and-shared-out-of-band.md) | Organization invitations are bound to a specific email, delivered out-of-band, and require an existing account to accept |
