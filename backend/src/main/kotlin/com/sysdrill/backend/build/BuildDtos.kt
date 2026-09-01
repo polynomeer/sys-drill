@@ -1,12 +1,11 @@
 package com.sysdrill.backend.build
 
 import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.NotNull
 import java.time.Instant
 import java.util.UUID
 
+/** PLAN.md step 31 — userId used to be a client-supplied body field; now derived from the caller's token (@AuthenticatedUserId in BuildController). */
 data class CreateBuildSubmissionRequest(
-    @field:NotNull val userId: UUID,
     @field:NotBlank val sourceCode: String,
     val commitRef: String? = null,
 )

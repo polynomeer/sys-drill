@@ -3,7 +3,7 @@ package com.sysdrill.backend.session
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.support.COUPON_SCENARIO_ID
-import com.sysdrill.backend.support.TestJwtIssuer
+import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.startSession
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -12,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
@@ -51,7 +52,7 @@ class SessionControllerIntegrationTest(
         val body = """{"scenarioId":"$COUPON_SCENARIO_ID"}"""
         mockMvc.perform(
             post("/sessions").contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer ${TestJwtIssuer.current.issue(userId)}")
+                .header("Authorization", bearerHeader(userId))
                 .content(body)
         )
             .andExpect(status().isCreated)
@@ -65,7 +66,7 @@ class SessionControllerIntegrationTest(
         val body = """{"scenarioId":"${UUID.randomUUID()}"}"""
         mockMvc.perform(
             post("/sessions").contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer ${TestJwtIssuer.current.issue(userId)}")
+                .header("Authorization", bearerHeader(userId))
                 .content(body)
         )
             .andExpect(status().isNotFound)
@@ -85,6 +86,7 @@ class SessionControllerIntegrationTest(
         mockMvc.perform(
             post("/sessions/$sessionId/submissions")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"rawText":"Load Balancer -> API -> Redis -> Postgres"}""")
         )
             .andExpect(status().isCreated)
@@ -96,10 +98,10 @@ class SessionControllerIntegrationTest(
         val sessionId = mockMvc.startSession(userId)
         val body = """{"rawText":"first submission"}"""
 
-        mockMvc.perform(post("/sessions/$sessionId/submissions").contentType(MediaType.APPLICATION_JSON).content(body))
+        mockMvc.perform(post("/sessions/$sessionId/submissions").contentType(MediaType.APPLICATION_JSON).header("Authorization", bearerHeader(userId)).content(body))
             .andExpect(status().isCreated)
 
-        mockMvc.perform(post("/sessions/$sessionId/submissions").contentType(MediaType.APPLICATION_JSON).content(body))
+        mockMvc.perform(post("/sessions/$sessionId/submissions").contentType(MediaType.APPLICATION_JSON).header("Authorization", bearerHeader(userId)).content(body))
             .andExpect(status().isConflict)
     }
 
@@ -109,11 +111,11 @@ class SessionControllerIntegrationTest(
         val body = """{"rawText":"first submission","clientRequestId":"retry-key-1"}"""
 
         val firstResponse = mockMvc.perform(
-            post("/sessions/$sessionId/submissions").contentType(MediaType.APPLICATION_JSON).content(body)
+            post("/sessions/$sessionId/submissions").contentType(MediaType.APPLICATION_JSON).header("Authorization", bearerHeader(userId)).content(body)
         ).andExpect(status().isCreated).andReturn().response.contentAsString
 
         val secondResponse = mockMvc.perform(
-            post("/sessions/$sessionId/submissions").contentType(MediaType.APPLICATION_JSON).content(body)
+            post("/sessions/$sessionId/submissions").contentType(MediaType.APPLICATION_JSON).header("Authorization", bearerHeader(userId)).content(body)
         ).andExpect(status().isCreated).andReturn().response.contentAsString
 
         assert(firstResponse == secondResponse) { "expected idempotent replay to return the same submission" }
@@ -122,7 +124,7 @@ class SessionControllerIntegrationTest(
     @Test
     fun `advance is rejected while a session is still IN_PROGRESS`() {
         val sessionId = mockMvc.startSession(userId)
-        mockMvc.perform(post("/sessions/$sessionId/advance"))
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isConflict)
     }
 
@@ -131,7 +133,7 @@ class SessionControllerIntegrationTest(
         val sessionId = mockMvc.startSession(userId)
         forceFeedbackReady(sessionId)
 
-        mockMvc.perform(post("/sessions/$sessionId/advance"))
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
             .andExpect(jsonPath("$.currentPhase").value("FOLLOWUP"))
@@ -141,15 +143,25 @@ class SessionControllerIntegrationTest(
     fun `advance completes a FEEDBACK_READY session on its last step`() {
         val sessionId = mockMvc.startSession(userId)
         forceFeedbackReady(sessionId)
-        mockMvc.perform(post("/sessions/$sessionId/advance")).andExpect(status().isOk) // -> FOLLOWUP
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId))).andExpect(status().isOk) // -> FOLLOWUP
         forceFeedbackReady(sessionId)
-        mockMvc.perform(post("/sessions/$sessionId/advance")).andExpect(status().isOk) // -> INCIDENT
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId))).andExpect(status().isOk) // -> INCIDENT
         forceFeedbackReady(sessionId)
 
-        mockMvc.perform(post("/sessions/$sessionId/advance"))
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("COMPLETED"))
             .andExpect(jsonPath("$.completedAt").exists())
+    }
+
+    @Test
+    fun `getting another user's session 404s instead of leaking it`() {
+        val sessionId = mockMvc.startSession(userId)
+        val otherUserId = userRepository.save(
+            User(email = "other-${UUID.randomUUID()}@example.com", passwordHash = "hash", nickname = "other-user")
+        ).id!!
+        mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(otherUserId)))
+            .andExpect(status().isNotFound)
     }
 
     /** Isolates `advance`'s FEEDBACK_READY -> * leg from the real (but still stub) evaluation pipeline. */

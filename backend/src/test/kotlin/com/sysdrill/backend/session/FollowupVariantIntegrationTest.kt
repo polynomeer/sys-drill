@@ -5,6 +5,7 @@ import com.sysdrill.backend.identity.SkillProfileService
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.support.COUPON_SCENARIO_ID
+import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.startSession
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -43,41 +44,42 @@ class FollowupVariantIntegrationTest(
         ).id!!
     }
 
-    private fun awaitSessionStatus(sessionId: UUID, expected: String, timeout: Duration = Duration.ofSeconds(10)) {
+    private fun awaitSessionStatus(sessionId: UUID, ownerId: UUID, expected: String, timeout: Duration = Duration.ofSeconds(10)) {
         val deadline = Instant.now().plus(timeout)
         while (Instant.now().isBefore(deadline)) {
-            val response = mockMvc.perform(get("/sessions/$sessionId")).andReturn().response.contentAsString
+            val response = mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(ownerId))).andReturn().response.contentAsString
             if (JsonPath.read<String>(response, "$.status") == expected) return
             Thread.sleep(200)
         }
         error("Session $sessionId did not reach $expected within $timeout")
     }
 
-    private fun advanceToFollowup(sessionId: UUID) {
+    private fun advanceToFollowup(sessionId: UUID, ownerId: UUID) {
         mockMvc.perform(
             post("/sessions/$sessionId/submissions")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(ownerId))
                 .content("""{"rawText":"그냥 API 서버 하나로 처리합니다."}""")
         ).andExpect(status().isCreated)
-        awaitSessionStatus(sessionId, "FEEDBACK_READY")
-        mockMvc.perform(post("/sessions/$sessionId/advance")).andExpect(status().isOk)
+        awaitSessionStatus(sessionId, ownerId, "FEEDBACK_READY")
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(ownerId))).andExpect(status().isOk)
     }
 
-    private fun currentPrompt(sessionId: UUID): String =
-        JsonPath.read(mockMvc.perform(get("/sessions/$sessionId")).andReturn().response.contentAsString, "$.currentStepPrompt")
+    private fun currentPrompt(sessionId: UUID, ownerId: UUID): String =
+        JsonPath.read(mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(ownerId))).andReturn().response.contentAsString, "$.currentStepPrompt")
 
     @Test
     fun `the same seed picks the same FOLLOWUP variant for a user with no weakness signal`() {
         val sessionA = mockMvc.startSession(userId, COUPON_SCENARIO_ID, seed = "reused-seed")
-        advanceToFollowup(sessionA)
-        val promptA = currentPrompt(sessionA)
+        advanceToFollowup(sessionA, userId)
+        val promptA = currentPrompt(sessionA, userId)
 
         val otherUserId = userRepository.save(
             User(email = "variant-other-${UUID.randomUUID()}@example.com", passwordHash = "hash", nickname = "someone-else")
         ).id!!
         val sessionB = mockMvc.startSession(otherUserId, COUPON_SCENARIO_ID, seed = "reused-seed")
-        advanceToFollowup(sessionB)
-        val promptB = currentPrompt(sessionB)
+        advanceToFollowup(sessionB, otherUserId)
+        val promptB = currentPrompt(sessionB, otherUserId)
 
         assertThat(promptA).isEqualTo(promptB)
     }
@@ -88,8 +90,8 @@ class FollowupVariantIntegrationTest(
         skillProfileService.recordEvaluation(userId, listOf("MISSING_RATE_LIMIT", "MISSING_RATE_LIMIT"), totalScore = 60)
 
         val sessionId = mockMvc.startSession(userId, COUPON_SCENARIO_ID, seed = "irrelevant-because-weakness-wins")
-        advanceToFollowup(sessionId)
+        advanceToFollowup(sessionId, userId)
 
-        assertThat(currentPrompt(sessionId)).contains("매크로/봇")
+        assertThat(currentPrompt(sessionId, userId)).contains("매크로/봇")
     }
 }

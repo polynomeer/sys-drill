@@ -4,6 +4,7 @@ import com.jayway.jsonpath.JsonPath
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.support.NOTIFICATION_SCENARIO_ID
+import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.PRODUCT_BROWSING_SCENARIO_ID
 import com.sysdrill.backend.support.startSession
 import org.assertj.core.api.Assertions.assertThat
@@ -56,7 +57,7 @@ class MvpScenarioE2ETest(
     private fun awaitSessionStatus(sessionId: UUID, expected: String, timeout: Duration = Duration.ofSeconds(10)) {
         val deadline = Instant.now().plus(timeout)
         while (Instant.now().isBefore(deadline)) {
-            val response = mockMvc.perform(get("/sessions/$sessionId")).andReturn().response.contentAsString
+            val response = mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(userId))).andReturn().response.contentAsString
             if (JsonPath.read<String>(response, "$.status") == expected) return
             Thread.sleep(200)
         }
@@ -67,6 +68,7 @@ class MvpScenarioE2ETest(
         mockMvc.perform(
             post("/sessions/$sessionId/submissions")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"rawText":"${rawText}"}""")
         ).andExpect(status().isCreated)
         awaitSessionStatus(sessionId, "FEEDBACK_READY")
@@ -76,25 +78,26 @@ class MvpScenarioE2ETest(
         mockMvc.perform(
             post("/sessions/$sessionId/simulation/actions")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"actionType":"$actionType"}""")
         )
 
     @Test
     fun `notification scenario completes Design, FOLLOWUP, and Wargame with domain-specific actions`() {
         val sessionId = mockMvc.startSession(userId, scenarioId = NOTIFICATION_SCENARIO_ID)
-        mockMvc.perform(get("/sessions/$sessionId"))
+        mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.domain").value("notification"))
 
         submitAndWaitForFeedback(sessionId, "이벤트를 큐에 넣고 비동기로 처리합니다.")
-        mockMvc.perform(post("/sessions/$sessionId/advance")).andExpect(status().isOk)
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId))).andExpect(status().isOk)
 
         submitAndWaitForFeedback(sessionId, "컨슈머 수를 늘려서 대응합니다.")
-        mockMvc.perform(post("/sessions/$sessionId/advance"))
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.currentPhase").value("INCIDENT"))
 
-        val incidentResponse = mockMvc.perform(post("/sessions/$sessionId/simulation/incident"))
+        val incidentResponse = mockMvc.perform(post("/sessions/$sessionId/simulation/incident").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andReturn().response.contentAsString
         assertThat(JsonPath.read<Long>(incidentResponse, "$.queueLag")).isGreaterThan(0)
@@ -111,11 +114,11 @@ class MvpScenarioE2ETest(
         assertThat(JsonPath.read<Double>(recovered, "$.errorRate")).isCloseTo(0.001, delta)
 
         submitAndWaitForFeedback(sessionId, "Circuit Breaker와 컨슈머 증설, Retry Backoff 조정으로 대응했습니다.")
-        mockMvc.perform(post("/sessions/$sessionId/advance"))
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("COMPLETED"))
 
-        mockMvc.perform(get("/sessions/$sessionId/report"))
+        mockMvc.perform(get("/sessions/$sessionId/report").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.timelineFeedback.length()").value(3))
     }
@@ -123,19 +126,19 @@ class MvpScenarioE2ETest(
     @Test
     fun `product-browsing scenario completes Design, FOLLOWUP, and Wargame with domain-specific actions`() {
         val sessionId = mockMvc.startSession(userId, scenarioId = PRODUCT_BROWSING_SCENARIO_ID)
-        mockMvc.perform(get("/sessions/$sessionId"))
+        mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.domain").value("product-browsing"))
 
         submitAndWaitForFeedback(sessionId, "가격/재고/리뷰를 캐시에 저장하고 조회합니다.")
-        mockMvc.perform(post("/sessions/$sessionId/advance")).andExpect(status().isOk)
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId))).andExpect(status().isOk)
 
         submitAndWaitForFeedback(sessionId, "가격은 짧은 TTL, 리뷰는 긴 TTL로 분리합니다.")
-        mockMvc.perform(post("/sessions/$sessionId/advance"))
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.currentPhase").value("INCIDENT"))
 
-        val incidentResponse = mockMvc.perform(post("/sessions/$sessionId/simulation/incident"))
+        val incidentResponse = mockMvc.perform(post("/sessions/$sessionId/simulation/incident").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andReturn().response.contentAsString
         assertThat(JsonPath.read<Double>(incidentResponse, "$.cacheHitRatio")).isCloseTo(0.2, delta)
@@ -152,11 +155,11 @@ class MvpScenarioE2ETest(
         assertThat(JsonPath.read<Double>(recovered, "$.errorRate")).isCloseTo(0.001, delta)
 
         submitAndWaitForFeedback(sessionId, "캐시 정책 분리, single-flight, read replica로 대응했습니다.")
-        mockMvc.perform(post("/sessions/$sessionId/advance"))
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("COMPLETED"))
 
-        mockMvc.perform(get("/sessions/$sessionId/report"))
+        mockMvc.perform(get("/sessions/$sessionId/report").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.timelineFeedback.length()").value(3))
     }

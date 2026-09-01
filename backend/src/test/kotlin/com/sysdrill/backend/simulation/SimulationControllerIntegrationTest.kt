@@ -3,6 +3,7 @@ package com.sysdrill.backend.simulation
 import com.jayway.jsonpath.JsonPath
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
+import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.startSession
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -43,6 +44,7 @@ class SimulationControllerIntegrationTest(
         mockMvc.perform(
             post("/sessions/$sessionId/simulation/actions")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"actionType":"${action.name}"}""")
         ).andExpect(status().isOk)
     }
@@ -50,7 +52,7 @@ class SimulationControllerIntegrationTest(
     @Test
     fun `getting simulation state before an incident has started is a 404`() {
         val sessionId = mockMvc.startSession(userId)
-        mockMvc.perform(get("/sessions/$sessionId/simulation/state"))
+        mockMvc.perform(get("/sessions/$sessionId/simulation/state").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isNotFound)
     }
 
@@ -58,7 +60,7 @@ class SimulationControllerIntegrationTest(
     fun `starting the incident degrades metrics, and the three actions recover it`() {
         val sessionId = mockMvc.startSession(userId)
 
-        mockMvc.perform(post("/sessions/$sessionId/simulation/incident"))
+        mockMvc.perform(post("/sessions/$sessionId/simulation/incident").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.trafficRps").value(6000.0))
             .andExpect(jsonPath("$.errorRate").value(0.3))
@@ -67,12 +69,13 @@ class SimulationControllerIntegrationTest(
         applyAction(sessionId, SimulationActionType.INCREASE_CACHE_TTL)
 
         mockMvc.perform(post("/sessions/$sessionId/simulation/actions").contentType(MediaType.APPLICATION_JSON)
+            .header("Authorization", bearerHeader(userId))
             .content("""{"actionType":"INCREASE_DB_POOL"}"""))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.errorRate").value(0.001))
             .andExpect(jsonPath("$.p95LatencyMs").value(80.0))
 
-        val finalState = mockMvc.perform(get("/sessions/$sessionId/simulation/state"))
+        val finalState = mockMvc.perform(get("/sessions/$sessionId/simulation/state").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andReturn().response.contentAsString
 
@@ -84,12 +87,12 @@ class SimulationControllerIntegrationTest(
     fun `the timeline replays each step's metrics for a rule-based session, from AppliedAction rows alone`() {
         val sessionId = mockMvc.startSession(userId)
 
-        mockMvc.perform(post("/sessions/$sessionId/simulation/incident")).andExpect(status().isOk)
+        mockMvc.perform(post("/sessions/$sessionId/simulation/incident").header("Authorization", bearerHeader(userId))).andExpect(status().isOk)
         applyAction(sessionId, SimulationActionType.STRENGTHEN_RATE_LIMIT)
         applyAction(sessionId, SimulationActionType.INCREASE_CACHE_TTL)
         applyAction(sessionId, SimulationActionType.INCREASE_DB_POOL)
 
-        val timeline = mockMvc.perform(get("/sessions/$sessionId/simulation/timeline"))
+        val timeline = mockMvc.perform(get("/sessions/$sessionId/simulation/timeline").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andReturn().response.contentAsString
 
@@ -114,7 +117,7 @@ class SimulationControllerIntegrationTest(
     fun `the timeline is empty for a session with no incident started`() {
         val sessionId = mockMvc.startSession(userId)
 
-        mockMvc.perform(get("/sessions/$sessionId/simulation/timeline"))
+        mockMvc.perform(get("/sessions/$sessionId/simulation/timeline").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.length()").value(0))
     }

@@ -3,6 +3,7 @@ package com.sysdrill.backend.simulation.realinfra
 import com.jayway.jsonpath.JsonPath
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
+import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.startSession
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -61,14 +62,15 @@ class RealInfraCouponTimelineTest(
     fun `the timeline holds a real captured snapshot per step, not a recomputed one`() {
         val sessionId = mockMvc.startSession(userId).also { provisionedSessions += it }
 
-        mockMvc.perform(post("/sessions/$sessionId/simulation/incident?realInfra=true")).andExpect(status().isOk)
+        mockMvc.perform(post("/sessions/$sessionId/simulation/incident?realInfra=true").header("Authorization", bearerHeader(userId))).andExpect(status().isOk)
         mockMvc.perform(
             post("/sessions/$sessionId/simulation/actions")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"actionType":"STRENGTHEN_RATE_LIMIT"}""")
         ).andExpect(status().isOk)
 
-        val timeline = mockMvc.perform(get("/sessions/$sessionId/simulation/timeline"))
+        val timeline = mockMvc.perform(get("/sessions/$sessionId/simulation/timeline").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andReturn().response.contentAsString
 

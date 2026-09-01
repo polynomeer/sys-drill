@@ -6,6 +6,7 @@ import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.session.SessionStatus
+import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.startSession
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -52,6 +53,7 @@ class EvaluationWorkerIntegrationTest(
         val response = mockMvc.perform(
             post("/sessions/$sessionId/submissions")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"rawText":"$escaped"}""")
         ).andExpect(status().isCreated).andReturn().response.contentAsString
         return UUID.fromString(JsonPath.read(response, "$.id"))

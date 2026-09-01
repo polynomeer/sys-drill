@@ -25,6 +25,9 @@ val RESERVATION_SCENARIO_ID: UUID = UUID.fromString("b2000000-0000-0000-0000-000
 /** Fixed id seeded by V21__seed_batch_settlement_scenario.sql ("배치/정산"). */
 val BATCH_SETTLEMENT_SCENARIO_ID: UUID = UUID.fromString("b3000000-0000-0000-0000-000000000002")
 
+/** PLAN.md step 31 — every session/submission/build-submission-scoped endpoint now requires this; issues a real JWT via [TestJwtIssuer] without touching `/auth/signup`'s (deliberately slow) BCrypt path. */
+fun bearerHeader(userId: UUID): String = "Bearer ${TestJwtIssuer.current.issue(userId)}"
+
 /** PLAN.md step 30 — POST /sessions now requires a Bearer token (see AuthWebConfig); this issues one via [TestJwtIssuer] instead of sending userId in the body, so every existing call site here stays unchanged. */
 fun MockMvc.startSession(
     userId: UUID,

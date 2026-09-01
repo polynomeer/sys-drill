@@ -4,6 +4,7 @@ import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.session.SessionStatus
+import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.startSession
 import org.hamcrest.Matchers.containsString
 import org.junit.jupiter.api.BeforeEach
@@ -62,6 +63,7 @@ class ReportAndSkillProfileIntegrationTest(
         mockMvc.perform(
             post("/sessions/$sessionId/submissions")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"rawText":"그냥 API 서버 하나로 처리합니다."}""")
         ).andExpect(status().isCreated)
         awaitSessionStatus(sessionId, SessionStatus.FEEDBACK_READY)
@@ -73,14 +75,14 @@ class ReportAndSkillProfileIntegrationTest(
 
         repeat(2) {
             submitAndWaitForFeedback(sessionId)
-            mockMvc.perform(post("/sessions/$sessionId/advance")).andExpect(status().isOk)
+            mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId))).andExpect(status().isOk)
         }
         submitAndWaitForFeedback(sessionId)
-        mockMvc.perform(post("/sessions/$sessionId/advance"))
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("COMPLETED"))
 
-        mockMvc.perform(get("/sessions/$sessionId/report"))
+        mockMvc.perform(get("/sessions/$sessionId/report").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.timelineFeedback.length()").value(3))
             .andExpect(jsonPath("$.timelineFeedback[0].phase").value("INITIAL"))
@@ -88,7 +90,7 @@ class ReportAndSkillProfileIntegrationTest(
             .andExpect(jsonPath("$.timelineFeedback[2].phase").value("INCIDENT"))
             .andExpect(jsonPath("$.summary").value(containsString("3개 단계")))
 
-        mockMvc.perform(get("/users/$userId/skill-profile"))
+        mockMvc.perform(get("/skill-profile").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.weaknessesByDomain.coupon.MISSING_IDEMPOTENCY").value(3))
             .andExpect(jsonPath("$.weaknessesByDomain.coupon.MISSING_CONCURRENCY_CONTROL").value(3))
@@ -98,7 +100,7 @@ class ReportAndSkillProfileIntegrationTest(
             .andExpect(jsonPath("$.trendDirection").value("INSUFFICIENT_DATA"))
             .andExpect(jsonPath("$.recommendedDomain").value("coupon"))
 
-        mockMvc.perform(get("/users/$userId/sessions"))
+        mockMvc.perform(get("/sessions").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$[0].status").value("COMPLETED"))
             .andExpect(jsonPath("$[0].scenarioTitle").value("선착순 쿠폰"))
@@ -107,12 +109,26 @@ class ReportAndSkillProfileIntegrationTest(
     @Test
     fun `report is not found before the session completes`() {
         val sessionId = mockMvc.startSession(userId)
-        mockMvc.perform(get("/sessions/$sessionId/report")).andExpect(status().isNotFound)
+        mockMvc.perform(get("/sessions/$sessionId/report").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `getting another user's report 404s instead of leaking it`() {
+        val sessionId = mockMvc.startSession(userId)
+        val otherUserId = userRepository.save(
+            User(email = "report-other-${UUID.randomUUID()}@example.com", passwordHash = "hash", nickname = "other-user")
+        ).id!!
+        mockMvc.perform(get("/sessions/$sessionId/report").header("Authorization", bearerHeader(otherUserId)))
+            .andExpect(status().isNotFound)
     }
 
     @Test
     fun `skill profile defaults to empty for a user with no evaluations yet`() {
-        mockMvc.perform(get("/users/${UUID.randomUUID()}/skill-profile"))
+        val freshUserId = userRepository.save(
+            User(email = "skillprofile-fresh-${UUID.randomUUID()}@example.com", passwordHash = "hash", nickname = "fresh-user")
+        ).id!!
+        mockMvc.perform(get("/skill-profile").header("Authorization", bearerHeader(freshUserId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.weaknessesByDomain").isEmpty)
             .andExpect(jsonPath("$.trend").isEmpty)

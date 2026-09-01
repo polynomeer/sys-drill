@@ -1,11 +1,11 @@
 package com.sysdrill.backend.identity
 
+import com.sysdrill.backend.auth.AuthenticatedUserId
 import com.sysdrill.backend.common.readIntList
 import com.sysdrill.backend.common.readIntMap
 import com.sysdrill.backend.evaluation.RuleEvaluator
 import java.util.UUID
 import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RestController
 import tools.jackson.databind.ObjectMapper
 
@@ -25,12 +25,15 @@ private const val RECENT_TREND_WINDOW = 3
 private const val STABLE_THRESHOLD = 3.0
 
 /**
- * docs/PRD.md §11.3's "약점 프로필" — GET /users/{id}/skill-profile (no
+ * docs/PRD.md §11.3's "약점 프로필" — GET /skill-profile (no
  * ARCHITECTURE.md precedent; the dashboard's "약점 TOP 3"/"점수 추이" panels
  * need this). PLAN.md step 13 added domain grouping, a long-term trend with a
  * computed recent direction, and a recommended-next-domain signal — all
  * derived at read time from the same flat `weaknesses`/`trend` storage
- * ([SkillProfileService] didn't need to change how it records data.
+ * ([SkillProfileService] didn't need to change how it records data). PLAN.md
+ * step 31 dropped the `{userId}` path segment (was `GET
+ * /users/{userId}/skill-profile`) — the caller's identity now comes from
+ * their token, not a URL they could substitute anyone else's id into.
  */
 @RestController
 class SkillProfileController(
@@ -38,8 +41,8 @@ class SkillProfileController(
     private val objectMapper: ObjectMapper,
 ) {
 
-    @GetMapping("/users/{userId}/skill-profile")
-    fun get(@PathVariable userId: UUID): SkillProfileResponse {
+    @GetMapping("/skill-profile")
+    fun get(@AuthenticatedUserId userId: UUID): SkillProfileResponse {
         val profile = repository.findByUserId(userId)
         val weaknesses = objectMapper.readIntMap(profile?.weaknesses)
         val trend = objectMapper.readIntList(profile?.trend)

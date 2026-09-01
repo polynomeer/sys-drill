@@ -5,6 +5,7 @@ import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.session.SessionStatus
+import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.startSession
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -61,13 +62,14 @@ class EvaluationControllerIntegrationTest(
         val submitResponse = mockMvc.perform(
             post("/sessions/$sessionId/submissions")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"rawText":"API 서버 하나로 쿠폰 발급을 처리합니다."}""")
         ).andExpect(status().isCreated).andReturn().response.contentAsString
         val submissionId = JsonPath.read<String>(submitResponse, "$.id")
 
         awaitSessionStatus(sessionId, SessionStatus.FEEDBACK_READY)
 
-        mockMvc.perform(get("/submissions/$submissionId/feedback"))
+        mockMvc.perform(get("/submissions/$submissionId/feedback").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.totalScore").value(60)) // offline fallback's canned score
             .andExpect(jsonPath("$.rubricScores['아키텍처 적합성']").value(12))
@@ -80,7 +82,26 @@ class EvaluationControllerIntegrationTest(
 
     @Test
     fun `feedback for a submission with no evaluation yet is a 404`() {
-        mockMvc.perform(get("/submissions/${UUID.randomUUID()}/feedback"))
+        mockMvc.perform(get("/submissions/${UUID.randomUUID()}/feedback").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `getting another user's feedback 404s instead of leaking it`() {
+        val sessionId = mockMvc.startSession(userId)
+        val submitResponse = mockMvc.perform(
+            post("/sessions/$sessionId/submissions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
+                .content("""{"rawText":"API 서버 하나로 쿠폰 발급을 처리합니다."}""")
+        ).andExpect(status().isCreated).andReturn().response.contentAsString
+        val submissionId = JsonPath.read<String>(submitResponse, "$.id")
+        awaitSessionStatus(sessionId, SessionStatus.FEEDBACK_READY)
+
+        val otherUserId = userRepository.save(
+            User(email = "feedback-other-${UUID.randomUUID()}@example.com", passwordHash = "hash", nickname = "other-user")
+        ).id!!
+        mockMvc.perform(get("/submissions/$submissionId/feedback").header("Authorization", bearerHeader(otherUserId)))
             .andExpect(status().isNotFound)
     }
 }

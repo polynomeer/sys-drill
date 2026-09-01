@@ -4,8 +4,9 @@ import com.jayway.jsonpath.JsonPath
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.support.COUPON_SCENARIO_ID
-import com.sysdrill.backend.support.TestJwtIssuer
+import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.startSession
+import com.sysdrill.backend.support.submitBuildChallenge
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -46,22 +47,13 @@ class BridgeModeIntegrationTest(
         ).id!!
     }
 
-    private fun submitBuild(ownerId: UUID): UUID {
-        val body = objectMapper.writeValueAsString(
-            mapOf("userId" to ownerId.toString(), "sourceCode" to STUB_RATE_LIMITER, "commitRef" to "bridge-test")
-        )
-        val response = mockMvc.perform(
-            post("/build-challenges/rate-limiter/submissions")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body)
-        ).andExpect(status().isCreated).andReturn().response.contentAsString
-        return UUID.fromString(JsonPath.read(response, "$.id"))
-    }
+    private fun submitBuild(ownerId: UUID): UUID =
+        mockMvc.submitBuildChallenge(objectMapper, "rate-limiter", ownerId, STUB_RATE_LIMITER, commitRef = "bridge-test")
 
-    private fun awaitBuildCompleted(submissionId: UUID, timeout: Duration = Duration.ofSeconds(60)) {
+    private fun awaitBuildCompleted(submissionId: UUID, ownerId: UUID, timeout: Duration = Duration.ofSeconds(60)) {
         val deadline = Instant.now().plus(timeout)
         while (Instant.now().isBefore(deadline)) {
-            val response = mockMvc.perform(get("/build-submissions/$submissionId"))
+            val response = mockMvc.perform(get("/build-submissions/$submissionId").header("Authorization", bearerHeader(ownerId)))
                 .andExpect(status().isOk).andReturn().response.contentAsString
             if (JsonPath.read<String>(response, "$.status") == "COMPLETED") return
             Thread.sleep(300)
@@ -72,7 +64,7 @@ class BridgeModeIntegrationTest(
     private fun awaitSessionStatus(sessionId: UUID, expected: String, timeout: Duration = Duration.ofSeconds(10)) {
         val deadline = Instant.now().plus(timeout)
         while (Instant.now().isBefore(deadline)) {
-            val response = mockMvc.perform(get("/sessions/$sessionId"))
+            val response = mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(userId)))
                 .andExpect(status().isOk).andReturn().response.contentAsString
             if (JsonPath.read<String>(response, "$.status") == expected) return
             Thread.sleep(200)
@@ -84,6 +76,7 @@ class BridgeModeIntegrationTest(
         mockMvc.perform(
             post("/sessions/$sessionId/submissions")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"rawText":"그냥 API 서버 하나로 처리합니다."}""")
         ).andExpect(status().isCreated)
         awaitSessionStatus(sessionId, "FEEDBACK_READY")
@@ -95,12 +88,12 @@ class BridgeModeIntegrationTest(
             User(email = "other-${UUID.randomUUID()}@example.com", passwordHash = "hash", nickname = "someone-else")
         ).id!!
         val submissionId = submitBuild(otherUserId)
-        awaitBuildCompleted(submissionId)
+        awaitBuildCompleted(submissionId, otherUserId)
 
         val body = """{"scenarioId":"${COUPON_SCENARIO_ID}","buildSubmissionId":"$submissionId"}"""
         mockMvc.perform(
             post("/sessions").contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer ${TestJwtIssuer.current.issue(userId)}")
+                .header("Authorization", bearerHeader(userId))
                 .content(body)
         )
             .andExpect(status().isConflict)
@@ -111,7 +104,7 @@ class BridgeModeIntegrationTest(
         val body = """{"scenarioId":"${COUPON_SCENARIO_ID}","buildSubmissionId":"${UUID.randomUUID()}"}"""
         mockMvc.perform(
             post("/sessions").contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer ${TestJwtIssuer.current.issue(userId)}")
+                .header("Authorization", bearerHeader(userId))
                 .content(body)
         )
             .andExpect(status().isNotFound)
@@ -120,23 +113,23 @@ class BridgeModeIntegrationTest(
     @Test
     fun `Build then Design-TailDesign-Wargame links the report to the build submission`() {
         val submissionId = submitBuild(userId)
-        awaitBuildCompleted(submissionId)
+        awaitBuildCompleted(submissionId, userId)
 
         val sessionId = mockMvc.startSession(userId, buildSubmissionId = submissionId)
-        mockMvc.perform(get("/sessions/$sessionId"))
+        mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.buildSubmissionId").value(submissionId.toString()))
 
         repeat(2) {
             submitAndWaitForFeedback(sessionId)
-            mockMvc.perform(post("/sessions/$sessionId/advance")).andExpect(status().isOk)
+            mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId))).andExpect(status().isOk)
         }
         submitAndWaitForFeedback(sessionId)
-        mockMvc.perform(post("/sessions/$sessionId/advance"))
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("COMPLETED"))
 
-        val reportResponse = mockMvc.perform(get("/sessions/$sessionId/report"))
+        val reportResponse = mockMvc.perform(get("/sessions/$sessionId/report").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.buildSummary.submissionId").value(submissionId.toString()))
             .andExpect(jsonPath("$.buildSummary.challengeTitle").value("Build your own Rate Limiter"))

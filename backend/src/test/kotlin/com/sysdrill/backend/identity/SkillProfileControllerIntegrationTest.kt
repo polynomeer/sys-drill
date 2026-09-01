@@ -1,6 +1,7 @@
 package com.sysdrill.backend.identity
 
 import org.assertj.core.api.Assertions.assertThat
+import com.sysdrill.backend.support.bearerHeader
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -42,7 +43,7 @@ class SkillProfileControllerIntegrationTest(
         skillProfileService.recordEvaluation(userId, listOf("MISSING_DLQ", "MISSING_DLQ"), totalScore = 55)
         skillProfileService.recordEvaluation(userId, listOf("MISSING_READ_REPLICA"), totalScore = 65)
 
-        mockMvc.perform(get("/users/$userId/skill-profile"))
+        mockMvc.perform(get("/skill-profile").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.weaknessesByDomain.coupon.MISSING_RATE_LIMIT").value(1))
             .andExpect(jsonPath("$.weaknessesByDomain.notification.MISSING_DLQ").value(2))
@@ -56,7 +57,7 @@ class SkillProfileControllerIntegrationTest(
             skillProfileService.recordEvaluation(userId, emptyList(), totalScore = score)
         }
 
-        mockMvc.perform(get("/users/$userId/skill-profile"))
+        mockMvc.perform(get("/skill-profile").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.trend.length()").value(6))
             .andExpect(jsonPath("$.trendDirection").value("IMPROVING"))
@@ -68,7 +69,7 @@ class SkillProfileControllerIntegrationTest(
             skillProfileService.recordEvaluation(userId, emptyList(), totalScore = score)
         }
 
-        mockMvc.perform(get("/users/$userId/skill-profile"))
+        mockMvc.perform(get("/skill-profile").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.trendDirection").value("DECLINING"))
     }
@@ -79,7 +80,7 @@ class SkillProfileControllerIntegrationTest(
             skillProfileService.recordEvaluation(userId, emptyList(), totalScore = score)
         }
 
-        mockMvc.perform(get("/users/$userId/skill-profile"))
+        mockMvc.perform(get("/skill-profile").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.trendDirection").value("STABLE"))
     }
@@ -90,7 +91,7 @@ class SkillProfileControllerIntegrationTest(
             skillProfileService.recordEvaluation(userId, emptyList(), totalScore = score)
         }
 
-        mockMvc.perform(get("/users/$userId/skill-profile"))
+        mockMvc.perform(get("/skill-profile").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.trendDirection").value("INSUFFICIENT_DATA"))
     }
@@ -101,7 +102,7 @@ class SkillProfileControllerIntegrationTest(
             skillProfileService.recordEvaluation(userId, emptyList(), totalScore = 50 + (i % 10))
         }
 
-        val response = mockMvc.perform(get("/users/$userId/skill-profile"))
+        val response = mockMvc.perform(get("/skill-profile").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andReturn().response.contentAsString
         val trendLength = com.jayway.jsonpath.JsonPath.read<List<Int>>(response, "$.trend").size

@@ -3,16 +3,16 @@ package com.sysdrill.backend.build
 import com.jayway.jsonpath.JsonPath
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
+import com.sysdrill.backend.support.bearerHeader
+import com.sysdrill.backend.support.submitBuildChallenge
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
-import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import tools.jackson.databind.ObjectMapper
 import java.time.Duration
 import java.time.Instant
@@ -40,22 +40,13 @@ class QueueControllerIntegrationTest(
         ).id!!
     }
 
-    private fun submit(sourceCode: String): UUID {
-        val body = objectMapper.writeValueAsString(
-            mapOf("userId" to userId.toString(), "sourceCode" to sourceCode, "commitRef" to "test")
-        )
-        val response = mockMvc.perform(
-            post("/build-challenges/queue/submissions")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body)
-        ).andReturn().response.contentAsString
-        return UUID.fromString(JsonPath.read(response, "$.id"))
-    }
+    private fun submit(sourceCode: String): UUID =
+        mockMvc.submitBuildChallenge(objectMapper, "queue", userId, sourceCode)
 
     private fun awaitCompleted(submissionId: UUID, timeout: Duration = Duration.ofSeconds(60)): String {
         val deadline = Instant.now().plus(timeout)
         while (Instant.now().isBefore(deadline)) {
-            val response = mockMvc.perform(get("/build-submissions/$submissionId")).andReturn().response.contentAsString
+            val response = mockMvc.perform(get("/build-submissions/$submissionId").header("Authorization", bearerHeader(userId))).andReturn().response.contentAsString
             val status = JsonPath.read<String>(response, "$.status")
             if (status == "COMPLETED" || status == "ERROR") return response
             Thread.sleep(300)

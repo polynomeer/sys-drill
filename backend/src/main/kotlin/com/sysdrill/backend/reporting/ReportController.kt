@@ -1,6 +1,8 @@
 package com.sysdrill.backend.reporting
 
+import com.sysdrill.backend.auth.AuthenticatedUserId
 import com.sysdrill.backend.common.web.NotFoundException
+import com.sysdrill.backend.session.SessionAccessGuard
 import java.time.Instant
 import java.util.UUID
 import org.springframework.web.bind.annotation.GetMapping
@@ -24,10 +26,12 @@ data class ReportResponse(
 class ReportController(
     private val reportRepository: ReportRepository,
     private val objectMapper: ObjectMapper,
+    private val sessionAccessGuard: SessionAccessGuard,
 ) {
 
     @GetMapping("/sessions/{sessionId}/report")
-    fun getReport(@PathVariable sessionId: UUID): ReportResponse {
+    fun getReport(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): ReportResponse {
+        sessionAccessGuard.requireOwner(sessionId, userId)
         val report = reportRepository.findFirstBySessionIdOrderByVersionDesc(sessionId)
             ?: throw NotFoundException("No report for session $sessionId yet — it may not be COMPLETED")
         return ReportResponse(

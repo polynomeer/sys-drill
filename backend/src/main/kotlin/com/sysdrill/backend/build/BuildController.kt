@@ -1,5 +1,7 @@
 package com.sysdrill.backend.build
 
+import com.sysdrill.backend.auth.AuthenticatedUserId
+import com.sysdrill.backend.common.web.NotFoundException
 import jakarta.validation.Valid
 import java.util.UUID
 import org.springframework.http.HttpStatus
@@ -22,14 +24,20 @@ class BuildController(
     @PostMapping("/build-challenges/{slug}/submissions")
     fun submit(
         @PathVariable slug: String,
+        @AuthenticatedUserId userId: UUID,
         @Valid @RequestBody request: CreateBuildSubmissionRequest,
     ): ResponseEntity<BuildSubmissionResponse> {
-        val submission = buildSubmissionService.submit(slug, request.userId, request.sourceCode, request.commitRef)
+        val submission = buildSubmissionService.submit(slug, userId, request.sourceCode, request.commitRef)
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(submission))
     }
 
+    /** PLAN.md step 31 — BuildSubmission.userId is direct, no join needed like SessionAccessGuard's. */
     @GetMapping("/build-submissions/{id}")
-    fun get(@PathVariable id: UUID): BuildSubmissionResponse = toResponse(buildSubmissionService.get(id))
+    fun get(@PathVariable id: UUID, @AuthenticatedUserId userId: UUID): BuildSubmissionResponse {
+        val submission = buildSubmissionService.get(id)
+        if (submission.userId != userId) throw NotFoundException("Build submission not found: $id")
+        return toResponse(submission)
+    }
 
     private fun toResponse(submission: BuildSubmission): BuildSubmissionResponse {
         val stages = buildStageRepository.findByChallengeIdOrderByStageOrderAsc(submission.challengeId)

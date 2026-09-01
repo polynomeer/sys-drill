@@ -3,6 +3,7 @@ package com.sysdrill.backend.session
 import com.jayway.jsonpath.JsonPath
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
+import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.startSession
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -45,7 +46,7 @@ class SessionInterviewTimerTest(
     fun `a non-interview-mode session has no phase deadline`() {
         val sessionId = mockMvc.startSession(userId)
 
-        mockMvc.perform(get("/sessions/$sessionId"))
+        mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.interviewMode").value(false))
             .andExpect(jsonPath("$.phaseDeadlineAt").doesNotExist())
@@ -55,7 +56,7 @@ class SessionInterviewTimerTest(
     fun `an interview-mode session has a phase deadline shortly in the future`() {
         val sessionId = mockMvc.startSession(userId, interviewMode = true)
 
-        val body = mockMvc.perform(get("/sessions/$sessionId"))
+        val body = mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.interviewMode").value(true))
             .andReturn().response.contentAsString
@@ -70,6 +71,7 @@ class SessionInterviewTimerTest(
         val onTimeSessionId = mockMvc.startSession(userId, interviewMode = true)
         mockMvc.perform(
             post("/sessions/$onTimeSessionId/submissions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"rawText":"바로 제출합니다."}""")
         )
             .andExpect(status().isCreated)
@@ -79,6 +81,7 @@ class SessionInterviewTimerTest(
         Thread.sleep(1500)
         mockMvc.perform(
             post("/sessions/$lateSessionId/submissions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"rawText":"늦게 제출합니다."}""")
         )
             .andExpect(status().isCreated)

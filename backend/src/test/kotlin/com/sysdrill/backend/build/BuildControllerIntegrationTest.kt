@@ -3,6 +3,8 @@ package com.sysdrill.backend.build
 import com.jayway.jsonpath.JsonPath
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
+import com.sysdrill.backend.support.bearerHeader
+import com.sysdrill.backend.support.submitBuildChallenge
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -13,7 +15,6 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import tools.jackson.databind.ObjectMapper
 import java.time.Duration
@@ -43,22 +44,13 @@ class BuildControllerIntegrationTest(
         ).id!!
     }
 
-    private fun submit(sourceCode: String): UUID {
-        val body = objectMapper.writeValueAsString(
-            mapOf("userId" to userId.toString(), "sourceCode" to sourceCode, "commitRef" to "test")
-        )
-        val response = mockMvc.perform(
-            post("/build-challenges/rate-limiter/submissions")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body)
-        ).andExpect(status().isCreated).andReturn().response.contentAsString
-        return UUID.fromString(JsonPath.read(response, "$.id"))
-    }
+    private fun submit(sourceCode: String): UUID =
+        mockMvc.submitBuildChallenge(objectMapper, "rate-limiter", userId, sourceCode)
 
     private fun awaitCompleted(submissionId: UUID, timeout: Duration = Duration.ofSeconds(60)): String {
         val deadline = Instant.now().plus(timeout)
         while (Instant.now().isBefore(deadline)) {
-            val response = mockMvc.perform(get("/build-submissions/$submissionId"))
+            val response = mockMvc.perform(get("/build-submissions/$submissionId").header("Authorization", bearerHeader(userId)))
                 .andExpect(status().isOk).andReturn().response.contentAsString
             val status = JsonPath.read<String>(response, "$.status")
             if (status == "COMPLETED" || status == "ERROR") return response
@@ -91,10 +83,11 @@ class BuildControllerIntegrationTest(
 
     @Test
     fun `submitting to an unknown challenge is a 404`() {
-        val body = objectMapper.writeValueAsString(mapOf("userId" to userId.toString(), "sourceCode" to "x = 1"))
+        val body = objectMapper.writeValueAsString(mapOf("sourceCode" to "x = 1"))
         mockMvc.perform(
             post("/build-challenges/does-not-exist/submissions")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content(body)
         ).andExpect(status().isNotFound)
     }

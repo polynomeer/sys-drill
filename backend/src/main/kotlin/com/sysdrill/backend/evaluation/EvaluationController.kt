@@ -1,8 +1,10 @@
 package com.sysdrill.backend.evaluation
 
+import com.sysdrill.backend.auth.AuthenticatedUserId
 import com.sysdrill.backend.common.readIntMap
 import com.sysdrill.backend.common.readStringList
 import com.sysdrill.backend.common.web.NotFoundException
+import com.sysdrill.backend.session.SessionAccessGuard
 import java.time.Instant
 import java.util.UUID
 import org.springframework.web.bind.annotation.GetMapping
@@ -34,10 +36,12 @@ class EvaluationController(
     private val evaluationRepository: EvaluationRepository,
     private val evaluationRiskFlagRepository: EvaluationRiskFlagRepository,
     private val objectMapper: ObjectMapper,
+    private val sessionAccessGuard: SessionAccessGuard,
 ) {
 
     @GetMapping("/submissions/{submissionId}/feedback")
-    fun getFeedback(@PathVariable submissionId: UUID): EvaluationResponse {
+    fun getFeedback(@PathVariable submissionId: UUID, @AuthenticatedUserId userId: UUID): EvaluationResponse {
+        sessionAccessGuard.requireOwnerOfSubmission(submissionId, userId)
         val evaluation = evaluationRepository.findFirstBySubmissionIdAndIsActiveTrue(submissionId)
             ?: throw NotFoundException("No active evaluation for submission $submissionId")
         val riskFlags = evaluationRiskFlagRepository.findByEvaluationId(evaluation.id!!)

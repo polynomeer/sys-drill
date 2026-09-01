@@ -6,6 +6,7 @@ import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.session.SessionStatus
 import com.sysdrill.backend.simulation.SimulationActionType
+import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.startSession
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -60,6 +61,7 @@ class PostmortemControllerIntegrationTest(
         mockMvc.perform(
             post("/sessions/$sessionId/submissions")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"rawText":"그냥 API 서버 하나로 처리합니다."}""")
         ).andExpect(status().isCreated)
         awaitSessionStatus(sessionId, SessionStatus.FEEDBACK_READY)
@@ -68,10 +70,10 @@ class PostmortemControllerIntegrationTest(
     private fun completeSession(sessionId: UUID) {
         repeat(2) {
             submitAndWaitForFeedback(sessionId)
-            mockMvc.perform(post("/sessions/$sessionId/advance")).andExpect(status().isOk)
+            mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId))).andExpect(status().isOk)
         }
         submitAndWaitForFeedback(sessionId)
-        mockMvc.perform(post("/sessions/$sessionId/advance"))
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("COMPLETED"))
     }
@@ -79,17 +81,19 @@ class PostmortemControllerIntegrationTest(
     @Test
     fun `a postmortem draft is available before the session completes, computed from applied actions alone`() {
         val sessionId = mockMvc.startSession(userId)
-        mockMvc.perform(post("/sessions/$sessionId/simulation/incident")).andExpect(status().isOk)
+        mockMvc.perform(post("/sessions/$sessionId/simulation/incident").header("Authorization", bearerHeader(userId))).andExpect(status().isOk)
         mockMvc.perform(
             post("/sessions/$sessionId/simulation/actions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"actionType":"${SimulationActionType.STRENGTHEN_RATE_LIMIT.name}"}""")
         ).andExpect(status().isOk)
         mockMvc.perform(
             post("/sessions/$sessionId/simulation/actions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"actionType":"${SimulationActionType.INCREASE_CACHE_TTL.name}"}""")
         ).andExpect(status().isOk)
 
-        val body = mockMvc.perform(get("/sessions/$sessionId/postmortem"))
+        val body = mockMvc.perform(get("/sessions/$sessionId/postmortem").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.saved").value(false))
             .andExpect(jsonPath("$.rootCause").doesNotExist())
@@ -108,7 +112,7 @@ class PostmortemControllerIntegrationTest(
     @Test
     fun `the postmortem draft has no timing data for a session with no incident started`() {
         val sessionId = mockMvc.startSession(userId)
-        mockMvc.perform(get("/sessions/$sessionId/postmortem"))
+        mockMvc.perform(get("/sessions/$sessionId/postmortem").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.saved").value(false))
             .andExpect(jsonPath("$.mttdSeconds").doesNotExist())
@@ -121,6 +125,7 @@ class PostmortemControllerIntegrationTest(
         val sessionId = mockMvc.startSession(userId)
         mockMvc.perform(
             put("/sessions/$sessionId/postmortem").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"rootCause":"DB 커넥션 풀 고갈"}""")
         ).andExpect(status().isConflict)
     }
@@ -128,9 +133,10 @@ class PostmortemControllerIntegrationTest(
     @Test
     fun `saving a postmortem after completion persists the narrative while metrics stay freshly computed`() {
         val sessionId = mockMvc.startSession(userId)
-        mockMvc.perform(post("/sessions/$sessionId/simulation/incident")).andExpect(status().isOk)
+        mockMvc.perform(post("/sessions/$sessionId/simulation/incident").header("Authorization", bearerHeader(userId))).andExpect(status().isOk)
         mockMvc.perform(
             post("/sessions/$sessionId/simulation/actions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content("""{"actionType":"${SimulationActionType.INCREASE_DB_POOL.name}"}""")
         ).andExpect(status().isOk)
 
@@ -138,6 +144,7 @@ class PostmortemControllerIntegrationTest(
 
         mockMvc.perform(
             put("/sessions/$sessionId/postmortem").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
                 .content(
                     """{"rootCause":"DB 커넥션 풀 고갈로 대기 요청 누적",
                         |"mitigationActions":["DB 풀 크기 임시 증설"],
@@ -150,7 +157,7 @@ class PostmortemControllerIntegrationTest(
             .andExpect(jsonPath("$.rootCause").value("DB 커넥션 풀 고갈로 대기 요청 누적"))
             .andExpect(jsonPath("$.mitigationActions[0]").value("DB 풀 크기 임시 증설"))
 
-        mockMvc.perform(get("/sessions/$sessionId/postmortem"))
+        mockMvc.perform(get("/sessions/$sessionId/postmortem").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.saved").value(true))
             .andExpect(jsonPath("$.rootCause").value("DB 커넥션 풀 고갈로 대기 요청 누적"))
