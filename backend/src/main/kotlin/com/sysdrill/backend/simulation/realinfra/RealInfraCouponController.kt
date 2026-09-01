@@ -38,6 +38,7 @@ class RealInfraCouponController(
     private val schemaProvisioner: CouponSchemaProvisioner,
     private val dataSourceRegistry: SessionDataSourceRegistry,
     private val toxiproxy: ToxiproxySessionProxy,
+    private val sessionTracker: RealInfraSessionTracker,
     private val redisTemplate: StringRedisTemplate,
     private val stats: RealInfraCouponStats,
     private val observationRegistry: ObservationRegistry,
@@ -45,6 +46,14 @@ class RealInfraCouponController(
 ) {
     @GetMapping("/remaining")
     fun remaining(@PathVariable sessionId: UUID): ResponseEntity<Map<String, Int>> {
+        // This controller's own jdbcTemplateFor() provisions a Toxiproxy proxy
+        // (toxiproxy.jdbcUrlFor) independently of RealInfraCouponEngine, which is
+        // the only other place that touches the tracker (PLAN.md step 22/23).
+        // A request landing here for a session the engine never touched — e.g. a
+        // one-off manual curl call, or k6 hitting this endpoint directly — would
+        // otherwise provision a proxy RealInfraSessionSweepWorker can never find,
+        // leaking it (and its port) forever.
+        sessionTracker.touch(sessionId)
         val traits = currentTraits(sessionId)
         val cacheKey = cacheKey(sessionId)
         val cached = redisTemplate.opsForValue().get(cacheKey)
@@ -62,6 +71,7 @@ class RealInfraCouponController(
 
     @PostMapping("/claim")
     fun claim(@PathVariable sessionId: UUID): ResponseEntity<Map<String, String>> {
+        sessionTracker.touch(sessionId)
         val traits = currentTraits(sessionId)
         if (traits.rateLimitEnabled && !stats.tryAcquire(sessionId)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(mapOf("status" to "rate_limited"))
