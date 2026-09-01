@@ -16,7 +16,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
  * not the browser, and k6 has no user JWT to send. `/admin/prompt-templates`
  * and `/scenarios` stay unauthenticated on purpose: the former needs an
  * RBAC/role system this app doesn't have yet (PLAN.md 35단계+), the latter
- * is public reference data.
+ * is public reference data. `/organizations` (PLAN.md step 32) was added
+ * the same way — every sub-path, including invitation preview/accept,
+ * requires a caller identity even where [OrganizationAccessGuard] doesn't
+ * additionally require membership.
  */
 @Configuration
 class AuthWebConfig(
@@ -31,6 +34,7 @@ class AuthWebConfig(
                 "/submissions/**",
                 "/build-challenges/**", "/build-submissions/**",
                 "/skill-profile",
+                "/organizations", "/organizations/**",
             )
             .excludePathPatterns("/sessions/*/simulation/realinfra/coupon/**")
     }
