@@ -1,9 +1,17 @@
 package com.sysdrill.backend.session
 
+import java.time.Instant
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import java.util.UUID
+
+/** PLAN.md step 33 — one row per user in [SessionRepository.completionStatsByUserIds], never per-session. */
+interface SessionCompletionStats {
+    fun getUserId(): UUID
+    fun getCompletedCount(): Long
+    fun getLastCompletedAt(): Instant?
+}
 
 interface SessionRepository : JpaRepository<Session, UUID> {
 
@@ -24,6 +32,14 @@ interface SessionRepository : JpaRepository<Session, UUID> {
     fun compareAndSetStatus(id: UUID, from: SessionStatus, to: SessionStatus): Int
 
     fun findByUserIdOrderByStartedAtDesc(userId: UUID): List<Session>
+
+    /** PLAN.md step 33 — the org dashboard's per-member roster; one query for every member instead of N. */
+    @Query(
+        "select s.userId as userId, count(s) as completedCount, max(s.completedAt) as lastCompletedAt " +
+            "from Session s where s.userId in :userIds and s.status = com.sysdrill.backend.session.SessionStatus.COMPLETED " +
+            "group by s.userId"
+    )
+    fun completionStatsByUserIds(userIds: Collection<UUID>): List<SessionCompletionStats>
 }
 
 interface SessionPhaseRepository : JpaRepository<SessionPhase, UUID> {

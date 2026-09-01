@@ -1,5 +1,6 @@
 package com.sysdrill.backend.organization
 
+import com.sysdrill.backend.identity.TrendDirection
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
 import java.time.Instant
@@ -42,6 +43,20 @@ data class OrganizationInvitationResponse(
     val token: String,
     val expiresAt: Instant,
     val expired: Boolean,
+)
+
+data class OrganizationDashboardMemberResponse(
+    val userId: UUID,
+    val nickname: String,
+    val email: String,
+    val role: OrganizationRole,
+    val completedSessionCount: Long,
+    val lastActiveAt: Instant?,
+    val trendDirection: TrendDirection,
+)
+
+data class OrganizationDashboardResponse(
+    val members: List<OrganizationDashboardMemberResponse>,
 )
 
 data class InvitationPreviewResponse(

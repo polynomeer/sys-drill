@@ -1,11 +1,17 @@
 package com.sysdrill.backend.organization
 
 import com.jayway.jsonpath.JsonPath
+import com.sysdrill.backend.identity.SkillProfile
+import com.sysdrill.backend.identity.SkillProfileRepository
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
+import com.sysdrill.backend.session.Session
+import com.sysdrill.backend.session.SessionRepository
+import com.sysdrill.backend.session.SessionStatus
 import com.sysdrill.backend.support.bearerHeader
 import java.time.Instant
 import java.util.UUID
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -17,6 +23,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import tools.jackson.databind.ObjectMapper
 
 /** PLAN.md step 32 — organization creation, email-bound invitations, and ADMIN/MEMBER membership. */
 @SpringBootTest
@@ -25,7 +32,12 @@ class OrganizationControllerIntegrationTest(
     @Autowired val mockMvc: MockMvc,
     @Autowired val userRepository: UserRepository,
     @Autowired val invitationRepository: OrganizationInvitationRepository,
+    @Autowired val sessionRepository: SessionRepository,
+    @Autowired val skillProfileRepository: SkillProfileRepository,
+    @Autowired val objectMapper: ObjectMapper,
 ) {
+    /** Fixed scenario_version id seeded by V2__seed_coupon_scenario.sql — any published version works, the dashboard test only cares about Session.status/completedAt. */
+    private val couponScenarioVersionId = UUID.fromString("a0000000-0000-0000-0000-000000000003")
 
     private fun createUser(prefix: String): User =
         userRepository.save(User(email = "$prefix-${UUID.randomUUID()}@example.com", passwordHash = "hash", nickname = prefix))
@@ -243,5 +255,61 @@ class OrganizationControllerIntegrationTest(
         mockMvc.perform(get("/organizations")).andExpect(status().isUnauthorized)
         mockMvc.perform(post("/organizations").contentType(MediaType.APPLICATION_JSON).content("""{"name":"x"}"""))
             .andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `the dashboard reports each member's completed session count, last activity, and trend`() {
+        val admin = createUser("dash-admin")
+        val member = createUser("dash-member")
+        val orgId = createOrg(admin.id!!)
+        val token = invite(orgId, admin.id!!, member.email)
+        mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(member.id!!)))
+            .andExpect(status().isOk)
+
+        sessionRepository.save(
+            Session(userId = member.id!!, scenarioVersionId = couponScenarioVersionId, status = SessionStatus.COMPLETED, completedAt = Instant.now())
+        )
+        // Recent 3 scores (50s) well above the prior 3 (10s) — IMPROVING per SkillProfileService.trendDirection's threshold.
+        skillProfileRepository.save(
+            SkillProfile(userId = member.id!!, trend = objectMapper.writeValueAsString(listOf(10, 10, 10, 50, 50, 50)))
+        )
+
+        val response = mockMvc.perform(get("/organizations/$orgId/dashboard").header("Authorization", bearerHeader(admin.id!!)))
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+
+        val members = JsonPath.read<List<Map<String, Any?>>>(response, "$.members")
+        val adminEntry = members.single { it["userId"] == admin.id.toString() }
+        val memberEntry = members.single { it["userId"] == member.id.toString() }
+
+        assertThat(adminEntry["completedSessionCount"]).isEqualTo(0)
+        assertThat(adminEntry["lastActiveAt"]).isNull()
+        assertThat(adminEntry["trendDirection"]).isEqualTo("INSUFFICIENT_DATA")
+
+        assertThat(memberEntry["completedSessionCount"]).isEqualTo(1)
+        assertThat(memberEntry["lastActiveAt"]).isNotNull()
+        assertThat(memberEntry["trendDirection"]).isEqualTo("IMPROVING")
+    }
+
+    @Test
+    fun `a non-admin member gets 404 on the dashboard`() {
+        val admin = createUser("dash-admin2")
+        val member = createUser("dash-member2")
+        val orgId = createOrg(admin.id!!)
+        val token = invite(orgId, admin.id!!, member.email)
+        mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(member.id!!)))
+
+        mockMvc.perform(get("/organizations/$orgId/dashboard").header("Authorization", bearerHeader(member.id!!)))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `a non-member gets 404 on the dashboard`() {
+        val admin = createUser("dash-admin3")
+        val outsider = createUser("dash-outsider")
+        val orgId = createOrg(admin.id!!)
+
+        mockMvc.perform(get("/organizations/$orgId/dashboard").header("Authorization", bearerHeader(outsider.id!!)))
+            .andExpect(status().isNotFound)
     }
 }

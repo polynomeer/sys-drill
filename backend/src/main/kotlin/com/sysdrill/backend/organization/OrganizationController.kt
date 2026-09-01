@@ -32,6 +32,10 @@ class OrganizationController(private val organizationService: OrganizationServic
     fun get(@PathVariable orgId: UUID, @AuthenticatedUserId userId: UUID): OrganizationDetailResponse =
         organizationService.getOrganization(orgId, userId)
 
+    @GetMapping("/{orgId}/dashboard")
+    fun dashboard(@PathVariable orgId: UUID, @AuthenticatedUserId userId: UUID): OrganizationDashboardResponse =
+        organizationService.getDashboard(orgId, userId)
+
     @PostMapping("/{orgId}/invitations")
     fun invite(
         @PathVariable orgId: UUID,

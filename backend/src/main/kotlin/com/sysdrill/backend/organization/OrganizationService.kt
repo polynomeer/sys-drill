@@ -1,13 +1,19 @@
 package com.sysdrill.backend.organization
 
+import com.sysdrill.backend.common.readIntList
 import com.sysdrill.backend.common.web.ConflictException
 import com.sysdrill.backend.common.web.NotFoundException
+import com.sysdrill.backend.identity.SkillProfileRepository
+import com.sysdrill.backend.identity.TrendDirection
 import com.sysdrill.backend.identity.UserRepository
+import com.sysdrill.backend.identity.trendDirection
+import com.sysdrill.backend.session.SessionRepository
 import java.time.Instant
 import java.util.UUID
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.ObjectMapper
 
 @Service
 class OrganizationService(
@@ -15,6 +21,9 @@ class OrganizationService(
     private val membershipRepository: OrganizationMembershipRepository,
     private val invitationRepository: OrganizationInvitationRepository,
     private val userRepository: UserRepository,
+    private val sessionRepository: SessionRepository,
+    private val skillProfileRepository: SkillProfileRepository,
+    private val objectMapper: ObjectMapper,
     private val accessGuard: OrganizationAccessGuard,
     @Value("\${sysdrill.organization.invitation-ttl-days}") private val invitationTtlDays: Long,
 ) {
@@ -42,6 +51,37 @@ class OrganizationService(
         val organization = organizationRepository.findById(orgId)
             .orElseThrow { NotFoundException("Organization not found: $orgId") }
         return toDetail(organization, userId)
+    }
+
+    /**
+     * PLAN.md step 33 — ADMIN-only per-member training roster (completed session
+     * count, last activity, skill-profile trend). Two bulk queries
+     * (completionStatsByUserIds/findByUserIdIn), not N+1 per member — org
+     * rosters can plausibly be dozens of people.
+     */
+    fun getDashboard(orgId: UUID, adminUserId: UUID): OrganizationDashboardResponse {
+        accessGuard.requireAdmin(orgId, adminUserId)
+        val memberships = membershipRepository.findByOrganizationId(orgId)
+        val userIds = memberships.map { it.userId }
+        val usersById = userRepository.findAllById(userIds).associateBy { it.id }
+        val statsByUserId = sessionRepository.completionStatsByUserIds(userIds).associateBy { it.getUserId() }
+        val trendByUserId = skillProfileRepository.findByUserIdIn(userIds)
+            .associate { it.userId to trendDirection(objectMapper.readIntList(it.trend)) }
+
+        val members = memberships.mapNotNull { membership ->
+            val user = usersById[membership.userId] ?: return@mapNotNull null
+            val stats = statsByUserId[membership.userId]
+            OrganizationDashboardMemberResponse(
+                userId = membership.userId,
+                nickname = user.nickname,
+                email = user.email,
+                role = membership.role,
+                completedSessionCount = stats?.getCompletedCount() ?: 0L,
+                lastActiveAt = stats?.getLastCompletedAt(),
+                trendDirection = trendByUserId[membership.userId] ?: TrendDirection.INSUFFICIENT_DATA,
+            )
+        }
+        return OrganizationDashboardResponse(members)
     }
 
     @Transactional

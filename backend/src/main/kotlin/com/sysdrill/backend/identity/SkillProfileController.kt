@@ -9,9 +9,6 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RestController
 import tools.jackson.databind.ObjectMapper
 
-/** "최근 추세" direction, from comparing the last [RECENT_TREND_WINDOW] scores against the ones before them. */
-enum class TrendDirection { IMPROVING, DECLINING, STABLE, INSUFFICIENT_DATA }
-
 data class SkillProfileResponse(
     val userId: UUID,
     val weaknessesByDomain: Map<String, Map<String, Int>>,
@@ -20,9 +17,6 @@ data class SkillProfileResponse(
     /** The scenario domain worth recommending next — the domain of the user's single most frequent weakness, if any. */
     val recommendedDomain: String?,
 )
-
-private const val RECENT_TREND_WINDOW = 3
-private const val STABLE_THRESHOLD = 3.0
 
 /**
  * docs/PRD.md §11.3's "약점 프로필" — GET /skill-profile (no
@@ -56,17 +50,5 @@ class SkillProfileController(
             trendDirection = trendDirection(trend),
             recommendedDomain = weaknesses.maxByOrNull { it.value }?.key?.let { RuleEvaluator.domainByRiskKey[it] },
         )
-    }
-
-    private fun trendDirection(trend: List<Int>): TrendDirection {
-        if (trend.size < RECENT_TREND_WINDOW * 2) return TrendDirection.INSUFFICIENT_DATA
-        val recent = trend.takeLast(RECENT_TREND_WINDOW).average()
-        val prior = trend.dropLast(RECENT_TREND_WINDOW).takeLast(RECENT_TREND_WINDOW).average()
-        val delta = recent - prior
-        return when {
-            delta > STABLE_THRESHOLD -> TrendDirection.IMPROVING
-            delta < -STABLE_THRESHOLD -> TrendDirection.DECLINING
-            else -> TrendDirection.STABLE
-        }
     }
 }
