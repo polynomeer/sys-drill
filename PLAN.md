@@ -477,6 +477,38 @@
 
 ---
 
+## Phase 4 — Team/B2B (docs/ROADMAP.md)
+
+Phase 3(21~29단계)가 모두 완료되어, 사용자가 다음 우선순위로 "Phase 4(Team/B2B) 계획부터 새로 수립"을 선택했다(AskUserQuestion). Phase 4로 가는 진짜 전제조건은 실제 인증이다 — ADR-0003이 "멀티 디바이스 기능이나 로컬/데모 환경 밖 노출 전에 재검토하라"고 명시한 지점이 정확히 지금이다(조직/팀 개념 자체가 클라이언트가 보낸 bare `userId`를 신뢰하는 구조로는 성립하지 않는다). 30단계만 완료했고, 31단계 이후는 헤더만 미리 스케치한 backlog — 순서/범위는 이전 스텝 결과를 보고 조정한다.
+
+### 30단계 — 실제 인증(회원가입/로그인) 도입 ✅ 완료 (2026-09-01)
+
+사용자에게 두 가지를 확인했다: 도입 범위는 점진적(가장 민감한 쓰기 엔드포인트 `POST /sessions`만 우선 보호, 나머지는 31단계로 미룸), 기존 게스트 계정은 완전 대체(계정 연결 로직 없이 닉네임 전용 `POST /users`를 이메일+비밀번호 `POST /auth/signup`으로 전면 교체) — 둘 다 "권장" 옵션으로 확정했다(ADR-0020).
+
+- [x] 신규 패키지 `backend/.../auth/` — `JwtService`(HMAC256 서명, 30일 만료), `AuthController`(`POST /auth/signup`, `POST /auth/login` — BCrypt 해시/검증), `AuthInterceptor`(`Authorization: Bearer` 검증 후 request attribute에 userId 저장), `AuthenticatedUserIdArgumentResolver`(`@AuthenticatedUserId UUID` 커스텀 파라미터), `AuthWebConfig`(`WebMvcConfigurer`로 `/sessions` 경로에만 인터셉터 등록)
+- [x] 신규 의존성: `org.springframework.security:spring-security-crypto`(`BCryptPasswordEncoder`만 사용, 풀 `spring-boot-starter-security`는 배제 — 필터체인/CSRF 자동 구성이 기존 순수 REST 구조와 충돌), `com.auth0:java-jwt`
+- [x] `UserController.create()`(닉네임 전용 게스트 생성) 삭제, `SessionController.start()`가 `@AuthenticatedUserId`로 인증된 userId를 받도록 변경(`StartSessionRequest.userId` 필드 제거)
+- [x] `common/web`에 `UnauthorizedException`/`BadRequestException` 계열과 동일한 패턴으로 401 매핑 추가
+- [x] 테스트 인프라: `TestJwtIssuer`(정적 홀더 컴포넌트, 컴포넌트 스캔으로 `JwtService` 빈을 캡처)로 `SessionTestSupport.startSession()` 헬퍼 한 곳만 수정 — 기존에 이 헬퍼를 호출하는 모든 테스트 파일은 호출부 변경 없이 그대로 통과(세션당 스키마 프로비저닝과 동일한 "단일 지점 변경" 설계)
+- [x] 신규 `AuthControllerIntegrationTest`(회원가입 시 실제 BCrypt 해시 저장/왕복, 중복 이메일 409, 로그인 성공/실패 401 — 4개), `SessionControllerIntegrationTest`에 무인증 401 테스트 1개 추가
+- [x] 프론트엔드: `frontend/src/app/onboarding/page.tsx`를 이메일+비밀번호(+닉네임/연차/스택 선택) 가입 폼으로 교체, 신규 `frontend/src/app/login/page.tsx`, `localSession.ts`에 토큰 저장 추가(`userId`는 31단계 전까지 과도기적으로 계속 공존), `api.ts`의 `apiFetch()`가 저장된 토큰을 자동으로 `Authorization` 헤더에 부착
+- [x] **버그 수정**: `AuthInterceptor`가 CORS preflight(`OPTIONS`) 요청까지 가로채 401을 반환해 브라우저에서 실제 `POST /sessions`가 `net::ERR_FAILED`로 막히는 문제를 실제 브라우저 검증 중 발견 — curl은 preflight를 보내지 않아 그동안 통과했다. `preHandle`에 `if (request.method == "OPTIONS") return true` 조기 반환을 추가해 해결(기존 `CorsConfig.kt`가 CORS 자체는 이미 처리)
+
+**완료 기준 충족**: 백엔드 전체 178개 테스트 통과(신규 5개 포함, 0 실패). curl로 회원가입(201) → DB에서 `password_hash`가 평문이 아닌 실제 BCrypt 해시(`$2a$10$...`)임을 직접 조회로 확인 → 중복 이메일 가입 시 409 → 잘못된 비밀번호 로그인 시 401 → 토큰 없이 `POST /sessions` 호출 시 401을 각각 확인. 실제 브라우저로 `/onboarding`에서 가입 → 대시보드 진입 및 토큰/닉네임 저장 확인 → "로그아웃" → `/login`에서 재로그인(200) → 쿠폰 시나리오 "시작" 클릭 → `POST /sessions`가 토큰으로 인증되어 201로 성공, 설계 화면으로 정상 진입함을 확인(이 과정에서 위 CORS preflight 버그를 발견하고 수정).
+
+**진행 중 발견한 결정 사항**:
+- **인터셉터를 메서드가 아니라 경로 패턴(`/sessions`, `/sessions/**` 아님)에만 등록해 최소 변경으로 점진적 스코프를 구현했다.** `/sessions`에 매핑된 핸들러는 `SessionController.start()`(`POST`) 하나뿐이라, 경로만으로 다른 서브패스(`/sessions/{id}`, `/sessions/{id}/submissions` 등)에 전혀 영향을 주지 않는다 — 엔드포인트별 인증 로직을 따로 만들 필요가 없었다.
+- **CORS preflight 버그는 curl 검증만으로는 잡을 수 없었다** — curl은 브라우저의 preflight 메커니즘 자체가 없어 이 세션의 "실제 브라우저로 검증" 원칙(프론트엔드 변경 단계마다 반복)이 실제로 버그를 잡아낸 사례. 인증이 걸린 엔드포인트를 프론트에서 호출하는 모든 향후 단계(31단계 포함)에 동일 패턴(OPTIONS 조기 반환)이 필요함을 기록해둔다.
+- **`TestJwtIssuer`를 실제 `/auth/signup` 호출이 아니라 `JwtService`를 직접 주입받아 토큰만 발급하는 방식으로 만들었다.** BCrypt는 의도적으로 느린 해시라, 수십~수백 개 테스트마다 실제 회원가입 흐름을 태우면 테스트 스위트 전체가 크게 느려진다 — 인증 자체를 검증하는 `AuthControllerIntegrationTest`만 실제 BCrypt 경로를 타고, 나머지는 토큰 발급만 재사용한다.
+
+### 31단계 — 기존 엔드포인트 토큰 기반 인증으로 순차 마이그레이션 (예정)
+### 32단계 — Organization/Team 데이터 모델 + 멤버십(초대, ADMIN/MEMBER 역할) (예정)
+### 33단계 — 팀 대시보드 (예정)
+### 34단계 — Private/커스텀 시나리오 (예정)
+### 35단계+ — Game Day, RBAC, SSO, Audit Log, 온보딩 커리큘럼 (34단계까지의 진행을 보고 그때 다시 스코프 판단)
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.

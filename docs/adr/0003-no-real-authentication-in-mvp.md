@@ -1,5 +1,5 @@
 ---
-status: accepted — revisit before wider release
+status: accepted — revisit before wider release (revisited: [0020](0020-incremental-real-auth-rollout-guest-flow-fully-replaced.md) introduces real auth, rolled out incrementally)
 ---
 
 # MVP ships with a nickname-only guest profile, not real authentication
