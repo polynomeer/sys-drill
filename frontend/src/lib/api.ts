@@ -46,6 +46,20 @@ export interface OrganizationInvitation {
   expired: boolean;
 }
 
+export interface OrganizationDashboardMember {
+  userId: string;
+  nickname: string;
+  email: string;
+  role: OrganizationRole;
+  completedSessionCount: number;
+  lastActiveAt: string | null;
+  trendDirection: TrendDirection;
+}
+
+export interface OrganizationDashboard {
+  members: OrganizationDashboardMember[];
+}
+
 export interface InvitationPreview {
   organizationName: string;
   inviteeEmail: string;
@@ -404,6 +418,10 @@ export function listOrganizations(): Promise<OrganizationSummary[]> {
 
 export function getOrganization(orgId: string): Promise<OrganizationDetail> {
   return apiFetch<OrganizationDetail>(`/organizations/${orgId}`);
+}
+
+export function getOrganizationDashboard(orgId: string): Promise<OrganizationDashboard> {
+  return apiFetch<OrganizationDashboard>(`/organizations/${orgId}/dashboard`);
 }
 
 export function inviteMember(orgId: string, email: string, role: OrganizationRole): Promise<OrganizationInvitation> {
