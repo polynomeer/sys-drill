@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Component
 import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.ObjectMapper
@@ -79,75 +80,99 @@ class EvaluationWorker(
     }
 
     private fun processJob(job: EvaluationJob) {
-        transactionTemplate.executeWithoutResult {
-            if (evaluationRepository.existsBySubmissionIdAndIsActiveTrue(job.submissionId)) {
-                log.info("Submission {} already evaluated; skipping duplicate job", job.submissionId)
-                return@executeWithoutResult
+        try {
+            transactionTemplate.executeWithoutResult {
+                processJobInTransaction(job)
             }
-            val submission = submissionRepository.findById(job.submissionId).orElse(null)
-            if (submission == null) {
-                log.warn("Submission {} not found; dropping job", job.submissionId)
-                return@executeWithoutResult
-            }
+        } catch (ex: DataIntegrityViolationException) {
+            // The exists-check above and this insert aren't atomic, so a
+            // redelivered (or cross-instance) duplicate of this job can race
+            // past the check before either side commits. idx_evaluations_one
+            // _active_per_submission (V28, ADR-0026) is the actual guard;
+            // this just means we lost the race — the other delivery already
+            // won, so there is nothing left for this one to do.
+            log.info(
+                "Submission {} was evaluated concurrently by another delivery; discarding this duplicate",
+                job.submissionId,
+            )
+        }
+    }
 
-            try {
-                val outcome = hybridRuleAiEvaluator.evaluate(submission)
-                // saveAndFlush, not save: compareAndSetStatus below is a bulk
-                // @Modifying(clearAutomatically = true) update. clear() detaches
-                // the persistence context without flushing it first, so a plain
-                // save() here would have its INSERT silently dropped.
-                val evaluation = evaluationRepository.saveAndFlush(
-                    Evaluation(
-                        submissionId = submission.id!!,
-                        rubricVersion = outcome.rubricVersion,
-                        totalScore = outcome.totalScore,
-                        scoreDimensions = objectMapper.writeValueAsString(outcome.rubricScores),
-                        strengths = objectMapper.writeValueAsString(outcome.strengths),
-                        weaknesses = objectMapper.writeValueAsString(outcome.weaknesses),
-                        riskPoints = objectMapper.writeValueAsString(outcome.riskFlags.map { it.description }),
-                        followupQuestions = objectMapper.writeValueAsString(outcome.followupQuestions),
-                        recommendedChanges = objectMapper.writeValueAsString(outcome.recommendedChanges),
-                        modelProvider = outcome.modelProvider,
-                        modelName = outcome.modelName,
-                        latencyMs = outcome.latencyMs,
-                    )
+    private fun processJobInTransaction(job: EvaluationJob) {
+        if (evaluationRepository.existsBySubmissionIdAndIsActiveTrue(job.submissionId)) {
+            log.info("Submission {} already evaluated; skipping duplicate job", job.submissionId)
+            return
+        }
+        val submission = submissionRepository.findById(job.submissionId).orElse(null)
+        if (submission == null) {
+            log.warn("Submission {} not found; dropping job", job.submissionId)
+            return
+        }
+
+        try {
+            val outcome = hybridRuleAiEvaluator.evaluate(submission)
+            // saveAndFlush, not save: compareAndSetStatus below is a bulk
+            // @Modifying(clearAutomatically = true) update. clear() detaches
+            // the persistence context without flushing it first, so a plain
+            // save() here would have its INSERT silently dropped.
+            val evaluation = evaluationRepository.saveAndFlush(
+                Evaluation(
+                    submissionId = submission.id!!,
+                    rubricVersion = outcome.rubricVersion,
+                    totalScore = outcome.totalScore,
+                    scoreDimensions = objectMapper.writeValueAsString(outcome.rubricScores),
+                    strengths = objectMapper.writeValueAsString(outcome.strengths),
+                    weaknesses = objectMapper.writeValueAsString(outcome.weaknesses),
+                    riskPoints = objectMapper.writeValueAsString(outcome.riskFlags.map { it.description }),
+                    followupQuestions = objectMapper.writeValueAsString(outcome.followupQuestions),
+                    recommendedChanges = objectMapper.writeValueAsString(outcome.recommendedChanges),
+                    modelProvider = outcome.modelProvider,
+                    modelName = outcome.modelName,
+                    latencyMs = outcome.latencyMs,
                 )
-                // saveAllAndFlush for the same reason as the Evaluation save above:
-                // the compareAndSetStatus bulk update right after this clears the
-                // persistence context without flushing it first.
-                evaluationRiskFlagRepository.saveAllAndFlush(
-                    outcome.riskFlags.map { finding ->
-                        EvaluationRiskFlag(
-                            evaluationId = evaluation.id!!,
-                            riskKey = finding.riskKey,
-                            severity = finding.severity,
-                            description = finding.description,
-                        )
-                    }
-                )
-                sessionRepository.findById(submission.sessionId).ifPresent { session ->
-                    skillProfileService.recordEvaluation(
-                        userId = session.userId,
-                        ruleRiskKeys = outcome.riskFlags.filter { it.riskKey != "LLM_TOP_RISK" }.map { it.riskKey },
-                        totalScore = outcome.totalScore,
+            )
+            // saveAllAndFlush for the same reason as the Evaluation save above:
+            // the compareAndSetStatus bulk update right after this clears the
+            // persistence context without flushing it first.
+            evaluationRiskFlagRepository.saveAllAndFlush(
+                outcome.riskFlags.map { finding ->
+                    EvaluationRiskFlag(
+                        evaluationId = evaluation.id!!,
+                        riskKey = finding.riskKey,
+                        severity = finding.severity,
+                        description = finding.description,
                     )
                 }
+            )
+            sessionRepository.findById(submission.sessionId).ifPresent { session ->
+                skillProfileService.recordEvaluation(
+                    userId = session.userId,
+                    ruleRiskKeys = outcome.riskFlags.filter { it.riskKey != "LLM_TOP_RISK" }.map { it.riskKey },
+                    totalScore = outcome.totalScore,
+                )
+            }
 
-                val transitioned = sessionRepository.compareAndSetStatus(
+            val transitioned = sessionRepository.compareAndSetStatus(
+                submission.sessionId,
+                SessionStatus.EVALUATING,
+                SessionStatus.FEEDBACK_READY,
+            )
+            if (transitioned == 0) {
+                log.warn(
+                    "Session {} was not EVALUATING after evaluating submission {}; leaving as-is",
                     submission.sessionId,
-                    SessionStatus.EVALUATING,
-                    SessionStatus.FEEDBACK_READY,
+                    submission.id,
                 )
-                if (transitioned == 0) {
-                    log.warn(
-                        "Session {} was not EVALUATING after evaluating submission {}; leaving as-is",
-                        submission.sessionId,
-                        submission.id,
-                    )
-                }
-            } catch (ex: Exception) {
-                handleFailure(job, submission.sessionId, ex)
             }
+        } catch (ex: DataIntegrityViolationException) {
+            // Postgres has already aborted this transaction; let it roll
+            // back and propagate to processJob's outer catch instead of
+            // treating this as a real failure (handleFailure would otherwise
+            // re-enqueue it and, worse, try more JDBC calls on a connection
+            // that's no longer usable).
+            throw ex
+        } catch (ex: Exception) {
+            handleFailure(job, submission.sessionId, ex)
         }
     }
 
