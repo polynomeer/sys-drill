@@ -631,7 +631,26 @@ Phase 4 마지막 큰 항목. ROADMAP/PRD엔 "SSO"라는 한 줄 외에 스펙�
 - **다시 로컬 인프라 공유 사고를 겪었다 — 이번엔 삭제된 다른 세션이 남긴 orphan 마이그레이션.** 사용자가 앞서 시작했던 "flaky EvaluationWorkerIntegrationTest 수정" 별도 세션이 삭제됐는데, 그 세션이 공유 로컬 Postgres에 자기만의 `V28`(`unique active evaluation per submission`) 마이그레이션을 이미 적용해놓은 채로 사라져서, 그 파일이 이 체크아웃엔 없는 채로 DB엔 적용 기록만 남아 있었다 — 공유 Postgres를 쓰는 모든 실행이 한동안 `FlywayValidateException`으로 막혔다. 내용을 모르는 마이그레이션을 함부로 복원하거나 `flyway repair`하지 않고, 36단계에서 이미 검증된 방식대로 완전히 별도의 Postgres/Redis 컨테이너를 띄워 작업을 계속했다. 나중에 확인해보니 그 세션은 실제로 PR로 병합돼 있었다(`fix(backend): 평가 파이프라인 중복 딜리버리 레이스 수정`, EvaluationWorker에 DB 유니크 제약 기반 멱등성 추가) — `git fetch` 시점에 발견해 병합했다. 그 커밋도 ADR 번호로 `0027`을 썼는데 내가 이미 같은 번호로 Google 로그인 ADR을 써둔 상태라 번호가 충돌했다 — 내 쪽을 `0028`로 밀어서 해결.
 - **RealInfraCoupon 관련 2개 테스트 실패는 36단계에서 이미 규명한 것과 정확히 같은 원인(Toxiproxy가 앱의 `DB_PORT` 오버라이드와 무관하게 docker-compose Postgres에 고정 접속)임을 재확인만 했다.**
 
-### 35단계+ 나머지 — Audit Log, 온보딩 커리큘럼 (진행을 보고 그때 다시 스코프 판단)
+### 38단계 — 조직 감사 로그 (Audit Log) ✅ 완료 (2026-09-05)
+
+ROADMAP.md엔 "SSO/RBAC/Audit Log"라는 한 줄뿐이었다. 이전 7개 Phase 4 단계는 매번 진짜 갈림길(프로토콜 선택, 폴링 vs WebSocket 등)이 있어 AskUserQuestion으로 범위를 물었지만, 이번엔 그런 갈림길이 없다고 판단해 질문 없이 진행했다 — PRD.md 비즈니스 모델 표가 Audit Log를 팀 대시보드·Game Day·커스텀 시나리오와 함께 Team/Enterprise 티어로 묶어놓은 것 자체가 "조직이 자기 팀 안에서 무슨 일이 있었는지 본다"는 스코프를 가리킨다(플랫폼 전역 감사 트레일이 아님). 세션/훈련 활동은 33단계 팀 대시보드가 이미 다루므로, 감사 로그는 관리 행위(초대/제거/생성 같은 상태 변경)만 새로 추가했다.
+
+- [x] `organization_audit_log_entries` 테이블(`organizationId`/`actorUserId` 순수 UUID 스칼라, `action` enum, `detail` jsonb) + `OrganizationAuditLogService.record()`/`.list()`
+- [x] 기존 `OrganizationService`(32단계)의 6개 메서드(생성/초대/초대취소/수락/제거/탈퇴)와 `CustomScenarioService.create`(34단계) 끝에 `record(...)` 한 줄씩 추가 — **같은 트랜잭션 안에서 동기적으로 기록**(별도 이벤트 파이프라인 아님, 행위와 로그가 항상 원자적으로 일치)
+- [x] `GET /organizations/{orgId}/audit-log` 신규(ADMIN 전용, 최근 200건, 페이지네이션 없음), 대상(제거된 멤버 등)은 원시 UUID로만 저장하고 조회 시점에 닉네임 join(ADR-0011 재적용)
+- [x] 프론트: 신규 `organizations/[orgId]/audit-log/page.tsx`(33단계 팀 대시보드 페이지와 동일 구조), 조직 상세 페이지에 "감사 로그 보기" 링크
+- [x] ADR-0029 작성
+
+**완료 기준 충족**: 백엔드 220개 테스트 중 218개 통과(신규 1개 포함) — 나머지 2개는 34~37단계에서 이미 규명한 것과 정확히 같은 Toxiproxy 라우팅 이슈(무관). curl로 조직 생성→초대→수락→커스텀 시나리오 생성→멤버 제거까지 실행한 뒤 감사 로그에 5개 항목이 정확한 순서(최신순)·행위자·detail로 기록됨을 확인, 비-ADMIN 토큰은 404 확인. 실제 브라우저로 조직 상세 페이지의 "감사 로그 보기" → 방금 한 행동 5개가 한글 라벨(멤버 제거/커스텀 시나리오 생성/멤버 가입/멤버 초대/조직 생성)과 함께 표로 정확히 보이는 것 확인.
+
+**진행 중 발견한 결정 사항**:
+- **선제적 인프라 격리(별도 Postgres/Redis 컨테이너를 미리 띄우고 시작)는 효과가 있었지만, 새로운 종류의 사고를 하나 더 발견했다.** 처음 전체 스위트를 돌렸을 때 8개, 심지어 재시도에서 OOM까지 겪었다 — 원인을 좁혀보니 이번엔 "다른 세션과의 충돌"이 아니라 **내가 오늘 하루 종일 같은 공유 Toxiproxy/Kafka 컨테이너로 전체 스위트를 계속 돌리면서 6시간 넘게 정리 안 된 프록시·토픽·컨슈머 그룹이 쌓인 것**이었다(Postgres 연결 고갈 한 번, 그다음 힙 부족, 그다음엔 포트 20000 already-in-use와 Kafka 토픽 조회 실패까지) — Toxiproxy/Kafka는 `docker-compose.yml`상 세션 하나가 몇 시간이고 붙들고 재사용하는 장수 컨테이너라, 실패한 테스트가 프록시/토픽을 못 지우고 죽으면 다음 실행에 그대로 누적된다. `docker restart`로 두 컨테이너만 재기동하니(Postgres/Redis는 안 건드림 — 상태가 남아 있어야 하는 데이터니까) 바로 34~37단계에서 이미 알려진 2개 실패로 돌아왔다. **교훈**: 격리된 Postgres/Redis를 새로 띄우는 것만으로는 부족하고, 무거운 전체 스위트를 여러 번 돌릴 땐 Toxiproxy/Kafka도 가끔 재기동해서 누적 상태를 비워야 한다.
+
+## Phase 4 완료 (온보딩 커리큘럼 제외)
+
+30~38단계로 Phase 4(Team/B2B)의 로드맵 항목(조직/팀 관리, 팀 대시보드, Game Day, Private Scenario, SSO, RBAC, Audit Log)이 전부 구현됐다. 남은 항목은 온보딩 커리큘럼(신규 입사자용 순차 학습 트랙)뿐이다 — 지금까지의 시나리오/세션 모델을 재사용하는 콘텐츠·UX 중심 기능이라 새 인프라가 필요 없을 가능성이 높고, 진행 여부는 사용자 판단에 맡긴다.
+
+### 35단계+ 나머지 — 온보딩 커리큘럼 (진행을 보고 그때 다시 스코프 판단)
 
 ---
 
