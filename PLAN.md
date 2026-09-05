@@ -577,7 +577,26 @@ Phase 4의 첫 실제 기능. `docs/ROADMAP.md`의 한 줄짜리 항목 외에�
 - **전체 테스트 스위트를 처음 돌렸을 때 `RealInfraSessionSweepWorkerTest`의 캡처된 로그가 26GB까지 자라며 멈추지 않는 사고가 있었다.** 원인은 이번 변경과 무관 — Postgres/Redis만 띄운 채(Toxiproxy/Jaeger/Kafka 없이) 실전 인프라 테스트를 돌리면서, 컨텍스트 종료 시점에 `BuildRunnerWorker`/`EvaluationWorker`의 백그라운드 폴링 루프가 끊기지 않은 Redis 연결에 대해 예외를 반복적으로 던지며 로그를 쏟아내는(pre-existing) 셧다운 경합이 전체 스위트의 수십 개 테스트 클래스에 걸쳐 누적된 것. 프로세스를 강제 종료하고 거대 로그 파일을 삭제한 뒤, Docker 스택 전체(toxiproxy/jaeger/kafka 포함)를 띄우고 재실행하니 5분대에 정상 종료됐다 — 디스크 공간 여유(1.1TB)가 있어 실질 피해는 없었지만, 앞으로 실전 인프라 테스트를 포함한 전체 스위트를 돌릴 땐 반드시 `docker compose up -d`로 5개 서비스를 전부 띄운 상태에서 실행해야 한다는 걸 기록해 둔다.
 - **커스텀 시나리오는 정확히 2단계(INITIAL, FOLLOWUP) 고정, 분기/다중 FOLLOWUP 미지원으로 스코프를 컷했다.** 기존 공개 시나리오처럼 `triggerCondition` 기반 분기나 여러 FOLLOWUP 변형을 조직 관리자가 직접 저작하게 하려면 그만큼 입력 폼이 복잡해지는데, v1의 목적(사내 장애 하나를 빠르게 시나리오화)에는 필요 이상이라 가장 작은 슬라이스로 시작했다 — 필요해지면 이후 단계에서 확장.
 
-### 35단계+ — Game Day, RBAC, SSO, Audit Log, 온보딩 커리큘럼 (34단계까지의 진행을 보고 그때 다시 스코프 판단)
+### 35단계 — 플랫폼 RBAC ✅ 완료 (2026-09-05)
+
+Phase 4 나머지 항목(Game Day/RBAC/SSO/Audit Log/온보딩 커리큘럼) 중 사용자가 RBAC를 먼저 선택했다(AskUserQuestion). `AuthWebConfig.kt`가 정확히 지목하던 공백을 메웠다 — `/admin/prompt-templates`(LLM 평가 프롬프트 템플릿 관리)가 지금까지 인증 자체가 전혀 없어 누구나 호출할 수 있었다.
+
+- [x] `User.platformRole`(`USER`/`PLATFORM_ADMIN`) 신규(`V27__add_user_platform_role.sql`) — 조직 스코프인 `OrganizationRole`과 별개의 플랫폼 전역 축
+- [x] 신규 `ForbiddenException`(403) — `SessionAccessGuard`/`OrganizationAccessGuard`가 쓰는 기존 404(리소스 존재 은폐) 컨벤션과 의도적으로 분리. `/admin/prompt-templates`는 특정 인스턴스가 아니라 엔드포인트 전체에 걸린 역할 게이트라 숨길 존재가 없음
+- [x] 신규 `auth/PlatformAccessGuard.requirePlatformAdmin(userId)` — 기존 가드들과 동일한 "평범한 `@Component`, 컨트롤러가 명시적으로 첫 줄에서 호출" 패턴
+- [x] `PromptTemplateController` 3개 엔드포인트 전부 가드 적용, `AuthWebConfig`에 `/admin/prompt-templates`, `/admin/prompt-templates/**` 추가(이번에 처음 인증이 걸림)
+- [x] 부트스트랩은 signup 시점 이메일 화이트리스트(`sysdrill.auth.platform-admin-emails`/`SYSDRILL_AUTH_PLATFORM_ADMIN_EMAILS`, 콤마 구분, 기본 빈 문자열) — 승격/강등 API는 만들지 않음(자기 승격 위험)
+- [x] `PromptTemplateControllerIntegrationTest`에 헤더 추가 + 3개 케이스(무토큰 401 / 일반 사용자 403 / 관리자 기존 시나리오 통과), 신규 `AuthControllerPlatformAdminBootstrapTest`(화이트리스트 가입 시 승격, 대소문자 무시, 비화이트리스트는 USER 유지)
+- [x] ADR-0025 작성
+
+**완료 기준 충족**: 백엔드 전체 208개 테스트 통과 확인(신규 5개 순증 — `PromptTemplateControllerIntegrationTest` 1→3, `AuthControllerPlatformAdminBootstrapTest` 신규 3개; 0 실패, 44개 클래스). 실행 중인 백엔드를 재시작해 curl로도 확인: 무토큰 401 → 일반 사용자 토큰 403 → DB에서 직접 `PLATFORM_ADMIN`으로 승격한 사용자의 토큰(재로그인 불필요, 매 요청마다 DB에서 역할을 다시 조회하므로)으로는 201 확인.
+
+**진행 중 발견한 결정 사항**:
+- **전체 스위트를 처음 두 번 돌렸을 때 각각 다른 테스트가 실패했다 — 둘 다 이번 변경과 무관한 환경적 원인으로 확인.** 1차: `EvaluationWorkerIntegrationTest`의 "duplicate delivery..." 케이스가 실패 — 단독 실행해도 재현되는 진짜 결함이지만, 관련 파일(`EvaluationWorker.kt`/`EvaluationQueue.kt`)이 이번 세션 훨씬 이전 커밋(`edf9981`, 31단계)째 전혀 안 바뀌었고 타이밍에 따라 간헐적이라(세 번째 실행에서는 통과) 범위 밖으로 분리해 별도 백그라운드 작업으로 넘겼다(task_96adeffa). 2차: 전체 스위트가 돌아가는 도중에 내가 백엔드 프로세스를 재시작하고 `docker exec`로 DB를 직접 건드리며 curl 검증을 했더니 `CircuitBreakerControllerIntegrationTest`(Docker 기반 Build Mode 테스트)가 실패했다 — 리소스 경합으로 판단, 아무것도 건드리지 않은 세 번째 재실행에서 완전히 통과해 확인. **교훈: 전체 테스트 스위트가 실행 중일 때는 같은 머신에서 Docker/백엔드 프로세스를 건드리지 않는다.**
+- **신규 테스트에서 고정 리터럴 이메일(`bootstrap-admin@example.com` 등)을 썼다가 같은 로컬 Postgres에 스위트를 두 번째로 돌릴 때 409로 실패하는 걸 직접 겪었다.** `AuthControllerIntegrationTest`가 이미 `uniqueEmail()` 헬퍼로 이 문제를 피해온 이유를 그대로 재확인 — `@DynamicPropertySource`로 화이트리스트 이메일 자체를 테스트 클래스 로드 시 랜덤 생성해 고정 리터럴을 완전히 제거했다.
+- **403을 이 저장소에 처음 도입했다.** 기존 리소스 소유권 가드(Session/Organization)는 "존재 안 함"과 "권한 없음"을 구분하지 않고 전부 404로 통일해왔는데, 이번처럼 특정 리소스 인스턴스가 아니라 엔드포인트 전체에 걸린 역할 게이트에는 그 이유(존재 은폐)가 적용되지 않아 정직하게 403을 썼다 — ADR-0025에 근거를 남겼다.
+
+### 35단계+ 나머지 — Game Day, SSO, Audit Log, 온보딩 커리큘럼 (진행을 보고 그때 다시 스코프 판단)
 
 ---
 

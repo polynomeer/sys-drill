@@ -28,3 +28,4 @@ Short records of decisions that are hard to reverse, would surprise a future rea
 | [0022](0022-organization-invitation-token-is-an-opaque-db-code-not-a-jwt.md) | Organization invitation tokens are opaque DB-stored codes, not signed JWTs |
 | [0023](0023-organization-invitations-are-email-bound-and-shared-out-of-band.md) | Organization invitations are bound to a specific email, delivered out-of-band, and require an existing account to accept |
 | [0024](0024-custom-scenarios-coexist-with-migration-content-and-scope-cut-to-design-only.md) | Organization-scoped custom scenarios are authored via API, coexisting with migration-seeded public content, and v1 is scoped to Design+Tail-Design with LLM-only evaluation |
+| [0025](0025-platform-rbac-v1-single-role-403-and-signup-allowlist-bootstrap.md) | Platform RBAC v1: a single `platformRole` enum, a new 403 distinct from the existing 404 ownership convention, and signup-allowlist bootstrap with no promote/demote API |
