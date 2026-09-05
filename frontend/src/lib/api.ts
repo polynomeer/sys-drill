@@ -73,6 +73,19 @@ export interface ScenarioSummary {
   domain: string;
   title: string;
   difficulty: string | null;
+  organizationId: string | null;
+}
+
+export interface ScenarioDetail extends ScenarioSummary {
+  baseRequirements: unknown;
+}
+
+export interface CreateCustomScenarioRequest {
+  title: string;
+  difficulty?: string;
+  domain: string;
+  initialPrompt: string;
+  followupPrompt: string;
 }
 
 export type SessionStatus =
@@ -453,4 +466,16 @@ export function removeMember(orgId: string, targetUserId: string): Promise<void>
 
 export function leaveOrganization(orgId: string): Promise<void> {
   return apiFetch<void>(`/organizations/${orgId}/leave`, { method: "POST" });
+}
+
+/** PLAN.md step 34 — org-scoped custom scenarios (docs/adr/0024). */
+export function createCustomScenario(orgId: string, request: CreateCustomScenarioRequest): Promise<ScenarioDetail> {
+  return apiFetch<ScenarioDetail>(`/organizations/${orgId}/scenarios`, {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+export function listOrganizationScenarios(orgId: string): Promise<ScenarioSummary[]> {
+  return apiFetch<ScenarioSummary[]>(`/organizations/${orgId}/scenarios`);
 }

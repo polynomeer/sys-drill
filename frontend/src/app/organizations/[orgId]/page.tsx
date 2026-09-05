@@ -8,12 +8,16 @@ import {
   OrganizationDetail,
   OrganizationInvitation,
   OrganizationRole,
+  ScenarioSummary,
+  createCustomScenario,
   getOrganization,
   inviteMember,
   leaveOrganization,
   listInvitations,
+  listOrganizationScenarios,
   removeMember,
   revokeInvitation,
+  startSession,
 } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 
@@ -29,6 +33,7 @@ export default function OrganizationDetailPage() {
 
   const [org, setOrg] = useState<OrganizationDetail | null>(null);
   const [invitations, setInvitations] = useState<OrganizationInvitation[]>([]);
+  const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,9 +42,18 @@ export default function OrganizationDetailPage() {
   const [inviting, setInviting] = useState(false);
   const [lastInviteToken, setLastInviteToken] = useState<string | null>(null);
 
+  const [scenarioTitle, setScenarioTitle] = useState("");
+  const [scenarioDomain, setScenarioDomain] = useState("");
+  const [scenarioDifficulty, setScenarioDifficulty] = useState("");
+  const [scenarioInitialPrompt, setScenarioInitialPrompt] = useState("");
+  const [scenarioFollowupPrompt, setScenarioFollowupPrompt] = useState("");
+  const [creatingScenario, setCreatingScenario] = useState(false);
+  const [startingScenarioId, setStartingScenarioId] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     const detail = await getOrganization(orgId);
     setOrg(detail);
+    setScenarios(await listOrganizationScenarios(orgId));
     if (detail.myRole === "ADMIN") {
       setInvitations(await listInvitations(orgId));
     }
@@ -103,6 +117,44 @@ export default function OrganizationDetailPage() {
     }
   }
 
+  async function handleCreateScenario(e: React.FormEvent) {
+    e.preventDefault();
+    if (!scenarioTitle.trim() || !scenarioDomain.trim() || !scenarioInitialPrompt.trim() || !scenarioFollowupPrompt.trim()) return;
+    setCreatingScenario(true);
+    setError(null);
+    try {
+      await createCustomScenario(orgId, {
+        title: scenarioTitle.trim(),
+        difficulty: scenarioDifficulty.trim() || undefined,
+        domain: scenarioDomain.trim(),
+        initialPrompt: scenarioInitialPrompt.trim(),
+        followupPrompt: scenarioFollowupPrompt.trim(),
+      });
+      setScenarioTitle("");
+      setScenarioDomain("");
+      setScenarioDifficulty("");
+      setScenarioInitialPrompt("");
+      setScenarioFollowupPrompt("");
+      setScenarios(await listOrganizationScenarios(orgId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "시나리오를 만들지 못했습니다.");
+    } finally {
+      setCreatingScenario(false);
+    }
+  }
+
+  async function handleStartScenario(scenarioId: string) {
+    setStartingScenarioId(scenarioId);
+    setError(null);
+    try {
+      const session = await startSession(scenarioId);
+      router.push(`/design/${session.id}`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "세션을 시작하지 못했습니다.");
+      setStartingScenarioId(null);
+    }
+  }
+
   if (loading) return <p className="p-8 text-sm text-zinc-500">불러오는 중...</p>;
   if (error && !org) return <p className="p-8 text-sm text-red-600">{error}</p>;
   if (!org) return null;
@@ -148,6 +200,75 @@ export default function OrganizationDetailPage() {
         <button onClick={handleLeave} className="mt-4 text-xs text-zinc-500 underline">
           나가기
         </button>
+      </section>
+
+      <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
+        <h2 className="mb-3 text-sm font-semibold text-zinc-500">커스텀 시나리오</h2>
+        {scenarios.length === 0 && <p className="text-sm text-zinc-500">아직 만들어진 커스텀 시나리오가 없습니다.</p>}
+        <ul className="flex flex-col gap-2">
+          {scenarios.map((scenario) => (
+            <li key={scenario.id} className="flex items-center justify-between text-sm">
+              <span>
+                {scenario.title}
+                {scenario.difficulty && <span className="ml-2 text-xs text-zinc-500">({scenario.difficulty})</span>}
+              </span>
+              <button
+                onClick={() => handleStartScenario(scenario.id)}
+                disabled={startingScenarioId === scenario.id}
+                className="rounded bg-foreground px-3 py-1 text-xs font-medium text-background disabled:opacity-50"
+              >
+                {startingScenarioId === scenario.id ? "시작하는 중..." : "세션 시작"}
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        {org.myRole === "ADMIN" && (
+          <form onSubmit={handleCreateScenario} className="mt-4 flex flex-col gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+            <p className="text-xs text-zinc-500">새 시나리오 만들기 (설계 + 꼬리설계 2단계, 장애 대응 단계는 없습니다)</p>
+            <input
+              className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              value={scenarioTitle}
+              onChange={(e) => setScenarioTitle(e.target.value)}
+              placeholder="제목"
+            />
+            <div className="flex gap-2">
+              <input
+                className="flex-1 rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                value={scenarioDomain}
+                onChange={(e) => setScenarioDomain(e.target.value)}
+                placeholder="도메인 라벨 (예: internal-payment)"
+              />
+              <input
+                className="w-32 rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                value={scenarioDifficulty}
+                onChange={(e) => setScenarioDifficulty(e.target.value)}
+                placeholder="난이도"
+              />
+            </div>
+            <textarea
+              className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              value={scenarioInitialPrompt}
+              onChange={(e) => setScenarioInitialPrompt(e.target.value)}
+              placeholder="초기 설계 프롬프트"
+              rows={3}
+            />
+            <textarea
+              className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              value={scenarioFollowupPrompt}
+              onChange={(e) => setScenarioFollowupPrompt(e.target.value)}
+              placeholder="꼬리설계 프롬프트"
+              rows={3}
+            />
+            <button
+              type="submit"
+              disabled={creatingScenario}
+              className="self-start rounded bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+            >
+              {creatingScenario ? "만드는 중..." : "시나리오 만들기"}
+            </button>
+          </form>
+        )}
       </section>
 
       {org.myRole === "ADMIN" && (
