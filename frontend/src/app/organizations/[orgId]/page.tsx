@@ -174,9 +174,14 @@ export default function OrganizationDetailPage() {
         <h1 className="mt-2 text-2xl font-semibold">{org.name}</h1>
         <p className="mt-1 text-sm text-zinc-500">내 역할: {ROLE_LABELS[org.myRole] ?? org.myRole}</p>
         {org.myRole === "ADMIN" && (
-          <Link href={`/organizations/${orgId}/dashboard`} className="mt-2 inline-block text-sm text-blue-600 underline dark:text-blue-400">
-            팀 대시보드 보기
-          </Link>
+          <div className="mt-2 flex gap-4">
+            <Link href={`/organizations/${orgId}/dashboard`} className="text-sm text-blue-600 underline dark:text-blue-400">
+              팀 대시보드 보기
+            </Link>
+            <Link href={`/organizations/${orgId}/audit-log`} className="text-sm text-blue-600 underline dark:text-blue-400">
+              감사 로그 보기
+            </Link>
+          </div>
         )}
       </div>
 

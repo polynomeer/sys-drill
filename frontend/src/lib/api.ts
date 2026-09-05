@@ -60,6 +60,24 @@ export interface OrganizationDashboard {
   members: OrganizationDashboardMember[];
 }
 
+export type OrganizationAuditAction =
+  | "ORGANIZATION_CREATED"
+  | "MEMBER_INVITED"
+  | "INVITATION_REVOKED"
+  | "MEMBER_JOINED"
+  | "MEMBER_REMOVED"
+  | "MEMBER_LEFT"
+  | "CUSTOM_SCENARIO_CREATED";
+
+export interface AuditLogEntry {
+  id: string;
+  actorNickname: string;
+  actorEmail: string;
+  action: OrganizationAuditAction;
+  detail: Record<string, unknown> | null;
+  createdAt: string | null;
+}
+
 export interface InvitationPreview {
   organizationName: string;
   inviteeEmail: string;
@@ -454,6 +472,11 @@ export function getOrganization(orgId: string): Promise<OrganizationDetail> {
 
 export function getOrganizationDashboard(orgId: string): Promise<OrganizationDashboard> {
   return apiFetch<OrganizationDashboard>(`/organizations/${orgId}/dashboard`);
+}
+
+/** PLAN.md step 38 — organization admin-action audit log. */
+export function listAuditLog(orgId: string): Promise<AuditLogEntry[]> {
+  return apiFetch<AuditLogEntry[]>(`/organizations/${orgId}/audit-log`);
 }
 
 export function inviteMember(orgId: string, email: string, role: OrganizationRole): Promise<OrganizationInvitation> {
