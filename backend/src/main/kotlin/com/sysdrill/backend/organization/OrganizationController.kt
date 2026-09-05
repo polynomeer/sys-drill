@@ -1,6 +1,10 @@
 package com.sysdrill.backend.organization
 
 import com.sysdrill.backend.auth.AuthenticatedUserId
+import com.sysdrill.backend.scenario.CreateCustomScenarioRequest
+import com.sysdrill.backend.scenario.CustomScenarioService
+import com.sysdrill.backend.scenario.ScenarioDetailResponse
+import com.sysdrill.backend.scenario.ScenarioSummaryResponse
 import jakarta.validation.Valid
 import java.util.UUID
 import org.springframework.http.HttpStatus
@@ -15,7 +19,10 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/organizations")
-class OrganizationController(private val organizationService: OrganizationService) {
+class OrganizationController(
+    private val organizationService: OrganizationService,
+    private val customScenarioService: CustomScenarioService,
+) {
 
     @PostMapping
     fun create(
@@ -82,4 +89,24 @@ class OrganizationController(private val organizationService: OrganizationServic
         organizationService.leaveOrganization(orgId, userId)
         return ResponseEntity.noContent().build()
     }
+
+    /** PLAN.md step 34 — org-scoped custom scenarios (docs/adr/0024). */
+    @PostMapping("/{orgId}/scenarios")
+    fun createScenario(
+        @PathVariable orgId: UUID,
+        @AuthenticatedUserId userId: UUID,
+        @Valid @RequestBody request: CreateCustomScenarioRequest,
+    ): ResponseEntity<ScenarioDetailResponse> =
+        ResponseEntity.status(HttpStatus.CREATED).body(customScenarioService.create(orgId, userId, request))
+
+    @GetMapping("/{orgId}/scenarios")
+    fun listScenarios(@PathVariable orgId: UUID, @AuthenticatedUserId userId: UUID): List<ScenarioSummaryResponse> =
+        customScenarioService.listForOrganization(orgId, userId)
+
+    @GetMapping("/{orgId}/scenarios/{scenarioId}")
+    fun getScenario(
+        @PathVariable orgId: UUID,
+        @PathVariable scenarioId: UUID,
+        @AuthenticatedUserId userId: UUID,
+    ): ScenarioDetailResponse = customScenarioService.getForOrganization(orgId, scenarioId, userId)
 }

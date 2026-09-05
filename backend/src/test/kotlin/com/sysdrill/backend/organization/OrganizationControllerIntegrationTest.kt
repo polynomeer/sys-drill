@@ -312,4 +312,122 @@ class OrganizationControllerIntegrationTest(
         mockMvc.perform(get("/organizations/$orgId/dashboard").header("Authorization", bearerHeader(outsider.id!!)))
             .andExpect(status().isNotFound)
     }
+
+    private val customScenarioBody = """
+        {"title":"사내 결제 장애","difficulty":"HARD","domain":"internal-payment",
+         "initialPrompt":"초기 설계 프롬프트","followupPrompt":"꼬리설계 프롬프트"}
+    """.trimIndent()
+
+    @Test
+    fun `an admin can create a custom scenario, scoped to the organization`() {
+        val admin = createUser("scenario-admin")
+        val orgId = createOrg(admin.id!!)
+
+        val response = mockMvc.perform(
+            post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin.id!!))
+                .content(customScenarioBody)
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.title").value("사내 결제 장애"))
+            .andExpect(jsonPath("$.organizationId").value(orgId.toString()))
+            .andReturn().response.contentAsString
+        val scenarioId = UUID.fromString(JsonPath.read(response, "$.id"))
+
+        mockMvc.perform(get("/organizations/$orgId/scenarios").header("Authorization", bearerHeader(admin.id!!)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[0].id").value(scenarioId.toString()))
+    }
+
+    @Test
+    fun `a non-admin member creating a custom scenario is rejected as not found`() {
+        val admin = createUser("scenario-admin2")
+        val member = createUser("scenario-member")
+        val orgId = createOrg(admin.id!!)
+        val token = invite(orgId, admin.id!!, member.email)
+        mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(member.id!!)))
+
+        mockMvc.perform(
+            post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(member.id!!))
+                .content(customScenarioBody)
+        ).andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `a non-member cannot list or read the organization's custom scenarios`() {
+        val admin = createUser("scenario-admin3")
+        val outsider = createUser("scenario-outsider")
+        val orgId = createOrg(admin.id!!)
+        val response = mockMvc.perform(
+            post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin.id!!))
+                .content(customScenarioBody)
+        ).andExpect(status().isCreated).andReturn().response.contentAsString
+        val scenarioId = JsonPath.read<String>(response, "$.id")
+
+        mockMvc.perform(get("/organizations/$orgId/scenarios").header("Authorization", bearerHeader(outsider.id!!)))
+            .andExpect(status().isNotFound)
+        mockMvc.perform(get("/organizations/$orgId/scenarios/$scenarioId").header("Authorization", bearerHeader(outsider.id!!)))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `a custom scenario is invisible on the public scenario endpoints`() {
+        val admin = createUser("scenario-admin4")
+        val orgId = createOrg(admin.id!!)
+        val response = mockMvc.perform(
+            post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin.id!!))
+                .content(customScenarioBody)
+        ).andExpect(status().isCreated).andReturn().response.contentAsString
+        val scenarioId = JsonPath.read<String>(response, "$.id")
+
+        mockMvc.perform(get("/scenarios"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[?(@.id == '$scenarioId')]").isEmpty)
+        mockMvc.perform(get("/scenarios/$scenarioId")).andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `starting a session against a custom scenario requires organization membership`() {
+        val admin = createUser("scenario-admin6")
+        val member = createUser("scenario-member2")
+        val outsider = createUser("scenario-outsider2")
+        val orgId = createOrg(admin.id!!)
+        val token = invite(orgId, admin.id!!, member.email)
+        mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(member.id!!)))
+        val response = mockMvc.perform(
+            post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin.id!!))
+                .content(customScenarioBody)
+        ).andExpect(status().isCreated).andReturn().response.contentAsString
+        val scenarioId = JsonPath.read<String>(response, "$.id")
+
+        mockMvc.perform(
+            post("/sessions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(outsider.id!!))
+                .content("""{"scenarioId":"$scenarioId"}""")
+        ).andExpect(status().isNotFound)
+
+        mockMvc.perform(
+            post("/sessions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(member.id!!))
+                .content("""{"scenarioId":"$scenarioId"}""")
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.currentPhase").value("INITIAL"))
+    }
+
+    @Test
+    fun `creating a custom scenario with a blank title is rejected`() {
+        val admin = createUser("scenario-admin5")
+        val orgId = createOrg(admin.id!!)
+
+        mockMvc.perform(
+            post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin.id!!))
+                .content("""{"title":"","domain":"x","initialPrompt":"a","followupPrompt":"b"}""")
+        ).andExpect(status().isBadRequest)
+    }
 }

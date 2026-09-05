@@ -34,6 +34,10 @@ class Scenario(
     @Column(name = "scoring_profile", columnDefinition = "jsonb")
     var scoringProfile: String? = null,
 
+    /** PLAN.md step 34 — null for public (Flyway-seeded) scenarios; set for a private scenario scoped to that organization. */
+    @Column(name = "organization_id")
+    var organizationId: UUID? = null,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant? = null,

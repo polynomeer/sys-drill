@@ -7,6 +7,7 @@ import com.sysdrill.backend.common.readIntMap
 import com.sysdrill.backend.common.web.ConflictException
 import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.identity.SkillProfileRepository
+import com.sysdrill.backend.organization.OrganizationAccessGuard
 import com.sysdrill.backend.scenario.ScenarioRepository
 import com.sysdrill.backend.scenario.ScenarioStepRepository
 import com.sysdrill.backend.scenario.ScenarioVersionRepository
@@ -34,6 +35,7 @@ class SessionService(
     private val reportService: ReportService,
     private val buildSubmissionRepository: BuildSubmissionRepository,
     private val skillProfileRepository: SkillProfileRepository,
+    private val organizationAccessGuard: OrganizationAccessGuard,
     private val objectMapper: ObjectMapper,
     @Value("\${sysdrill.session.interview-timer.initial-seconds}") private val initialTimerSeconds: Long,
     @Value("\${sysdrill.session.interview-timer.followup-seconds}") private val followupTimerSeconds: Long,
@@ -50,6 +52,8 @@ class SessionService(
     ): Session {
         val scenario = scenarioRepository.findById(scenarioId)
             .orElseThrow { NotFoundException("Scenario not found: $scenarioId") }
+        // PLAN.md step 34 — a private (org-scoped) scenario requires membership; public scenarios (organizationId == null) are open to any authenticated user, unchanged.
+        scenario.organizationId?.let { orgId -> organizationAccessGuard.requireMember(orgId, userId) }
         val version = scenarioVersionRepository
             .findFirstByScenarioIdAndStatusOrderByVersionNoDesc(scenario.id!!, "PUBLISHED")
             ?: throw NotFoundException("No published version for scenario: $scenarioId")

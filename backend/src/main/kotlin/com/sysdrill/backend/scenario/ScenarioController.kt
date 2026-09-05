@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import tools.jackson.databind.ObjectMapper
 
-/** docs/ARCHITECTURE.md §10 API table: GET /scenarios, GET /scenarios/{id}. */
+/** docs/ARCHITECTURE.md §10 API table: GET /scenarios, GET /scenarios/{id}. Public/unauthenticated — serves only public scenarios (PLAN.md step 34's org-scoped ones are 404 here, reachable only via /organizations/{orgId}/scenarios). */
 @RestController
 @RequestMapping("/scenarios")
 class ScenarioController(
@@ -19,26 +19,16 @@ class ScenarioController(
 ) {
 
     @GetMapping
-    fun list(): List<ScenarioSummaryResponse> = scenarioRepository.findAll().map { scenario ->
+    fun list(): List<ScenarioSummaryResponse> = scenarioRepository.findByOrganizationIdIsNull().map { scenario ->
         val content = contentItemRepository.findById(scenario.contentId).orElse(null)
-        ScenarioSummaryResponse(
-            id = scenario.id!!,
-            domain = scenario.domain,
-            title = content?.title ?: scenario.domain,
-            difficulty = content?.difficulty,
-        )
+        ScenarioResponses.toSummary(scenario, content)
     }
 
     @GetMapping("/{id}")
     fun get(@PathVariable id: UUID): ScenarioDetailResponse {
         val scenario = scenarioRepository.findById(id).orElseThrow { NotFoundException("Scenario not found: $id") }
+        if (scenario.organizationId != null) throw NotFoundException("Scenario not found: $id")
         val content = contentItemRepository.findById(scenario.contentId).orElse(null)
-        return ScenarioDetailResponse(
-            id = scenario.id!!,
-            domain = scenario.domain,
-            title = content?.title ?: scenario.domain,
-            difficulty = content?.difficulty,
-            baseRequirements = scenario.baseRequirements?.let { objectMapper.readValue(it, Any::class.java) },
-        )
+        return ScenarioResponses.toDetail(scenario, content, objectMapper)
     }
 }
