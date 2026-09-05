@@ -30,6 +30,14 @@ sysdrill:
     # PLAN.md step 35 — comma-separated emails that become PLATFORM_ADMIN on
     # signup. Empty by default (no platform admins) — set for local/demo use.
     platform-admin-emails: ${SYSDRILL_AUTH_PLATFORM_ADMIN_EMAILS:}
+    google:
+      # PLAN.md step 37 — "Google로 계속하기". Empty by default: GoogleAuthService
+      # refuses to build an authorization URL until these are set, since there's
+      # no meaningful offline fallback for identity verification (unlike
+      # AnthropicLlmClient's blank-api-key stub).
+      client-id: ${SYSDRILL_AUTH_GOOGLE_CLIENT_ID:}
+      client-secret: ${SYSDRILL_AUTH_GOOGLE_CLIENT_SECRET:}
+      redirect-uri: ${SYSDRILL_AUTH_GOOGLE_REDIRECT_URI:http://localhost:8081/auth/google/callback}
   organization:
     # PLAN.md step 32 — how long an email-bound invitation stays redeemable.
     invitation-ttl-days: ${SYSDRILL_ORG_INVITATION_TTL_DAYS:7}
