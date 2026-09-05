@@ -596,7 +596,25 @@ Phase 4 나머지 항목(Game Day/RBAC/SSO/Audit Log/온보딩 커리큘럼) 중
 - **신규 테스트에서 고정 리터럴 이메일(`bootstrap-admin@example.com` 등)을 썼다가 같은 로컬 Postgres에 스위트를 두 번째로 돌릴 때 409로 실패하는 걸 직접 겪었다.** `AuthControllerIntegrationTest`가 이미 `uniqueEmail()` 헬퍼로 이 문제를 피해온 이유를 그대로 재확인 — `@DynamicPropertySource`로 화이트리스트 이메일 자체를 테스트 클래스 로드 시 랜덤 생성해 고정 리터럴을 완전히 제거했다.
 - **403을 이 저장소에 처음 도입했다.** 기존 리소스 소유권 가드(Session/Organization)는 "존재 안 함"과 "권한 없음"을 구분하지 않고 전부 404로 통일해왔는데, 이번처럼 특정 리소스 인스턴스가 아니라 엔드포인트 전체에 걸린 역할 게이트에는 그 이유(존재 은폐)가 적용되지 않아 정직하게 403을 썼다 — ADR-0025에 근거를 남겼다.
 
-### 35단계+ 나머지 — Game Day, SSO, Audit Log, 온보딩 커리큘럼 (진행을 보고 그때 다시 스코프 판단)
+### 36단계 — Game Day v1 (관전 + 채팅) ✅ 완료 (2026-09-05)
+
+Phase 4 나머지 항목(Game Day/SSO/Audit Log/온보딩 커리큘럼) 중 사용자가 Game Day를 선택했고(AskUserQuestion), 그 안에서도 가장 작은 슬라이스인 "관전 + 채팅"을 골랐다(세션 오너 한 명이 계속 Wargame을 조작, 같은 조직 멤버들은 실시간으로 지켜보며 채팅). `docs/ARCHITECTURE.md`가 "WebSocket은 실시간 멀티플레이 워게임 이전에는 불필요하다"고 명시한 바로 그 지점이지만, 관전 전용이라 여전히 기존 3초 폴링만으로 충분했다.
+
+- [x] `SessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)` 신규 — `GET /sessions/{id}`, `GET .../simulation/state`, `GET .../simulation/timeline`에 적용, `submit`/`advance`/`incident`/`actions`는 기존 `requireOwner` 그대로(관전자는 절대 변형 불가)
+- [x] `SessionResponse`에 `isOwner: Boolean` 추가 — 31단계에서 프론트가 로컬 userId를 완전히 지운 터라 서버가 알려줘야 함
+- [x] 신규 채팅(`session_chat_messages` 테이블, `SessionChatController` — `POST/GET /sessions/{id}/chat`), Postgres 영속 + 폴링(WebSocket 없음)
+- [x] 신규 `GameDaySessionService` — `GET /organizations/{orgId}/game-day-sessions`로 "진행 중인 팀 세션" 목록 제공
+- [x] 프론트: `WargameLive.tsx`에 `isOwner` prop(관전자는 시작 게이트·대응 액션 패널·로컬 타임라인 숨김, 지표만 노출) + 채팅 패널 추가, `design/[sessionId]/page.tsx`에 `spectating` 뷰 분기(오너 전용 상태머신 완전 우회), 조직 페이지에 "진행 중인 팀 세션" 섹션 + "관전하기" 링크
+- [x] ADR-0026 작성
+
+**완료 기준 충족**: 백엔드 전체 214개 테스트 중 211개 통과 확인(나머지 3개는 전부 이번 변경과 무관 — 아래 진행 중 발견한 결정 사항 참고). curl + 실제 브라우저로 확인: 오너가 쿠폰 시나리오를 INCIDENT 단계까지 진행 → 같은 조직 멤버 계정으로 조직 페이지의 "진행 중인 팀 세션"에서 "관전하기" 클릭 → 실시간 지표가 3초마다 갱신되고 대응 액션 버튼은 안 보이는 관전 화면 확인 → 채팅으로 메시지 남기면 정상 표시 확인 → 오너 계정에선 기존과 동일하게 액션 패널이 그대로 보임(회귀 없음) 확인 → 비멤버 계정으로는 세션 조회·채팅·목록 전부 404 확인.
+
+**진행 중 발견한 결정 사항**:
+- **설계를 구현 도중에 한 번 뒤집었다.** 처음엔 관전 권한을 "세션의 시나리오가 조직 소유(`Scenario.organizationId`, 34단계)인가"로 설계했는데, 실제 브라우저 검증 중에 커스텀 시나리오는 34단계/ADR-0024에서 INITIAL+FOLLOWUP으로만 못박혀 있어 **애초에 INCIDENT 단계에 도달할 수 없다**는 걸 발견했다 — 즉 관전이 지켜볼 대상이 구조적으로 존재하지 않는 설계였다. 관전 권한을 "세션 오너와 내가 같은 조직 멤버인가"(어떤 시나리오든 무관)로 바꿔서, 실제로 INCIDENT가 있는 7개 공개 도메인 세션도 관전 가능하게 고쳤다. `GET /organizations/{orgId}/game-day-sessions`도 같은 이유로 "이 조직이 만든 시나리오의 세션"이 아니라 "이 조직 멤버가 진행 중인 세션"으로 바뀌었다. ADR-0026에 이 반전 자체를 기록했다.
+- **전체 테스트 스위트를 이번 세션에서만 세 번 다시 설계해야 했다 — 전부 "같은 로컬 인프라를 다른 프로세스와 공유"에서 비롯된 사고였다.** ①처음 돌린 전체 스위트가 사용자가 병렬로 돌리고 있던 다른 세션(35단계 완료 보고 직후 사용자가 "Fix flaky EvaluationWorkerIntegrationTest" 제안을 별도 세션으로 시작함, task_96adeffa)이 같은 로컬 Postgres에 자기만의 `V28` 마이그레이션(`unique active evaluation per submission`)을 적용해버려서 `FlywayValidateException`으로 전체 컨텍스트 로딩이 막혔다 — 내 `V28`(채팅 테이블)을 `V29`로 밀어냈다. ②그 다음엔 완전히 격리하려고 별도 Postgres/Redis 컨테이너(5555/6390 포트)를 띄워 재실행했는데, Redis만 격리하고 Postgres URL만 바꿨을 때 무관한 도메인(Build/Evaluation) 테스트 26개가 무더기로 실패해 원인을 추적한 끝에 Redis 큐도 같이 격리해야 한다는 걸 확인했다. ③Redis까지 격리한 뒤에도 실전 인프라 쿠폰 컨트롤러 테스트 2개가 남았는데, 원인은 `RealInfraCouponController`가 앱의 기본 데이터소스(`DB_PORT`로 격리됨)가 아니라 **Toxiproxy를 경유해 docker-compose Postgres 컨테이너에 고정 접속**하도록 의도적으로 설계돼 있어서(코드 주석에 이미 명시돼 있음 — Toxiproxy가 host 포트가 아니라 compose 내부 네트워크로 직접 접속) 내 격리된 Postgres가 그 경로엔 아예 안 보였던 것 — 진짜 버그가 아니라 이번 임시 격리 인프라가 그 경로까지는 못 미친 것으로 최종 확인했다. **교훈**: 이 저장소의 로컬 개발 인프라(Postgres/Redis/Toxiproxy/Kafka/Jaeger)는 다른 동시 세션과 공유되며, 실전 인프라 기능(Toxiproxy 경유)은 앱의 `DB_PORT`/`REDIS_PORT` 오버라이드로 격리되지 않는다.
+- **`EvaluationWorkerIntegrationTest`의 "duplicate delivery..." 실패는 35단계에서 이미 발견해 별도 세션으로 넘긴 사전 존재 결함(task_96adeffa)이라 이번에도 무관하게 재확인만 했다.**
+
+### 35단계+ 나머지 — SSO, Audit Log, 온보딩 커리큘럼 (진행을 보고 그때 다시 스코프 판단)
 
 ---
 
