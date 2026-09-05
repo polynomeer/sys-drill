@@ -190,8 +190,9 @@ object RuleEvaluator {
     val domainByRiskKey: Map<String, String> =
         conceptsByDomain.flatMap { (domain, concepts) -> concepts.map { it.riskKey to domain } }.toMap()
 
+    /** PLAN.md step 34 — an unrecognized domain (e.g. an org's custom scenario) yields no findings rather than silently borrowing coupon's rubric, which would grade unrelated text against the wrong keywords. */
     fun evaluate(rawText: String?, domain: String): List<RuleFinding> {
-        val concepts = conceptsByDomain[domain] ?: couponConcepts
+        val concepts = conceptsByDomain[domain] ?: return emptyList()
         val text = (rawText ?: "").lowercase()
         return concepts
             .filter { concept -> concept.keywords.none { text.contains(it.lowercase()) } }

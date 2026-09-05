@@ -77,8 +77,8 @@ class RuleEvaluatorTest {
     }
 
     @Test
-    fun `falls back to coupon concepts for an unknown domain`() {
-        assertThat(RuleEvaluator.evaluate(null, "unknown-domain")).hasSize(4)
+    fun `returns no findings for an unknown domain`() {
+        assertThat(RuleEvaluator.evaluate(null, "unknown-domain")).isEmpty()
     }
 
     @Test
