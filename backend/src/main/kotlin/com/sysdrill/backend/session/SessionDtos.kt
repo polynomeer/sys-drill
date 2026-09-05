@@ -35,9 +35,11 @@ data class SessionResponse(
     val phaseDeadlineAt: Instant?,
     val startedAt: Instant,
     val completedAt: Instant?,
+    /** PLAN.md step 36 — the frontend keeps no local userId (removed in step 31), so it needs the server to say whether the caller is the owner or a Game Day spectator. */
+    val isOwner: Boolean,
 ) {
     companion object {
-        fun from(session: Session, currentStepPrompt: String?, domain: String, phaseDeadlineAt: Instant?) = SessionResponse(
+        fun from(session: Session, currentStepPrompt: String?, domain: String, phaseDeadlineAt: Instant?, callerId: UUID) = SessionResponse(
             id = session.id!!,
             status = session.status,
             currentPhase = session.currentPhase,
@@ -49,6 +51,7 @@ data class SessionResponse(
             phaseDeadlineAt = phaseDeadlineAt,
             startedAt = session.startedAt,
             completedAt = session.completedAt,
+            isOwner = session.userId == callerId,
         )
     }
 }

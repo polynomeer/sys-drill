@@ -1,6 +1,7 @@
 package com.sysdrill.backend.session
 
 import com.sysdrill.backend.common.web.NotFoundException
+import com.sysdrill.backend.organization.OrganizationMembershipRepository
 import com.sysdrill.backend.submission.Submission
 import com.sysdrill.backend.submission.SubmissionRepository
 import java.util.UUID
@@ -16,12 +17,34 @@ import org.springframework.stereotype.Component
 class SessionAccessGuard(
     private val sessionRepository: SessionRepository,
     private val submissionRepository: SubmissionRepository,
+    private val organizationMembershipRepository: OrganizationMembershipRepository,
 ) {
 
     fun requireOwner(sessionId: UUID, userId: UUID): Session {
         val session = sessionRepository.findById(sessionId)
             .orElseThrow { NotFoundException("Session not found: $sessionId") }
         if (session.userId != userId) throw NotFoundException("Session not found: $sessionId")
+        return session
+    }
+
+    /**
+     * PLAN.md step 36 (Game Day) — read-only access for the owner or a Game
+     * Day spectator: anyone who shares *any* organization with the session's
+     * owner, regardless of which scenario the session is on. This is
+     * deliberately not tied to the scenario's own organizationId (step
+     * 34/ADR-0024) — a custom scenario never reaches the Incident/Wargame
+     * phase spectating exists to watch, so scoping by "does the org own this
+     * scenario" would make Game Day watch nothing in practice. Mutating
+     * endpoints (submit/advance/incident actions) stay on [requireOwner] —
+     * spectating never allows changing state.
+     */
+    fun requireOwnerOrSpectator(sessionId: UUID, userId: UUID): Session {
+        val session = sessionRepository.findById(sessionId)
+            .orElseThrow { NotFoundException("Session not found: $sessionId") }
+        if (session.userId == userId) return session
+        val ownerOrgIds = organizationMembershipRepository.findByUserId(session.userId).map { it.organizationId }.toSet()
+        val callerOrgIds = organizationMembershipRepository.findByUserId(userId).map { it.organizationId }.toSet()
+        if (ownerOrgIds.none { it in callerOrgIds }) throw NotFoundException("Session not found: $sessionId")
         return session
     }
 

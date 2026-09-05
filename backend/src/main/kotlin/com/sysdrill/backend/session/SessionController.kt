@@ -44,7 +44,7 @@ class SessionController(
         val session = sessionService.startSession(
             userId, request.scenarioId, request.buildSubmissionId, request.seed, request.interviewMode,
         )
-        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(session))
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(session, userId))
     }
 
     /** PLAN.md step 31 — dashboard's "최근 진행" panel; used to be `GET /users/{userId}/sessions`. */
@@ -60,10 +60,11 @@ class SessionController(
             )
         }
 
+    /** PLAN.md step 36 — a Game Day spectator (member of the session's scenario's organization) may also view this. */
     @GetMapping("/{id}")
     fun get(@PathVariable id: UUID, @AuthenticatedUserId userId: UUID): SessionResponse {
-        sessionAccessGuard.requireOwner(id, userId)
-        return toResponse(sessionService.getSession(id))
+        sessionAccessGuard.requireOwnerOrSpectator(id, userId)
+        return toResponse(sessionService.getSession(id), userId)
     }
 
     @PostMapping("/{id}/submissions")
@@ -80,7 +81,7 @@ class SessionController(
     @PostMapping("/{id}/advance")
     fun advance(@PathVariable id: UUID, @AuthenticatedUserId userId: UUID): SessionResponse {
         sessionAccessGuard.requireOwner(id, userId)
-        return toResponse(sessionService.advance(id))
+        return toResponse(sessionService.advance(id), userId)
     }
 
     private fun resolveScenarioTitle(scenarioVersionId: UUID): String {
@@ -90,11 +91,12 @@ class SessionController(
         return content?.title ?: scenario.domain
     }
 
-    private fun toResponse(session: Session): SessionResponse =
+    private fun toResponse(session: Session, callerId: UUID): SessionResponse =
         SessionResponse.from(
             session,
             sessionService.getCurrentStepPrompt(session),
             sessionService.getScenarioDomain(session),
             sessionService.getPhaseDeadline(session),
+            callerId,
         )
 }

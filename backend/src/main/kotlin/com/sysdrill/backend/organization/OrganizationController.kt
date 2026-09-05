@@ -5,6 +5,8 @@ import com.sysdrill.backend.scenario.CreateCustomScenarioRequest
 import com.sysdrill.backend.scenario.CustomScenarioService
 import com.sysdrill.backend.scenario.ScenarioDetailResponse
 import com.sysdrill.backend.scenario.ScenarioSummaryResponse
+import com.sysdrill.backend.session.GameDaySessionResponse
+import com.sysdrill.backend.session.GameDaySessionService
 import jakarta.validation.Valid
 import java.util.UUID
 import org.springframework.http.HttpStatus
@@ -22,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController
 class OrganizationController(
     private val organizationService: OrganizationService,
     private val customScenarioService: CustomScenarioService,
+    private val gameDaySessionService: GameDaySessionService,
 ) {
 
     @PostMapping
@@ -109,4 +112,9 @@ class OrganizationController(
         @PathVariable scenarioId: UUID,
         @AuthenticatedUserId userId: UUID,
     ): ScenarioDetailResponse = customScenarioService.getForOrganization(orgId, scenarioId, userId)
+
+    /** PLAN.md step 36 — Game Day: active sessions on this org's custom scenarios, spectatable by any member. */
+    @GetMapping("/{orgId}/game-day-sessions")
+    fun listGameDaySessions(@PathVariable orgId: UUID, @AuthenticatedUserId userId: UUID): List<GameDaySessionResponse> =
+        gameDaySessionService.listActiveForOrganization(orgId, userId)
 }

@@ -430,4 +430,99 @@ class OrganizationControllerIntegrationTest(
                 .content("""{"title":"","domain":"x","initialPrompt":"a","followupPrompt":"b"}""")
         ).andExpect(status().isBadRequest)
     }
+
+    private fun startCustomScenarioSession(orgId: UUID, admin: UUID, owner: UUID): UUID {
+        val response = mockMvc.perform(
+            post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin))
+                .content(customScenarioBody)
+        ).andExpect(status().isCreated).andReturn().response.contentAsString
+        val scenarioId = JsonPath.read<String>(response, "$.id")
+
+        val sessionResponse = mockMvc.perform(
+            post("/sessions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(owner))
+                .content("""{"scenarioId":"$scenarioId"}""")
+        ).andExpect(status().isCreated).andReturn().response.contentAsString
+        return UUID.fromString(JsonPath.read(sessionResponse, "$.id"))
+    }
+
+    @Test
+    fun `a fellow org member can spectate a teammate's session but not submit or advance it`() {
+        val admin = createUser("gd-admin")
+        val owner = createUser("gd-owner")
+        val spectator = createUser("gd-spectator")
+        val outsider = createUser("gd-outsider")
+        val orgId = createOrg(admin.id!!)
+        for (u in listOf(owner, spectator)) {
+            val token = invite(orgId, admin.id!!, u.email)
+            mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(u.id!!)))
+        }
+        val sessionId = startCustomScenarioSession(orgId, admin.id!!, owner.id!!)
+
+        mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(spectator.id!!)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.isOwner").value(false))
+        mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(owner.id!!)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.isOwner").value(true))
+
+        mockMvc.perform(
+            post("/sessions/$sessionId/submissions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(spectator.id!!))
+                .content("""{"rawText":"x"}""")
+        ).andExpect(status().isNotFound)
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(spectator.id!!)))
+            .andExpect(status().isNotFound)
+
+        mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(outsider.id!!)))
+            .andExpect(status().isNotFound)
+    }
+
+    /** Fixed scenario_version id seeded by V2__seed_coupon_scenario.sql — has a real INCIDENT step, unlike a custom scenario (step 34/ADR-0024's INITIAL+FOLLOWUP-only cut). */
+    private val couponScenarioVersionIdForSpectating = UUID.fromString("a0000000-0000-0000-0000-000000000003")
+
+    @Test
+    fun `spectating is not scoped to the organization's own custom scenarios -- a public-scenario session works too`() {
+        val admin = createUser("gd3-admin")
+        val owner = createUser("gd3-owner")
+        val outsider = createUser("gd3-outsider")
+        val orgId = createOrg(admin.id!!)
+        val token = invite(orgId, admin.id!!, owner.email)
+        mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(owner.id!!)))
+
+        val session = sessionRepository.save(
+            Session(
+                userId = owner.id!!,
+                scenarioVersionId = couponScenarioVersionIdForSpectating,
+                status = SessionStatus.IN_PROGRESS,
+                currentPhase = "INCIDENT",
+            )
+        )
+
+        mockMvc.perform(get("/sessions/${session.id}").header("Authorization", bearerHeader(admin.id!!)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.isOwner").value(false))
+        mockMvc.perform(get("/sessions/${session.id}").header("Authorization", bearerHeader(outsider.id!!)))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `game-day active session listing shows in-progress org sessions to members and excludes completed ones, 404s for non-members`() {
+        val admin = createUser("gd2-admin")
+        val owner = createUser("gd2-owner")
+        val outsider = createUser("gd2-outsider")
+        val orgId = createOrg(admin.id!!)
+        val token = invite(orgId, admin.id!!, owner.email)
+        mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(owner.id!!)))
+        val sessionId = startCustomScenarioSession(orgId, admin.id!!, owner.id!!)
+
+        mockMvc.perform(get("/organizations/$orgId/game-day-sessions").header("Authorization", bearerHeader(admin.id!!)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[?(@.sessionId == '$sessionId')]").isNotEmpty)
+            .andExpect(jsonPath("$[?(@.sessionId == '$sessionId')].ownerNickname").value("gd2-owner"))
+
+        mockMvc.perform(get("/organizations/$orgId/game-day-sessions").header("Authorization", bearerHeader(outsider.id!!)))
+            .andExpect(status().isNotFound)
+    }
 }

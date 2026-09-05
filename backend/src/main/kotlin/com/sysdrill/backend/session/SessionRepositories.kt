@@ -33,6 +33,9 @@ interface SessionRepository : JpaRepository<Session, UUID> {
 
     fun findByUserIdOrderByStartedAtDesc(userId: UUID): List<Session>
 
+    /** PLAN.md step 36 — Game Day's active-session listing: every non-terminal session started by one of these organization members. */
+    fun findByUserIdInAndStatusNotIn(userIds: Collection<UUID>, excludedStatuses: Collection<SessionStatus>): List<Session>
+
     /** PLAN.md step 33 — the org dashboard's per-member roster; one query for every member instead of N. */
     @Query(
         "select s.userId as userId, count(s) as completedCount, max(s.completedAt) as lastCompletedAt " +

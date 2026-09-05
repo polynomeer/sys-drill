@@ -29,9 +29,10 @@ class SimulationController(
         return SystemStateResponse.from(simulationService.startIncident(sessionId, realInfra))
     }
 
+    /** PLAN.md step 36 — a Game Day spectator may also view live state. */
     @GetMapping("/state")
     fun getState(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): SystemStateResponse {
-        sessionAccessGuard.requireOwner(sessionId, userId)
+        sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
         return SystemStateResponse.from(simulationService.getState(sessionId))
     }
 
@@ -45,9 +46,10 @@ class SimulationController(
         return SystemStateResponse.from(simulationService.applyAction(sessionId, request.actionType))
     }
 
+    /** PLAN.md step 36 — a Game Day spectator may also view the timeline. */
     @GetMapping("/timeline")
     fun getTimeline(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): List<TimelineStepResponse> {
-        sessionAccessGuard.requireOwner(sessionId, userId)
+        sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
         return simulationService.getTimeline(sessionId).map(TimelineStepResponse::from)
     }
 }
