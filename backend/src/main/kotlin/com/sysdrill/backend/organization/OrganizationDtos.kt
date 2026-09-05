@@ -66,3 +66,12 @@ data class InvitationPreviewResponse(
     val expired: Boolean,
     val alreadyResolved: Boolean,
 )
+
+data class AuditLogEntryResponse(
+    val id: UUID,
+    val actorNickname: String,
+    val actorEmail: String,
+    val action: OrganizationAuditAction,
+    val detail: Any?,
+    val createdAt: Instant?,
+)

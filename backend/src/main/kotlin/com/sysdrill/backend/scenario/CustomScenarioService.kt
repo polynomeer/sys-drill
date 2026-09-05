@@ -4,6 +4,8 @@ import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.content.ContentItem
 import com.sysdrill.backend.content.ContentItemRepository
 import com.sysdrill.backend.organization.OrganizationAccessGuard
+import com.sysdrill.backend.organization.OrganizationAuditAction
+import com.sysdrill.backend.organization.OrganizationAuditLogService
 import java.util.UUID
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -23,6 +25,7 @@ class CustomScenarioService(
     private val scenarioVersionRepository: ScenarioVersionRepository,
     private val scenarioStepRepository: ScenarioStepRepository,
     private val accessGuard: OrganizationAccessGuard,
+    private val auditLog: OrganizationAuditLogService,
     private val objectMapper: ObjectMapper,
 ) {
 
@@ -56,6 +59,7 @@ class CustomScenarioService(
                 content = objectMapper.writeValueAsString(mapOf("prompt" to request.followupPrompt)),
             )
         )
+        auditLog.record(orgId, adminUserId, OrganizationAuditAction.CUSTOM_SCENARIO_CREATED, mapOf("scenarioId" to scenario.id.toString(), "title" to request.title))
         return ScenarioResponses.toDetail(scenario, content, objectMapper)
     }
 

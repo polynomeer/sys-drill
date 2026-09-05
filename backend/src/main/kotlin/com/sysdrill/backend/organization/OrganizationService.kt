@@ -25,6 +25,7 @@ class OrganizationService(
     private val skillProfileRepository: SkillProfileRepository,
     private val objectMapper: ObjectMapper,
     private val accessGuard: OrganizationAccessGuard,
+    private val auditLog: OrganizationAuditLogService,
     @Value("\${sysdrill.organization.invitation-ttl-days}") private val invitationTtlDays: Long,
 ) {
 
@@ -34,6 +35,7 @@ class OrganizationService(
         membershipRepository.save(
             OrganizationMembership(organizationId = organization.id!!, userId = userId, role = OrganizationRole.ADMIN)
         )
+        auditLog.record(organization.id!!, userId, OrganizationAuditAction.ORGANIZATION_CREATED)
         return toDetail(organization, userId)
     }
 
@@ -108,6 +110,7 @@ class OrganizationService(
                 expiresAt = Instant.now().plusSeconds(invitationTtlDays * 24 * 3600),
             )
         )
+        auditLog.record(orgId, adminUserId, OrganizationAuditAction.MEMBER_INVITED, mapOf("email" to normalizedEmail, "role" to role.name))
         return toInvitationResponse(invitation)
     }
 
@@ -128,6 +131,7 @@ class OrganizationService(
         }
         invitation.status = OrganizationInvitationStatus.REVOKED
         invitationRepository.save(invitation)
+        auditLog.record(orgId, adminUserId, OrganizationAuditAction.INVITATION_REVOKED, mapOf("email" to invitation.inviteeEmail))
     }
 
     fun previewInvitation(token: String): InvitationPreviewResponse {
@@ -163,6 +167,7 @@ class OrganizationService(
         )
         invitation.status = OrganizationInvitationStatus.ACCEPTED
         invitationRepository.save(invitation)
+        auditLog.record(invitation.organizationId, userId, OrganizationAuditAction.MEMBER_JOINED)
 
         val organization = organizationRepository.findById(invitation.organizationId)
             .orElseThrow { NotFoundException("Organization not found: ${invitation.organizationId}") }
@@ -176,6 +181,7 @@ class OrganizationService(
             ?: throw NotFoundException("Member not found: $targetUserId")
         requireNotLastAdmin(orgId, target)
         membershipRepository.delete(target)
+        auditLog.record(orgId, adminUserId, OrganizationAuditAction.MEMBER_REMOVED, mapOf("targetUserId" to targetUserId.toString()))
     }
 
     @Transactional
@@ -183,6 +189,7 @@ class OrganizationService(
         val membership = accessGuard.requireMember(orgId, userId)
         requireNotLastAdmin(orgId, membership)
         membershipRepository.delete(membership)
+        auditLog.record(orgId, userId, OrganizationAuditAction.MEMBER_LEFT)
     }
 
     private fun requireNotLastAdmin(orgId: UUID, membership: OrganizationMembership) {

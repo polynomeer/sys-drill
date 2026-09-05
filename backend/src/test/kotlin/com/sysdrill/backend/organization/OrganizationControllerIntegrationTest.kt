@@ -525,4 +525,40 @@ class OrganizationControllerIntegrationTest(
         mockMvc.perform(get("/organizations/$orgId/game-day-sessions").header("Authorization", bearerHeader(outsider.id!!)))
             .andExpect(status().isNotFound)
     }
+
+    @Test
+    fun `admin actions are recorded in order with the right actor and detail, and non-admins are rejected`() {
+        val admin = createUser("audit-admin")
+        val member = createUser("audit-member")
+        val outsider = createUser("audit-outsider")
+        val orgId = createOrg(admin.id!!)
+
+        val token = invite(orgId, admin.id!!, member.email)
+        mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(member.id!!)))
+        mockMvc.perform(
+            post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin.id!!))
+                .content(customScenarioBody)
+        ).andExpect(status().isCreated)
+        mockMvc.perform(delete("/organizations/$orgId/members/${member.id}").header("Authorization", bearerHeader(admin.id!!)))
+            .andExpect(status().isNoContent)
+
+        mockMvc.perform(get("/organizations/$orgId/audit-log").header("Authorization", bearerHeader(outsider.id!!)))
+            .andExpect(status().isNotFound)
+        mockMvc.perform(get("/organizations/$orgId/audit-log").header("Authorization", bearerHeader(member.id!!)))
+            .andExpect(status().isNotFound)
+
+        val response = mockMvc.perform(get("/organizations/$orgId/audit-log").header("Authorization", bearerHeader(admin.id!!)))
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+        val entries = JsonPath.read<List<Map<String, Any?>>>(response, "$")
+        // Most recent first.
+        assertThat(entries.map { it["action"] }).containsExactly(
+            "MEMBER_REMOVED", "CUSTOM_SCENARIO_CREATED", "MEMBER_JOINED", "MEMBER_INVITED", "ORGANIZATION_CREATED",
+        )
+        assertThat(entries[0]["actorNickname"]).isEqualTo("audit-admin")
+        @Suppress("UNCHECKED_CAST")
+        assertThat((entries[0]["detail"] as Map<String, Any?>)["targetUserId"]).isEqualTo(member.id.toString())
+        assertThat(entries[2]["actorNickname"]).isEqualTo("audit-member")
+    }
 }

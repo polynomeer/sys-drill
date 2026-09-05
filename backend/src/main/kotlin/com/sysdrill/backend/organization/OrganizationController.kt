@@ -25,6 +25,7 @@ class OrganizationController(
     private val organizationService: OrganizationService,
     private val customScenarioService: CustomScenarioService,
     private val gameDaySessionService: GameDaySessionService,
+    private val organizationAuditLogService: OrganizationAuditLogService,
 ) {
 
     @PostMapping
@@ -45,6 +46,11 @@ class OrganizationController(
     @GetMapping("/{orgId}/dashboard")
     fun dashboard(@PathVariable orgId: UUID, @AuthenticatedUserId userId: UUID): OrganizationDashboardResponse =
         organizationService.getDashboard(orgId, userId)
+
+    /** PLAN.md step 38 — organization admin-action audit log (docs/adr/0029). */
+    @GetMapping("/{orgId}/audit-log")
+    fun auditLog(@PathVariable orgId: UUID, @AuthenticatedUserId userId: UUID): List<AuditLogEntryResponse> =
+        organizationAuditLogService.list(orgId, userId)
 
     @PostMapping("/{orgId}/invitations")
     fun invite(
