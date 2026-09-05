@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   ApiError,
+  GameDaySession,
   OrganizationDetail,
   OrganizationInvitation,
   OrganizationRole,
@@ -13,6 +14,7 @@ import {
   getOrganization,
   inviteMember,
   leaveOrganization,
+  listGameDaySessions,
   listInvitations,
   listOrganizationScenarios,
   removeMember,
@@ -34,6 +36,7 @@ export default function OrganizationDetailPage() {
   const [org, setOrg] = useState<OrganizationDetail | null>(null);
   const [invitations, setInvitations] = useState<OrganizationInvitation[]>([]);
   const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
+  const [gameDaySessions, setGameDaySessions] = useState<GameDaySession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,6 +57,7 @@ export default function OrganizationDetailPage() {
     const detail = await getOrganization(orgId);
     setOrg(detail);
     setScenarios(await listOrganizationScenarios(orgId));
+    setGameDaySessions(await listGameDaySessions(orgId));
     if (detail.myRole === "ADMIN") {
       setInvitations(await listInvitations(orgId));
     }
@@ -200,6 +204,26 @@ export default function OrganizationDetailPage() {
         <button onClick={handleLeave} className="mt-4 text-xs text-zinc-500 underline">
           나가기
         </button>
+      </section>
+
+      <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
+        <h2 className="mb-3 text-sm font-semibold text-zinc-500">진행 중인 팀 세션 (Game Day)</h2>
+        {gameDaySessions.length === 0 && <p className="text-sm text-zinc-500">지금 진행 중인 팀 세션이 없습니다.</p>}
+        <ul className="flex flex-col gap-2">
+          {gameDaySessions.map((s) => (
+            <li key={s.sessionId} className="flex items-center justify-between text-sm">
+              <span>
+                {s.scenarioTitle}
+                <span className="ml-2 text-xs text-zinc-500">
+                  {s.ownerNickname} · {s.currentPhase ?? s.status}
+                </span>
+              </span>
+              <Link href={`/design/${s.sessionId}`} className="text-xs text-blue-600 underline dark:text-blue-400">
+                관전하기
+              </Link>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">

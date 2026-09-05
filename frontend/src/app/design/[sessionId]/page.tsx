@@ -115,7 +115,10 @@ type ViewState =
   | "result"
   | "advancing"
   | "failed"
-  | "completed";
+  | "completed"
+  | "spectating";
+
+const SPECTATOR_POLL_INTERVAL_MS = 3000;
 
 export default function DesignWorkspacePage() {
   const params = useParams<{ sessionId: string }>();
@@ -184,6 +187,12 @@ export default function DesignWorkspacePage() {
     const fetched = await getSession(sessionId);
     setSession(fetched);
     setFeedback(null);
+    // PLAN.md step 36 — a Game Day spectator never enters the owner's submit/advance
+    // state machine below; they get a separate read-only view entirely.
+    if (!fetched.isOwner) {
+      setView("spectating");
+      return;
+    }
     if (fetched.status === "IN_PROGRESS") {
       setAnswer(loadDraft(sessionId));
       setView("editing");
@@ -211,6 +220,20 @@ export default function DesignWorkspacePage() {
     return () => stopPolling();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  // PLAN.md step 36 — a spectator keeps polling the session itself (not just
+  // WargameLive's own state poll) to notice phase changes and completion.
+  useEffect(() => {
+    if (view !== "spectating") return;
+    const timer = setInterval(() => {
+      getSession(sessionId)
+        .then(setSession)
+        .catch(() => {
+          // transient failure — the next poll tick may succeed
+        });
+    }, SPECTATOR_POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [view, sessionId]);
 
   function handleAnswerChange(value: string) {
     setAnswer(value);
@@ -287,7 +310,22 @@ export default function DesignWorkspacePage() {
         </section>
       )}
 
-      {isIncident && (view === "editing" || view === "submitting") && <WargameLive sessionId={sessionId} domain={domain} />}
+      {isIncident && (view === "editing" || view === "submitting") && (
+        <WargameLive sessionId={sessionId} domain={domain} isOwner />
+      )}
+
+      {view === "spectating" && session && (
+        <div className="flex flex-col gap-4">
+          <p className="rounded border border-zinc-300 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+            관전 중입니다 — {session.status === "COMPLETED" ? "이 세션은 종료되었습니다." : "오너가 진행 중인 세션을 실시간으로 보고 있습니다."}
+          </p>
+          {session.currentPhase === "INCIDENT" ? (
+            <WargameLive sessionId={sessionId} domain={domain} isOwner={false} />
+          ) : (
+            <p className="text-sm text-zinc-500">아직 장애 대응 단계가 아닙니다. 오너가 설계를 진행 중입니다.</p>
+          )}
+        </div>
+      )}
 
       {(view === "editing" || view === "submitting") && (
         <>

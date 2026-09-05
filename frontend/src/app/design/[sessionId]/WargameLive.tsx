@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiError,
+  ChatMessage,
   SimulationActionType,
   SystemState,
   applySimulationAction,
   getSimulationState,
+  listChatMessages,
+  postChatMessage,
   startIncident,
 } from "@/lib/api";
 import { formatMs, formatPercent, utilizationColorClass } from "@/lib/metrics";
@@ -166,19 +169,29 @@ const REAL_INFRA_START_EVENT: Record<string, string> = {
 /** PLAN.md step 7's MetricsPanel/ActionPanel — EventStream/Timeline are merged into
  * one client-side log below since there's no backend timeline API yet. Actions and
  * the incident event text are keyed by scenario domain (PLAN.md step 11). */
-export function WargameLive({ sessionId, domain }: { sessionId: string; domain: string }) {
+export function WargameLive({
+  sessionId,
+  domain,
+  isOwner = true,
+}: {
+  sessionId: string;
+  domain: string;
+  /** PLAN.md step 36 — Game Day spectator: hides the incident-start gate and action panel, read-only metrics only. */
+  isOwner?: boolean;
+}) {
   const ACTIONS = ACTIONS_BY_DOMAIN[domain] ?? ACTIONS_BY_DOMAIN.coupon;
   const [state, setState] = useState<SystemState | null>(null);
   const [appliedActions, setAppliedActions] = useState<Set<SimulationActionType>>(new Set());
   const [events, setEvents] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState<SimulationActionType | null>(null);
+  const [notStarted, setNotStarted] = useState(false);
   const started = useRef(false);
 
   // PLAN.md step 21/27 — only domains with a real-infra opt-in (REAL_INFRA_DOMAINS)
   // ever show this pre-start gate; every other domain keeps auto-starting
-  // immediately, unchanged.
-  const [awaitingStartChoice, setAwaitingStartChoice] = useState(REAL_INFRA_DOMAINS.has(domain));
+  // immediately, unchanged. A spectator never sees this gate — only the owner starts the incident.
+  const [awaitingStartChoice, setAwaitingStartChoice] = useState(isOwner && REAL_INFRA_DOMAINS.has(domain));
   const [realInfraChoice, setRealInfraChoice] = useState(false);
 
   const addEvent = useCallback((message: string) => {
@@ -189,15 +202,22 @@ export function WargameLive({ sessionId, domain }: { sessionId: string; domain: 
     try {
       const current = await getSimulationState(sessionId);
       setState(current);
+      setNotStarted(false);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 404 && !started.current) {
-        started.current = true;
-        const initial = await startIncident(sessionId);
-        setState(initial);
-        addEvent(INCIDENT_EVENT_BY_DOMAIN[domain] ?? INCIDENT_EVENT_BY_DOMAIN.coupon);
+      if (err instanceof ApiError && err.status === 404) {
+        if (!isOwner) {
+          setNotStarted(true);
+          return;
+        }
+        if (!started.current) {
+          started.current = true;
+          const initial = await startIncident(sessionId);
+          setState(initial);
+          addEvent(INCIDENT_EVENT_BY_DOMAIN[domain] ?? INCIDENT_EVENT_BY_DOMAIN.coupon);
+        }
       }
     }
-  }, [sessionId, domain, addEvent]);
+  }, [sessionId, domain, addEvent, isOwner]);
 
   useEffect(() => {
     if (awaitingStartChoice) return;
@@ -265,6 +285,15 @@ export function WargameLive({ sessionId, domain }: { sessionId: string; domain: 
     );
   }
 
+  if (notStarted) {
+    return (
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-zinc-500">아직 인시던트가 시작되지 않았습니다. 곧 시작되면 여기에 표시됩니다.</p>
+        <SessionChat sessionId={sessionId} />
+      </div>
+    );
+  }
+
   if (!state) {
     return <p className="text-sm text-zinc-500">시뮬레이션을 시작하는 중...</p>;
   }
@@ -273,39 +302,115 @@ export function WargameLive({ sessionId, domain }: { sessionId: string; domain: 
     <div className="flex flex-col gap-4">
       <MetricsPanel state={state} domain={domain} />
       <div className="grid gap-4 md:grid-cols-2">
-        <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-          <h2 className="mb-3 text-sm font-semibold text-zinc-500">대응 액션</h2>
-          <div className="flex flex-col gap-2">
-            {ACTIONS.map((action) => (
-              <button
-                key={action.type}
-                onClick={() => handleApply(action.type)}
-                disabled={applying !== null || appliedActions.has(action.type)}
-                title={action.effect}
-                className="rounded border border-zinc-300 px-3 py-2 text-left text-sm disabled:opacity-50 dark:border-zinc-700"
-              >
-                <span className="font-medium">
-                  {appliedActions.has(action.type) ? "✓ " : ""}
-                  {action.label}
-                </span>
-                <span className="mt-0.5 block text-xs text-zinc-500">{action.effect}</span>
-              </button>
-            ))}
-          </div>
-        </section>
+        {isOwner && (
+          <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
+            <h2 className="mb-3 text-sm font-semibold text-zinc-500">대응 액션</h2>
+            <div className="flex flex-col gap-2">
+              {ACTIONS.map((action) => (
+                <button
+                  key={action.type}
+                  onClick={() => handleApply(action.type)}
+                  disabled={applying !== null || appliedActions.has(action.type)}
+                  title={action.effect}
+                  className="rounded border border-zinc-300 px-3 py-2 text-left text-sm disabled:opacity-50 dark:border-zinc-700"
+                >
+                  <span className="font-medium">
+                    {appliedActions.has(action.type) ? "✓ " : ""}
+                    {action.label}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-zinc-500">{action.effect}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
-        <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-          <h2 className="mb-3 text-sm font-semibold text-zinc-500">타임라인</h2>
-          <ul className="flex flex-col gap-1 text-xs text-zinc-600 dark:text-zinc-400">
-            {events.map((event, i) => (
-              <li key={i}>{event}</li>
-            ))}
-          </ul>
-        </section>
+        {isOwner && (
+          <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
+            <h2 className="mb-3 text-sm font-semibold text-zinc-500">타임라인</h2>
+            <ul className="flex flex-col gap-1 text-xs text-zinc-600 dark:text-zinc-400">
+              {events.map((event, i) => (
+                <li key={i}>{event}</li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <SessionChat sessionId={sessionId} />
     </div>
+  );
+}
+
+const CHAT_POLL_INTERVAL_MS = 3000;
+
+/** PLAN.md step 36 — Game Day's spectate-and-chat channel, shown to both the owner and any spectator once the Wargame view is visible. */
+function SessionChat({ sessionId }: { sessionId: string }) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      setMessages(await listChatMessages(sessionId));
+    } catch {
+      // transient failure — the next poll tick may succeed
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refresh();
+    const timer = setInterval(refresh, CHAT_POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [refresh]);
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    if (!draft.trim()) return;
+    setSending(true);
+    try {
+      await postChatMessage(sessionId, draft.trim());
+      setDraft("");
+      await refresh();
+    } catch {
+      // leave the draft in place so the user can retry
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
+      <h2 className="mb-3 text-sm font-semibold text-zinc-500">채팅</h2>
+      <ul className="mb-3 flex max-h-48 flex-col gap-1 overflow-y-auto text-sm">
+        {messages.length === 0 && <li className="text-xs text-zinc-500">아직 메시지가 없습니다.</li>}
+        {messages.map((m) => (
+          <li key={m.id}>
+            <span className="font-medium">{m.authorNickname}</span>
+            <span className="text-zinc-500">: </span>
+            {m.body}
+          </li>
+        ))}
+      </ul>
+      <form onSubmit={handleSend} className="flex gap-2">
+        <input
+          className="flex-1 rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="메시지를 입력하세요"
+        />
+        <button
+          type="submit"
+          disabled={sending}
+          className="rounded bg-foreground px-3 py-1.5 text-sm font-medium text-background disabled:opacity-50"
+        >
+          보내기
+        </button>
+      </form>
+    </section>
   );
 }
 

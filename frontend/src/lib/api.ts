@@ -109,6 +109,25 @@ export interface SessionResponse {
   phaseDeadlineAt: string | null;
   startedAt: string;
   completedAt: string | null;
+  isOwner: boolean;
+}
+
+export interface ChatMessage {
+  id: string;
+  authorUserId: string;
+  authorNickname: string;
+  body: string;
+  createdAt: string | null;
+}
+
+export interface GameDaySession {
+  sessionId: string;
+  scenarioTitle: string;
+  ownerNickname: string;
+  domain: string;
+  status: SessionStatus;
+  currentPhase: string | null;
+  startedAt: string;
 }
 
 export interface SubmissionResponse {
@@ -478,4 +497,20 @@ export function createCustomScenario(orgId: string, request: CreateCustomScenari
 
 export function listOrganizationScenarios(orgId: string): Promise<ScenarioSummary[]> {
   return apiFetch<ScenarioSummary[]>(`/organizations/${orgId}/scenarios`);
+}
+
+/** PLAN.md step 36 — Game Day: active sessions on this org's custom scenarios, spectatable by any member. */
+export function listGameDaySessions(orgId: string): Promise<GameDaySession[]> {
+  return apiFetch<GameDaySession[]>(`/organizations/${orgId}/game-day-sessions`);
+}
+
+export function listChatMessages(sessionId: string): Promise<ChatMessage[]> {
+  return apiFetch<ChatMessage[]>(`/sessions/${sessionId}/chat`);
+}
+
+export function postChatMessage(sessionId: string, body: string): Promise<ChatMessage> {
+  return apiFetch<ChatMessage>(`/sessions/${sessionId}/chat`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
 }
