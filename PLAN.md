@@ -614,7 +614,24 @@ Phase 4 나머지 항목(Game Day/SSO/Audit Log/온보딩 커리큘럼) 중 사�
 - **전체 테스트 스위트를 이번 세션에서만 세 번 다시 설계해야 했다 — 전부 "같은 로컬 인프라를 다른 프로세스와 공유"에서 비롯된 사고였다.** ①처음 돌린 전체 스위트가 사용자가 병렬로 돌리고 있던 다른 세션(35단계 완료 보고 직후 사용자가 "Fix flaky EvaluationWorkerIntegrationTest" 제안을 별도 세션으로 시작함, task_96adeffa)이 같은 로컬 Postgres에 자기만의 `V28` 마이그레이션(`unique active evaluation per submission`)을 적용해버려서 `FlywayValidateException`으로 전체 컨텍스트 로딩이 막혔다 — 내 `V28`(채팅 테이블)을 `V29`로 밀어냈다. ②그 다음엔 완전히 격리하려고 별도 Postgres/Redis 컨테이너(5555/6390 포트)를 띄워 재실행했는데, Redis만 격리하고 Postgres URL만 바꿨을 때 무관한 도메인(Build/Evaluation) 테스트 26개가 무더기로 실패해 원인을 추적한 끝에 Redis 큐도 같이 격리해야 한다는 걸 확인했다. ③Redis까지 격리한 뒤에도 실전 인프라 쿠폰 컨트롤러 테스트 2개가 남았는데, 원인은 `RealInfraCouponController`가 앱의 기본 데이터소스(`DB_PORT`로 격리됨)가 아니라 **Toxiproxy를 경유해 docker-compose Postgres 컨테이너에 고정 접속**하도록 의도적으로 설계돼 있어서(코드 주석에 이미 명시돼 있음 — Toxiproxy가 host 포트가 아니라 compose 내부 네트워크로 직접 접속) 내 격리된 Postgres가 그 경로엔 아예 안 보였던 것 — 진짜 버그가 아니라 이번 임시 격리 인프라가 그 경로까지는 못 미친 것으로 최종 확인했다. **교훈**: 이 저장소의 로컬 개발 인프라(Postgres/Redis/Toxiproxy/Kafka/Jaeger)는 다른 동시 세션과 공유되며, 실전 인프라 기능(Toxiproxy 경유)은 앱의 `DB_PORT`/`REDIS_PORT` 오버라이드로 격리되지 않는다.
 - **`EvaluationWorkerIntegrationTest`의 "duplicate delivery..." 실패는 35단계에서 이미 발견해 별도 세션으로 넘긴 사전 존재 결함(task_96adeffa)이라 이번에도 무관하게 재확인만 했다.**
 
-### 35단계+ 나머지 — SSO, Audit Log, 온보딩 커리큘럼 (진행을 보고 그때 다시 스코프 판단)
+### 37단계 — Google 로그인 (SSO v1) ✅ 완료 (2026-09-05)
+
+Phase 4 마지막 큰 항목. ROADMAP/PRD엔 "SSO"라는 한 줄 외에 스펙이 없어 사용자에게 범위를 확인했고(AskUserQuestion), 조직별 IdP 강제나 SAML이 아니라 **가장 작은 슬라이스인 "Google 로그인 추가"**를 선택했다 — 기존 이메일/비밀번호 로그인과 나란한 대안, 이메일 일치 시 기존 계정에 자동 연결.
+
+- [x] 신규 `auth/GoogleOAuthClient.kt` — ID 토큰 로컬 서명 검증(JWKS 캐싱·키 로테이션 필요) 대신 Google의 `userinfo` 엔드포인트를 호출해 신원 확인. `LlmClient`와 동일한 "인터페이스로 외부 I/O 격리" 패턴
+- [x] 신규 `auth/GoogleAuthService.kt` — CSRF `state`는 Redis 1회성 토큰(5분 TTL), 신규 계정은 아무도 모르는 랜덤 UUID를 BCrypt 해싱한 비밀번호로 생성(비밀번호 로그인 암호학적으로 불가능, 스키마 변경 없음), `email_verified=false`는 거부
+- [x] 신규 `auth/GoogleAuthController.kt` — `GET /auth/google/login`(302 → Google 동의 화면), `GET /auth/google/callback`(302 → 프론트, 토큰/닉네임은 쿼리스트링이 아니라 URL fragment로 전달)
+- [x] 프론트: 로그인 페이지에 "Google로 계속하기" 버튼(일반 네비게이션, CORS 무관), 신규 `/auth/google/complete` 페이지(fragment 파싱 → 로그인 처리 → 대시보드 이동)
+- [x] 신규 `FakeGoogleOAuthClient`(`@TestConfiguration` + `@Primary`, 모킹 프레임워크 아닌 순수 Spring DI 치환 — 이 저장소는 Mockito/mockk를 전혀 안 씀) + `GoogleAuthControllerIntegrationTest`(5개) + `GoogleAuthNotConfiguredTest`(1개)
+- [x] ADR-0028 작성
+
+**완료 기준 충족**: 백엔드 전체 220개 테스트 중 218개 통과(신규 6개 전부 포함, 나머지 2개는 36단계에서 이미 원인 규명한 것과 동일한 무관 사고 — 아래 참고). 실제 Google 계정 인증 없이는 전체 플로우를 재현할 수 없어(OAuth 앱 등록 필요), 계정 생성/연결/state 검증/이메일 미인증 거부 로직은 `GoogleAuthControllerIntegrationTest`가 커버하고, curl로 `GET /auth/google/login`이 올바른 Google URL로 302 리다이렉트하는지(설정 시)와 설정이 없으면 400을 반환하는지(기본값), 브라우저로 로그인 페이지 버튼과 `/auth/google/complete` 페이지의 fragment 파싱·로그인 처리·리다이렉트를 각각 확인했다.
+
+**진행 중 발견한 결정 사항**:
+- **다시 로컬 인프라 공유 사고를 겪었다 — 이번엔 삭제된 다른 세션이 남긴 orphan 마이그레이션.** 사용자가 앞서 시작했던 "flaky EvaluationWorkerIntegrationTest 수정" 별도 세션이 삭제됐는데, 그 세션이 공유 로컬 Postgres에 자기만의 `V28`(`unique active evaluation per submission`) 마이그레이션을 이미 적용해놓은 채로 사라져서, 그 파일이 이 체크아웃엔 없는 채로 DB엔 적용 기록만 남아 있었다 — 공유 Postgres를 쓰는 모든 실행이 한동안 `FlywayValidateException`으로 막혔다. 내용을 모르는 마이그레이션을 함부로 복원하거나 `flyway repair`하지 않고, 36단계에서 이미 검증된 방식대로 완전히 별도의 Postgres/Redis 컨테이너를 띄워 작업을 계속했다. 나중에 확인해보니 그 세션은 실제로 PR로 병합돼 있었다(`fix(backend): 평가 파이프라인 중복 딜리버리 레이스 수정`, EvaluationWorker에 DB 유니크 제약 기반 멱등성 추가) — `git fetch` 시점에 발견해 병합했다. 그 커밋도 ADR 번호로 `0027`을 썼는데 내가 이미 같은 번호로 Google 로그인 ADR을 써둔 상태라 번호가 충돌했다 — 내 쪽을 `0028`로 밀어서 해결.
+- **RealInfraCoupon 관련 2개 테스트 실패는 36단계에서 이미 규명한 것과 정확히 같은 원인(Toxiproxy가 앱의 `DB_PORT` 오버라이드와 무관하게 docker-compose Postgres에 고정 접속)임을 재확인만 했다.**
+
+### 35단계+ 나머지 — Audit Log, 온보딩 커리큘럼 (진행을 보고 그때 다시 스코프 판단)
 
 ---
 

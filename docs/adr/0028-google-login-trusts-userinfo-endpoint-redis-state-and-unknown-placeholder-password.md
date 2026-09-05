@@ -1,0 +1,13 @@
+---
+status: accepted
+---
+
+# Google login trusts the userinfo endpoint instead of verifying the ID token locally, uses a Redis one-time token for CSRF state, and gives Google-only accounts a password nobody knows
+
+`GoogleOAuthClient` completes the Authorization Code flow by exchanging the code for an access token, then calling Google's `userinfo` endpoint (`GET https://www.googleapis.com/oauth2/v3/userinfo`) to get the verified email/name — it never fetches Google's JWKS or checks the ID token's JWT signature locally. Verifying an ID token properly means caching Google's public keys and handling their rotation; the access token itself is already proof of a real, completed Google auth (only Google can issue one its own `userinfo` endpoint accepts), so a second, self-implemented verification layer adds machinery without adding trust. This matches this codebase's established preference for direct, small implementations over adopting a framework for something used in one place (`AuthController` already skips `spring-boot-starter-security`; `AnthropicLlmClient` is a thin direct client, not a provider SDK) — `spring-security-oauth2-client` was deliberately not added for the same reason.
+
+The OAuth `state` parameter (CSRF/login-fixation protection) is a random UUID stored in Redis with a 5-minute TTL and deleted on first use, not a signed stateless token. This app already leans on Redis for short-lived, disposable state elsewhere (`SimulationStateStore`, evaluation queues); a plain existence-and-delete check is simpler to read and verify correctly than designing a new signed-token format for a single call site.
+
+A Google-only account (no matching existing email) gets `passwordHash = BCryptPasswordEncoder().encode(<random UUID>)` — a real BCrypt hash of a value nobody, including this server after the request completes, ever knows. This keeps `User.passwordHash` `NOT NULL` with no migration, and makes password login for that account cryptographically impossible rather than merely unimplemented. If a real password is later set for that account (a "add a password" flow), this is just an ordinary password change — no special-casing needed elsewhere.
+
+None of this is testable against the real Google servers in CI, so `GoogleOAuthClient` is an interface with the real implementation swapped for `FakeGoogleOAuthClient` in tests via ordinary Spring `@TestConfiguration`/`@Primary` DI — this codebase uses no mocking framework (grep confirms zero Mockito/mockk usage), so this is the one place external-service faking happens, and it happens through the same "isolate external I/O behind a small interface" shape as `LlmClient`, not a new pattern.
