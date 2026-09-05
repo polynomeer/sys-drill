@@ -1,5 +1,7 @@
 package com.sysdrill.backend.evaluation
 
+import com.sysdrill.backend.auth.AuthenticatedUserId
+import com.sysdrill.backend.auth.PlatformAccessGuard
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import java.time.Instant
@@ -31,21 +33,33 @@ data class PromptTemplateResponse(
     }
 }
 
+/** PLAN.md step 35 — platform-admin-only (see [PlatformAccessGuard]); previously entirely unauthenticated. */
 @RestController
 @RequestMapping("/admin/prompt-templates")
-class PromptTemplateController(private val service: PromptTemplateService) {
+class PromptTemplateController(
+    private val service: PromptTemplateService,
+    private val platformAccessGuard: PlatformAccessGuard,
+) {
 
     @PostMapping
-    fun create(@Valid @RequestBody request: CreatePromptTemplateRequest): ResponseEntity<PromptTemplateResponse> {
+    fun create(
+        @AuthenticatedUserId userId: UUID,
+        @Valid @RequestBody request: CreatePromptTemplateRequest,
+    ): ResponseEntity<PromptTemplateResponse> {
+        platformAccessGuard.requirePlatformAdmin(userId)
         val created = service.create(request.purpose, request.templateBody)
         return ResponseEntity.status(HttpStatus.CREATED).body(PromptTemplateResponse.from(created))
     }
 
     @GetMapping
-    fun list(@RequestParam purpose: String): List<PromptTemplateResponse> =
-        service.listVersions(purpose).map(PromptTemplateResponse::from)
+    fun list(@AuthenticatedUserId userId: UUID, @RequestParam purpose: String): List<PromptTemplateResponse> {
+        platformAccessGuard.requirePlatformAdmin(userId)
+        return service.listVersions(purpose).map(PromptTemplateResponse::from)
+    }
 
     @PostMapping("/{id}/activate")
-    fun activate(@PathVariable id: UUID): PromptTemplateResponse =
-        PromptTemplateResponse.from(service.activate(id))
+    fun activate(@AuthenticatedUserId userId: UUID, @PathVariable id: UUID): PromptTemplateResponse {
+        platformAccessGuard.requirePlatformAdmin(userId)
+        return PromptTemplateResponse.from(service.activate(id))
+    }
 }

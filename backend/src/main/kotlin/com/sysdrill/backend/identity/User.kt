@@ -2,6 +2,8 @@ package com.sysdrill.backend.identity
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
@@ -32,6 +34,11 @@ class User(
 
     @Column(name = "primary_stack")
     var primaryStack: String? = null,
+
+    /** PLAN.md step 35 — platform-wide RBAC, distinct from a per-organization [com.sysdrill.backend.organization.OrganizationRole]. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "platform_role", nullable = false)
+    var platformRole: PlatformRole = PlatformRole.USER,
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

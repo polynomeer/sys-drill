@@ -27,6 +27,9 @@ sysdrill:
     # accepted); a real deployment must override this via env var.
     jwt-secret: ${SYSDRILL_AUTH_JWT_SECRET:dev-only-insecure-secret-change-me}
     token-ttl-days: ${SYSDRILL_AUTH_TOKEN_TTL_DAYS:30}
+    # PLAN.md step 35 — comma-separated emails that become PLATFORM_ADMIN on
+    # signup. Empty by default (no platform admins) — set for local/demo use.
+    platform-admin-emails: ${SYSDRILL_AUTH_PLATFORM_ADMIN_EMAILS:}
   organization:
     # PLAN.md step 32 — how long an email-bound invitation stays redeemable.
     invitation-ttl-days: ${SYSDRILL_ORG_INVITATION_TTL_DAYS:7}

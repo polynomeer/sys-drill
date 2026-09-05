@@ -2,9 +2,11 @@ package com.sysdrill.backend.auth
 
 import com.sysdrill.backend.common.web.ConflictException
 import com.sysdrill.backend.common.web.UnauthorizedException
+import com.sysdrill.backend.identity.PlatformRole
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
 import jakarta.validation.Valid
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
@@ -26,8 +28,15 @@ import org.springframework.web.bind.annotation.RestController
 class AuthController(
     private val userRepository: UserRepository,
     private val jwtService: JwtService,
+    @Value("\${sysdrill.auth.platform-admin-emails:}") platformAdminEmails: String,
 ) {
     private val passwordEncoder = BCryptPasswordEncoder()
+
+    // PLAN.md step 35 — the only way to become PLATFORM_ADMIN: no promote/demote
+    // API exists, since a user-facing endpoint that grants platform-wide admin
+    // is itself a privilege-escalation hole. An ops-configured allowlist lets a
+    // known operator email self-provision on signup instead.
+    private val platformAdminEmailSet = platformAdminEmails.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
 
     @PostMapping("/signup")
     fun signup(@Valid @RequestBody request: SignupRequest): ResponseEntity<AuthResponse> {
@@ -41,6 +50,7 @@ class AuthController(
                 nickname = request.nickname,
                 experienceYears = request.experienceYears,
                 primaryStack = request.primaryStack,
+                platformRole = if (request.email.lowercase() in platformAdminEmailSet) PlatformRole.PLATFORM_ADMIN else PlatformRole.USER,
             )
         )
         val token = jwtService.issue(user.id!!)
