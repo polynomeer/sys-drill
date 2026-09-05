@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ApiError, login } from "@/lib/api";
+import { API_BASE_URL, ApiError, login } from "@/lib/api";
 import { storeUser } from "@/lib/localSession";
 
 export default function LoginPage() {
@@ -73,6 +73,20 @@ export default function LoginPage() {
           {submitting ? "로그인하는 중..." : "로그인"}
         </button>
       </form>
+
+      <div className="flex items-center gap-3 text-xs text-zinc-400">
+        <div className="h-px flex-1 bg-zinc-300 dark:bg-zinc-700" />
+        또는
+        <div className="h-px flex-1 bg-zinc-300 dark:bg-zinc-700" />
+      </div>
+
+      {/* PLAN.md step 37 — plain browser navigation, not a fetch call: this starts a redirect-based OAuth flow, so CORS never applies. */}
+      <a
+        href={`${API_BASE_URL}/auth/google/login`}
+        className="rounded border border-zinc-300 px-4 py-2 text-center text-sm font-medium dark:border-zinc-700"
+      >
+        Google로 계속하기
+      </a>
 
       <p className="text-center text-sm text-zinc-500">
         아직 계정이 없으신가요?{" "}
