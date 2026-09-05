@@ -1,0 +1,11 @@
+---
+status: accepted
+---
+
+# Organization-scoped custom scenarios are authored via API, coexisting with migration-seeded public content, and v1 is scoped to Design+Tail-Design with LLM-only evaluation
+
+An org ADMIN can create a private scenario (`POST /organizations/{orgId}/scenarios`) reachable only by that organization's members, using the same `Scenario`/`ScenarioVersion`/`ScenarioStep`/`ContentItem` tables the seven public scenarios already use — distinguished only by a new nullable `Scenario.organizationId`. This does not reverse [0002](0002-content-via-migrations-not-admin-crud.md): public scenarios still ship as Flyway seeds, and `GET /scenarios`/`GET /scenarios/{id}` still serve only those (an org-scoped scenario 404s there). The two content-authoring paths coexist by scope, not by replacing one with the other — 0002's reasoning (a handful of scenarios written by the platform's own team) still holds for public content; it just doesn't hold for a per-organization scenario an outside admin writes about their own incident.
+
+A custom scenario is fixed to exactly two steps (INITIAL, FOLLOWUP) — no Incident/Wargame step, and evaluation is LLM-only (`RuleEvaluator` is effectively bypassed for it). This was a real fork against including Wargame support: `RuleBasedSimulationEngine.computeState`/`applyAction` dispatch on `Scenario.domain` through a hardcoded 7-way `when` with `else -> error(...)`, and `RuleEvaluator.conceptsByDomain` is a hardcoded per-domain keyword map — an org's freely-chosen `domain` string will never match either. Reaching an Incident step would either crash the simulation or require an org to author its own simulation formulas and rubric keywords, which is a substantially larger feature. Cutting Wargame from v1 keeps this change from touching either hardcoded dispatch at all.
+
+While making that cut, `RuleEvaluator.evaluate()`'s existing fallback for an unrecognized domain — silently reusing `couponConcepts` — was changed to return no findings instead. That fallback predates this feature and was already live for any unrecognized domain, but a custom scenario's freely-chosen domain string is the first realistic way to hit it in practice, and grading unrelated text against coupon's keywords is worse than grading it against none.

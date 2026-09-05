@@ -557,7 +557,26 @@ Phase 4의 첫 실제 기능. `docs/ROADMAP.md`의 한 줄짜리 항목 외에�
 - **팀 대시보드 접근을 ADMIN 전용으로 제한했다.** MEMBER가 다른 멤버의 개인 훈련 현황(완료 세션 수·추세)을 보는 것은 "관리자가 팀 훈련 상태를 파악한다"는 PRD의 Team/Enterprise 티어 취지를 벗어난 프라이버시 노출이 될 수 있어, 32단계에서 이미 확립된 `requireAdmin`(비회원·비-ADMIN 모두 404) 컨벤션을 그대로 재사용했다.
 - **집계를 멤버 수만큼 N+1 쿼리로 하지 않고 벌크 쿼리 2개로 묶었다.** 이번 구현에서는 멤버 수가 적어 체감 차이가 없지만, 조직 규모가 커질 걸 감안해 처음부터 `IN`/`GROUP BY` 기반으로 작성 — 별도 트레이드오프가 있는 결정이 아니라 그냥 더 나은 기본형이라 ADR은 남기지 않았다.
 
-### 34단계 — Private/커스텀 시나리오 (예정)
+### 34단계 — Private/커스텀 시나리오 ✅ 완료 (2026-09-04)
+
+조직이 사내 장애 사례를 익명화해 자체 시나리오로 만드는 기능(ROADMAP.md Phase 4 항목). 이전 세션에서 v1 스코프 확인 질문(AskUserQuestion)이 거부되어 중단됐던 지점을, 자동 모드 지침에 따라 재질문 없이 그때 "권장" 옵션으로 제시했던 범위(설계+꼬리설계만, Wargame 제외, LLM 단독 평가)로 직접 진행했다.
+
+- [x] `Scenario`에 `organizationId: UUID?` 추가(`V26__add_scenario_organization.sql`, `organizations(id) on delete cascade`) — null이면 기존 공개 시나리오(Flyway 시드), 값이 있으면 그 조직 전용 커스텀 시나리오. ADR-0001(순수 UUID 스칼라 참조) 재적용
+- [x] 신규 `CustomScenarioService`(scenario 패키지) — `OrganizationAccessGuard.requireAdmin`/`requireMember` 재사용, 기존 `ContentItem`/`Scenario`/`ScenarioVersion`/`ScenarioStep` 테이블을 그대로 재사용해 정확히 2단계(INITIAL, FOLLOWUP)만 생성 — 분기/다중 FOLLOWUP 없음
+- [x] `POST/GET /organizations/{orgId}/scenarios`, `GET /organizations/{orgId}/scenarios/{scenarioId}` 신규(`OrganizationController`) — 이미 보호된 `/organizations/**` 경로라 `AuthWebConfig` 변경 불필요
+- [x] `GET /scenarios`, `GET /scenarios/{id}`(기존 공개 엔드포인트)는 인증 모델을 바꾸지 않고 `organizationId != null`인 시나리오만 걸러냄(`list()`는 미노출, `get(id)`는 404) — `ScenarioResponses`로 두 컨트롤러의 응답 조립 로직 공유
+- [x] `SessionService.startSession`에 조직 스코프 체크 추가 — `scenario.organizationId != null`이면 `organizationAccessGuard.requireMember` 호출, 비멤버는 404 (지금까지 이 체크가 전혀 없었던 보안 공백을 메움)
+- [x] `RuleEvaluator.evaluate()`의 조용한 coupon 폴백(`conceptsByDomain[domain] ?: couponConcepts`)을 `?: emptyList()`로 수정 — 커스텀 시나리오의 자유 도메인 문자열이 우연히 coupon 루브릭으로 잘못 채점되는 걸 방지. 기존 7개 도메인은 전부 맵에 있어 무영향
+- [x] 프론트엔드: 조직 상세 페이지에 커스텀 시나리오 섹션(목록 + "세션 시작" 버튼 전 멤버, 생성 폼 ADMIN 전용)
+- [x] `RuleEvaluatorTest`의 기존 "falls back to coupon" 테스트를 "returns no findings" 로 교체, `OrganizationControllerIntegrationTest`에 6개 케이스 추가(생성/권한/공개 엔드포인트 비노출/세션 시작 스코프/유효성 검증)
+- [x] ADR-0024 작성 — ADR-0002의 전면 폐기가 아닌 부분 공존, Wargame을 v1에서 뺀 이유(하드코딩된 도메인 화이트리스트), RuleEvaluator 폴백 수정 이유를 함께 기록
+
+**완료 기준 충족**: 신규 6개 포함 백엔드 전체 203개 테스트 통과(0 실패, 43개 테스트 클래스). curl로 비-ADMIN 생성 시도 404 / ADMIN 생성 201 / 공개 목록·상세에 비노출 / 비멤버 세션 시작 404 / 멤버 세션 시작 201을 확인했고, 이어서 실제로 INITIAL 제출 → 평가(riskFlags 빈 배열로 coupon 폴백이 사라졌음을 직접 확인) → advance → FOLLOWUP 제출 → 평가 → advance까지 전체 2단계 플로우가 COMPLETED로 끝나는 것을 curl로 확인했다. 실제 브라우저로 관리자 계정 로그인 → 조직 상세 페이지에서 커스텀 시나리오 생성 → 같은 조직 멤버 계정으로 "세션 시작" 클릭 → 설계 화면에 커스텀 초기 프롬프트가 정확히 표시됨을 확인, 대시보드의 공개 시나리오 목록엔 이 커스텀 시나리오가 보이지 않음을 확인.
+
+**진행 중 발견한 결정 사항**:
+- **전체 테스트 스위트를 처음 돌렸을 때 `RealInfraSessionSweepWorkerTest`의 캡처된 로그가 26GB까지 자라며 멈추지 않는 사고가 있었다.** 원인은 이번 변경과 무관 — Postgres/Redis만 띄운 채(Toxiproxy/Jaeger/Kafka 없이) 실전 인프라 테스트를 돌리면서, 컨텍스트 종료 시점에 `BuildRunnerWorker`/`EvaluationWorker`의 백그라운드 폴링 루프가 끊기지 않은 Redis 연결에 대해 예외를 반복적으로 던지며 로그를 쏟아내는(pre-existing) 셧다운 경합이 전체 스위트의 수십 개 테스트 클래스에 걸쳐 누적된 것. 프로세스를 강제 종료하고 거대 로그 파일을 삭제한 뒤, Docker 스택 전체(toxiproxy/jaeger/kafka 포함)를 띄우고 재실행하니 5분대에 정상 종료됐다 — 디스크 공간 여유(1.1TB)가 있어 실질 피해는 없었지만, 앞으로 실전 인프라 테스트를 포함한 전체 스위트를 돌릴 땐 반드시 `docker compose up -d`로 5개 서비스를 전부 띄운 상태에서 실행해야 한다는 걸 기록해 둔다.
+- **커스텀 시나리오는 정확히 2단계(INITIAL, FOLLOWUP) 고정, 분기/다중 FOLLOWUP 미지원으로 스코프를 컷했다.** 기존 공개 시나리오처럼 `triggerCondition` 기반 분기나 여러 FOLLOWUP 변형을 조직 관리자가 직접 저작하게 하려면 그만큼 입력 폼이 복잡해지는데, v1의 목적(사내 장애 하나를 빠르게 시나리오화)에는 필요 이상이라 가장 작은 슬라이스로 시작했다 — 필요해지면 이후 단계에서 확장.
+
 ### 35단계+ — Game Day, RBAC, SSO, Audit Log, 온보딩 커리큘럼 (34단계까지의 진행을 보고 그때 다시 스코프 판단)
 
 ---
