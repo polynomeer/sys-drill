@@ -97,6 +97,20 @@ tasks.withType<Test> {
 	maxHeapSize = "3g"
 }
 
+// Deletes leftover realinfra-notify-* Kafka topics from crashed/interrupted
+// NotificationTopicProvisionerTest runs against the shared docker-compose
+// broker (see CleanupStaleKafkaTopics.kt) — driven by
+// scripts/cleanup-stale-kafka-topics.sh, not meant to be run directly.
+tasks.register<JavaExec>("cleanupStaleKafkaTopics") {
+	group = "kafka"
+	description = "Deletes stale realinfra-notify-* Kafka topics left behind by crashed test runs."
+	classpath = sourceSets["main"].runtimeClasspath
+	mainClass.set("com.sysdrill.backend.tools.CleanupStaleKafkaTopicsKt")
+	val bootstrapServers = project.findProperty("bootstrapServers") as String? ?: "localhost:19092"
+	args = listOfNotNull(bootstrapServers, "--yes".takeIf { project.hasProperty("yes") })
+	standardInput = System.`in`
+}
+
 // Loads backend/.env.local (if present) as environment variables for local
 // `bootRun` only — never for `test`, which relies on AnthropicLlmClient's
 // offline fallback and shouldn't depend on (or require) a real API key.
