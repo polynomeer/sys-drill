@@ -86,6 +86,15 @@ allOpen {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	// Gradle's default test worker heap (512m) is too small for this suite: 41
+	// @SpringBootTest classes each load their own context, and Spring's test
+	// context cache keeps several alive at once (HikariCP pool + thread pools
+	// per context) within the same worker JVM. Without headroom the worker hits
+	// OutOfMemoryError but doesn't always die cleanly — it can spend hours
+	// GC-thrashing instead of failing fast (observed: 8+ hours pinned at ~500%
+	// CPU with no output after RealInfraCouponControllerSessionTrackingTest hit
+	// "Java heap space").
+	maxHeapSize = "3g"
 }
 
 // Loads backend/.env.local (if present) as environment variables for local
