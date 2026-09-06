@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -26,6 +27,7 @@ class OrganizationController(
     private val customScenarioService: CustomScenarioService,
     private val gameDaySessionService: GameDaySessionService,
     private val organizationAuditLogService: OrganizationAuditLogService,
+    private val curriculumService: OrganizationCurriculumService,
 ) {
 
     @PostMapping
@@ -123,4 +125,16 @@ class OrganizationController(
     @GetMapping("/{orgId}/game-day-sessions")
     fun listGameDaySessions(@PathVariable orgId: UUID, @AuthenticatedUserId userId: UUID): List<GameDaySessionResponse> =
         gameDaySessionService.listActiveForOrganization(orgId, userId)
+
+    /** PLAN.md step 39 — the organization's single onboarding curriculum (docs/adr/0030: advisory, not gated). */
+    @PutMapping("/{orgId}/curriculum")
+    fun setCurriculum(
+        @PathVariable orgId: UUID,
+        @AuthenticatedUserId userId: UUID,
+        @Valid @RequestBody request: SetCurriculumRequest,
+    ): CurriculumResponse = curriculumService.setCurriculum(orgId, userId, request.scenarioIds)
+
+    @GetMapping("/{orgId}/curriculum")
+    fun getCurriculum(@PathVariable orgId: UUID, @AuthenticatedUserId userId: UUID): CurriculumResponse =
+        curriculumService.getCurriculum(orgId, userId)
 }

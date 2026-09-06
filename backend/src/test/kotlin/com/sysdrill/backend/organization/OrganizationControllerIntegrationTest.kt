@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import tools.jackson.databind.ObjectMapper
@@ -560,5 +561,88 @@ class OrganizationControllerIntegrationTest(
         @Suppress("UNCHECKED_CAST")
         assertThat((entries[0]["detail"] as Map<String, Any?>)["targetUserId"]).isEqualTo(member.id.toString())
         assertThat(entries[2]["actorNickname"]).isEqualTo("audit-member")
+    }
+
+    /** Fixed scenario id seeded by V2__seed_coupon_scenario.sql — a public scenario, distinct from its scenario_version id used elsewhere in this file. */
+    private val couponScenarioId = UUID.fromString("a0000000-0000-0000-0000-000000000002")
+
+    private fun createCustomScenarioOnly(orgId: UUID, admin: UUID): UUID {
+        val response = mockMvc.perform(
+            post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin))
+                .content(customScenarioBody)
+        ).andExpect(status().isCreated).andReturn().response.contentAsString
+        return UUID.fromString(JsonPath.read(response, "$.id"))
+    }
+
+    @Test
+    fun `curriculum can mix public and custom scenarios, orders them, and retroactively counts completion`() {
+        val admin = createUser("curr-admin")
+        val member = createUser("curr-member")
+        val outsider = createUser("curr-outsider")
+        val orgId = createOrg(admin.id!!)
+        val token = invite(orgId, admin.id!!, member.email)
+        mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(member.id!!)))
+        val customScenarioId = createCustomScenarioOnly(orgId, admin.id!!)
+
+        // The member already completed the public scenario before the curriculum existed.
+        sessionRepository.save(
+            Session(userId = member.id!!, scenarioVersionId = couponScenarioVersionIdForSpectating, status = SessionStatus.COMPLETED, completedAt = Instant.now())
+        )
+
+        mockMvc.perform(
+            put("/organizations/$orgId/curriculum").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(member.id!!))
+                .content("""{"scenarioIds":["$couponScenarioId","$customScenarioId"]}""")
+        ).andExpect(status().isNotFound)
+
+        mockMvc.perform(
+            put("/organizations/$orgId/curriculum").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin.id!!))
+                .content("""{"scenarioIds":["$couponScenarioId","$customScenarioId"]}""")
+        ).andExpect(status().isOk)
+
+        mockMvc.perform(get("/organizations/$orgId/curriculum").header("Authorization", bearerHeader(outsider.id!!)))
+            .andExpect(status().isNotFound)
+
+        val response = mockMvc.perform(get("/organizations/$orgId/curriculum").header("Authorization", bearerHeader(member.id!!)))
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+        val steps = JsonPath.read<List<Map<String, Any?>>>(response, "$.steps")
+        assertThat(steps).hasSize(2)
+        assertThat(steps[0]["scenarioId"]).isEqualTo(couponScenarioId.toString())
+        assertThat(steps[0]["completed"]).isEqualTo(true)
+        assertThat(steps[1]["scenarioId"]).isEqualTo(customScenarioId.toString())
+        assertThat(steps[1]["completed"]).isEqualTo(false)
+
+        // Re-saving fully replaces the curriculum.
+        mockMvc.perform(
+            put("/organizations/$orgId/curriculum").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin.id!!))
+                .content("""{"scenarioIds":["$customScenarioId"]}""")
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.steps.length()").value(1))
+            .andExpect(jsonPath("$.steps[0].scenarioId").value(customScenarioId.toString()))
+
+        val auditResponse = mockMvc.perform(get("/organizations/$orgId/audit-log").header("Authorization", bearerHeader(admin.id!!)))
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+        val auditActions = JsonPath.read<List<Map<String, Any?>>>(auditResponse, "$").map { it["action"] }
+        assertThat(auditActions).contains("CURRICULUM_UPDATED")
+    }
+
+    @Test
+    fun `a curriculum cannot reference another organization's private scenario`() {
+        val admin = createUser("curr2-admin")
+        val otherAdmin = createUser("curr2-other-admin")
+        val orgId = createOrg(admin.id!!)
+        val otherOrgId = createOrg(otherAdmin.id!!)
+        val otherOrgScenarioId = createCustomScenarioOnly(otherOrgId, otherAdmin.id!!)
+
+        mockMvc.perform(
+            put("/organizations/$orgId/curriculum").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin.id!!))
+                .content("""{"scenarioIds":["$otherOrgScenarioId"]}""")
+        ).andExpect(status().isNotFound)
     }
 }

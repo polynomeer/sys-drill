@@ -9,4 +9,5 @@ enum class OrganizationAuditAction {
     MEMBER_REMOVED,
     MEMBER_LEFT,
     CUSTOM_SCENARIO_CREATED,
+    CURRICULUM_UPDATED,
 }

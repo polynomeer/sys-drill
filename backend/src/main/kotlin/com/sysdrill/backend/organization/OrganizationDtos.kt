@@ -3,6 +3,7 @@ package com.sysdrill.backend.organization
 import com.sysdrill.backend.identity.TrendDirection
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotEmpty
 import java.time.Instant
 import java.util.UUID
 
@@ -74,4 +75,20 @@ data class AuditLogEntryResponse(
     val action: OrganizationAuditAction,
     val detail: Any?,
     val createdAt: Instant?,
+)
+
+data class SetCurriculumRequest(
+    @field:NotEmpty val scenarioIds: List<UUID>,
+)
+
+data class CurriculumStepResponse(
+    val scenarioId: UUID,
+    val title: String,
+    val domain: String,
+    val order: Int,
+    val completed: Boolean,
+)
+
+data class CurriculumResponse(
+    val steps: List<CurriculumStepResponse>,
 )
