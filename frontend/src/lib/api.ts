@@ -67,7 +67,8 @@ export type OrganizationAuditAction =
   | "MEMBER_JOINED"
   | "MEMBER_REMOVED"
   | "MEMBER_LEFT"
-  | "CUSTOM_SCENARIO_CREATED";
+  | "CUSTOM_SCENARIO_CREATED"
+  | "CURRICULUM_UPDATED";
 
 export interface AuditLogEntry {
   id: string;
@@ -477,6 +478,30 @@ export function getOrganizationDashboard(orgId: string): Promise<OrganizationDas
 /** PLAN.md step 38 — organization admin-action audit log. */
 export function listAuditLog(orgId: string): Promise<AuditLogEntry[]> {
   return apiFetch<AuditLogEntry[]>(`/organizations/${orgId}/audit-log`);
+}
+
+export interface CurriculumStep {
+  scenarioId: string;
+  title: string;
+  domain: string;
+  order: number;
+  completed: boolean;
+}
+
+export interface Curriculum {
+  steps: CurriculumStep[];
+}
+
+/** PLAN.md step 39 — the organization's single onboarding curriculum (advisory, not gated). */
+export function getCurriculum(orgId: string): Promise<Curriculum> {
+  return apiFetch<Curriculum>(`/organizations/${orgId}/curriculum`);
+}
+
+export function setCurriculum(orgId: string, scenarioIds: string[]): Promise<Curriculum> {
+  return apiFetch<Curriculum>(`/organizations/${orgId}/curriculum`, {
+    method: "PUT",
+    body: JSON.stringify({ scenarioIds }),
+  });
 }
 
 export function inviteMember(orgId: string, email: string, role: OrganizationRole): Promise<OrganizationInvitation> {

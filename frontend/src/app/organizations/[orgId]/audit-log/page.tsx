@@ -14,6 +14,7 @@ const ACTION_LABELS: Record<OrganizationAuditAction, string> = {
   MEMBER_REMOVED: "멤버 제거",
   MEMBER_LEFT: "멤버 탈퇴",
   CUSTOM_SCENARIO_CREATED: "커스텀 시나리오 생성",
+  CURRICULUM_UPDATED: "온보딩 커리큘럼 수정",
 };
 
 function formatDetail(entry: AuditLogEntry): string {
