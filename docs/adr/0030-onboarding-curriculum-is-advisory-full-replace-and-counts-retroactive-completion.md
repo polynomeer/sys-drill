@@ -1,0 +1,11 @@
+---
+status: accepted
+---
+
+# The onboarding curriculum only orders and displays progress — it never gates session start, is edited as a full-replace `PUT`, and counts sessions completed before the curriculum existed
+
+The name "커리큘럼" (curriculum) suggests a track a learner must follow in order, but `OrganizationCurriculumService` never checks curriculum state when a session starts — `SessionService.startSession` is unchanged, and any member can start any scenario, curriculum step or not, in any order. The curriculum is purely a per-organization, admin-authored reading list: an ordered `organization_curriculum_steps` table (same `step_order` convention as `scenario_steps`) that `getCurriculum` joins against the member's own completed sessions to compute a checkmark per step. We chose advisory over gating because ROADMAP.md's one-line "On-call Readiness, 신규 입사자 온보딩 트랙" gives no enforcement requirement, and gating would need new state (per-member unlock progress, an override path for experienced hires) that nothing in this MVP scope asks for — building it now would be speculative.
+
+`PUT /organizations/{orgId}/curriculum` replaces the entire ordered list in one call (delete all existing rows, insert the new list) rather than exposing granular add/remove/reorder endpoints. The admin-side editing UI already needs the full target order in memory to render drag-free up/down controls, so sending the whole array once is simpler on both ends than reconciling incremental diffs against `step_order` — the cost is that a concurrent edit by two admins silently clobbers, which is acceptable for a single small-admin-team feature.
+
+A step's `completed` flag is true if the member has *any* `COMPLETED` session for that scenario, regardless of whether the session predates the curriculum being set. We rejected gating completion to "sessions started after the curriculum was created" because it would make the same completed work invisible depending on admin timing accidents (e.g., a scenario already in regular rotation gets added to the curriculum later) — retroactive counting is simpler and matches what a viewer actually wants to know ("have I done this scenario"), not "did I do it for this specific curriculum."

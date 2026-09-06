@@ -646,11 +646,26 @@ ROADMAP.md엔 "SSO/RBAC/Audit Log"라는 한 줄뿐이었다. 이전 7개 Phase 
 **진행 중 발견한 결정 사항**:
 - **선제적 인프라 격리(별도 Postgres/Redis 컨테이너를 미리 띄우고 시작)는 효과가 있었지만, 새로운 종류의 사고를 하나 더 발견했다.** 처음 전체 스위트를 돌렸을 때 8개, 심지어 재시도에서 OOM까지 겪었다 — 원인을 좁혀보니 이번엔 "다른 세션과의 충돌"이 아니라 **내가 오늘 하루 종일 같은 공유 Toxiproxy/Kafka 컨테이너로 전체 스위트를 계속 돌리면서 6시간 넘게 정리 안 된 프록시·토픽·컨슈머 그룹이 쌓인 것**이었다(Postgres 연결 고갈 한 번, 그다음 힙 부족, 그다음엔 포트 20000 already-in-use와 Kafka 토픽 조회 실패까지) — Toxiproxy/Kafka는 `docker-compose.yml`상 세션 하나가 몇 시간이고 붙들고 재사용하는 장수 컨테이너라, 실패한 테스트가 프록시/토픽을 못 지우고 죽으면 다음 실행에 그대로 누적된다. `docker restart`로 두 컨테이너만 재기동하니(Postgres/Redis는 안 건드림 — 상태가 남아 있어야 하는 데이터니까) 바로 34~37단계에서 이미 알려진 2개 실패로 돌아왔다. **교훈**: 격리된 Postgres/Redis를 새로 띄우는 것만으로는 부족하고, 무거운 전체 스위트를 여러 번 돌릴 땐 Toxiproxy/Kafka도 가끔 재기동해서 누적 상태를 비워야 한다.
 
-## Phase 4 완료 (온보딩 커리큘럼 제외)
+### 39단계 — 온보딩 커리큘럼 ✅ 완료 (2026-09-06)
 
-30~38단계로 Phase 4(Team/B2B)의 로드맵 항목(조직/팀 관리, 팀 대시보드, Game Day, Private Scenario, SSO, RBAC, Audit Log)이 전부 구현됐다. 남은 항목은 온보딩 커리큘럼(신규 입사자용 순차 학습 트랙)뿐이다 — 지금까지의 시나리오/세션 모델을 재사용하는 콘텐츠·UX 중심 기능이라 새 인프라가 필요 없을 가능성이 높고, 진행 여부는 사용자 판단에 맡긴다.
+ROADMAP.md의 "On-call Readiness, 신규 입사자 온보딩 트랙"이라는 한 줄이 유일한 스펙이었다. 조직당 여러 트랙·멤버별 배정 방식도 가능했지만, 사용자에게 범위를 확인해(AskUserQuestion) **조직당 커리큘럼 1개**를 선택했다 — 조직 관리자가 시나리오(공개+커스텀 섞어서) 순서를 정하면 전 멤버가 같은 트랙을 보고 자기 진행 상황을 확인하는 가장 작은 슬라이스.
 
-### 35단계+ 나머지 — 온보딩 커리큘럼 (진행을 보고 그때 다시 스코프 판단)
+- [x] `V31` 마이그레이션 — `organization_curriculum_steps`(`scenario_steps.step_order`와 동일한 "순서 컬럼이 있는 행 테이블" 컨벤션, jsonb 배열 아님)
+- [x] 신규 `OrganizationCurriculumStep`/`OrganizationCurriculumStepRepository`, `OrganizationAuditAction`에 `CURRICULUM_UPDATED` 추가
+- [x] 신규 `OrganizationCurriculumService` — `setCurriculum`(ADMIN 전용, 전체 교체 `PUT`, 다른 조직의 비공개 시나리오는 거부, 38단계 감사 로그에 기록) / `getCurriculum`(멤버 전용, `OrganizationService.getDashboard`와 동일한 "배치 조회 후 join" 패턴으로 N+1 없이 제목·완료 여부 계산). 완료 판정은 커리큘럼 생성 이전에 이미 끝낸 세션도 포함(소급 적용) — 세션 시작 로직은 전혀 건드리지 않아 순서를 안 지켜도 막지 않는다
+- [x] `OrganizationController`에 `PUT`/`GET /organizations/{orgId}/curriculum` 추가
+- [x] 프론트: 신규 `organizations/[orgId]/curriculum/page.tsx`(전 멤버 공용 진행 상황 + 시작 버튼, ADMIN 전용 편집 폼 — 후보 추가/위아래 재정렬/제거/저장), 조직 상세 페이지에 전 멤버에게 보이는 "온보딩 커리큘럼 보기" 링크(팀 대시보드/감사 로그 링크와 달리 ADMIN 전용 아님)
+- [x] ADR-0030 작성
+
+**완료 기준 충족**: 백엔드 전체 223개 테스트 중 221개 통과(신규 `OrganizationControllerIntegrationTest` 2개 포함, 기존 27개 회귀 없음) — 나머지 2개는 34~38단계에서 이미 규명한 것과 정확히 같은 Toxiproxy 라우팅 이슈(무관). curl로 관리자가 공개 시나리오(선착순 쿠폰) + 커스텀 시나리오로 커리큘럼 저장 → 비관리자 저장 시도 404 → 멤버 조회 시 둘 다 `completed=false` → 멤버가 첫 시나리오로 세션 완료(DB 직접 반영) 후 재조회하면 `completed=true`로 소급 반영 → 다른 조직의 비공개 시나리오 포함 시도 404 → 감사 로그에 `CURRICULUM_UPDATED` 기록까지 확인. 실제 브라우저로 관리자 계정에서 시나리오 추가·위/아래 재정렬·저장 → 멤버 계정으로 "온보딩 커리큘럼 보기"에서 갱신된 순서와 (관리자 본인은 안 풀었으므로 미완료, 멤버 본인이 푼 것만 완료로) 정확히 사용자별로 다른 완료 상태 확인 → "시작" 클릭 시 실제로 새 세션이 시작되어 `/design/{sessionId}` Workspace로 이동하는 것 확인.
+
+**진행 중 발견한 결정 사항**:
+- **Hibernate가 같은 flush 안에서 DELETE보다 INSERT를 먼저 실행한다.** `setCurriculum`의 전체 교체 로직이 `deleteByOrganizationId(orgId)` 직후 같은 `(organizationId, stepOrder)` 유니크 키를 쓰는 새 행을 `save()`하다가 `DataIntegrityViolationException`(유니크 제약 위반)을 만났다 — Hibernate의 기본 액션 큐 플러시 순서는 코드 순서와 무관하게 INSERT를 DELETE보다 먼저 실행하기 때문에, 새 INSERT가 아직 물리적으로 지워지지 않은 옛 행과 유니크 키가 충돌한 것. `deleteByOrganizationId` 직후 `stepRepository.flush()`를 호출해 삭제를 먼저 DB에 반영하도록 강제해서 해결했다. **교훈**: 같은 유니크 키를 재사용하는 "지우고 다시 채우기" 패턴은 JpaRepository의 `deleteBy...`와 `save`를 이어 쓸 때 반드시 중간에 `flush()`가 필요하다.
+- **전체 테스트 스위트가 처음엔 8시간 넘게 "멈춘 것처럼" 보였는데, 실제로는 512MB 기본 테스트 워커 힙에서 진짜 OOM이 난 뒤 죽지 못하고 GC만 계속 도는 상태였다.** 사용자가 "테스트가 안 끝나는 게 이상하다"고 지적해서 원인을 좁혔다 — 스레드 덤프를 떠보니 GC 스레드 8개가 누적 CPU 수만 초를 쓰고 있었고, 실행 로그를 확인하니 `RealInfraCouponControllerSessionTrackingTest` 실행 중 `OutOfMemoryError: Java heap space`가 실제로 발생했지만 JVM이 곧바로 죽지 않고 힙 부족 상태로 몇 시간이고 스핀했다. `build.gradle.kts`의 `test` 태스크가 `maxHeapSize`를 지정한 적이 없어 Gradle 기본값(512MB)을 쓰고 있었는데, 이 스위트는 `@SpringBootTest` 클래스가 41개나 되고 Spring의 테스트 컨텍스트 캐시가 서로 다른 설정의 컨텍스트를 여러 개 동시에 살려두다 보니(멈춘 워커의 스레드 덤프에서 `HikariPool`이 8개 넘게 동시에 살아있었다) 512MB로는 감당이 안 됐던 것. `test` 태스크에 `maxHeapSize = "3g"`를 추가해 근본적으로 고쳤다(32GB 메모리의 로컬 머신에서 충분히 안전한 값) — 이후 재실행은 6분 51초 만에 정상 종료됐다. 753MB짜리 `.hprof` 덤프 파일도 이 과정에서 남아 있었어서 커밋 전에 삭제했다.
+
+## Phase 4 완료
+
+30~39단계로 Phase 4(Team/B2B)의 로드맵 항목(조직/팀 관리, 팀 대시보드, Game Day, Private Scenario, SSO, RBAC, Audit Log, 온보딩 커리큘럼)이 전부 구현됐다.
 
 ---
 
