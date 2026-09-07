@@ -107,6 +107,9 @@ export default function DashboardPage() {
           <Link href="/marketplace" className="text-sm text-zinc-500 underline">
             마켓플레이스
           </Link>
+          <Link href="/certifications" className="text-sm text-zinc-500 underline">
+            인증
+          </Link>
           <Link href="/organizations" className="text-sm text-zinc-500 underline">
             조직
           </Link>

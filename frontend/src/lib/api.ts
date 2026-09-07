@@ -564,6 +564,30 @@ export function listMyMarketplaceScenarios(): Promise<ScenarioSummary[]> {
   return apiFetch<ScenarioSummary[]>("/marketplace/scenarios/mine");
 }
 
+export interface DomainCertificationStatus {
+  domain: string;
+  title: string;
+  passed: boolean;
+  bestScore: number | null;
+}
+
+export interface CertificationStatus {
+  userId: string;
+  nickname: string;
+  certified: boolean;
+  domains: DomainCertificationStatus[];
+}
+
+/** Phase 5 — "SysDrill Certified Incident Responder" (docs/adr/0032): live-computed, never issued or stored. */
+export function getMyCertification(): Promise<CertificationStatus> {
+  return apiFetch<CertificationStatus>("/certifications/me");
+}
+
+/** Public verification page — works whether or not the caller is logged in. */
+export function getCertification(userId: string): Promise<CertificationStatus> {
+  return apiFetch<CertificationStatus>(`/certifications/${userId}`);
+}
+
 /** PLAN.md step 36 — Game Day: active sessions on this org's custom scenarios, spectatable by any member. */
 export function listGameDaySessions(orgId: string): Promise<GameDaySession[]> {
   return apiFetch<GameDaySession[]>(`/organizations/${orgId}/game-day-sessions`);
