@@ -667,6 +667,24 @@ ROADMAP.md의 "On-call Readiness, 신규 입사자 온보딩 트랙"이라는 �
 
 30~39단계로 Phase 4(Team/B2B)의 로드맵 항목(조직/팀 관리, 팀 대시보드, Game Day, Private Scenario, SSO, RBAC, Audit Log, 온보딩 커리큘럼)이 전부 구현됐다.
 
+## Phase 5 — Platform (docs/ROADMAP.md)
+
+### Scenario Marketplace ✅ 완료 (2026-09-07)
+
+Phase 5의 첫 항목. ROADMAP.md엔 "Scenario Marketplace(제작자 70%/플랫폼 30%)"라는 한 줄뿐이라 사용자에게 두 갈림길을 확인했다(AskUserQuestion): (1) 결제·수익배분 없이 무료 공개(권장, ADR-0003의 "MVP엔 실제 X 없음" 원칙과 동일 결) vs 결제 스텁 포함, (2) 로그인만 하면 즉시 등록(권장, 가장 작은 슬라이스) vs 관리자 승인 필요. 둘 다 권장안을 선택.
+
+- [x] `V32` 마이그레이션 — `scenarios.creator_user_id`(nullable, `organization_id`와 독립적인 축) 추가
+- [x] 신규 `MarketplaceScenarioService`/`MarketplaceController` — `POST /marketplace/scenarios`(누구나 등록, `organizationId=null`+`creatorUserId=본인`으로 34단계 `CustomScenarioService.create()`와 동일한 INITIAL+FOLLOWUP 구조 생성), `GET /marketplace/scenarios`(전체 목록), `GET /marketplace/scenarios/mine`(내 등록 목록)
+- [x] **마켓플레이스 시나리오는 별도 저장소가 아니라 기존 공개 시나리오 풀(`organizationId == null`)에 합류** — `ScenarioController`의 `GET /scenarios`/`GET /scenarios/{id}`와 `SessionService.startSession`을 전혀 안 건드려도 마켓플레이스 시나리오가 자동으로 대시보드 목록에 섞여 나오고 아무나 세션을 시작할 수 있다. `ScenarioSummaryResponse`/`ScenarioDetailResponse`에 `creatorNickname`을 추가해 공식/커뮤니티 콘텐츠를 프론트에서 구분 표시 (ADR-0031)
+- [x] `/marketplace/scenarios`는 `/organizations`와 같은 방식으로 전체 하위 경로가 인증 필요(단순 탐색 포함) — 마켓플레이스 시나리오 자체는 `/scenarios`에도 공개로 노출되니 발견성 손실은 없음
+- [x] 프론트: 신규 `marketplace/page.tsx`(전체 목록+시작 버튼, 내가 등록한 목록, 등록 폼), 대시보드에 "마켓플레이스" 링크 추가
+- [x] ADR-0031 작성
+
+**완료 기준 충족**: 백엔드 전체 226개 테스트 전부 통과(신규 `MarketplaceControllerIntegrationTest` 3개 포함, 회귀 없음) — `./scripts/run-tests-isolated.sh`로 확인. curl로 미인증 등록 401 → 등록 성공(조직 없이) 시 `organizationId=null`+`creatorNickname` 확인 → `GET /marketplace/scenarios`와 `GET /scenarios`(공개 목록) 양쪽에 노출 확인 → 무관한 계정이 `POST /sessions`로 조직 멤버십 없이 세션 시작 확인 → `GET /marketplace/scenarios/mine`이 등록자/비등록자에게 다르게 보이는 것 확인. 실제 브라우저로 계정 A가 `/marketplace`에서 시나리오 등록 → "내가 등록한 시나리오"에 즉시 반영 → "시작" 클릭해 System Design Workspace로 정상 진입 → 대시보드의 기존 시나리오 목록(공식 7개 + 마켓플레이스 2개)에도 섞여 나오는 것과 "최근 진행"에 표시되는 것까지 확인.
+
+**진행 중 발견한 결정 사항**:
+- **`bootRun`이 아예 안 켜지는 회귀를 발견해 즉석에서 고쳤다.** 검증용 백엔드를 띄우려는데 `resolveMainClassName` 태스크가 "Unable to find a single main class"로 실패했다 — 원인은 이번 작업 이전에 다른 세션이 커밋한 `CleanupStaleKafkaTopics.kt`(Kafka stale 토픽 정리 도구)가 자기 own top-level `fun main()`을 가지고 있어서, Spring Boot의 메인 클래스 자동 탐지가 `BackendApplicationKt`와 그 파일 사이에서 헷갈리게 된 것 — 이 마켓플레이스 기능과는 무관하지만 `bootRun`/`bootJar`를 아예 못 쓰게 막는 회귀라 즉시 고쳤다. `build.gradle.kts`에 `springBoot { mainClass.set("com.sysdrill.backend.BackendApplicationKt") }`를 명시해 자동 탐지 자체를 없앴다. **교훈**: `src/main`에 커맨드라인 도구용 `main()`을 추가하는 커밋은 Spring Boot 프로젝트에서 `bootRun`을 깨뜨릴 수 있으니, 그런 도구를 추가할 땐 `springBoot.mainClass`를 같이 고정해야 한다.
+
 ---
 
 ## 진행 방식 메모
