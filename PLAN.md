@@ -685,6 +685,22 @@ Phase 5의 첫 항목. ROADMAP.md엔 "Scenario Marketplace(제작자 70%/플랫�
 **진행 중 발견한 결정 사항**:
 - **`bootRun`이 아예 안 켜지는 회귀를 발견해 즉석에서 고쳤다.** 검증용 백엔드를 띄우려는데 `resolveMainClassName` 태스크가 "Unable to find a single main class"로 실패했다 — 원인은 이번 작업 이전에 다른 세션이 커밋한 `CleanupStaleKafkaTopics.kt`(Kafka stale 토픽 정리 도구)가 자기 own top-level `fun main()`을 가지고 있어서, Spring Boot의 메인 클래스 자동 탐지가 `BackendApplicationKt`와 그 파일 사이에서 헷갈리게 된 것 — 이 마켓플레이스 기능과는 무관하지만 `bootRun`/`bootJar`를 아예 못 쓰게 막는 회귀라 즉시 고쳤다. `build.gradle.kts`에 `springBoot { mainClass.set("com.sysdrill.backend.BackendApplicationKt") }`를 명시해 자동 탐지 자체를 없앴다. **교훈**: `src/main`에 커맨드라인 도구용 `main()`을 추가하는 커밋은 Spring Boot 프로젝트에서 `bootRun`을 깨뜨릴 수 있으니, 그런 도구를 추가할 땐 `springBoot.mainClass`를 같이 고정해야 한다.
 
+### 실전형 인증 — SysDrill Certified Incident Responder ✅ 완료 (2026-09-07)
+
+Phase 5 남은 두 항목(채용/역량 평가 상품화, 실전형 인증) 중 사용자가 실전형 인증을 선택했다(AskUserQuestion) — 새 외부 사용자 개념 없이 기존 SkillProfile/Session/Evaluation 기록만으로 자격을 판정하는 가장 작은 슬라이스. 승인된 선택지의 미리보기 문구("복수 도메인에서 COMPLETED 세션이 일정 점수 이상이면 GET /certifications로 자격 확인 → 공개 검증 페이지에서 누구나 확인 가능")가 설계를 그대로 결정했다.
+
+- [x] **인증은 발급·저장되지 않고 매 요청마다 재계산되는 라이브 자격 판정** — 새 테이블 없음, ADR-0011("파생값은 저장하지 않고 읽을 때 계산") 원칙 그대로. `CertificationService.status()`가 `ReportService.generate()`와 동일한 "세션의 제출물들 → 활성 평가들의 totalScore → 평균" 계산을, 33단계 팀 대시보드/39단계 커리큘럼과 동일한 "배치 조회 후 join" 패턴으로 사용자 전체 이력에 걸쳐 수행
+- [x] **인증 대상 도메인은 공식 Flyway 시드 시나리오(`organizationId == null && creatorUserId == null`)만** — 마켓플레이스(누구나 즉시 등록)나 조직 커스텀 시나리오는 제외
+- [x] 판정 기준: 공식 도메인(현재 7개) 전부에서 COMPLETED 세션 평균 점수가 합격선(`sysdrill.certification.passing-score`, 기본 70점, 설정값이라 기준 변경에 마이그레이션 불필요) 이상인 것이 1회 이상 있어야 `certified=true`
+- [x] `SubmissionRepository.findBySessionIdIn`/`EvaluationRepository.findBySubmissionIdInAndIsActiveTrue` 배치 조회 메서드 추가
+- [x] 신규 `CertificationController` — `GET /certifications/me`(인증 필요), `GET /certifications/{userId}`(공개 검증 페이지, 비인증). `AuthWebConfig`엔 `/certifications/me`만 정확히 등록(와일드카드 없음)해서 `{userId}` 경로는 공개로 남김
+- [x] 프론트: 신규 `certifications/page.tsx`(내 인증 현황 + 공개 검증 링크 안내), `certifications/[userId]/page.tsx`(비로그인도 접근 가능한 공개 검증 페이지), 대시보드에 "인증" 링크 추가
+- [x] ADR-0032 작성
+
+**완료 기준 충족**: 백엔드 전체 231개 테스트 전부 통과(신규 `CertificationControllerIntegrationTest` 5개 포함, 회귀 없음) — `./scripts/run-tests-isolated.sh`로 확인. curl로 완료 세션 없는 사용자는 전 도메인 미인증 확인 → 공식 도메인 하나를 낮은 점수(50점)로 완료해도 미인증 확인 → 같은 도메인을 합격선 이상(85점)으로 재완료하면 그 도메인만 `passed=true`(최고점 반영)로 바뀌고 나머지는 여전히 미완료, 전체는 `certified=false` 확인 → `GET /certifications/{userId}` 비인증 200, `GET /certifications/me` 미인증 401 확인. 실제 브라우저로 `/certifications`에서 도메인별 표와 공개 검증 링크 확인 → 로그아웃 상태(localStorage 비움)에서도 그 링크에 접속하면 동일한 정보가 보이는 것까지 확인.
+
+**진행 중 발견한 결정 사항**: 없음 — 마켓플레이스 작업 때 이미 `bootRun`/테스트 인프라 문제를 해결해둔 덕분에 이번 단계는 처음부터 마찰 없이 진행됐다.
+
 ---
 
 ## 진행 방식 메모
