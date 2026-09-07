@@ -41,6 +41,11 @@ sysdrill:
   organization:
     # PLAN.md step 32 — how long an email-bound invitation stays redeemable.
     invitation-ttl-days: ${SYSDRILL_ORG_INVITATION_TTL_DAYS:7}
+  certification:
+    # Phase 5 (docs/adr/0032) — a config value, not a hardcoded constant, so
+    # the bar can move without a migration since certification is computed
+    # live, never persisted.
+    passing-score: ${CERTIFICATION_PASSING_SCORE:70}
   evaluation:
     queue-key: ${EVALUATION_QUEUE_KEY:sysdrill:evaluation:jobs}
     dead-letter-key: ${EVALUATION_DEAD_LETTER_KEY:sysdrill:evaluation:dead-letter}

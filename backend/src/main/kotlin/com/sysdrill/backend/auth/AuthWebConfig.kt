@@ -29,6 +29,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
  * (both have organizationId == null), so `/marketplace/scenarios` is just
  * the dedicated hub for publishing/browsing/"my scenarios", not the only
  * way to find one.
+ * `/certifications/me` (Phase 5, docs/adr/0032) is registered as this exact
+ * literal path, deliberately not a wildcarded sub-path pattern — `GET
+ * /certifications/{userId}` is a public verification page anyone can hit
+ * without a token, the same reasoning `/scenarios` stays open.
  */
 @Configuration
 class AuthWebConfig(
@@ -46,6 +50,7 @@ class AuthWebConfig(
                 "/organizations", "/organizations/**",
                 "/admin/prompt-templates", "/admin/prompt-templates/**",
                 "/marketplace/scenarios", "/marketplace/scenarios/**",
+                "/certifications/me",
             )
             .excludePathPatterns("/sessions/*/simulation/realinfra/coupon/**")
     }

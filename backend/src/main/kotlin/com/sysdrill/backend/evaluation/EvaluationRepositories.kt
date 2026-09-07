@@ -7,6 +7,7 @@ interface EvaluationRepository : JpaRepository<Evaluation, UUID> {
     fun existsBySubmissionIdAndIsActiveTrue(submissionId: UUID): Boolean
     fun findBySubmissionId(submissionId: UUID): List<Evaluation>
     fun findFirstBySubmissionIdAndIsActiveTrue(submissionId: UUID): Evaluation?
+    fun findBySubmissionIdInAndIsActiveTrue(submissionIds: Collection<UUID>): List<Evaluation>
 }
 
 interface EvaluationRiskFlagRepository : JpaRepository<EvaluationRiskFlag, UUID> {
