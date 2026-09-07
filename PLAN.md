@@ -675,3 +675,4 @@ ROADMAP.md의 "On-call Readiness, 신규 입사자 온보딩 트랙"이라는 �
 - Phase 1(0~11단계)과 Phase 2(12단계~)는 같은 이 문서 안에서 이어진다. Phase 3 이후는 [docs/ROADMAP.md](docs/ROADMAP.md)를 참고하고, 그 시점에 이 문서를 이어서 갱신한다.
 - 테스트: 각 단계마다 최소한의 자동 테스트(단위 또는 통합)를 함께 작성한다. 프론트엔드 단계는 가능하면 브라우저로 직접 동작을 확인한다.
 - 하드/되돌리기 어렵고/맥락 없이 놀랍고/진짜 트레이드오프인 결정은 [CLAUDE.md](CLAUDE.md)의 ADR 절 기준에 따라 `docs/adr/`에도 별도로 기록한다.
+- **전체 백엔드 테스트는 `./scripts/run-tests-isolated.sh`로 돌린다** — 다른 세션과 충돌하지 않는 격리 Postgres/Redis를 매번 새로 띄우고, `RealInfraCouponController`류 실전 인프라 테스트가 요구하는 Toxiproxy 라우팅(컴포즈 네트워크 안 고정 서비스명 접속, application.yml 주석 참고)까지 맞춰준다. 30~39단계에서는 이 스크립트가 없어 `RealInfraCouponControllerSessionTrackingTest`/`RealInfraCouponTracingTest` 2개를 "격리 환경에서는 원래 실패하는 무관한 이슈"로 계속 넘겨왔는데, 39단계 이후 커버리지 점검 중에 이게 진짜 버그가 아니라 격리 방식 자체의 허점이었음을 확인하고 이 스크립트로 근본 해결했다 — 이제 이 스크립트로 돌리면 223개 전부(그 2개 포함) 통과해야 정상이다.
