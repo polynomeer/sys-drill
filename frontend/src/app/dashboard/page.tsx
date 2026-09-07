@@ -104,6 +104,9 @@ export default function DashboardPage() {
           <p className="mt-1 text-sm text-zinc-500">시나리오를 선택하면 바로 설계를 시작합니다.</p>
         </div>
         <div className="flex items-center gap-4">
+          <Link href="/marketplace" className="text-sm text-zinc-500 underline">
+            마켓플레이스
+          </Link>
           <Link href="/organizations" className="text-sm text-zinc-500 underline">
             조직
           </Link>

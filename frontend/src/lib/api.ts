@@ -93,6 +93,7 @@ export interface ScenarioSummary {
   title: string;
   difficulty: string | null;
   organizationId: string | null;
+  creatorNickname?: string | null;
 }
 
 export interface ScenarioDetail extends ScenarioSummary {
@@ -545,6 +546,22 @@ export function createCustomScenario(orgId: string, request: CreateCustomScenari
 
 export function listOrganizationScenarios(orgId: string): Promise<ScenarioSummary[]> {
   return apiFetch<ScenarioSummary[]>(`/organizations/${orgId}/scenarios`);
+}
+
+/** Phase 5 — Scenario Marketplace (docs/adr/0031): any authenticated user, no organization needed. */
+export function publishMarketplaceScenario(request: CreateCustomScenarioRequest): Promise<ScenarioDetail> {
+  return apiFetch<ScenarioDetail>("/marketplace/scenarios", {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+export function listMarketplaceScenarios(): Promise<ScenarioSummary[]> {
+  return apiFetch<ScenarioSummary[]>("/marketplace/scenarios");
+}
+
+export function listMyMarketplaceScenarios(): Promise<ScenarioSummary[]> {
+  return apiFetch<ScenarioSummary[]>("/marketplace/scenarios/mine");
 }
 
 /** PLAN.md step 36 — Game Day: active sessions on this org's custom scenarios, spectatable by any member. */
