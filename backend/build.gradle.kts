@@ -4,6 +4,7 @@ plugins {
 	id("org.springframework.boot") version "4.1.1"
 	id("io.spring.dependency-management") version "1.1.7"
 	kotlin("plugin.jpa") version "2.3.21"
+	jacoco
 }
 
 group = "com.sysdrill"
@@ -95,6 +96,19 @@ tasks.withType<Test> {
 	// CPU with no output after RealInfraCouponControllerSessionTrackingTest hit
 	// "Java heap space").
 	maxHeapSize = "3g"
+	finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+	// No dependsOn(tasks.test): this suite has known-flaky real-infra tests
+	// (Toxiproxy/Kafka routing), and Gradle skips a finalizedBy target whose
+	// own dependency failed. `./gradlew test` still produces a report via
+	// finalizedBy above (Test's exec data exists regardless of pass/fail);
+	// running this task alone just re-renders from that existing data.
+	reports {
+		xml.required.set(true)
+		html.required.set(true)
+	}
 }
 
 // Deletes leftover realinfra-notify-* Kafka topics from crashed/interrupted
