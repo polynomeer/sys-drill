@@ -374,6 +374,33 @@ class OrganizationControllerIntegrationTest(
     }
 
     @Test
+    fun `a member can fetch a single custom scenario's detail, but not one owned by another organization`() {
+        val admin = createUser("scenario-admin5")
+        val member = createUser("scenario-member3")
+        val orgId = createOrg(admin.id!!)
+        val token = invite(orgId, admin.id!!, member.email)
+        mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(member.id!!)))
+        val scenarioId = createCustomScenarioOnly(orgId, admin.id!!)
+
+        mockMvc.perform(get("/organizations/$orgId/scenarios/$scenarioId").header("Authorization", bearerHeader(member.id!!)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.id").value(scenarioId.toString()))
+            .andExpect(jsonPath("$.title").value("사내 결제 장애"))
+            .andExpect(jsonPath("$.organizationId").value(orgId.toString()))
+
+        // otherMember is a legitimate member of otherOrgId (so requireMember passes),
+        // but the scenario belongs to orgId, not otherOrgId — must still 404.
+        val otherAdmin = createUser("scenario-other-admin")
+        val otherOrgId = createOrg(otherAdmin.id!!)
+        val otherMember = createUser("scenario-other-member")
+        val otherToken = invite(otherOrgId, otherAdmin.id!!, otherMember.email)
+        mockMvc.perform(post("/organizations/invitations/$otherToken/accept").header("Authorization", bearerHeader(otherMember.id!!)))
+
+        mockMvc.perform(get("/organizations/$otherOrgId/scenarios/$scenarioId").header("Authorization", bearerHeader(otherMember.id!!)))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
     fun `a custom scenario is invisible on the public scenario endpoints`() {
         val admin = createUser("scenario-admin4")
         val orgId = createOrg(admin.id!!)
