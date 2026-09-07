@@ -5,20 +5,22 @@ import tools.jackson.databind.ObjectMapper
 
 /** Shared by [ScenarioController] (public scenarios) and [OrganizationController][com.sysdrill.backend.organization.OrganizationController] (a member's own org-scoped scenarios) — same DTOs, same ContentItem-lookup shape either way. */
 object ScenarioResponses {
-    fun toSummary(scenario: Scenario, content: ContentItem?) = ScenarioSummaryResponse(
+    fun toSummary(scenario: Scenario, content: ContentItem?, creatorNickname: String? = null) = ScenarioSummaryResponse(
         id = scenario.id!!,
         domain = scenario.domain,
         title = content?.title ?: scenario.domain,
         difficulty = content?.difficulty,
         organizationId = scenario.organizationId,
+        creatorNickname = creatorNickname,
     )
 
-    fun toDetail(scenario: Scenario, content: ContentItem?, objectMapper: ObjectMapper) = ScenarioDetailResponse(
+    fun toDetail(scenario: Scenario, content: ContentItem?, objectMapper: ObjectMapper, creatorNickname: String? = null) = ScenarioDetailResponse(
         id = scenario.id!!,
         domain = scenario.domain,
         title = content?.title ?: scenario.domain,
         difficulty = content?.difficulty,
         baseRequirements = scenario.baseRequirements?.let { objectMapper.readValue(it, Any::class.java) },
         organizationId = scenario.organizationId,
+        creatorNickname = creatorNickname,
     )
 }

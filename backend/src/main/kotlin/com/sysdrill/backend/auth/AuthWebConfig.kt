@@ -22,6 +22,13 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
  * `/admin/prompt-templates` (PLAN.md step 35) additionally requires the
  * platform-admin role via [PlatformAccessGuard], checked explicitly in
  * the controller rather than here.
+ * `/marketplace/scenarios` (Phase 5, docs/adr/0031) requires auth on every
+ * sub-path including plain browsing — unlike `/scenarios`, which stays
+ * public reference data. This doesn't cost discoverability: a published
+ * marketplace scenario already appears on the public `/scenarios` list too
+ * (both have organizationId == null), so `/marketplace/scenarios` is just
+ * the dedicated hub for publishing/browsing/"my scenarios", not the only
+ * way to find one.
  */
 @Configuration
 class AuthWebConfig(
@@ -38,6 +45,7 @@ class AuthWebConfig(
                 "/skill-profile",
                 "/organizations", "/organizations/**",
                 "/admin/prompt-templates", "/admin/prompt-templates/**",
+                "/marketplace/scenarios", "/marketplace/scenarios/**",
             )
             .excludePathPatterns("/sessions/*/simulation/realinfra/coupon/**")
     }

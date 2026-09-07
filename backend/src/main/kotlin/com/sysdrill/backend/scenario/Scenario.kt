@@ -38,6 +38,10 @@ class Scenario(
     @Column(name = "organization_id")
     var organizationId: UUID? = null,
 
+    /** Phase 5 (Scenario Marketplace) — null for Flyway-seeded or org-scoped scenarios; set for a scenario a user published to the public marketplace. Independent of organizationId. */
+    @Column(name = "creator_user_id")
+    var creatorUserId: UUID? = null,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant? = null,

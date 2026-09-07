@@ -6,6 +6,8 @@ import java.util.UUID
 interface ScenarioRepository : JpaRepository<Scenario, UUID> {
     fun findByOrganizationIdIsNull(): List<Scenario>
     fun findByOrganizationId(organizationId: UUID): List<Scenario>
+    fun findByCreatorUserIdIsNotNull(): List<Scenario>
+    fun findByCreatorUserId(creatorUserId: UUID): List<Scenario>
 }
 
 interface ScenarioVersionRepository : JpaRepository<ScenarioVersion, UUID> {
