@@ -85,6 +85,14 @@ allOpen {
 	annotation("jakarta.persistence.Embeddable")
 }
 
+// CleanupStaleKafkaTopics.kt's own top-level main() gives this source set two
+// candidate main classes, so Spring Boot's auto-detection (used by bootRun
+// and bootJar) fails with "Unable to find a single main class" — pin it
+// explicitly instead of relying on detection.
+springBoot {
+	mainClass.set("com.sysdrill.backend.BackendApplicationKt")
+}
+
 tasks.withType<Test> {
 	useJUnitPlatform()
 	// Gradle's default test worker heap (512m) is too small for this suite: 41
