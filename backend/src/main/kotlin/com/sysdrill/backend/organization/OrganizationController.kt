@@ -1,12 +1,14 @@
 package com.sysdrill.backend.organization
 
 import com.sysdrill.backend.auth.AuthenticatedUserId
+import com.sysdrill.backend.reporting.ReportResponse
 import com.sysdrill.backend.scenario.CreateCustomScenarioRequest
 import com.sysdrill.backend.scenario.CustomScenarioService
 import com.sysdrill.backend.scenario.ScenarioDetailResponse
 import com.sysdrill.backend.scenario.ScenarioSummaryResponse
 import com.sysdrill.backend.session.GameDaySessionResponse
 import com.sysdrill.backend.session.GameDaySessionService
+import com.sysdrill.backend.session.SessionResponse
 import jakarta.validation.Valid
 import java.util.UUID
 import org.springframework.http.HttpStatus
@@ -28,6 +30,7 @@ class OrganizationController(
     private val gameDaySessionService: GameDaySessionService,
     private val organizationAuditLogService: OrganizationAuditLogService,
     private val curriculumService: OrganizationCurriculumService,
+    private val assessmentService: OrganizationAssessmentService,
 ) {
 
     @PostMapping
@@ -137,4 +140,32 @@ class OrganizationController(
     @GetMapping("/{orgId}/curriculum")
     fun getCurriculum(@PathVariable orgId: UUID, @AuthenticatedUserId userId: UUID): CurriculumResponse =
         curriculumService.getCurriculum(orgId, userId)
+
+    /** Phase 5 — 채용/역량 평가 상품화 (docs/adr/0033). */
+    @PostMapping("/{orgId}/assessments")
+    fun createAssessment(
+        @PathVariable orgId: UUID,
+        @AuthenticatedUserId userId: UUID,
+        @Valid @RequestBody request: CreateAssessmentRequest,
+    ): ResponseEntity<AssessmentResponse> =
+        ResponseEntity.status(HttpStatus.CREATED)
+            .body(assessmentService.create(orgId, userId, request.candidateEmail, request.scenarioId))
+
+    @GetMapping("/{orgId}/assessments")
+    fun listAssessments(@PathVariable orgId: UUID, @AuthenticatedUserId userId: UUID): List<AssessmentResponse> =
+        assessmentService.listForOrganization(orgId, userId)
+
+    @GetMapping("/{orgId}/assessments/{assessmentId}/report")
+    fun getAssessmentReport(
+        @PathVariable orgId: UUID,
+        @PathVariable assessmentId: UUID,
+        @AuthenticatedUserId userId: UUID,
+    ): ReportResponse = assessmentService.getReport(orgId, userId, assessmentId)
+
+    @GetMapping("/assessments/{token}")
+    fun previewAssessment(@PathVariable token: String): AssessmentPreviewResponse = assessmentService.preview(token)
+
+    @PostMapping("/assessments/{token}/start")
+    fun startAssessment(@PathVariable token: String, @AuthenticatedUserId userId: UUID): ResponseEntity<SessionResponse> =
+        ResponseEntity.status(HttpStatus.CREATED).body(assessmentService.start(token, userId))
 }

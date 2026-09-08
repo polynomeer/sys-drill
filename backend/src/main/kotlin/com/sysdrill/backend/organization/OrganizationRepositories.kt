@@ -21,3 +21,8 @@ interface OrganizationInvitationRepository : JpaRepository<OrganizationInvitatio
         status: OrganizationInvitationStatus,
     ): OrganizationInvitation?
 }
+
+interface OrganizationAssessmentRepository : JpaRepository<OrganizationAssessment, UUID> {
+    fun findByToken(token: String): OrganizationAssessment?
+    fun findByOrganizationId(organizationId: UUID): List<OrganizationAssessment>
+}

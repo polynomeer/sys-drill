@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component
 class OrganizationAccessGuard(
     private val membershipRepository: OrganizationMembershipRepository,
     private val invitationRepository: OrganizationInvitationRepository,
+    private val assessmentRepository: OrganizationAssessmentRepository,
 ) {
 
     fun requireMember(orgId: UUID, userId: UUID): OrganizationMembership =
@@ -39,5 +40,15 @@ class OrganizationAccessGuard(
             throw NotFoundException("Invitation not found: $token")
         }
         return invitation
+    }
+
+    /** Phase 5 (docs/adr/0033) — same shape as [requireInvitationRecipient], for the candidate's own assessment token. */
+    fun requireAssessmentRecipient(token: String, userEmail: String): OrganizationAssessment {
+        val assessment = assessmentRepository.findByToken(token)
+            ?: throw NotFoundException("Assessment not found: $token")
+        if (!assessment.candidateEmail.equals(userEmail, ignoreCase = true)) {
+            throw NotFoundException("Assessment not found: $token")
+        }
+        return assessment
     }
 }

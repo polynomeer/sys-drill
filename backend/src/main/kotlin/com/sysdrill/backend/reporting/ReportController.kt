@@ -34,19 +34,6 @@ class ReportController(
         sessionAccessGuard.requireOwner(sessionId, userId)
         val report = reportRepository.findFirstBySessionIdOrderByVersionDesc(sessionId)
             ?: throw NotFoundException("No report for session $sessionId yet — it may not be COMPLETED")
-        return ReportResponse(
-            id = report.id!!,
-            sessionId = report.sessionId,
-            version = report.version,
-            summary = report.summary,
-            timelineFeedback = report.timelineFeedback?.let {
-                objectMapper.readValue(it, Array<TimelineEntry>::class.java).toList()
-            } ?: emptyList(),
-            improvementGuide = report.improvementGuide?.let {
-                objectMapper.readValue(it, Array<String>::class.java).toList()
-            } ?: emptyList(),
-            buildSummary = report.buildSummary?.let { objectMapper.readValue(it, BuildSummary::class.java) },
-            createdAt = report.createdAt,
-        )
+        return ReportResponses.toResponse(report, objectMapper)
     }
 }

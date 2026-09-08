@@ -92,3 +92,33 @@ data class CurriculumStepResponse(
 data class CurriculumResponse(
     val steps: List<CurriculumStepResponse>,
 )
+
+/** Phase 5 — 채용/역량 평가 상품화 (docs/adr/0033). */
+data class CreateAssessmentRequest(
+    @field:NotBlank @field:Email val candidateEmail: String,
+    val scenarioId: UUID,
+)
+
+enum class AssessmentStatus { NOT_STARTED, IN_PROGRESS, COMPLETED }
+
+data class AssessmentResponse(
+    val id: UUID,
+    val organizationId: UUID,
+    val scenarioId: UUID,
+    val scenarioTitle: String,
+    val candidateEmail: String,
+    val token: String,
+    val status: AssessmentStatus,
+    val resultSessionId: UUID?,
+    val expiresAt: Instant,
+    val createdAt: Instant?,
+)
+
+data class AssessmentPreviewResponse(
+    val organizationName: String,
+    val scenarioTitle: String,
+    val scenarioDomain: String,
+    val candidateEmail: String,
+    val expired: Boolean,
+    val alreadyStarted: Boolean,
+)

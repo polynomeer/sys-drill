@@ -33,6 +33,14 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
  * literal path, deliberately not a wildcarded sub-path pattern — `GET
  * /certifications/{userId}` is a public verification page anyone can hit
  * without a token, the same reasoning `/scenarios` stays open.
+ * `GET /organizations/assessments/{token}` (Phase 5, docs/adr/0033) is
+ * excluded from the blanket sub-path gate above — unlike an invitation
+ * recipient (an existing user the frontend sends straight to `/login`), an
+ * assessment candidate is typically a first-time visitor who needs to see
+ * what they're being asked to do (org name, scenario) before deciding to
+ * sign up at all; gating the preview would make that impossible. `POST
+ * .../start` stays gated (needs `@AuthenticatedUserId`) — the exclusion
+ * pattern's single `*` matches only the token segment, not `/start`.
  */
 @Configuration
 class AuthWebConfig(
@@ -52,7 +60,7 @@ class AuthWebConfig(
                 "/marketplace/scenarios", "/marketplace/scenarios/**",
                 "/certifications/me",
             )
-            .excludePathPatterns("/sessions/*/simulation/realinfra/coupon/**")
+            .excludePathPatterns("/sessions/*/simulation/realinfra/coupon/**", "/organizations/assessments/*")
     }
 
     override fun addArgumentResolvers(resolvers: MutableList<HandlerMethodArgumentResolver>) {
