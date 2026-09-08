@@ -252,6 +252,58 @@ class OrganizationControllerIntegrationTest(
     }
 
     @Test
+    fun `listing my organizations returns each org with my role, excluding orgs I'm not a member of`() {
+        val user = createUser("mine-user")
+        val other = createUser("mine-other")
+        val ownOrgId = createOrg(user.id!!, name = "내 조직")
+        val otherOrgId = createOrg(other.id!!, name = "남의 조직")
+        val token = invite(otherOrgId, other.id!!, user.email, role = "MEMBER")
+        mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(user.id!!)))
+            .andExpect(status().isOk)
+
+        val response = mockMvc.perform(get("/organizations").header("Authorization", bearerHeader(user.id!!)))
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+
+        val orgs = JsonPath.read<List<Map<String, Any?>>>(response, "$")
+        assertThat(orgs).hasSize(2)
+        assertThat(orgs.single { it["id"] == ownOrgId.toString() }["myRole"]).isEqualTo("ADMIN")
+        assertThat(orgs.single { it["id"] == otherOrgId.toString() }["myRole"]).isEqualTo("MEMBER")
+
+        val outsider = createUser("mine-outsider")
+        mockMvc.perform(get("/organizations").header("Authorization", bearerHeader(outsider.id!!)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$").isEmpty)
+    }
+
+    @Test
+    fun `previewing an invitation shows org name, invitee email, and resolved-expired flags without accepting it`() {
+        val admin = createUser("preview-admin")
+        val invitee = createUser("preview-invitee")
+        val orgId = createOrg(admin.id!!, name = "미리보기 조직")
+        val token = invite(orgId, admin.id!!, invitee.email, role = "ADMIN")
+
+        mockMvc.perform(get("/organizations/invitations/$token").header("Authorization", bearerHeader(invitee.id!!)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.organizationName").value("미리보기 조직"))
+            .andExpect(jsonPath("$.inviteeEmail").value(invitee.email))
+            .andExpect(jsonPath("$.role").value("ADMIN"))
+            .andExpect(jsonPath("$.expired").value(false))
+            .andExpect(jsonPath("$.alreadyResolved").value(false))
+
+        mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(invitee.id!!)))
+            .andExpect(status().isOk)
+
+        // Preview after acceptance still works (read-only) and now reports alreadyResolved.
+        mockMvc.perform(get("/organizations/invitations/$token").header("Authorization", bearerHeader(admin.id!!)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.alreadyResolved").value(true))
+
+        mockMvc.perform(get("/organizations/invitations/does-not-exist").header("Authorization", bearerHeader(admin.id!!)))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
     fun `unauthenticated calls to organizations endpoints are rejected`() {
         mockMvc.perform(get("/organizations")).andExpect(status().isUnauthorized)
         mockMvc.perform(post("/organizations").contentType(MediaType.APPLICATION_JSON).content("""{"name":"x"}"""))

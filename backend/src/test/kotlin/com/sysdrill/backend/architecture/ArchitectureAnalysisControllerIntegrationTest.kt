@@ -54,7 +54,79 @@ class ArchitectureAnalysisControllerIntegrationTest(
                           type: object
     """.trimIndent()
 
+    // Mirrors flawedSpec's two operations, but each rule's condition is satisfied: error
+    // responses defined, auth required (via a top-level `security:` requirement rather than
+    // per-operation, to exercise that branch specifically), a pagination param on the list
+    // endpoint, and a request body schema on the write endpoint.
+    private val cleanSpec = """
+        openapi: 3.0.0
+        info:
+          title: Clean Orders API
+          version: "1.0"
+        security:
+          - bearerAuth: []
+        components:
+          securitySchemes:
+            bearerAuth:
+              type: http
+              scheme: bearer
+        paths:
+          /orders:
+            post:
+              requestBody:
+                content:
+                  application/json:
+                    schema:
+                      type: object
+              responses:
+                '200':
+                  description: OK
+                '400':
+                  description: Bad Request
+            get:
+              parameters:
+                - name: page
+                  in: query
+                  schema:
+                    type: integer
+              responses:
+                '200':
+                  description: OK
+                  content:
+                    application/json:
+                      schema:
+                        type: array
+                        items:
+                          type: object
+                '400':
+                  description: Bad Request
+    """.trimIndent()
+
     private fun analyzeRequestBody(spec: String): String = objectMapper.writeValueAsString(mapOf("openApiSpec" to spec))
+
+    @Test
+    fun `analyzing a well-formed OpenAPI spec finds nothing -- rules don't false-positive on satisfied requirements`() {
+        val user = createUser("arch-clean-user")
+
+        mockMvc.perform(
+            post("/architecture-analysis").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(user.id!!))
+                .content(analyzeRequestBody(cleanSpec))
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.scenario.title").value("Clean Orders API"))
+            .andExpect(jsonPath("$.findings").isEmpty)
+    }
+
+    @Test
+    fun `analyzing an unparseable spec is rejected as a bad request`() {
+        val user = createUser("arch-bad-user")
+
+        mockMvc.perform(
+            post("/architecture-analysis").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(user.id!!))
+                .content(analyzeRequestBody("this is not an OpenAPI document"))
+        ).andExpect(status().isBadRequest)
+    }
 
     @Test
     fun `analyzing a flawed OpenAPI spec creates a private scenario with the expected findings`() {
