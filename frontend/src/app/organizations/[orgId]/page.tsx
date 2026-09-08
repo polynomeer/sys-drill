@@ -185,6 +185,9 @@ export default function OrganizationDetailPage() {
               <Link href={`/organizations/${orgId}/audit-log`} className="text-sm text-blue-600 underline dark:text-blue-400">
                 감사 로그 보기
               </Link>
+              <Link href={`/organizations/${orgId}/assessments`} className="text-sm text-blue-600 underline dark:text-blue-400">
+                역량 평가 보기
+              </Link>
             </>
           )}
         </div>

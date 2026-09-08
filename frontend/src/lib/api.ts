@@ -603,3 +603,51 @@ export function postChatMessage(sessionId: string, body: string): Promise<ChatMe
     body: JSON.stringify({ body }),
   });
 }
+
+/** Phase 5 — 채용/역량 평가 상품화 (docs/adr/0033). */
+export type AssessmentStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
+
+export interface Assessment {
+  id: string;
+  organizationId: string;
+  scenarioId: string;
+  scenarioTitle: string;
+  candidateEmail: string;
+  token: string;
+  status: AssessmentStatus;
+  resultSessionId: string | null;
+  expiresAt: string;
+  createdAt: string | null;
+}
+
+export interface AssessmentPreview {
+  organizationName: string;
+  scenarioTitle: string;
+  scenarioDomain: string;
+  candidateEmail: string;
+  expired: boolean;
+  alreadyStarted: boolean;
+}
+
+export function createAssessment(orgId: string, candidateEmail: string, scenarioId: string): Promise<Assessment> {
+  return apiFetch<Assessment>(`/organizations/${orgId}/assessments`, {
+    method: "POST",
+    body: JSON.stringify({ candidateEmail, scenarioId }),
+  });
+}
+
+export function listAssessments(orgId: string): Promise<Assessment[]> {
+  return apiFetch<Assessment[]>(`/organizations/${orgId}/assessments`);
+}
+
+export function getAssessmentReport(orgId: string, assessmentId: string): Promise<Report> {
+  return apiFetch<Report>(`/organizations/${orgId}/assessments/${assessmentId}/report`);
+}
+
+export function previewAssessment(token: string): Promise<AssessmentPreview> {
+  return apiFetch<AssessmentPreview>(`/organizations/assessments/${token}`);
+}
+
+export function startAssessment(token: string): Promise<SessionResponse> {
+  return apiFetch<SessionResponse>(`/organizations/assessments/${token}/start`, { method: "POST" });
+}
