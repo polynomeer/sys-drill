@@ -721,7 +721,23 @@ Phase 5 마지막 항목. 사용자에게 가장 큰 갈림길(후보자 계정 
 
 ## Phase 5 완료
 
-30~39단계(Phase 4)에 이어, Scenario Marketplace·실전형 인증(SysDrill Certified Incident Responder)·채용/역량 평가 상품화로 Phase 5(Platform) 확정 로드맵 항목이 전부 구현됐다. "정적 분석/시스템 그래프 확장"은 ROADMAP.md 자체가 명시하듯 아직 확정 로드맵이 아닌 후보로 남아 있다.
+30~39단계(Phase 4)에 이어, Scenario Marketplace·실전형 인증(SysDrill Certified Incident Responder)·채용/역량 평가 상품화로 Phase 5(Platform) 확정 로드맵 항목이 전부 구현됐다.
+
+### Architecture Linter v1 — OpenAPI 스펙 기반 시나리오 자동 생성 ✅ 완료 (2026-09-08)
+
+Phase 5 검증(로드맵 운영 원칙) 없이 사용자가 방향을 먼저 정하기로 했다("Phase 6 로드맵 정할까" → "1번(정적 분석) 방향으로 갈까" → "검증 원칙을 잠시 미루고 착수") — ROADMAP.md Phase 6을 새로 만들고 FUTURE_EXPLORATIONS.md §A를 승격했다(문서 커밋 별도). 착수 전 반드시 좁혀야 한다고 §A 자신이 못박은 두 문제를 사용자에게 확인해(AskUserQuestion) 정면으로 좁혔다: (1) 입력은 전체 리포지토리가 아니라 **OpenAPI 스펙 하나로 한정**, (2) 생성된 시나리오는 마켓플레이스처럼 공개하지 않고 **업로더 본인 전용 비공개**.
+
+- [x] `build.gradle.kts`에 `io.swagger.parser.v3:swagger-parser` 추가, `V34` 마이그레이션 — `scenarios.visibility`(`"PUBLIC"`/`"PRIVATE"`, 기본값 PUBLIC) — `organizationId`/`creatorUserId`에 이은 세 번째 독립 축
+- [x] 신규 `ArchitectureRiskScanner` — `RuleEvaluator`와 동일한 모양의 결정론적 규칙 엔진, OpenAPI 문서 하나만으로 판단 가능한 리스크 4종(에러 응답 누락/인증 요구사항 없음/페이지네이션 없는 배열 응답/요청 검증 스키마 없음) 탐지. LLM은 쓰지 않음 — 규칙이 찾은 사실을 문자열 템플릿으로 프롬프트에 꽂는다
+- [x] 신규 `ArchitectureAnalysisService` — `CustomScenarioService.create()`/`MarketplaceScenarioService.publish()`와 동일한 ContentItem+Scenario(visibility=PRIVATE)+ScenarioVersion+ScenarioStep(INITIAL,FOLLOWUP) 생성 구조 재사용. **원본 OpenAPI 스펙은 저장하지 않음** — 파싱·스캔·생성을 요청 안에서 마치고 원문은 버린다(ADR-0034)
+- [x] 기존 3곳에 `visibility=PUBLIC` 필터 추가(`ScenarioController.list/get`, `MarketplaceScenarioService.listAll`) — PRIVATE 유출 방지. `ScenarioController.get`은 이전엔 organizationId만 체크해서 PRIVATE 시나리오가 UUID만 알면 상세 조회되는 구멍이 있었음(같이 막음)
+- [x] `SessionService.startSession`에 "PRIVATE면 creatorUserId만 시작 가능" 체크 추가
+- [x] 프론트: 신규 `architecture-analysis/page.tsx`(파일 선택 또는 붙여넣기 → 분석 → 발견된 리스크 표시 → 즉시 시작, 내가 만든 시나리오 목록), 대시보드에 "정적 분석" 링크
+- [x] ADR-0034 작성
+
+**완료 기준 충족**: 백엔드 전체 241개 테스트 전부 통과(신규 `ArchitectureAnalysisControllerIntegrationTest` 3개 포함, 회귀 없음) — `./scripts/run-tests-isolated.sh`로 확인. curl로 미인증 401 확인 → 결함 있는 샘플 OpenAPI 스펙(에러응답/인증/페이지네이션/요청검증 전부 빠짐) 분석 → 5개 findings 전부 정확히 탐지 확인 → `GET /scenarios`/`GET /marketplace/scenarios`에 비노출, `GET /scenarios/{id}` 타 사용자 404 확인 → `GET /architecture-analysis/scenarios`가 업로더 전용인 것 확인 → 타 사용자 `POST /sessions` 404, 업로더 본인 201 확인. 실제 브라우저로 `/architecture-analysis`에서 스펙 붙여넣기 → 분석 → 5개 리스크 확인 → "이 시나리오로 시작" 클릭해 findings가 그대로 반영된 문제 설명으로 System Design Workspace 진입 확인 → 대시보드 시나리오 목록엔 안 뜨지만 "최근 진행"에는 정상 표시되는 것 확인(본인 세션 기록이라 당연히 보임 — 비공개인 건 "발견", "최근 진행"은 별개).
+
+**진행 중 발견한 결정 사항**: 없음 — Phase 5 세 단계에서 이미 다진 패턴(ContentItem/Scenario/ScenarioVersion/ScenarioStep 생성, visibility류 독립 축 추가, AuthWebConfig 등록) 그대로 재사용해서 마찰 없이 진행됐다.
 
 ---
 
