@@ -42,6 +42,10 @@ class Scenario(
     @Column(name = "creator_user_id")
     var creatorUserId: UUID? = null,
 
+    /** Phase 6 (Architecture Linter, docs/adr/0034) — "PUBLIC" (default, every pre-existing row) or "PRIVATE" (only Architecture Linter-generated scenarios; visible only to creatorUserId). A third axis independent of organizationId/creatorUserId, same plain-string convention as ScenarioVersion.status. */
+    @Column(nullable = false)
+    var visibility: String = "PUBLIC",
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant? = null,

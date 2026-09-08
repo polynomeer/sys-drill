@@ -60,6 +60,11 @@ dependencies {
 	// (EvaluationQueue's Redis encoding, CouponLoadRunner's raw docker CLI) —
 	// a well-audited JWT library, not hand-rolled HMAC signing.
 	implementation("com.auth0:java-jwt:4.4.0")
+	// Phase 6 (docs/adr/0034) — parses an uploaded OpenAPI spec into a real
+	// object model for ArchitectureRiskScanner to walk, instead of hand-rolling
+	// YAML/JSON traversal — same "well-audited library over hand-rolled
+	// parsing" choice as java-jwt above.
+	implementation("io.swagger.parser.v3:swagger-parser:2.1.22")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("tools.jackson.module:jackson-module-kotlin")
 	runtimeOnly("org.postgresql:postgresql")

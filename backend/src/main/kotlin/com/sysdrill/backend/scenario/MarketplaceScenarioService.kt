@@ -57,7 +57,10 @@ class MarketplaceScenarioService(
         return ScenarioResponses.toDetail(scenario, content, objectMapper, creatorNickname)
     }
 
-    fun listAll(): List<ScenarioSummaryResponse> = toSummaries(scenarioRepository.findByCreatorUserIdIsNotNull())
+    // Phase 6 (docs/adr/0034) — Architecture Linter-generated scenarios also have
+    // a non-null creatorUserId but are visibility="PRIVATE", so this must filter
+    // by visibility too, not just creatorUserId != null.
+    fun listAll(): List<ScenarioSummaryResponse> = toSummaries(scenarioRepository.findByCreatorUserIdIsNotNullAndVisibility("PUBLIC"))
 
     fun listMine(userId: UUID): List<ScenarioSummaryResponse> = toSummaries(scenarioRepository.findByCreatorUserId(userId))
 

@@ -8,6 +8,9 @@ interface ScenarioRepository : JpaRepository<Scenario, UUID> {
     fun findByOrganizationId(organizationId: UUID): List<Scenario>
     fun findByCreatorUserIdIsNotNull(): List<Scenario>
     fun findByCreatorUserId(creatorUserId: UUID): List<Scenario>
+    fun findByOrganizationIdIsNullAndVisibility(visibility: String): List<Scenario>
+    fun findByCreatorUserIdIsNotNullAndVisibility(visibility: String): List<Scenario>
+    fun findByCreatorUserIdAndVisibility(creatorUserId: UUID, visibility: String): List<Scenario>
 }
 
 interface ScenarioVersionRepository : JpaRepository<ScenarioVersion, UUID> {

@@ -41,6 +41,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
  * sign up at all; gating the preview would make that impossible. `POST
  * .../start` stays gated (needs `@AuthenticatedUserId`) — the exclusion
  * pattern's single `*` matches only the token segment, not `/start`.
+ * `/architecture-analysis` (Phase 6, docs/adr/0034) requires auth on every
+ * sub-path — fully personal, no public sub-path the way `/scenarios` or
+ * assessment preview have one.
  */
 @Configuration
 class AuthWebConfig(
@@ -59,6 +62,7 @@ class AuthWebConfig(
                 "/admin/prompt-templates", "/admin/prompt-templates/**",
                 "/marketplace/scenarios", "/marketplace/scenarios/**",
                 "/certifications/me",
+                "/architecture-analysis", "/architecture-analysis/**",
             )
             .excludePathPatterns("/sessions/*/simulation/realinfra/coupon/**", "/organizations/assessments/*")
     }

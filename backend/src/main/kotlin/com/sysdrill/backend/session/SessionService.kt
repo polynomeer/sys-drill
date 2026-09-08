@@ -54,6 +54,10 @@ class SessionService(
             .orElseThrow { NotFoundException("Scenario not found: $scenarioId") }
         // PLAN.md step 34 — a private (org-scoped) scenario requires membership; public scenarios (organizationId == null) are open to any authenticated user, unchanged.
         scenario.organizationId?.let { orgId -> organizationAccessGuard.requireMember(orgId, userId) }
+        // Phase 6 (docs/adr/0034) — an Architecture Linter scenario (visibility == "PRIVATE") is playable only by the user who generated it.
+        if (scenario.visibility == "PRIVATE" && scenario.creatorUserId != userId) {
+            throw NotFoundException("Scenario not found: $scenarioId")
+        }
         val version = scenarioVersionRepository
             .findFirstByScenarioIdAndStatusOrderByVersionNoDesc(scenario.id!!, "PUBLISHED")
             ?: throw NotFoundException("No published version for scenario: $scenarioId")
