@@ -701,6 +701,28 @@ Phase 5 남은 두 항목(채용/역량 평가 상품화, 실전형 인증) 중 
 
 **진행 중 발견한 결정 사항**: 없음 — 마켓플레이스 작업 때 이미 `bootRun`/테스트 인프라 문제를 해결해둔 덕분에 이번 단계는 처음부터 마찰 없이 진행됐다.
 
+### 채용/역량 평가 상품화 ✅ 완료 (2026-09-08)
+
+Phase 5 마지막 항목. 사용자에게 가장 큰 갈림길(후보자 계정 필요 여부)을 확인했다(AskUserQuestion) — **계정 필요**(가입/로그인 후 치르는 방식)를 선택, ADR-0020(게스트 플로우 완전 제거)과 같은 결.
+
+- [x] `V33` 마이그레이션 — `organization_assessments`(`OrganizationInvitation`과 같은 이메일 바인딩 토큰 구조를 시나리오 하나로 스코프, 상태 컬럼 없음)
+- [x] 신규 `OrganizationAssessmentService` — `create`(ADMIN 전용, 39단계 커리큘럼과 동일한 "공개 또는 자기 조직 시나리오만" 검증), `preview`(공개), `start`(이메일 일치 필요, `SessionService.startSession` 그대로 호출), `getReport`(ADMIN 전용, 세션 COMPLETED+`Report` 있어야 200)
+- [x] `reporting/ReportResponses.kt` 신규 추출 — `ReportController`와 평가 리포트 엔드포인트가 동일한 jsonb 파싱 로직 공유
+- [x] `OrganizationController`에 `POST/GET .../assessments`, `GET .../assessments/{id}/report`, `GET/POST /organizations/assessments/{token}`(미리보기/시작) 추가
+- [x] **평가 상태는 저장하지 않고 `resultSessionId`+`Session.status`에서 매 요청 시 파생**(ADR-0011, ADR-0033), 관리자 리포트 접근은 `SessionAccessGuard`를 안 건드리고 완전히 별도 경로로(후보자는 조직 멤버가 아니라 Game Day의 `requireOwnerOrSpectator`가 원천적으로 안 맞음)
+- [x] 프론트: 신규 `organizations/[orgId]/assessments/page.tsx`(ADMIN 전용 — 생성 폼, 목록, 완료 시 리포트 인라인 표시), `organizations/assessments/[token]/page.tsx`(비로그인도 접근 가능한 후보자 미리보기+시작), 조직 상세에 ADMIN 전용 "역량 평가 보기" 링크
+- [x] ADR-0033 작성
+
+**완료 기준 충족**: 백엔드 전체 235개 테스트 전부 통과(신규 `OrganizationAssessmentIntegrationTest` 4개 포함, 회귀 없음) — `./scripts/run-tests-isolated.sh`로 확인. curl로 평가 생성 → 미리보기 확인 → 다른 이메일 계정으로 시작 시도 404 → 올바른 이메일로 가입 후 시작 성공(201) → 재시작 시도 409 → 관리자가 미완료 리포트 조회 404 → 세션 완료+리포트 생성 후 재조회 200(요약 확인), 목록 상태가 `IN_PROGRESS`→`COMPLETED`로 파생되는 것 확인 → 다른 조직 관리자의 목록/리포트 조회 404 확인. 실제 브라우저로 관리자가 조직 상세 → "역량 평가"에서 후보자 이메일+시나리오로 평가 생성 → 발급 링크를 별도 탭(로그아웃 상태)에서 열어 미리보기 확인 → 정확한 이메일로 가입 → 다시 링크 접속해 "평가 시작하기" 클릭 → System Design Workspace 진입 확인 → 관리자 화면에서 "진행중" 상태로 갱신된 것 확인.
+
+**진행 중 발견한 결정 사항**:
+- **평가 미리보기 페이지를 초대 미리보기 패턴 그대로 복사했다가, 비로그인 후보자가 아예 아무것도 못 보는 버그를 실제 브라우저 검증 중 발견해 바로 고쳤다.** `AuthWebConfig`가 `/organizations/**` 전체를 인증 필수로 등록해서, `previewInvitation`처럼 미리보기도 인증을 요구하도록 그대로 베꼈다 — 그런데 초대 수신자는 이미 계정이 있을 가능성이 높은 기존 사용자라 프런트가 로그인 안 돼 있으면 바로 `/login`으로 보내버리는 반면(초대 수락 페이지의 기존 동작), 채용 후보자는 SysDrill을 처음 보는 사람이라 "뭘 요청받았는지"조차 로그인 전엔 볼 수 없으면 왜 가입해야 하는지 알 도리가 없다 — 승인된 계획 자체가 "비로그인도 접근 가능한 미리보기"였는데 구현이 그 계획을 어겼던 것. `GET /organizations/assessments/{token}` 하나만 `excludePathPatterns`로 빼서 고쳤다(`POST .../start`는 `@AuthenticatedUserId`가 필요해 계속 인증 필요, 단일 `*` 패턴이라 `/start`는 안 건드림). **교훈**: 기존 패턴을 복제할 때는 그 패턴이 전제하는 "누가 이 화면을 보는가"까지 같은지 확인해야 한다 — 겉모양이 같아도 대상 사용자가 다르면 인증 요구사항도 달라질 수 있다.
+- Kotlin 블록 주석 안에 `` `/organizations/**` `` 처럼 백틱으로 감싼 Ant 와일드카드 패턴을 그대로 적어 넣으면 `/**`가 중첩 주석 시작으로 파싱돼 "Unclosed comment" 컴파일 에러가 난다(Kotlin은 블록 주석이 중첩 가능) — 이번 단계에서도 `AuthWebConfig.kt` 주석을 고치다 두 번 겪었다. **교훈**: KDoc 주석 안에서 `**`가 포함된 패턴 문자열을 설명할 땐 "wildcarded pattern"처럼 말로 풀어 쓰고, 리터럴 `/**`는 피한다.
+
+## Phase 5 완료
+
+30~39단계(Phase 4)에 이어, Scenario Marketplace·실전형 인증(SysDrill Certified Incident Responder)·채용/역량 평가 상품화로 Phase 5(Platform) 확정 로드맵 항목이 전부 구현됐다. "정적 분석/시스템 그래프 확장"은 ROADMAP.md 자체가 명시하듯 아직 확정 로드맵이 아닌 후보로 남아 있다.
+
 ---
 
 ## 진행 방식 메모
