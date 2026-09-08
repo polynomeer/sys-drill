@@ -110,6 +110,9 @@ export default function DashboardPage() {
           <Link href="/certifications" className="text-sm text-zinc-500 underline">
             인증
           </Link>
+          <Link href="/architecture-analysis" className="text-sm text-zinc-500 underline">
+            정적 분석
+          </Link>
           <Link href="/organizations" className="text-sm text-zinc-500 underline">
             조직
           </Link>

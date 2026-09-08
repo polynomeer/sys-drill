@@ -651,3 +651,20 @@ export function previewAssessment(token: string): Promise<AssessmentPreview> {
 export function startAssessment(token: string): Promise<SessionResponse> {
   return apiFetch<SessionResponse>(`/organizations/assessments/${token}/start`, { method: "POST" });
 }
+
+/** Phase 6 — Architecture Linter v1 (docs/adr/0034). The raw spec is never persisted server-side. */
+export interface ArchitectureAnalysis {
+  scenario: ScenarioDetail;
+  findings: string[];
+}
+
+export function analyzeArchitecture(openApiSpec: string): Promise<ArchitectureAnalysis> {
+  return apiFetch<ArchitectureAnalysis>("/architecture-analysis", {
+    method: "POST",
+    body: JSON.stringify({ openApiSpec }),
+  });
+}
+
+export function listMyArchitectureScenarios(): Promise<ScenarioSummary[]> {
+  return apiFetch<ScenarioSummary[]>("/architecture-analysis/scenarios");
+}
