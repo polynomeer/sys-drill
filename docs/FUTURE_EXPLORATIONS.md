@@ -17,7 +17,7 @@ Repository Import → Static Analysis → System Model 생성 → Risk Detection
 
 **왜 지금 채택하지 않는가**: MVP 단계에서 실제 리포지토리 파싱(Kotlin/TS/OpenAPI/Terraform 등 다중 언어·포맷 지원)까지 구현하면 범위가 지나치게 커집니다. 또한 보안(고객 소스코드 반출) 문제가 추가로 발생합니다.
 
-**재검토 시점**: Phase 5 이후, 사용자가 이미 SysDrill의 시나리오/리스크 라이브러리에 익숙해지고 "내 실제 코드베이스로도 해보고 싶다"는 수요가 확인된 시점.
+**현재 상태**: Phase 5 완료 시점에 [ROADMAP.md Phase 6](ROADMAP.md#phase-6--architecture-linter-정적-분석시스템-그래프-확장)로 승격됐다 — 단, 로드맵 운영 원칙(Phase 5 검증 신호 확인)을 잠시 미뤄두고 방향만 미리 정한 잠정 상태이며, 실제 착수는 그 검증 이후다. "내 실제 코드베이스로도 해보고 싶다"는 수요 확인은 여전히 착수 전 확인할 조건으로 남아 있다.
 
 ## B. B2B 피봇 후보 13개 비교
 

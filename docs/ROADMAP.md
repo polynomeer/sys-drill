@@ -35,7 +35,18 @@
 
 - Scenario Marketplace (외부 제작자 70% / 플랫폼 30% 수익 배분)
 - 채용/역량 평가 상품화, 실전형 인증(SysDrill Certified Incident Responder)
-- **정적 분석/시스템 그래프 확장** — 사용자의 실제 리포지토리(코드/OpenAPI/IaC)를 분석해 워게임 시나리오를 자동 생성하는 기능. 상세는 [FUTURE_EXPLORATIONS.md](FUTURE_EXPLORATIONS.md#a-정적-분석시스템-그래프-확장-architecture-linter) 참고 — **현재는 확정 로드맵이 아닌 후보**이며, Phase 1~4에서 확보한 리스크 라이브러리·평가 루브릭이 충분히 축적된 이후 재검토한다.
+- 검증할 질문: 마켓플레이스·인증·채용 평가가 실제 시장에서 통하는가?
+
+## Phase 6 — Architecture Linter (정적 분석/시스템 그래프 확장)
+
+> Phase 5의 검증 질문에 대한 신호를 아직 확인하지 못한 상태에서, 로드맵 운영 원칙(아래)을 잠시 미뤄두고 방향만 미리 스케치해둔 잠정 항목이다. 실제 착수는 원칙대로 Phase 5 검증 이후로 미룬다.
+
+**목표**: 가상 시나리오를 넘어, 사용자의 실제 리포지토리를 훈련 콘텐츠의 원천으로 삼는다. 상세 배경은 [FUTURE_EXPLORATIONS.md §A](FUTURE_EXPLORATIONS.md#a-정적-분석시스템-그래프-확장-architecture-linter) 참고.
+
+- 범위: Repository Import → 정적 분석(코드/OpenAPI/IaC) → System Graph 생성 → 리스크 탐지(SPOF, timeout 역전, retry amplification, API contract drift, Kafka schema drift 등) → 시나리오 자동 생성 → 기존 Simulation/평가 파이프라인 재사용
+- 기존 "Rule + AI 하이브리드" 원칙(ARCHITECTURE.md §1)을 그대로 적용 — Rule Engine이 결정론적 리스크를 찾고 LLM은 설명·시나리오 생성을 보조하는 역할에 머문다.
+- 착수 전 반드시 좁혀야 할 것: 다중 언어/포맷 파싱 범위(Kotlin/TS/OpenAPI/Terraform 등), 고객 소스코드 반출·보관에 대한 보안·컴플라이언스 설계.
+- 검증할 질문: "내 실제 코드베이스로도 해보고 싶다"는 수요가 실제로 있는가? 정적 분석에서 나온 시나리오가 가상 시나리오만큼(또는 그 이상) 훈련 가치가 있는가?
 
 ## 로드맵 운영 원칙
 
