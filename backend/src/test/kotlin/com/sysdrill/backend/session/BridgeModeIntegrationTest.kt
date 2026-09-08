@@ -100,7 +100,7 @@ class BridgeModeIntegrationTest(
     }
 
     @Test
-    fun `starting a session rejects a build submission that has not completed`() {
+    fun `starting a session rejects a build submission id that doesn't exist`() {
         val body = """{"scenarioId":"${COUPON_SCENARIO_ID}","buildSubmissionId":"${UUID.randomUUID()}"}"""
         mockMvc.perform(
             post("/sessions").contentType(MediaType.APPLICATION_JSON)
@@ -108,6 +108,20 @@ class BridgeModeIntegrationTest(
                 .content(body)
         )
             .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `starting a session rejects a build submission that exists but has not completed yet`() {
+        // Submitted but not awaited -- still QUEUED/RUNNING, distinct from the not-found case above.
+        val submissionId = submitBuild(userId)
+
+        val body = """{"scenarioId":"${COUPON_SCENARIO_ID}","buildSubmissionId":"$submissionId"}"""
+        mockMvc.perform(
+            post("/sessions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
+                .content(body)
+        )
+            .andExpect(status().isConflict)
     }
 
     @Test
