@@ -855,6 +855,19 @@ Phase B(반응형 레이아웃), Phase C(핵심 루프 화면 리디자인), Pha
 - **`GET .../simulation/timeline`이 500으로 죽는 진짜 버그를 라이브 검증 중 발견했다** — `awaitingStartChoice`(real-infra 옵트인 게이트)는 순수 클라이언트 상태라 페이지를 새로고침할 때마다 다시 뜨는데, 거기서 "인시던트 시작"을 다시 누르면 `SimulationService.startIncident`가 무조건 새 `INCIDENT_STARTED` 행을 추가하고 트레이트를 리셋했다. `getTimeline`의 rule-based 리플레이 경로는 "index 0만 INCIDENT_STARTED일 것"이라 가정하고 나머지를 전부 `SimulationActionType.valueOf()`로 파싱했는데, 두 번째 `INCIDENT_STARTED` 행을 만나면 그 enum에 없는 값이라 예외가 났다. `startIncident`에 멱등성 가드(이미 활성 인시던트가 있으면 그냥 현재 상태를 반환)를 추가하고, `getTimeline`도 위치가 아니라 값으로 `INCIDENT_STARTED`를 걸러내도록 방어적으로 고쳤다. **교훈**: 프런트 상태가 "매번 다시 물어보는" 게이트를 그리면, 백엔드도 "같은 시작 액션이 여러 번 올 수 있다"고 가정해야 한다 — 이건 Round 3 UI 변경과 무관한, 세션이 있었지만(다른 팀원이 만든 것이 아니라 이번 라이브 검증 과정에서 우연히 밟은) 이번에 처음 발견된 기존 버그였다.
 - **Incident 지표 카드가 모바일(375px)에서 오른쪽으로 넘쳤다** — 게이지 2개 + 지표 그리드를 `flex flex-wrap`으로 나란히 두면, flex 자식은 기본적으로 `min-width: auto`라 내용물의 intrinsic width보다 좁아지지 않는다. `flex-col sm:flex-row` + 지표 그리드에 `min-w-0`을 추가해 모바일에서는 세로로 쌓이게 고쳤다.
 
+### Round 4 — Build Drill 코드 에디터 ✅ 완료 (2026-09-09)
+
+문서 10장 우선순위표의 P0(Round 1~3)가 전부 끝난 뒤, 사용자에게 "Round 4"의 구체적 범위를 물어(AskUserQuestion — Build Drill 코드 에디터 vs 결과/역량 프로필 화면 vs 다른 작업) P1 항목 중 "Build Drill 코드 에디터"로 확인받았다.
+
+- [x] `frontend/package.json`에 `@uiw/react-codemirror`/`@codemirror/lang-python`/`@codemirror/theme-one-dark` 정확 버전 고정 추가 — CodeMirror 6 기반, Monaco보다 가벼워 "Rate Limiter 챌린지 하나의 Python 텍스트 입력"이라는 실제 스코프에 맞는 선택
+- [x] `app/bridge/page.tsx`의 평범한 `<textarea>`를 syntax highlighting + 줄 번호가 있는 `CodeMirror` 컴포넌트로 교체 — `sourceCode`/`handleSourceChange`(localStorage draft 저장)/제출 로직은 전부 무변경, 에디터 컴포넌트만 교체
+
+문서 §5.4가 그리는 Build Drill의 전체 그림(좌측 가이드/과제/테스트/힌트 탭, 여러 챌린지, Cache/Circuit Breaker/Idempotency/Message Consumer 등)은 이번 스코프가 아니다 — 사용자가 고른 범위는 "코드 에디터"였고, 실제 데이터 모델도 여전히 단일 rate-limiter 챌린지뿐이라(Round 1에서 이미 확인한 제약) 새 챌린지나 탭 구조를 지어내지 않았다.
+
+**완료 기준 충족**: `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 전부 클린. 실제 브라우저로 Python 문법 강조·줄 번호 렌더 확인 → 에디터에 직접 타이핑 → localStorage draft에 반영되는지 확인 → 새로고침 후 draft가 에디터에 복원되는지 확인 → 모바일(375px)에서 긴 코드 줄이 페이지 자체가 아니라 에디터 내부에서만 가로 스크롤되는지(`document.body.scrollWidth === window.innerWidth`) 확인.
+
+**진행 중 발견한 결정 사항**: 없음 — 기존 컴포넌트(Card/Button 등)와 `handleSourceChange`/draft 로직을 그대로 재사용해서 마찰 없이 진행됐다.
+
 ---
 
 ## 진행 방식 메모

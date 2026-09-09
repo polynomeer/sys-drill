@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import CodeMirror from "@uiw/react-codemirror";
+import { python } from "@codemirror/lang-python";
+import { oneDark } from "@codemirror/theme-one-dark";
 import {
   ApiError,
   BuildSubmissionResponse,
@@ -20,6 +23,10 @@ import { LoadingState } from "@/components/ui/LoadingState";
 
 const CHALLENGE_SLUG = "rate-limiter";
 const POLL_INTERVAL_MS = 1000;
+
+// Module-scope so the array identity is stable across renders — CodeMirror
+// reconfigures its extensions whenever this reference changes.
+const CODE_EXTENSIONS = [python()];
 
 const STUB_TEMPLATE = `# Build your own Rate Limiter — challenges/rate-limiter/rate_limiter.py 와 동일한 스텁입니다.
 # 로컬에서 git으로 받아 CLI(submit.sh)로 제출할 수도 있습니다 (README.md 참고).
@@ -178,11 +185,14 @@ export default function BridgePage() {
 
       {(view === "editing" || view === "submitting") && (
         <>
-          <textarea
-            className="min-h-[360px] rounded border border-border p-3 font-mono text-sm  "
+          <CodeMirror
             value={sourceCode}
-            onChange={(e) => handleSourceChange(e.target.value)}
-            spellCheck={false}
+            onChange={handleSourceChange}
+            height="360px"
+            theme={oneDark}
+            extensions={CODE_EXTENSIONS}
+            className="overflow-hidden rounded-lg border border-border text-sm"
+            basicSetup={{ tabSize: 4 }}
           />
           <Button onClick={handleSubmit} disabled={view === "submitting"} className="self-start">
             {view === "submitting" ? "제출하는 중..." : "제출하기"}
