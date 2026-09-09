@@ -868,6 +868,19 @@ Phase B(반응형 레이아웃), Phase C(핵심 루프 화면 리디자인), Pha
 
 **진행 중 발견한 결정 사항**: 없음 — 기존 컴포넌트(Card/Button 등)와 `handleSourceChange`/draft 로직을 그대로 재사용해서 마찰 없이 진행됐다.
 
+### Round 5 — 결과/AI 피드백/역량 프로필 ✅ 완료 (2026-09-09)
+
+Round 4에서 확인한 남은 P1 항목("결과/AI 피드백/역량 프로필")을 사용자에게 다시 확인받고 진행했다. 조사 결과 두 화면 모두 **새 백엔드 작업 없이** 이미 존재하는 엔드포인트만으로 채울 수 있음을 확인 — `report/[sessionId]`는 `timelineFeedback[].submissionId`로 기존 `getFeedback()`을 호출하면 되고, `/profile`은 대시보드·인증 페이지가 이미 각각 쓰던 `getSkillProfile()`/`getMyCertification()`/`getUserSessions()`를 한 화면에 모으면 된다.
+
+- [x] `design/[sessionId]/page.tsx`의 로컬 `FeedbackView`/`FeedbackList`를 공용 `frontend/src/components/FeedbackDetail.tsx`로 추출(동작 무변경) — 리포트 화면과 세션 진행 중 화면이 동일한 피드백 렌더링을 공유
+- [x] `report/[sessionId]/page.tsx` 재설계 — 마지막 단계 점수를 헤드라인 원형 게이지(Round 3 `Gauge` 재사용, 점수 구간별 상태색)로 표시, 각 단계마다 `getFeedback(submissionId)`를 병렬 호출해 `FeedbackDetail`로 전체 피드백(루브릭 점수/잘한 점/놓친 점/실무 리스크/꼬리질문/권장 변경사항) 노출, `getSkillProfile()`+`listScenarios()`로 "다음 추천 Drill" CTA 추가(대시보드와 동일한 추천 로직)
+- [x] 신규 `frontend/src/app/profile/page.tsx` — 진행률(인증 도메인 통과 수 + 진행바, 인증 페이지 패턴 재사용), 역량 프로필(`recharts` `RadarChart`로 도메인별 최고 점수 시각화 — 세 번째 recharts 차트 유형), 점수 추이(대시보드 막대 그래프 재사용), 보완 영역(대시보드의 "약점 TOP3"를 6개까지 확장, `riskLabel` 재사용), 배지(인증 페이지 패턴), 추천 학습 경로(리포트와 동일 로직), 기록(전체 세션 목록)
+- [x] `AppHeader.tsx`의 아바타 드롭다운(데스크톱)과 모바일 메뉴 양쪽에 "프로필" 링크(`/profile`) 추가
+
+**완료 기준 충족**: `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 전부 클린(21개 라우트, `/profile` 포함). 실제 브라우저로 인시던트 세션을 실제로 완료 처리(`다음 단계로` 클릭까지)한 뒤 리포트 페이지에서 헤드라인 게이지·3단계 전체 피드백·추천 Drill CTA(클릭 시 실제 세션 시작까지) 확인 → `/profile`에서 진행률·레이더 차트·점수 추이·보완 영역·기록이 전부 실데이터로 렌더되는지 확인 → 모바일(375px)에서 두 화면 모두 오버플로 없는지 확인.
+
+**진행 중 발견한 버그 1건과 수정**: 레이더 차트가 모바일(375px)에서 긴 도메인 라벨("대규모 상품 조회", "주문/결제" 등)이 잘려 보였다(페이지 자체 오버플로는 아니고 차트 SVG 안에서 라벨이 잘림). `RadarChart`에 `outerRadius="60%"` + `margin`을 넉넉히 줘서 해결. **교훈**: recharts의 극좌표 차트(Radar/Pie)는 기본 `outerRadius`가 라벨 공간을 고려하지 않으므로, 한국어처럼 라벨이 긴 데이터를 쓸 땐 처음부터 outerRadius를 줄여 여백을 확보하는 게 안전하다.
+
 ---
 
 ## 진행 방식 메모

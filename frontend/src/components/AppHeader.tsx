@@ -109,6 +109,9 @@ export function AppHeader() {
                 {profileOpen && (
                   <div className="absolute right-0 top-10 z-10 flex w-40 flex-col gap-1 rounded-lg border border-border bg-surface p-2 text-sm shadow-lg">
                     {nickname && <span className="px-2 py-1 text-foreground-muted">{nickname}</span>}
+                    <Link href="/profile" className="rounded px-2 py-1 hover:bg-surface-elevated">
+                      프로필
+                    </Link>
                     <button onClick={handleLogout} className="rounded px-2 py-1 text-left hover:bg-surface-elevated">
                       로그아웃
                     </button>
@@ -137,6 +140,9 @@ export function AppHeader() {
             </Link>
           ))}
           {nickname && <span className="py-1.5 text-foreground-muted">{nickname}</span>}
+          <Link href="/profile" className="py-1.5 text-foreground-muted">
+            프로필
+          </Link>
           <button onClick={handleLogout} className="py-1.5 text-left underline">
             로그아웃
           </button>
