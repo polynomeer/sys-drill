@@ -54,6 +54,22 @@ export function loadSubmissionId(sessionId: string): string | null {
   return window.localStorage.getItem(submissionKey(sessionId));
 }
 
+function canvasDraftKey(sessionId: string): string {
+  return `sysdrill:canvas:${sessionId}`;
+}
+
+/** ADR-0036 — the canvas's node/edge graph is not submitted anywhere (only
+ * its Mermaid serialization, embedded in the answer draft, is); this is what
+ * lets the canvas survive a page reload without needing a Mermaid parser to
+ * reconstruct it from the answer text. */
+export function saveCanvasDraft(sessionId: string, graphJson: string): void {
+  window.localStorage.setItem(canvasDraftKey(sessionId), graphJson);
+}
+
+export function loadCanvasDraft(sessionId: string): string | null {
+  return window.localStorage.getItem(canvasDraftKey(sessionId));
+}
+
 function buildDraftKey(slug: string): string {
   return `sysdrill:build-draft:${slug}`;
 }

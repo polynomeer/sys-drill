@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   ApiError,
@@ -25,6 +24,12 @@ import { WargameLive } from "./WargameLive";
 import { BridgeProgress } from "@/components/BridgeProgress";
 import { PhaseTimer } from "@/components/PhaseTimer";
 import { DiagramPreview } from "./DiagramPreview";
+import { DiagramCanvas } from "./DiagramCanvas";
+import { Alert } from "@/components/ui/Alert";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 const DESIGN_GUIDANCE_BY_DOMAIN: Record<string, string[]> = {
   coupon: [
@@ -107,6 +112,48 @@ const INCIDENT_GUIDANCE = [
 
 const POLL_INTERVAL_MS = 1500;
 
+// ADR-0036 — the canvas never becomes a second source of truth: its output is
+// always spliced into this same marked region of the free-text answer, so
+// `rawText` submitted to the backend is completely unchanged by Round 2.
+const CANVAS_BLOCK_START = "<!-- sysdrill-canvas:start -->";
+const CANVAS_BLOCK_END = "<!-- sysdrill-canvas:end -->";
+const CANVAS_BLOCK_RE = /<!-- sysdrill-canvas:start -->[\s\S]*?<!-- sysdrill-canvas:end -->/;
+
+function upsertCanvasBlock(answer: string, mermaidText: string): string {
+  const block = `${CANVAS_BLOCK_START}\n\`\`\`mermaid\n${mermaidText}\n\`\`\`\n${CANVAS_BLOCK_END}`;
+  if (CANVAS_BLOCK_RE.test(answer)) return answer.replace(CANVAS_BLOCK_RE, block);
+  return `${answer}${answer.trim() ? "\n\n" : ""}${block}`;
+}
+
+const STEP_LABELS = ["요구사항 분석", "초기 설계", "확장 시나리오", "피드백"] as const;
+
+/** Purely presentational grouping over the existing 3-phase session model
+ * (INITIAL/FOLLOWUP/INCIDENT) — see PLAN.md UI/UX 리뉴얼 Round 2. No new
+ * backend phase is introduced; "요구사항 분석"/"초기 설계" are just two
+ * labels for the same INITIAL answer-writing step. */
+function StepNav({ activeIndex }: { activeIndex: number }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+      {STEP_LABELS.map((label, i) => (
+        <div key={label} className="flex items-center gap-1.5">
+          <span
+            className={
+              i === activeIndex
+                ? "rounded bg-accent px-2 py-0.5 font-medium text-accent-foreground"
+                : i < activeIndex
+                  ? "text-foreground-muted line-through"
+                  : "text-foreground-muted"
+            }
+          >
+            {label}
+          </span>
+          {i < STEP_LABELS.length - 1 && <span className="text-foreground-muted">&rarr;</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 type ViewState =
   | "loading"
   | "error"
@@ -131,6 +178,7 @@ export default function DesignWorkspacePage() {
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState<EvaluationFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [diagramMode, setDiagramMode] = useState<"canvas" | "text">("canvas");
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -241,6 +289,10 @@ export default function DesignWorkspacePage() {
     saveDraft(sessionId, value);
   }
 
+  function handleCanvasMermaidChange(mermaidText: string) {
+    handleAnswerChange(upsertCanvasBlock(answer, mermaidText));
+  }
+
   async function handleSubmit(auto = false) {
     if (!auto && !answer.trim()) {
       setError("답안을 입력해주세요.");
@@ -279,6 +331,7 @@ export default function DesignWorkspacePage() {
   const isIncident = session?.currentPhase === "INCIDENT";
   const domain = session?.domain ?? "coupon";
   const guidance = isIncident ? INCIDENT_GUIDANCE : (DESIGN_GUIDANCE_BY_DOMAIN[domain] ?? DESIGN_GUIDANCE_BY_DOMAIN.coupon);
+  const stepActiveIndex = view === "result" || view === "completed" ? 3 : isFollowup ? 2 : 1;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
@@ -294,21 +347,21 @@ export default function DesignWorkspacePage() {
         </div>
       </div>
 
-      {view === "loading" && <p className="text-sm text-zinc-500">불러오는 중...</p>}
+      {!isIncident && view !== "loading" && view !== "error" && view !== "spectating" && <StepNav activeIndex={stepActiveIndex} />}
 
-      {view === "error" && <p className="text-sm text-red-600">{error ?? "오류가 발생했습니다."}</p>}
+      {view === "loading" && <LoadingState />}
+
+      {view === "error" && <p className="text-sm text-danger">{error ?? "오류가 발생했습니다."}</p>}
 
       {isFollowup && (view === "editing" || view === "submitting") && (
-        <div className="rounded border border-amber-400 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
-          조건이 변경되었습니다 — 아래 새 조건을 반영해 설계를 다시 검토하세요 (꼬리설계).
-        </div>
+        <Alert>조건이 변경되었습니다 — 아래 새 조건을 반영해 설계를 다시 검토하세요 (꼬리설계).</Alert>
       )}
 
       {session?.currentStepPrompt && (view === "editing" || view === "submitting") && (
-        <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-          <h2 className="mb-2 text-sm font-semibold text-zinc-500">문제</h2>
+        <Card as="section">
+          <h2 className="mb-2 text-sm font-semibold text-foreground-muted">문제</h2>
           <p className="whitespace-pre-wrap text-sm">{session.currentStepPrompt}</p>
-        </section>
+        </Card>
       )}
 
       {isIncident && (view === "editing" || view === "submitting") && (
@@ -317,32 +370,32 @@ export default function DesignWorkspacePage() {
 
       {view === "spectating" && session && (
         <div className="flex flex-col gap-4">
-          <p className="rounded border border-zinc-300 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+          <p className="rounded border border-border bg-surface p-3 text-sm text-foreground-muted   dark:text-foreground-muted">
             관전 중입니다 — {session.status === "COMPLETED" ? "이 세션은 종료되었습니다." : "오너가 진행 중인 세션을 실시간으로 보고 있습니다."}
           </p>
           {session.currentPhase === "INCIDENT" ? (
             <WargameLive sessionId={sessionId} domain={domain} isOwner={false} />
           ) : (
-            <p className="text-sm text-zinc-500">아직 장애 대응 단계가 아닙니다. 오너가 설계를 진행 중입니다.</p>
+            <p className="text-sm text-foreground-muted">아직 장애 대응 단계가 아닙니다. 오너가 설계를 진행 중입니다.</p>
           )}
         </div>
       )}
 
       {(view === "editing" || view === "submitting") && (
         <>
-          <section className="rounded border border-zinc-300 p-4 text-sm dark:border-zinc-700">
-            <h2 className="mb-2 font-semibold text-zinc-500">
+          <Card as="section" className="text-sm">
+            <h2 className="mb-2 font-semibold text-foreground-muted">
               {isIncident ? "회고에 포함하면 좋은 항목" : "답안에 포함하면 좋은 항목"}
             </h2>
-            <ul className="list-inside list-disc space-y-1 text-zinc-600 dark:text-zinc-400">
+            <ul className="list-inside list-disc space-y-1 text-foreground-muted">
               {guidance.map((section) => (
                 <li key={section}>{section}</li>
               ))}
             </ul>
-          </section>
+          </Card>
 
           <textarea
-            className="min-h-[200px] rounded border border-zinc-300 p-3 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="min-h-[200px] rounded border border-border p-3 font-mono text-sm  "
             value={answer}
             onChange={(e) => handleAnswerChange(e.target.value)}
             placeholder={
@@ -353,56 +406,65 @@ export default function DesignWorkspacePage() {
           />
 
           {!isIncident && (
-            <DiagramPreview answer={answer} onAppend={(text) => handleAnswerChange(answer + text)} />
+            <section className="flex flex-col gap-2">
+              <div className="flex items-center gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setDiagramMode("canvas")}
+                  className={`rounded-lg px-2 py-1 font-medium ${diagramMode === "canvas" ? "bg-accent text-accent-foreground" : "border border-border text-foreground-muted"}`}
+                >
+                  캔버스
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDiagramMode("text")}
+                  className={`rounded-lg px-2 py-1 font-medium ${diagramMode === "text" ? "bg-accent text-accent-foreground" : "border border-border text-foreground-muted"}`}
+                >
+                  텍스트 (Mermaid)
+                </button>
+              </div>
+              {diagramMode === "canvas" ? (
+                <DiagramCanvas sessionId={sessionId} onMermaidChange={handleCanvasMermaidChange} />
+              ) : (
+                <DiagramPreview answer={answer} onAppend={(text) => handleAnswerChange(answer + text)} />
+              )}
+            </section>
           )}
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
 
-          <button
-            onClick={() => handleSubmit()}
-            disabled={view === "submitting"}
-            className="self-start rounded bg-foreground px-5 py-2 font-medium text-background disabled:opacity-50"
-          >
+          <Button onClick={() => handleSubmit()} disabled={view === "submitting"} className="self-start">
             {view === "submitting" ? "제출하는 중..." : "제출하기"}
-          </button>
+          </Button>
         </>
       )}
 
       {(view === "waiting" || view === "advancing") && (
-        <div className="flex flex-col items-center gap-3 rounded border border-zinc-300 p-8 dark:border-zinc-700">
-          <p className="text-sm text-zinc-500">
+        <Card className="flex flex-col items-center gap-3 p-8">
+          <p className="text-sm text-foreground-muted">
             {view === "advancing"
               ? "다음 단계로 이동하는 중..."
               : `제출한 답안을 평가하는 중입니다 (${session?.status ?? "..."})...`}
           </p>
-        </div>
+        </Card>
       )}
 
-      {view === "failed" && (
-        <div className="rounded border border-red-300 p-6 dark:border-red-800">
-          <p className="text-sm text-red-600">평가에 실패했습니다. 잠시 후 다시 시도해주세요.</p>
-        </div>
-      )}
+      {view === "failed" && <Alert variant="danger">평가에 실패했습니다. 잠시 후 다시 시도해주세요.</Alert>}
 
       {view === "completed" && (
-        <div className="flex flex-col items-start gap-3 rounded border border-zinc-300 p-6 dark:border-zinc-700">
-          <p className="text-sm text-zinc-500">이 세션은 이미 종료되었습니다.</p>
-          <Link href={`/report/${sessionId}`} className="rounded bg-foreground px-4 py-2 text-sm font-medium text-background">
-            리포트 보기
-          </Link>
-        </div>
+        <Card className="flex flex-col items-start gap-3 p-6">
+          <p className="text-sm text-foreground-muted">이 세션은 이미 종료되었습니다.</p>
+          <Button href={`/report/${sessionId}`}>리포트 보기</Button>
+        </Card>
       )}
 
       {view === "result" && feedback && (
         <>
           <FeedbackView feedback={feedback} />
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <button
-            onClick={handleAdvance}
-            className="self-start rounded bg-foreground px-5 py-2 font-medium text-background"
-          >
+          {error && <p className="text-sm text-danger">{error}</p>}
+          <Button onClick={handleAdvance} className="self-start">
             다음 단계로
-          </button>
+          </Button>
         </>
       )}
     </div>
@@ -412,19 +474,19 @@ export default function DesignWorkspacePage() {
 function FeedbackView({ feedback }: { feedback: EvaluationFeedback }) {
   return (
     <div className="flex flex-col gap-4">
-      <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-        <p className="text-sm text-zinc-500">총점</p>
+      <Card as="section">
+        <p className="text-sm text-foreground-muted">총점</p>
         <p className="text-3xl font-semibold">{feedback.totalScore ?? "-"} / 100</p>
         {(feedback.modelProvider || feedback.modelName) && (
-          <p className="mt-1 text-xs text-zinc-400">
+          <p className="mt-1 text-xs text-foreground-muted">
             {feedback.modelProvider} · {feedback.modelName}
           </p>
         )}
-      </section>
+      </Card>
 
       {Object.keys(feedback.rubricScores).length > 0 && (
-        <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-          <h2 className="mb-2 text-sm font-semibold text-zinc-500">항목별 점수</h2>
+        <Card as="section">
+          <h2 className="mb-2 text-sm font-semibold text-foreground-muted">항목별 점수</h2>
           <ul className="space-y-1 text-sm">
             {Object.entries(feedback.rubricScores).map(([name, score]) => (
               <li key={name} className="flex justify-between">
@@ -433,26 +495,26 @@ function FeedbackView({ feedback }: { feedback: EvaluationFeedback }) {
               </li>
             ))}
           </ul>
-        </section>
+        </Card>
       )}
 
       <FeedbackList title="잘한 점" items={feedback.strengths} />
       <FeedbackList title="놓친 점" items={feedback.weaknesses} />
 
       {feedback.riskFlags.length > 0 && (
-        <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-          <h2 className="mb-2 text-sm font-semibold text-zinc-500">실무 리스크</h2>
+        <Card as="section">
+          <h2 className="mb-2 text-sm font-semibold text-foreground-muted">실무 리스크</h2>
           <ul className="space-y-2 text-sm">
             {feedback.riskFlags.map((flag, i) => (
               <li key={i}>
-                <span className="mr-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-300">
+                <Badge variant="danger" className="mr-2">
                   {flag.severity}
-                </span>
+                </Badge>
                 {flag.description}
               </li>
             ))}
           </ul>
-        </section>
+        </Card>
       )}
 
       <FeedbackList title="꼬리질문" items={feedback.followupQuestions} />
@@ -464,13 +526,13 @@ function FeedbackView({ feedback }: { feedback: EvaluationFeedback }) {
 function FeedbackList({ title, items }: { title: string; items: string[] }) {
   if (items.length === 0) return null;
   return (
-    <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-      <h2 className="mb-2 text-sm font-semibold text-zinc-500">{title}</h2>
+    <Card as="section">
+      <h2 className="mb-2 text-sm font-semibold text-foreground-muted">{title}</h2>
       <ul className="list-inside list-disc space-y-1 text-sm">
         {items.map((item, i) => (
           <li key={i}>{item}</li>
         ))}
       </ul>
-    </section>
+    </Card>
   );
 }
