@@ -784,6 +784,79 @@ Phase 5 검증(로드맵 운영 원칙) 없이 사용자가 방향을 먼저 정
 
 ---
 
+## UI/UX 고도화 — Phase A (기초 공사) ✅ 완료 (2026-09-09)
+
+사용자가 "절차나 인프라같은 상용제품화 보다는 이 프로젝트의 완성도를 높이는 방향으로 가자"며 방향을 틀었다. 실제로 앱을 띄워 확인한 근거를 바탕으로 [docs/UX_STRATEGY.md](docs/UX_STRATEGY.md)를 작성했고(4단계 전략), 그중 레버리지가 가장 큰 Phase A를 auto mode로 끝까지 구현했다.
+
+- [x] 버그 4개 수정: `globals.css`의 하드코딩된 `Arial` 폰트 제거(Geist Sans 실제 적용), `layout.tsx` metadata를 "SysDrill"로 교체, `app/icon.svg` 신규(단순 SVG 모노그램), 헤더 wrap 버그는 아래 앱 셸로 구조적 해결
+- [x] `frontend/src/components/ui/`에 원자 컴포넌트 7종 신설 — `Button`(primary/secondary/ghost/danger × md/sm), `Card`, `Badge`(neutral/success/warning/danger/accent), `Alert`(warning/danger), `Input`/`Textarea`, `LoadingState`, `EmptyState` — 이미 26개 페이지에서 반복되던 Tailwind 문자열을 그대로 뽑아낸 것이라 디자인 결정은 최소
+- [x] `globals.css`에 `--accent`/`--accent-foreground` CSS 변수 도입(라이트: indigo `#4f46e5`, 다크: `#818cf8`) — 개발자 도구 톤의 절제된 단일 액센트
+- [x] `components/AppHeader.tsx` 신규(로고, 데스크톱 가로 내비게이션, 모바일 햄버거 메뉴, 로그인 상태에 따라 분기) + `layout.tsx`에 통합, 26개 페이지 전부에서 자체 내비게이션/뒤로가기 블록 제거
+- [x] 26개 페이지 전부 마이그레이션 — 카드/버튼/배지/로딩/빈 상태를 새 컴포넌트로 교체(로직·상태 관리는 무변경, JSX 스타일링만 치환)
+
+**완료 기준 충족**: `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 전부 클린(18개 라우트 정상 생성). 실제 브라우저로 로그인 → 대시보드(1440px에서 헤더 한 줄 유지, `getComputedStyle`로 폰트가 Geist인 것 확인) → `resize_window`로 375px 모바일 확인(햄버거 버튼으로 전환, 메뉴 항목이 세로 한 줄씩 정상 표시 — 이전엔 글자 단위로 쌓이던 버그) → 마켓플레이스/조직/인증 페이지 스크린샷으로 카드·버튼·배지 일관성 확인 → 조직 생성 → 멤버 초대까지 핵심 플로우 실제 실행해 회귀 없음 확인.
+
+**진행 중 발견한 결정 사항**:
+- **`app.icon.svg`를 만들어도 같은 디렉터리에 `favicon.ico`가 남아 있으면 브라우저는 여전히 `favicon.ico`를 쓴다** — Next.js의 파일 기반 메타데이터 컨벤션은 `favicon.ico`를 `icon.svg`보다 우선한다. create-next-app이 만든 기본 `src/app/favicon.ico`가 이번 세션 이전부터 계속 남아있었던 것— `getComputedStyle`/build 로그만으로는 안 드러나고 실제로 `document.querySelector('link[rel="icon"]')`을 찍어봐야 드러나는 종류의 버그였다. 파일을 삭제해 해결. **교훈**: Next.js 파일 컨벤션은 "새 파일을 추가"하는 것만으로 부족할 수 있다 — 같은 디렉터리의 기존 기본 파일이 우선순위상 여전히 이기고 있지 않은지 실제 렌더링된 `<link>` 태그로 확인해야 한다.
+- **`organizations/[orgId]/page.tsx`의 초대 성공 메시지("이메일은 자동 발송되지 않습니다")가 상용화 라운드(이메일 발송 연동) 이후로 사실과 어긋나 있었다** — 마이그레이션 도중 우연히 발견해 "초대 이메일을 발송했습니다"로 정정. 스타일링 리팩터링 스코프 밖이지만 완성도(이 라운드의 목표) 안에 들고 리스크가 낮아 바로 고쳤다.
+- 버튼 variant는 반복 사용 맥락에 따라 규칙을 세워 일관 적용했다: `primary`(액센트)는 화면/섹션당 가장 중요한 CTA 1개, `secondary`(테두리)는 목록 행 반복 액션, `ghost`(밑줄 텍스트)는 저강조 내비게이션형 액션, `danger`(빨강 밑줄)는 파괴적 액션 — 기존 코드에 이미 존재하던 색 구분(`text-red-600 underline` 등)을 grep으로 먼저 확인한 뒤 그대로 컴포넌트 variant에 대응시켰다.
+
+Phase B(반응형 레이아웃), Phase C(핵심 루프 화면 리디자인), Phase D(로딩 스켈레톤/토스트/Monaco Editor)는 착수하지 않았다.
+
+---
+
+## UI/UX 리뉴얼 — `SysDrill_UIUX_Design_Plan.docx` 기반 (2026-09-09~)
+
+사용자가 외부 디자인 기획서를 제시하고 화면 기획을 다시 하고 UI/UX를 리뉴얼해달라고 요청했다. AskUserQuestion으로 "IA까지 전면 리뉴얼"·"P0 전체(캔버스/모니터링 기능 포함)"를 확인했고, 두 Explore 에이전트로 기존 결정(ADR-0035, 3단계 세션 phase 모델, 단일 Build 챌린지)과의 충돌을 먼저 파악한 뒤 계획을 세웠다. 전체 계획은 승인된 plan 파일 참고. Phase A(라이트 테마)와 무관한 별도 트랙 — [docs/UX_STRATEGY.md](docs/UX_STRATEGY.md) 참고.
+
+### Round 1 — 디자인 토큰 + 컴포넌트 + IA (Header/Home/Drills) ✅ 완료 (2026-09-09)
+
+- [x] `globals.css` 다크 네이비 리브랜드 — `:root`를 단일 다크 팔레트로 교체(라이트/다크 분기 제거), `--accent`를 `#2f80ff`로, 상태 색상 3종(`--success`/`--warning`/`--danger`) 신설. 폰트는 `next/font/google`의 `Noto_Sans_KR`로 교체(Pretendard는 별도 패키지가 필요해 대체), `Geist_Mono`는 유지
+- [x] `frontend/src/components/ui/` 7종(Button/Card/Badge/Alert/Input·Textarea/LoadingState/EmptyState) 전부 새 토큰으로 리브랜드, 신규 `MetricCard.tsx`(값/단위/변화율/상태/sparkline, 순수 SVG) 추가
+- [x] 26개 페이지 전체에 남아있던 raw Tailwind 색상 클래스(`zinc-*`/`red-*`/`emerald-*` 등, `dark:` 짝이 있는 것과 없는 것 모두) 전부 새 토큰(`text-foreground-muted`/`border-border`/`bg-surface*`/`text-danger`/`text-success`)으로 sed 스윕 — 컴포넌트화되지 않고 남아있던 자리까지 다크 테마가 깨지지 않게 함
+- [x] `AppHeader.tsx` — nav를 Home/Drills/Learning/Community로 교체, 헤더 검색(엔터 시 `/marketplace?q=...`로 이동), 알림 벨(정적 아이콘), 아바타 드롭다운(닉네임/로그아웃 — 텍스트 링크에서 교체)
+- [x] `app/learning`, `app/community` 신규 — P2라 콘텐츠는 없지만 헤더 IA에 죽은 링크를 안 만들기 위한 최소 placeholder
+- [x] Home(`app/dashboard/page.tsx`) 재설계 — Hero("Train. Break. Fix. Repeat."), System Design/Build/Incident 모드 카드, 실제 데이터 기반 통계 칩(시나리오/도메인 개수 — "100+" 같은 과장 없이 실제 개수만), Bridge Mode CTA, 약점 TOP3/점수 추이/최근 진행 3열 그리드. **계획 당시 "약점 TOP3는 백엔드가 없어 스코프 아웃"이라고 썼는데, 실제로는 `SkillProfile.weaknessesByDomain`이 이미 있어 그대로 유지했다** — 계획 문서의 그 판단은 틀렸던 것으로 정정
+- [x] Drills(`app/marketplace/page.tsx`) 재설계 — 전체/System Design/Build/Incident 탭(System Design·Incident는 동일 시나리오 목록을 보여줌 — 가짜 필터 대신 정직한 표현), 난이도/카테고리 필터(실제 필드 기반), 검색(헤더 프리필 지원), Drill 타입 배지. `useSearchParams` 사용으로 인한 Next.js 빌드 요구사항 때문에 `Suspense` 경계 추가
+
+**완료 기준 충족**: `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 전부 클린(20개 라우트, `/learning`·`/community` 포함). 실제 브라우저로 신규 계정 가입 → Home(실시간 API로 시나리오/도메인 개수 확인) → Drills 탭 전환(Build 탭이 단일 rate-limiter 카드로 정확히 좁혀지는 것 확인) → 헤더 검색 프리필 확인 → 모바일(375px) 햄버거 메뉴에 새 IA 라벨 확인 → 시나리오 시작 클릭해 `/design/{id}`로 정상 진입까지 회귀 없음 확인.
+
+**진행 중 발견한 결정 사항**:
+- **로컬 백엔드가 사용자 본인의 다른 개발 세션에 의해 이미 실행 중이었다**(포트 8083, CORS는 `sysdrill.frontend-origin` 환경변수로 `http://localhost:3002`만 허용하도록 설정돼 있었음 — 기본값 3000이 아니었다). 처음엔 기존 관행대로 포트 3000에서 검증하려다 CORS 403으로 막혔고, 원인을 `CorsConfig.kt`/`application.yml`까지 추적해 사용자의 실제 프런트 포트가 3002라는 걸 확인한 뒤 `.claude/launch.json`에 `frontend-verify`(포트 3002) 설정을 별도로 추가해 검증했다. 기존 `frontend`(포트 3000) 설정은 건드리지 않음. **교훈**: 같은 저장소에 사용자가 이미 자기 방식대로 띄워둔 dev 서버가 있을 수 있다 — 포트/CORS가 예상과 다르면 설정 파일을 추적해서 실제 값을 확인하는 게, 기본값을 가정하고 계속 재시도하는 것보다 빠르다.
+- Home 화면의 통계 칩에 문서 목업의 "100+ 시나리오" 같은 과장된 숫자를 그대로 쓰지 않고 실제 `scenarios.length`/도메인 개수로 대체했다 — 실제 데이터보다 부풀린 마케팅 카피를 UI에 박아넣지 않는다는 원칙.
+
+### Round 2 — System Design Drill 다이어그램 캔버스 ✅ 완료 (2026-09-09)
+
+- [x] ADR-0036 작성 — ADR-0035("다이어그램은 Mermaid 텍스트")를 뒤집는 게 아니라 0035 자신이 남겨둔 화해 경로("React Flow를 같은 Mermaid 텍스트로 직렬화되는 입력 방식으로 추가")를 그대로 실행한 것임을 기록. 캔버스가 답안 텍스트 이외의 새 필드/스키마를 만들지 않는다는 게 핵심 제약
+- [x] `frontend/package.json`에 `@xyflow/react@12.11.6` 정확 버전 고정 추가(React 19 지원 확인 후 설치) — 프론트엔드 두 번째 런타임 의존성(`mermaid`에 이은)
+- [x] 신규 `frontend/src/app/design/[sessionId]/DiagramCanvas.tsx` — 노드 팔레트 7종(Client/API Gateway/Service/DB/Cache/Queue/CDN, 각 Mermaid 도형 문법에 매핑), 클릭 배치·드래그 이동·핸들 드래그 연결·Delete 삭제, 라벨은 노드 안 인라인 `<input>`으로만 편집(별도 설정 폼 없음). 모든 변경이 `flowchart TD` Mermaid 텍스트로 재직렬화되어 부모의 답안 텍스트 속 `<!-- sysdrill-canvas:start/end -->` 마커 구간에 갱신됨
+- [x] `frontend/src/lib/localSession.ts`에 `saveCanvasDraft`/`loadCanvasDraft` 추가 — 캔버스의 노드/좌표/엣지 그래프는 기존 답안 draft와 같은 티어(브라우저 localStorage만, 백엔드 무관)로 세션별 영속화. 답안 텍스트에서 Mermaid를 역파싱하는 대신(ADR-0036이 명시적으로 비용이 크다고 판단한 부분) 그래프 자체를 별도로 저장해 새로고침 후에도 캔버스가 복원되게 함
+- [x] `design/[sessionId]/page.tsx`에 "캔버스"/"텍스트(Mermaid)" 토글 추가(기본값 캔버스) — 텍스트 모드는 기존 `DiagramPreview`+textarea 흐름 그대로 유지. 좌측 단계 네비게이션은 새 `StepNav` 컴포넌트로 구현하되 백엔드 phase 모델(INITIAL/FOLLOWUP/INCIDENT)은 무변경 — "요구사항 분석"/"초기 설계"는 같은 INITIAL 단계의 두 프레젠테이션 라벨일 뿐
+- [x] Round 1에서 빠뜨렸던 `frontend/src/components/`(app/ 밖) 잔여 라이트 테마 색상 3개 파일(`BridgeProgress.tsx`, `PhaseTimer.tsx`, `MermaidDiagram.tsx`) 마저 다크 토큰으로 교체, `MermaidDiagram`의 `prefers-color-scheme` 기반 테마 분기를 제거하고 `theme: "dark"` 고정(앱 전체가 다크 단일 테마이므로)
+
+**완료 기준 충족**: `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 전부 클린. 실제 브라우저(포트 3002, 사용자 본인 백엔드 대상)로 새 System Design 세션 진입 → 캔버스에 Client/DB 노드 배치 → 답안 텍스트에 Mermaid 블록이 실시간 반영되는지 확인 → 노드 라벨 편집이 즉시 반영되는지 확인 → "텍스트" 모드 전환 시 동일 콘텐츠가 `DiagramPreview`로 정상 렌더되는지 확인 → 페이지 새로고침 후 캔버스 그래프가 복원되는지 확인 → 답안 제출 → 평가 진행 → 피드백 화면까지 기존과 동일하게 동작(백엔드 무변경 확인) → StepNav가 각 단계에서 올바르게 강조되는지 확인.
+
+**진행 중 발견한 결정 사항**:
+- **React Compiler(`react-hooks/purity`, `react-hooks/globals`)가 컴포넌트 함수 안에서 모듈 스코프 변수(`let placementCounter`)를 재할당하거나 `Date.now()`를 호출하는 것을 렌더 순수성 위반으로 막았다** — 실제로는 이벤트 핸들러(`onClick`) 안에서만 호출되는 코드라 런타임 버그는 아니었지만, 린터가 정적으로 "렌더 중 호출 가능성"을 배제하지 못해 에러로 잡았다. `placementCounter`는 `useRef`로, id 생성은 이미 이 코드베이스에 있던 `crypto.randomUUID()` 패턴(`design/[sessionId]/page.tsx`의 `handleSubmit`)으로 교체해 해결. **교훈**: 이 프로젝트의 린트 설정은 "이벤트 핸들러 안에서만 실행됨"이라는 논리적 보장을 신뢰하지 않는다 — 모듈 스코프 mutable 변수와 `Date.now()`/`Math.random()` 등은 컴포넌트 함수 몸체 어디에 있든 피해야 한다.
+- **캔버스는 답안 텍스트 속 손으로 쓴 Mermaid 블록을 다시 캔버스로 역파싱하지 못한다**(ADR-0036에 명시) — "텍스트" 모드에서 수동 편집 후 "캔버스" 모드로 돌아가면 캔버스는 자신의 마지막 localStorage 그래프를 보여주고, 이후 캔버스를 조작하면 그 수동 편집을 덮어쓴다. 의도적으로 받아들인 단방향(캔버스→텍스트) 동기화의 한계 — 양방향 동기화는 Mermaid 파서가 필요해 ADR-0035가 원래 피하려던 비용을 다시 불러온다.
+
+### Round 3 — Incident Drill 메트릭/로그/액션 패널 ✅ 완료 (2026-09-09)
+
+- [x] `frontend/package.json`에 `recharts@3.10.1` 정확 버전 고정 추가(React 19 지원 확인 후 설치) — 세 번째 런타임 의존성
+- [x] 백엔드 `SystemState.kt`에 `cpuUtilization`/`memoryUtilization` **computed property**(constructor 필드 아님) 추가 — 7개 rule-based + 2개 real-infra 엔진이 이미 만들어내는 부하 신호(`dbReadLoad`/`dbWriteLoad`/`connectionPoolUsage`/`queueLag`/`errorRate`) 중 최댓값으로 CPU를 유도하고, `p95LatencyMs` 기반 backpressure를 섞어 Memory를 유도 — 9곳의 기존 `SystemState(...)` 생성 호출부, 어느 것도 건드리지 않음(ADR-0011: 파생값은 equals/hashCode/copy에 참여하지 않음)
+- [x] 신규 `frontend/src/components/ui/Gauge.tsx` — CPU/Memory 원형 게이지(순수 SVG `<circle>` stroke-dasharray). 문서는 CPU/Memory/Disk 3개를 보여주지만, 백엔드가 디스크 관련 지표를 전혀 모델링하지 않아 근거 없는 세 번째 숫자를 만들지 않고 2개만 구현(과장된 통계를 만들지 않는다는 이 라운드 전체의 원칙)
+- [x] 신규 `frontend/src/app/design/[sessionId]/LogViewer.tsx` — 시간/레벨/서비스/메시지 + 검색/레벨 필터/자동스크롤. 백엔드 `GET .../simulation/timeline`(기존에 있었지만 미사용이던 엔드포인트)으로 초기 로그 히스토리를 시딩하고, 이후 실시간 상태 변화(WARN/ERROR 진입) 시점에만 이어붙임(매 폴링 틱마다 로그를 스팸하지 않음)
+- [x] `WargameLive.tsx` 전면 재작성 — RPS/에러율 실시간 recharts 라인 차트(최근 40틱 링버퍼), 대응 액션을 문서의 개념 카테고리(스케일/캐시/트래픽/설정, 아이콘+배지)로 재분류(새 백엔드 액션 타입 없음), 전체를 Card/Button/Badge 다크 컴포넌트로 재스타일링. `MetricsPanel`(스냅샷 전용, replay 화면과 공유)과 `MetricsHistoryCharts`(실시간 전용, 링버퍼 필요)를 분리 — replay는 시간축 자체가 스크러버라 롤링 히스토리가 필요 없음
+
+**완료 기준 충족**: `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 프론트 전부 클린. 백엔드 `./gradlew compileKotlin` 클린, 시뮬레이션 관련 테스트 전부 통과, `./scripts/run-tests-isolated.sh` 전체 스위트 그린. 실제 브라우저(신규 격리 백엔드 인스턴스 대상)로 알림 도메인 인시던트 시작 → CPU/Memory 게이지·RPS/에러율 차트·로그가 실제 데이터로 렌더되는지 확인 → 대응 액션(컨슈머 증설) 적용 시 지표·로그가 실시간으로 갱신되는지 확인 → 모바일(375px)에서 지표 그리드가 넘치지 않는지 확인(아래 버그 참고) → 인시던트 회고 제출 → 평가 → 피드백까지 회귀 없음 확인 → 리플레이 화면에서 게이지 포함 스크러버가 정상 동작하는지 확인.
+
+**진행 중 발견한 버그 3건과 수정**:
+- **CPU 게이지가 "NaN%"로 나온 진짜 원인은 Jackson 직렬화가 아니라 별도의 응답 DTO였다.** `SimulationController`는 `SystemState`(도메인 모델)를 직접 반환하지 않고 `SystemStateResponse`(`SimulationDtos.kt`)로 명시적으로 매핑해서 반환하는데, 이 DTO에 새 필드 2개를 추가하는 걸 빠뜨렸다. 처음엔 "이 프로젝트가 Jackson 3(`tools.jackson.*`)를 쓰는데 Kotlin 모듈이 body의 computed property는 직렬화하지 않는 것 아닐까"라는 잘못된 가설을 세우고 `SystemState`를 constructor 파라미터+기본값 형태로 바꿨다가, curl로 직접 응답을 찍어봐도 여전히 필드가 없는 걸 확인하고서야 `javap`로 컴파일된 클래스를 뒤져 `SystemStateResponse`라는 별도 클래스의 존재를 발견했다. 진짜 원인을 고친 뒤에는 `SystemState`를 원래의(더 명확한) computed property 형태로 되돌렸다. **교훈**: "필드가 API 응답에 안 나온다"는 증상을 프레임워크 직렬화 세부사항 탓으로 성급하게 결론짓지 말고, 먼저 도메인 모델과 API 응답 사이에 별도 매핑 계층이 있는지부터 grep해야 한다 — 이 프로젝트는 실제로 `XxxResponse` DTO + `.from()` 팩토리 패턴을 여러 곳에 쓰고 있었다.
+- **`GET .../simulation/timeline`이 500으로 죽는 진짜 버그를 라이브 검증 중 발견했다** — `awaitingStartChoice`(real-infra 옵트인 게이트)는 순수 클라이언트 상태라 페이지를 새로고침할 때마다 다시 뜨는데, 거기서 "인시던트 시작"을 다시 누르면 `SimulationService.startIncident`가 무조건 새 `INCIDENT_STARTED` 행을 추가하고 트레이트를 리셋했다. `getTimeline`의 rule-based 리플레이 경로는 "index 0만 INCIDENT_STARTED일 것"이라 가정하고 나머지를 전부 `SimulationActionType.valueOf()`로 파싱했는데, 두 번째 `INCIDENT_STARTED` 행을 만나면 그 enum에 없는 값이라 예외가 났다. `startIncident`에 멱등성 가드(이미 활성 인시던트가 있으면 그냥 현재 상태를 반환)를 추가하고, `getTimeline`도 위치가 아니라 값으로 `INCIDENT_STARTED`를 걸러내도록 방어적으로 고쳤다. **교훈**: 프런트 상태가 "매번 다시 물어보는" 게이트를 그리면, 백엔드도 "같은 시작 액션이 여러 번 올 수 있다"고 가정해야 한다 — 이건 Round 3 UI 변경과 무관한, 세션이 있었지만(다른 팀원이 만든 것이 아니라 이번 라이브 검증 과정에서 우연히 밟은) 이번에 처음 발견된 기존 버그였다.
+- **Incident 지표 카드가 모바일(375px)에서 오른쪽으로 넘쳤다** — 게이지 2개 + 지표 그리드를 `flex flex-wrap`으로 나란히 두면, flex 자식은 기본적으로 `min-width: auto`라 내용물의 intrinsic width보다 좁아지지 않는다. `flex-col sm:flex-row` + 지표 그리드에 `min-w-0`을 추가해 모바일에서는 세로로 쌓이게 고쳤다.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
