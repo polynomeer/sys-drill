@@ -65,6 +65,10 @@ dependencies {
 	// YAML/JSON traversal — same "well-audited library over hand-rolled
 	// parsing" choice as java-jwt above.
 	implementation("io.swagger.parser.v3:swagger-parser:2.1.22")
+	// docs/COMMERCIALIZATION.md — invitation/password-reset/verification email.
+	// Plain SMTP via JavaMailSender, not a provider SDK (SES/SendGrid/Postmark
+	// all speak SMTP too) — see MailConfig.kt for the "not configured" fallback.
+	implementation("org.springframework.boot:spring-boot-starter-mail")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("tools.jackson.module:jackson-module-kotlin")
 	runtimeOnly("org.postgresql:postgresql")

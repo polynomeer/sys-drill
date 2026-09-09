@@ -9,13 +9,17 @@ import com.sysdrill.backend.session.Session
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.session.SessionStatus
 import com.sysdrill.backend.support.COUPON_SCENARIO_ID
+import com.sysdrill.backend.support.FakeEmailConfig
+import com.sysdrill.backend.support.FakeEmailSender
 import com.sysdrill.backend.support.bearerHeader
 import java.time.Instant
 import java.util.UUID
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -26,11 +30,13 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 /** Phase 5 — 채용/역량 평가 상품화 (docs/adr/0033): OrganizationInvitation's email-bound token, scoped to one scenario. */
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(FakeEmailConfig::class)
 class OrganizationAssessmentIntegrationTest(
     @Autowired val mockMvc: MockMvc,
     @Autowired val userRepository: UserRepository,
     @Autowired val sessionRepository: SessionRepository,
     @Autowired val reportRepository: ReportRepository,
+    @Autowired val emailSender: FakeEmailSender,
 ) {
     private fun createUser(prefix: String, email: String? = null): User =
         userRepository.save(User(email = email ?: "$prefix-${UUID.randomUUID()}@example.com", passwordHash = "hash", nickname = prefix))
@@ -52,6 +58,17 @@ class OrganizationAssessmentIntegrationTest(
                 .content("""{"candidateEmail":"$candidateEmail","scenarioId":"$scenarioId"}""")
         ).andExpect(status().isCreated).andReturn().response.contentAsString
         return JsonPath.read<String>(response, "$.id") to JsonPath.read<String>(response, "$.token")
+    }
+
+    @Test
+    fun `creating an assessment emails the candidate their invite link`() {
+        val admin = createUser("email-admin")
+        val orgId = createOrg(admin.id!!)
+        emailSender.sent.clear()
+
+        val (_, token) = createAssessment(orgId, admin.id!!, "candidate-${UUID.randomUUID()}@example.com")
+
+        assertThat(emailSender.sent).anyMatch { it.body.contains(token) }
     }
 
     @Test

@@ -1,18 +1,22 @@
 package com.sysdrill.backend.auth
 
 import com.sysdrill.backend.common.web.ConflictException
+import com.sysdrill.backend.common.web.TooManyRequestsException
 import com.sysdrill.backend.common.web.UnauthorizedException
 import com.sysdrill.backend.identity.PlatformRole
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
+import java.time.Instant
 import jakarta.validation.Valid
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 /**
@@ -28,6 +32,9 @@ import org.springframework.web.bind.annotation.RestController
 class AuthController(
     private val userRepository: UserRepository,
     private val jwtService: JwtService,
+    private val emailVerificationService: EmailVerificationService,
+    private val passwordResetService: PasswordResetService,
+    private val loginAttemptService: LoginAttemptService,
     @Value("\${sysdrill.auth.platform-admin-emails:}") platformAdminEmails: String,
 ) {
     private val passwordEncoder = BCryptPasswordEncoder()
@@ -51,17 +58,44 @@ class AuthController(
                 experienceYears = request.experienceYears,
                 primaryStack = request.primaryStack,
                 platformRole = if (request.email.lowercase() in platformAdminEmailSet) PlatformRole.PLATFORM_ADMIN else PlatformRole.USER,
+                termsAcceptedAt = Instant.now(),
             )
         )
+        emailVerificationService.sendVerification(user)
         val token = jwtService.issue(user.id!!)
         return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponse.of(token, user))
     }
 
     @PostMapping("/login")
     fun login(@Valid @RequestBody request: LoginRequest): AuthResponse {
+        if (loginAttemptService.isLocked(request.email)) {
+            throw TooManyRequestsException("Too many failed attempts -- please try again later")
+        }
         val user = userRepository.findByEmail(request.email)
             ?.takeIf { passwordEncoder.matches(request.password, it.passwordHash) }
-            ?: throw UnauthorizedException("Invalid email or password")
+        if (user == null) {
+            loginAttemptService.recordFailure(request.email)
+            throw UnauthorizedException("Invalid email or password")
+        }
+        loginAttemptService.recordSuccess(request.email)
         return AuthResponse.of(jwtService.issue(user.id!!), user)
+    }
+
+    @PostMapping("/password-reset/request")
+    fun requestPasswordReset(@Valid @RequestBody request: PasswordResetRequestRequest): ResponseEntity<Void> {
+        passwordResetService.requestReset(request.email)
+        return ResponseEntity.noContent().build()
+    }
+
+    @PostMapping("/password-reset/confirm")
+    fun confirmPasswordReset(@Valid @RequestBody request: PasswordResetConfirmRequest): ResponseEntity<Void> {
+        passwordResetService.confirmReset(request.token, request.newPassword)
+        return ResponseEntity.noContent().build()
+    }
+
+    @GetMapping("/verify-email")
+    fun verifyEmail(@RequestParam token: String): ResponseEntity<Void> {
+        emailVerificationService.verify(token)
+        return ResponseEntity.noContent().build()
     }
 }

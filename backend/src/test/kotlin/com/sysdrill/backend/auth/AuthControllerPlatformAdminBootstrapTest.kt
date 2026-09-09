@@ -47,7 +47,7 @@ class AuthControllerPlatformAdminBootstrapTest(
     fun `signing up with an allowlisted email becomes a platform admin`() {
         val response = mockMvc.perform(
             post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content("""{"email":"$allowlistedEmail","password":"password123","nickname":"bootstrap"}""")
+                .content("""{"email":"$allowlistedEmail","password":"password123","nickname":"bootstrap","termsAccepted":true}""")
         ).andExpect(status().isCreated).andReturn().response.contentAsString
         val userId = UUID.fromString(JsonPath.read(response, "$.user.id"))
 
@@ -58,7 +58,7 @@ class AuthControllerPlatformAdminBootstrapTest(
     fun `the allowlist match is case-insensitive`() {
         val response = mockMvc.perform(
             post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content("""{"email":"${allowlistedEmailMixedCase.lowercase()}","password":"password123","nickname":"bootstrap2"}""")
+                .content("""{"email":"${allowlistedEmailMixedCase.lowercase()}","password":"password123","nickname":"bootstrap2","termsAccepted":true}""")
         ).andExpect(status().isCreated).andReturn().response.contentAsString
         val userId = UUID.fromString(JsonPath.read(response, "$.user.id"))
 
@@ -69,7 +69,7 @@ class AuthControllerPlatformAdminBootstrapTest(
     fun `signing up with a non-allowlisted email stays a regular user`() {
         val response = mockMvc.perform(
             post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content("""{"email":"nobody-${UUID.randomUUID()}@example.com","password":"password123","nickname":"regular"}""")
+                .content("""{"email":"nobody-${UUID.randomUUID()}@example.com","password":"password123","nickname":"regular","termsAccepted":true}""")
         ).andExpect(status().isCreated).andReturn().response.contentAsString
         val userId = UUID.fromString(JsonPath.read(response, "$.user.id"))
 

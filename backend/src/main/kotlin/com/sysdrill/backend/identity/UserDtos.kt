@@ -7,8 +7,11 @@ data class UserResponse(
     val nickname: String,
     val experienceYears: Int?,
     val primaryStack: String?,
+    val emailVerified: Boolean,
+    val platformRole: PlatformRole,
 ) {
     companion object {
-        fun from(user: User) = UserResponse(user.id!!, user.nickname, user.experienceYears, user.primaryStack)
+        fun from(user: User) =
+            UserResponse(user.id!!, user.nickname, user.experienceYears, user.primaryStack, user.emailVerified, user.platformRole)
     }
 }

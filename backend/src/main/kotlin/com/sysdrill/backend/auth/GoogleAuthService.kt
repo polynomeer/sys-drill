@@ -64,6 +64,11 @@ class GoogleAuthService(
                 // account is cryptographically impossible, not just disabled.
                 passwordHash = passwordEncoder.encode(UUID.randomUUID().toString())!!,
                 nickname = info.name?.takeIf { it.isNotBlank() } ?: info.email.substringBefore("@"),
+                // Google already verified this email (checked above) -- stronger
+                // proof than this app's own token-link verification, so it's
+                // redundant to ask for it again. termsAcceptedAt stays null:
+                // this flow has no consent-checkbox step yet (docs/COMMERCIALIZATION.md).
+                emailVerified = true,
             )
         )
         return GoogleCallbackResult(token = jwtService.issue(user.id!!), nickname = user.nickname)

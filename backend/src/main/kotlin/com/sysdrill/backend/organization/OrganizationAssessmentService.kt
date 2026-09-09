@@ -4,6 +4,7 @@ import com.sysdrill.backend.common.web.ConflictException
 import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.content.ContentItemRepository
 import com.sysdrill.backend.identity.UserRepository
+import com.sysdrill.backend.mail.EmailSender
 import com.sysdrill.backend.reporting.ReportRepository
 import com.sysdrill.backend.reporting.ReportResponse
 import com.sysdrill.backend.reporting.ReportResponses
@@ -39,7 +40,9 @@ class OrganizationAssessmentService(
     private val reportRepository: ReportRepository,
     private val accessGuard: OrganizationAccessGuard,
     private val objectMapper: ObjectMapper,
+    private val emailSender: EmailSender,
     @Value("\${sysdrill.organization.invitation-ttl-days}") private val ttlDays: Long,
+    @Value("\${sysdrill.frontend-origin}") private val frontendOrigin: String,
 ) {
 
     @Transactional
@@ -59,6 +62,13 @@ class OrganizationAssessmentService(
                 invitedBy = adminUserId,
                 expiresAt = Instant.now().plusSeconds(ttlDays * 24 * 3600),
             )
+        )
+
+        val orgName = organizationRepository.findById(orgId).map { it.name }.orElse("SysDrill")
+        emailSender.send(
+            to = assessment.candidateEmail,
+            subject = "\"$orgName\" 역량 평가 초대",
+            body = "\"$orgName\"에서 역량 평가에 초대했습니다.\n\n아래 링크에서 확인하세요:\n$frontendOrigin/organizations/assessments/${assessment.token}",
         )
         return toResponse(assessment)
     }

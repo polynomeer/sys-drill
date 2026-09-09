@@ -48,10 +48,17 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
 @Configuration
 class AuthWebConfig(
     private val authInterceptor: AuthInterceptor,
+    private val rateLimitInterceptor: RateLimitInterceptor,
     private val authenticatedUserIdArgumentResolver: AuthenticatedUserIdArgumentResolver,
 ) : WebMvcConfigurer {
 
     override fun addInterceptors(registry: InterceptorRegistry) {
+        // docs/COMMERCIALIZATION.md — IP-based abuse protection on the public,
+        // unauthenticated /auth/* endpoints, ahead of (and independent from)
+        // authInterceptor's identity gate below.
+        registry.addInterceptor(rateLimitInterceptor)
+            .addPathPatterns("/auth/signup", "/auth/login", "/auth/password-reset/request")
+
         registry.addInterceptor(authInterceptor)
             .addPathPatterns(
                 "/sessions", "/sessions/**",
@@ -60,6 +67,7 @@ class AuthWebConfig(
                 "/skill-profile",
                 "/organizations", "/organizations/**",
                 "/admin/prompt-templates", "/admin/prompt-templates/**",
+                "/admin/dashboard/**",
                 "/marketplace/scenarios", "/marketplace/scenarios/**",
                 "/certifications/me",
                 "/architecture-analysis", "/architecture-analysis/**",

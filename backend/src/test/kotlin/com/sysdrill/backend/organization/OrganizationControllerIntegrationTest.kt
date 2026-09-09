@@ -8,6 +8,8 @@ import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.session.Session
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.session.SessionStatus
+import com.sysdrill.backend.support.FakeEmailConfig
+import com.sysdrill.backend.support.FakeEmailSender
 import com.sysdrill.backend.support.bearerHeader
 import java.time.Instant
 import java.util.UUID
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
@@ -29,6 +32,7 @@ import tools.jackson.databind.ObjectMapper
 /** PLAN.md step 32 — organization creation, email-bound invitations, and ADMIN/MEMBER membership. */
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(FakeEmailConfig::class)
 class OrganizationControllerIntegrationTest(
     @Autowired val mockMvc: MockMvc,
     @Autowired val userRepository: UserRepository,
@@ -36,6 +40,7 @@ class OrganizationControllerIntegrationTest(
     @Autowired val sessionRepository: SessionRepository,
     @Autowired val skillProfileRepository: SkillProfileRepository,
     @Autowired val objectMapper: ObjectMapper,
+    @Autowired val emailSender: FakeEmailSender,
 ) {
     /** Fixed scenario_version id seeded by V2__seed_coupon_scenario.sql — any published version works, the dashboard test only cares about Session.status/completedAt. */
     private val couponScenarioVersionId = UUID.fromString("a0000000-0000-0000-0000-000000000003")
@@ -84,11 +89,12 @@ class OrganizationControllerIntegrationTest(
     }
 
     @Test
-    fun `an admin can invite, creating a pending invitation with a token`() {
+    fun `an admin can invite, creating a pending invitation with a token, and an email is sent`() {
         val admin = createUser("admin")
         val orgId = createOrg(admin.id!!)
+        emailSender.sent.clear()
 
-        mockMvc.perform(
+        val response = mockMvc.perform(
             post("/organizations/$orgId/invitations").contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearerHeader(admin.id!!))
                 .content("""{"email":"invitee@example.com","role":"MEMBER"}""")
@@ -97,6 +103,10 @@ class OrganizationControllerIntegrationTest(
             .andExpect(jsonPath("$.inviteeEmail").value("invitee@example.com"))
             .andExpect(jsonPath("$.token").isNotEmpty)
             .andExpect(jsonPath("$.expired").value(false))
+            .andReturn().response.contentAsString
+
+        val token = JsonPath.read<String>(response, "$.token")
+        assertThat(emailSender.sent).anyMatch { it.to == "invitee@example.com" && it.body.contains(token) }
     }
 
     @Test

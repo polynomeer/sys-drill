@@ -29,4 +29,8 @@ class GlobalExceptionHandler {
     @ExceptionHandler(ForbiddenException::class)
     fun handleForbidden(ex: ForbiddenException): ResponseEntity<ApiError> =
         ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiError(HttpStatus.FORBIDDEN.value(), ex.message))
+
+    @ExceptionHandler(TooManyRequestsException::class)
+    fun handleTooManyRequests(ex: TooManyRequestsException): ResponseEntity<ApiError> =
+        ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(ApiError(HttpStatus.TOO_MANY_REQUESTS.value(), ex.message))
 }

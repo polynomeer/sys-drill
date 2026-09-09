@@ -6,6 +6,7 @@ import com.sysdrill.backend.common.events.EvaluationRequested
 import com.sysdrill.backend.common.readIntMap
 import com.sysdrill.backend.common.web.ConflictException
 import com.sysdrill.backend.common.web.NotFoundException
+import com.sysdrill.backend.evaluation.LlmUsageGuard
 import com.sysdrill.backend.identity.SkillProfileRepository
 import com.sysdrill.backend.organization.OrganizationAccessGuard
 import com.sysdrill.backend.scenario.ScenarioRepository
@@ -36,6 +37,7 @@ class SessionService(
     private val buildSubmissionRepository: BuildSubmissionRepository,
     private val skillProfileRepository: SkillProfileRepository,
     private val organizationAccessGuard: OrganizationAccessGuard,
+    private val llmUsageGuard: LlmUsageGuard,
     private val objectMapper: ObjectMapper,
     @Value("\${sysdrill.session.interview-timer.initial-seconds}") private val initialTimerSeconds: Long,
     @Value("\${sysdrill.session.interview-timer.followup-seconds}") private val followupTimerSeconds: Long,
@@ -181,6 +183,10 @@ class SessionService(
 
         val session = getSession(sessionId)
         SessionStateMachine.requireTransition(session.status, SessionStatus.SUBMITTED)
+        // docs/COMMERCIALIZATION.md — checked before the status flip below so a
+        // quota-exceeded submission never leaves the session stuck in SUBMITTED
+        // with no evaluation ever coming; the caller can just retry later.
+        llmUsageGuard.checkAndRecord(session.userId)
 
         // Read before compareAndSetStatus flips it, not after — the deadline is
         // computed from the phase row that's about to be marked complete, and

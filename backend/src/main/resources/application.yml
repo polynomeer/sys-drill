@@ -38,6 +38,25 @@ sysdrill:
       client-id: ${SYSDRILL_AUTH_GOOGLE_CLIENT_ID:}
       client-secret: ${SYSDRILL_AUTH_GOOGLE_CLIENT_SECRET:}
       redirect-uri: ${SYSDRILL_AUTH_GOOGLE_REDIRECT_URI:http://localhost:8081/auth/google/callback}
+    # docs/COMMERCIALIZATION.md
+    password-reset-ttl-minutes: ${SYSDRILL_AUTH_PASSWORD_RESET_TTL_MINUTES:30}
+    email-verification-ttl-hours: ${SYSDRILL_AUTH_EMAIL_VERIFICATION_TTL_HOURS:48}
+    rate-limit:
+      # Generous enough that a legitimate user mistyping a password a few
+      # times, or this project's own test suite's aggregate /auth/* traffic
+      # sharing one Redis instance, never trips it — still tight enough to
+      # slow down real credential-stuffing.
+      max-requests-per-minute: ${SYSDRILL_AUTH_RATE_LIMIT_PER_MINUTE:100}
+    login-lockout:
+      max-attempts: ${SYSDRILL_AUTH_LOGIN_LOCKOUT_MAX_ATTEMPTS:5}
+      lockout-minutes: ${SYSDRILL_AUTH_LOGIN_LOCKOUT_MINUTES:15}
+  mail:
+    # docs/COMMERCIALIZATION.md — the actual host/port/username/password come
+    # from Spring Boot's own spring.mail.* properties (so its MailSenderAutoConfiguration
+    # wires JavaMailSender only when spring.mail.host is set) -- this is just
+    # the display "From" address, which Spring's autoconfiguration has no
+    # equivalent for.
+    from: ${SYSDRILL_MAIL_FROM:no-reply@sysdrill.dev}
   organization:
     # PLAN.md step 32 — how long an email-bound invitation stays redeemable.
     invitation-ttl-days: ${SYSDRILL_ORG_INVITATION_TTL_DAYS:7}
@@ -50,6 +69,10 @@ sysdrill:
     queue-key: ${EVALUATION_QUEUE_KEY:sysdrill:evaluation:jobs}
     dead-letter-key: ${EVALUATION_DEAD_LETTER_KEY:sysdrill:evaluation:dead-letter}
     max-attempts: ${EVALUATION_MAX_ATTEMPTS:3}
+    # docs/COMMERCIALIZATION.md — caps per-user LLM spend. Generous default
+    # (normal usage is a handful of submissions/day); exists to catch runaway
+    # abuse, not to throttle real training sessions.
+    daily-limit-per-user: ${EVALUATION_DAILY_LIMIT_PER_USER:50}
   llm:
     anthropic:
       # Namespaced under LLM_* (not ANTHROPIC_*) so this never collides with

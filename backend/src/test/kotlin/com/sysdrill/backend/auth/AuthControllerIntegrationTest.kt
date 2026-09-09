@@ -36,7 +36,7 @@ class AuthControllerIntegrationTest(
         val email = uniqueEmail()
         val response = mockMvc.perform(
             post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content("""{"email":"$email","password":"correct horse battery","nickname":"drill-user"}""")
+                .content("""{"email":"$email","password":"correct horse battery","nickname":"drill-user","termsAccepted":true}""")
         )
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.user.nickname").value("drill-user"))
@@ -57,12 +57,12 @@ class AuthControllerIntegrationTest(
         val email = uniqueEmail()
         mockMvc.perform(
             post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content("""{"email":"$email","password":"password123","nickname":"first"}""")
+                .content("""{"email":"$email","password":"password123","nickname":"first","termsAccepted":true}""")
         ).andExpect(status().isCreated)
 
         mockMvc.perform(
             post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content("""{"email":"$email","password":"different123","nickname":"second"}""")
+                .content("""{"email":"$email","password":"different123","nickname":"second","termsAccepted":true}""")
         ).andExpect(status().isConflict)
     }
 
@@ -71,7 +71,7 @@ class AuthControllerIntegrationTest(
         val email = uniqueEmail()
         mockMvc.perform(
             post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content("""{"email":"$email","password":"correct-password","nickname":"drill-user"}""")
+                .content("""{"email":"$email","password":"correct-password","nickname":"drill-user","termsAccepted":true}""")
         ).andExpect(status().isCreated)
 
         mockMvc.perform(

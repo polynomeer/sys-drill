@@ -7,6 +7,7 @@ import com.sysdrill.backend.identity.SkillProfileRepository
 import com.sysdrill.backend.identity.TrendDirection
 import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.identity.trendDirection
+import com.sysdrill.backend.mail.EmailSender
 import com.sysdrill.backend.session.SessionRepository
 import java.time.Instant
 import java.util.UUID
@@ -26,7 +27,9 @@ class OrganizationService(
     private val objectMapper: ObjectMapper,
     private val accessGuard: OrganizationAccessGuard,
     private val auditLog: OrganizationAuditLogService,
+    private val emailSender: EmailSender,
     @Value("\${sysdrill.organization.invitation-ttl-days}") private val invitationTtlDays: Long,
+    @Value("\${sysdrill.frontend-origin}") private val frontendOrigin: String,
 ) {
 
     @Transactional
@@ -111,6 +114,13 @@ class OrganizationService(
             )
         )
         auditLog.record(orgId, adminUserId, OrganizationAuditAction.MEMBER_INVITED, mapOf("email" to normalizedEmail, "role" to role.name))
+
+        val orgName = organizationRepository.findById(orgId).map { it.name }.orElse("SysDrill")
+        emailSender.send(
+            to = normalizedEmail,
+            subject = "\"$orgName\" 조직 초대",
+            body = "\"$orgName\" 조직에 초대되었습니다.\n\n아래 링크에서 초대를 확인하세요:\n$frontendOrigin/organizations/invitations/${invitation.token}",
+        )
         return toInvitationResponse(invitation)
     }
 
