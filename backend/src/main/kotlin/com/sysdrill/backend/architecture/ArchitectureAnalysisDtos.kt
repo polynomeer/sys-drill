@@ -11,4 +11,5 @@ data class AnalyzeRepositoryRequest(
 data class ArchitectureAnalysisResponse(
     val scenario: ScenarioDetailResponse,
     val findings: List<String>,
+    val diagram: String,
 )

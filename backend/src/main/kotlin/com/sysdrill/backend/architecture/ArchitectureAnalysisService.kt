@@ -41,6 +41,7 @@ class ArchitectureAnalysisService(
             "OpenAPI 스펙을 파싱할 수 없습니다: ${result.messages?.joinToString("; ") ?: "알 수 없는 오류"}"
         )
         val findings = ArchitectureRiskScanner.scan(openApi)
+        val diagram = ArchitectureDiagramGenerator.generate(openApi, findings)
 
         val title = openApi.info?.title?.takeIf { it.isNotBlank() } ?: "내 API 정적 분석"
         val findingDescriptions = findings.map { it.description }
@@ -73,6 +74,7 @@ class ArchitectureAnalysisService(
         return ArchitectureAnalysisResponse(
             scenario = ScenarioResponses.toDetail(scenario, content, objectMapper),
             findings = findingDescriptions,
+            diagram = diagram,
         )
     }
 

@@ -144,6 +144,13 @@ class ArchitectureAnalysisControllerIntegrationTest(
         val findings = JsonPath.read<List<String>>(response, "$.findings")
         assertThat(findings).isNotEmpty()
         assertThat(findings.joinToString(" ")).contains("에러 응답").contains("인증").contains("페이지네이션").contains("요청 본문")
+
+        // POST /orders is missing auth (HIGH) as well as error responses/request validation (MEDIUM) -- HIGH wins.
+        // GET /orders is only missing error responses/pagination (both MEDIUM) -- no HIGH there.
+        val diagram = JsonPath.read<String>(response, "$.diagram")
+        assertThat(diagram).startsWith("flowchart TD").contains("POST /orders").contains("GET /orders")
+        assertThat(diagram).contains("fill:#fca5a5") // HIGH-severity node styling present
+        assertThat(diagram).contains("fill:#fde68a") // MEDIUM-severity node styling present
     }
 
     @Test
