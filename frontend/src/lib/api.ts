@@ -216,6 +216,9 @@ export interface SystemState {
   queueLag: number;
   consumerThroughput: number;
   externalDependencyLatencyMs: number;
+  /** Derived on the backend (SystemState.kt computed properties), not stored — see ADR for Round 3 of the UI/UX renewal. */
+  cpuUtilization: number;
+  memoryUtilization: number;
 }
 
 export interface TimelineStep {

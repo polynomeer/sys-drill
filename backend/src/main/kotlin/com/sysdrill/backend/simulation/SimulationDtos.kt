@@ -16,6 +16,8 @@ data class SystemStateResponse(
     val queueLag: Long,
     val consumerThroughput: Double,
     val externalDependencyLatencyMs: Double,
+    val cpuUtilization: Double,
+    val memoryUtilization: Double,
 ) {
     companion object {
         fun from(state: SystemState) = SystemStateResponse(
@@ -31,6 +33,8 @@ data class SystemStateResponse(
             queueLag = state.queueLag,
             consumerThroughput = state.consumerThroughput,
             externalDependencyLatencyMs = state.externalDependencyLatencyMs,
+            cpuUtilization = state.cpuUtilization,
+            memoryUtilization = state.memoryUtilization,
         )
     }
 }

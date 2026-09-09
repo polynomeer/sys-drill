@@ -1,10 +1,17 @@
 // Mirrors backend SimulationEngine's utilization bands (docs/ARCHITECTURE.md §6):
-// 0~60% 안정 / 60~80% latency 증가 / 80~95% p95·p99 급등 / 95~100% error 증가 / 100%+ timeout·drop.
+// 0~60% 안정 / 60~95% latency·p95 증가 / 95%+ error 증가·timeout·drop. Collapsed to
+// the design system's 3-color status vocabulary (success/warning/danger) —
+// SysDrill_UIUX_Design_Plan.docx §3 defines exactly those three, not four.
 export function utilizationColorClass(utilization: number): string {
-  if (utilization < 0.6) return "text-green-600 dark:text-green-400";
-  if (utilization < 0.8) return "text-yellow-600 dark:text-yellow-400";
-  if (utilization < 0.95) return "text-orange-600 dark:text-orange-400";
-  return "text-red-600 dark:text-red-400";
+  if (utilization < 0.6) return "text-success";
+  if (utilization < 0.95) return "text-warning";
+  return "text-danger";
+}
+
+export function utilizationStatus(utilization: number): "success" | "warning" | "danger" {
+  if (utilization < 0.6) return "success";
+  if (utilization < 0.95) return "warning";
+  return "danger";
 }
 
 export function formatPercent(value: number): string {

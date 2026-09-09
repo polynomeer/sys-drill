@@ -75,6 +75,18 @@ class SimulationService(
      */
     @Transactional
     fun startIncident(sessionId: UUID, realInfra: Boolean = false): SystemState {
+        // Idempotent: the frontend's real-infra opt-in gate is client-side state
+        // that re-shows on every page load/reload (WargameLive.tsx), so a second
+        // "인시던트 시작" click for an already-active incident is a real, reachable
+        // case, not just a hypothetical — without this guard it would silently
+        // reset traits (discarding every action applied so far) and append a
+        // second INCIDENT_STARTED row, which getTimeline's replay can't handle
+        // (SimulationActionType has no such member — discovered via the
+        // UI/UX 리뉴얼 Round 3 live verification, PLAN.md).
+        stateStore.find(sessionId)?.takeIf { it.incidentActive }?.let { existing ->
+            return engineFor(existing).computeState(existing)
+        }
+
         val session = sessionRepository.findById(sessionId)
             .orElseThrow { NotFoundException("Session not found: $sessionId") }
         val domain = resolveDomain(session.scenarioVersionId)
@@ -194,7 +206,11 @@ class SimulationService(
             val domain = resolveDomain(session.scenarioVersionId)
             var replayState = SimulationSessionState(sessionId, domain, incidentActive = true, traits = DesignTraits())
             events.mapIndexed { index, event ->
-                if (index > 0) {
+                // Skip every INCIDENT_STARTED row by value, not just index 0 — a
+                // pre-existing session may have more than one (see startIncident's
+                // idempotency guard above, added after this was found to crash on
+                // exactly that shape of data).
+                if (event.actionType != INCIDENT_STARTED) {
                     val actionType = SimulationActionType.valueOf(event.actionType)
                     replayState = RuleBasedSimulationEngine.applyAction(replayState, actionType)
                 }

@@ -19,4 +19,33 @@ data class SystemState(
     val queueLag: Long,
     val consumerThroughput: Double,
     val externalDependencyLatencyMs: Double,
-)
+) {
+    /**
+     * SysDrill_UIUX_Design_Plan.docx §5.5 — the Incident screen's CPU/Memory
+     * gauges. A computed property, not a constructor field: every domain's
+     * `computeState` (7 rule-based + 2 real-infra) already produces a
+     * load-ish signal in at least one of [dbReadLoad]/[dbWriteLoad]/
+     * [connectionPoolUsage]/[queueLag]/[errorRate], so deriving CPU from
+     * whichever of those is worst covers all of them uniformly — without
+     * touching any of the 9 existing `SystemState(...)` call sites, without
+     * a new domain-specific formula per engine, and without this
+     * participating in equals/hashCode/copy (ADR-0011: derived values are
+     * computed at read time, never stored). API responses go through
+     * [SystemStateResponse], a separate explicit-field DTO — that mapping,
+     * not this class, is what actually has to list `cpuUtilization` for it
+     * to reach the frontend; the property itself works the same either way.
+     */
+    val cpuUtilization: Double
+        get() {
+            val queueSignal = (queueLag / 100.0).coerceAtMost(1.0)
+            val errorSignal = (errorRate * 3).coerceAtMost(1.0)
+            return maxOf(dbReadLoad, dbWriteLoad, connectionPoolUsage, queueSignal, errorSignal).coerceIn(0.05, 0.98)
+        }
+
+    /** Latency-driven backpressure (more in-flight work held in memory) blended with [cpuUtilization], so it tracks but doesn't just mirror CPU. */
+    val memoryUtilization: Double
+        get() {
+            val latencyPressure = p95LatencyMs / (p95LatencyMs + 200.0)
+            return (cpuUtilization * 0.6 + latencyPressure * 0.4).coerceIn(0.05, 0.98)
+        }
+}
