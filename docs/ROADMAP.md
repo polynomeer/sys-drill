@@ -23,6 +23,7 @@
 - Incident Replay, Postmortem 작성 기능
 - 고급 Kafka/Redis/DB/Kubernetes 시나리오, 면접형 타이머 모드
 - 검증할 질문: 면접/실습/팀 훈련으로 확장 가능한가?
+- 이 Phase와 이후 후보(Skill Graph, AI 다중 역할, Sandbox, Architecture Canvas의 시뮬레이션 연동 등)의 상세 설계·격차 분석은 [DRILLS_SIMULATION_VISION.md](DRILLS_SIMULATION_VISION.md) 참고.
 
 ## Phase 4 — Team / B2B
 
