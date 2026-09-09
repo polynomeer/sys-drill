@@ -881,6 +881,20 @@ Round 4에서 확인한 남은 P1 항목("결과/AI 피드백/역량 프로필")
 
 **진행 중 발견한 버그 1건과 수정**: 레이더 차트가 모바일(375px)에서 긴 도메인 라벨("대규모 상품 조회", "주문/결제" 등)이 잘려 보였다(페이지 자체 오버플로는 아니고 차트 SVG 안에서 라벨이 잘림). `RadarChart`에 `outerRadius="60%"` + `margin`을 넉넉히 줘서 해결. **교훈**: recharts의 극좌표 차트(Radar/Pie)는 기본 `outerRadius`가 라벨 공간을 고려하지 않으므로, 한국어처럼 라벨이 긴 데이터를 쓸 땐 처음부터 outerRadius를 줄여 여백을 확보하는 게 안전하다.
 
+### Round 6 — P2: Bridge Mode 점검 + Learning/Community 정적 콘텐츠 ✅ 완료 (2026-09-09)
+
+P2 진행을 요청받고, 착수 전에 두 항목의 성격이 P0/P1과 근본적으로 다르다는 걸 먼저 설명했다: Bridge Mode "재통합"은 문서가 전제하는(세 Drill이 원래 따로 있었다는) 상황 자체가 이 앱에는 없고(ADR-0009 — Bridge Mode는 처음부터 Session의 nullable FK로 설계된 통합 흐름), Learning/Community는 콘텐츠 모델이 전혀 없어 P0~P1처럼 "기존 엔드포인트 재사용"이 불가능하다. 사용자에게 Learning/Community 범위를 확인(AskUserQuestion) — 정적 콘텐츠로 최소 구현.
+
+- [x] **Bridge Mode 점검**: Home CTA(Round 1)·`/bridge` 코드 에디터(Round 4)·`BridgeProgress` 스테퍼(Design/Report 화면, 기존)가 이미 Build→Design→Wargame→Report 전 구간에 일관되게 붙어 있음을 확인. 실제로 손볼 통합 공백이 없어 코드 변경 없음
+- [x] `frontend/src/lib/designGuidance.ts` 신규 — `design/[sessionId]/page.tsx`에 로컬 상수로 있던 도메인별 설계 가이드·인시던트 회고 가이드를 공용 모듈로 추출(동작 무변경), `DOMAIN_TITLES` 매핑 추가
+- [x] `frontend/src/lib/riskLabels.ts`에 `riskDescription()`/`RISK_KEYS` 추가 — RuleEvaluator의 13개 riskKey 각각에 대한 설명(AI 피드백의 "놓친 점"과 동일 어휘)
+- [x] `app/learning/page.tsx` — "곧 제공됩니다" placeholder를 실제 콘텐츠로 교체: 도메인별 설계 가이드 7종 + 장애 대응 회고 가이드(모두 `designGuidance.ts` 재사용, 세션 중 보여주는 것과 동일 문구) + 개념 레퍼런스 13종(`riskLabels.ts` 재사용)
+- [x] `app/community/page.tsx` — placeholder를 GitHub Issues 링크로 교체. Discussions는 이 저장소에서 꺼져 있음을 `gh repo view`로 직접 확인한 뒤, 실제로 접근 가능한 Issues로 안내(존재하지 않거나 비활성 상태인 채널을 안내하지 않는다는 원칙)
+
+**완료 기준 충족**: `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 전부 클린. 실제 브라우저로 `/learning`에서 7개 도메인 가이드+회고 가이드+13개 개념 레퍼런스가 실제 텍스트로 렌더되는지 확인 → `/community`의 Issues 링크가 정확한 URL(`github.com/polynomeer/sys-drill/issues`)로 새 탭 여는지 확인 → 두 페이지 모바일(375px) 오버플로 없음 확인 → `design/[sessionId]/page.tsx`가 공용 모듈로 리팩터링된 후에도 세션 중 가이드 문구가 그대로 나오는지(회귀 없음) 확인.
+
+**진행 중 발견한 결정 사항**: `react/no-unescaped-entities` 린트 에러 — JSX 텍스트 안에 ASCII 큰따옴표(`"놓친 점"`)를 그대로 쓰면 걸린다. `&quot;` 같은 HTML 엔티티 대신 한국어 조판에 자연스러운 유니코드 곡선따옴표(" ")로 바꿔 해결 — 엔티티보다 가독성이 낫고 린트 규칙도 통과한다.
+
 ---
 
 ## 진행 방식 메모
