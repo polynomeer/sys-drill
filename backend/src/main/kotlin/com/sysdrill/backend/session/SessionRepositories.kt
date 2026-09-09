@@ -43,6 +43,9 @@ interface SessionRepository : JpaRepository<Session, UUID> {
             "group by s.userId"
     )
     fun completionStatsByUserIds(userIds: Collection<UUID>): List<SessionCompletionStats>
+
+    /** docs/COMMERCIALIZATION.md — admin dashboard's daily activity count. */
+    fun countByStatusAndCompletedAtAfter(status: SessionStatus, after: Instant): Long
 }
 
 interface SessionPhaseRepository : JpaRepository<SessionPhase, UUID> {
