@@ -59,7 +59,7 @@ dependencies {
 	// NOT follow the "hand-roll something low-tech" pattern used elsewhere
 	// (EvaluationQueue's Redis encoding, CouponLoadRunner's raw docker CLI) —
 	// a well-audited JWT library, not hand-rolled HMAC signing.
-	implementation("com.auth0:java-jwt:4.4.0")
+	implementation("com.auth0:java-jwt:4.6.0")
 	// Phase 6 (docs/adr/0034) — parses an uploaded OpenAPI spec into a real
 	// object model for ArchitectureRiskScanner to walk, instead of hand-rolling
 	// YAML/JSON traversal — same "well-audited library over hand-rolled
