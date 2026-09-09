@@ -72,6 +72,10 @@ export default function LoginPage() {
         >
           {submitting ? "로그인하는 중..." : "로그인"}
         </button>
+
+        <Link href="/reset-password" className="text-center text-xs text-zinc-500 underline">
+          비밀번호를 잊으셨나요?
+        </Link>
       </form>
 
       <div className="flex items-center gap-3 text-xs text-zinc-400">

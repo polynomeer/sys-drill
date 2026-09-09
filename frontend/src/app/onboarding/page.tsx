@@ -13,6 +13,7 @@ export default function OnboardingPage() {
   const [nickname, setNickname] = useState("");
   const [experienceYears, setExperienceYears] = useState("");
   const [primaryStack, setPrimaryStack] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,6 +21,10 @@ export default function OnboardingPage() {
     e.preventDefault();
     if (!email.trim() || !password || !nickname.trim()) {
       setError("이메일, 비밀번호, 닉네임을 모두 입력해주세요.");
+      return;
+    }
+    if (!termsAccepted) {
+      setError("이용약관과 개인정보처리방침에 동의해야 가입할 수 있습니다.");
       return;
     }
     setSubmitting(true);
@@ -31,6 +36,7 @@ export default function OnboardingPage() {
         nickname: nickname.trim(),
         experienceYears: experienceYears ? Number(experienceYears) : undefined,
         primaryStack: primaryStack.trim() || undefined,
+        termsAccepted,
       });
       storeUser(user.nickname, token);
       router.push("/dashboard");
@@ -102,6 +108,25 @@ export default function OnboardingPage() {
             onChange={(e) => setPrimaryStack(e.target.value)}
             placeholder="Kotlin / Spring Boot"
           />
+        </label>
+
+        <label className="flex items-start gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <input
+            type="checkbox"
+            checked={termsAccepted}
+            onChange={(e) => setTermsAccepted(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            <Link href="/terms" className="underline" target="_blank">
+              이용약관
+            </Link>
+            과{" "}
+            <Link href="/privacy" className="underline" target="_blank">
+              개인정보처리방침
+            </Link>
+            에 동의합니다.
+          </span>
         </label>
 
         {error && <p className="text-sm text-red-600">{error}</p>}

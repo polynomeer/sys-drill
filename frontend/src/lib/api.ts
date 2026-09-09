@@ -352,12 +352,25 @@ export function signup(input: {
   nickname: string;
   experienceYears?: number;
   primaryStack?: string;
+  termsAccepted: boolean;
 }): Promise<AuthResponse> {
   return apiFetch<AuthResponse>("/auth/signup", { method: "POST", body: JSON.stringify(input) });
 }
 
 export function login(email: string, password: string): Promise<AuthResponse> {
   return apiFetch<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+
+export function requestPasswordReset(email: string): Promise<void> {
+  return apiFetch<void>("/auth/password-reset/request", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export function confirmPasswordReset(token: string, newPassword: string): Promise<void> {
+  return apiFetch<void>("/auth/password-reset/confirm", { method: "POST", body: JSON.stringify({ token, newPassword }) });
+}
+
+export function verifyEmail(token: string): Promise<void> {
+  return apiFetch<void>(`/auth/verify-email?token=${encodeURIComponent(token)}`);
 }
 
 export function listScenarios(): Promise<ScenarioSummary[]> {
@@ -668,4 +681,16 @@ export function analyzeArchitecture(openApiSpec: string): Promise<ArchitectureAn
 
 export function listMyArchitectureScenarios(): Promise<ScenarioSummary[]> {
   return apiFetch<ScenarioSummary[]>("/architecture-analysis/scenarios");
+}
+
+/** docs/COMMERCIALIZATION.md — PLATFORM_ADMIN-only; api.ts callers get a 403 ApiError for anyone else. */
+export interface AdminDashboardStats {
+  totalUsers: number;
+  newUsersToday: number;
+  totalOrganizations: number;
+  sessionsCompletedToday: number;
+}
+
+export function getAdminDashboardStats(): Promise<AdminDashboardStats> {
+  return apiFetch<AdminDashboardStats>("/admin/dashboard/stats");
 }
