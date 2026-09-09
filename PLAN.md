@@ -758,6 +758,32 @@ Phase 5 검증(로드맵 운영 원칙) 없이 사용자가 방향을 먼저 정
 
 ---
 
+## 상용화 준비 ✅ 완료 (2026-09-09, 결제/IaC 제외)
+
+[docs/COMMERCIALIZATION.md](docs/COMMERCIALIZATION.md)의 "코드로 구현 가능한 것" 전체를 auto mode로 구현했다. 결제/과금(가격 정책 미정)과 프로덕션 IaC(클라우드 프로바이더 미정)는 사람의 결정이 코드보다 먼저 필요해 이번엔 손대지 않았다 — 컨테이너 이미지(Dockerfile)까지만 만들었다.
+
+- [x] `EmailSender` 인터페이스 + `SmtpEmailSender`/`LoggingEmailSender`(`MailConfig`가 `spring.mail.host` 설정 여부로 자동 선택) — 조직 초대·채용 평가 초대가 실제 발송을 시도하도록 연결
+- [x] 비밀번호 재설정(`PasswordResetService`, 토큰 테이블, `/reset-password` 프론트), 이메일 인증(`EmailVerificationService`, `/verify-email` 프론트) — 둘 다 `OrganizationInvitation`과 같은 opaque-token 모양(ADR-0022) 재사용
+- [x] Rate limiting(`RateLimiter`+`RateLimitInterceptor`, IP 기준), 로그인 실패 잠금(`LoginAttemptService`, 이메일 기준 5회/15분)
+- [x] LLM 일일 사용량 쿼터(`LlmUsageGuard`, 사용자당 기본 50회/일, `SessionService.submit()`에서 체크)
+- [x] `.github/workflows/ci.yml`(백엔드는 `docker compose up`으로 전체 인프라를 띄운 뒤 직접 테스트 — CI 러너는 매번 새 VM이라 `run-tests-isolated.sh`의 격리 장치가 필요 없음), `.github/dependabot.yml`
+- [x] `backend/Dockerfile`, `frontend/Dockerfile`(Next.js standalone) — `docker build` 성공 확인
+- [x] 프론트 Sentry 연동(`instrumentation.ts`/`instrumentation-client.ts`, DSN 미설정 시 비활성)
+- [x] `npm audit`로 발견한 실제 취약점 수정(Next.js critical RCE 포함, 16.3.2 → 16.3.4)
+- [x] `/terms`, `/privacy` 페이지(플레이스홀더 + 법률 검토 필요 배너) + 가입 필수 동의 체크박스(`User.termsAcceptedAt`)
+- [x] 관리자 대시보드(`GET /admin/dashboard/stats` + `/admin` 프론트, 기존 `PlatformAccessGuard` 재사용)
+
+**완료 기준 충족**: 백엔드 전체 257개 테스트 전부 통과(신규 약 15개 포함, 회귀 없음) — `./scripts/run-tests-isolated.sh --rerun`으로 확인. 프론트 `tsc`/`npm run lint`/`npm run build` 클린. 두 Dockerfile 모두 `docker build` 성공. 실제 브라우저로: 약관 동의 없이 가입 시도 시 차단 확인 → 동의 후 가입 성공, 로그에 인증 메일 발송 확인 → 인증 링크로 이메일 인증 완료 확인 → 비밀번호 재설정 요청 → 로그에서 링크 확인 → 재설정 → 새 비밀번호로 로그인 성공 확인 → `/terms`·`/privacy` 페이지 확인 → 일반 사용자로 `/admin` 접근 시 403, DB에서 role을 PLATFORM_ADMIN으로 바꾼 뒤 재접근 시 실제 통계 확인.
+
+**진행 중 발견한 결정 사항**:
+- **`sentry-spring-boot-starter-jakarta`는 이 프로젝트의 Spring Boot 4.1.1과 호환되지 않는다** — `RestClientCustomizer` 클래스가 없어 앱이 아예 기동 실패했다(`NoClassDefFoundError`). 최신 버전(8.16.0, 이 글 작성 시점 Maven Central 최신)까지도 Spring Boot 4를 지원하지 않는 것으로 보인다. 백엔드 Sentry 연동은 되돌렸고, 프론트엔드(`@sentry/nextjs`, Spring 무관)만 유지했다. **교훈**: 최신 메이저 버전의 프레임워크(Spring Boot 4는 매우 최근 릴리스)를 쓸 때는 서드파티 스타터의 버전 호환성을 먼저 확인해야 한다 — 실제로 앱을 띄워보기 전까지는 컴파일이 되더라도 런타임에서만 드러나는 비호환일 수 있다.
+- **`src/test/resources/application.yml`을 새로 만들면 안 된다** — Gradle 테스트 클래스패스에 `src/main/resources/application.yml`과 동시에 존재하면 Spring Boot의 설정 병합이 예상과 다르게 동작해(datasource 등 필수 설정이 유실되어) 전체 테스트 컨텍스트가 깨진다(`DataSourceBeanCreationException`). 테스트 전용 값 오버라이드가 필요하면 `@DynamicPropertySource`를 개별 테스트 클래스에서 쓰거나, 프로덕션 기본값 자체를 테스트 스위트 전체 트래픽을 감당할 만큼 넉넉하게 잡는 편이 안전하다.
+- **Redis 기반 rate limiter의 키에 테스트 격리 축이 없으면, 같은 Redis를 공유하는 전체 테스트 스위트 사이에서 상태가 새어나간다** — IP 기준 키(`sysdrill:ratelimit:/auth/login:<ip>`)는 모든 MockMvc 테스트가 동일한 "클라이언트 IP"를 쓰기 때문에, 한 테스트 클래스의 트래픽이 다른 클래스의 카운터에 영향을 준다. 사용자 ID 기준 키(LLM 쿼터)는 테스트마다 새 UUID 사용자를 만들어 자연스럽게 격리되지만, IP 기준은 그렇지 않다. **교훈**: 이런 카운터를 검증하는 테스트는 "정확히 N번째에 걸린다"가 아니라 "충분히 많이 시도하면 결국 걸린다"는 식으로, 공유 상태의 사전 오염에 강건하게 짜야 한다.
+- **`@Bean` 메서드 이름이 겹치면 `@Primary`가 있어도 `BeanDefinitionOverrideException`이 난다** — 타입이 같아도 이름이 다르면 `@Primary`로 정상적으로 오버라이드되지만, 이름까지 같으면 Spring이 이를 허용하지 않는다(`FakeGoogleOAuthConfig`가 문제 없었던 건 진짜 구현체가 `@Component` 스캔으로 다른 이름의 빈이 됐기 때문). 테스트용 Fake 빈은 실제 `@Bean` 팩토리 메서드와 겹치지 않는 이름을 써야 한다.
+- **`mermaid.render()`류의 "실패 시 자기 콜백이 두 번 불릴 수 있는" 문제와 비슷하게, `useEffect`가 React Strict Mode에서 두 번 실행되면 토큰을 소비하는 API 호출(비밀번호 재설정 확인, 이메일 인증)도 두 번 나갈 수 있다** — 첫 호출이 성공(204)해도 두 번째 호출이 실패(400, 토큰 이미 사용됨)하면서 그 실패가 나중에 도착해 성공 상태를 덮어쓸 수 있다. 실제 브라우저 검증 중 `/verify-email` 페이지에서 이 버그를 직접 발견해, `useRef` 기반 "이미 실행됨" 가드로 고쳤다. **교훈**: 부작용이 있고 재실행되면 안 되는 `useEffect`(특히 일회용 토큰을 소비하는 API 호출)는 항상 이 가드가 필요하다고 가정해야 한다.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
