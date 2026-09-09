@@ -739,6 +739,23 @@ Phase 5 검증(로드맵 운영 원칙) 없이 사용자가 방향을 먼저 정
 
 **진행 중 발견한 결정 사항**: 없음 — Phase 5 세 단계에서 이미 다진 패턴(ContentItem/Scenario/ScenarioVersion/ScenarioStep 생성, visibility류 독립 축 추가, AuthWebConfig 등록) 그대로 재사용해서 마찰 없이 진행됐다.
 
+### 아키텍처 다이어그램 시각화 (Mermaid DSL) ✅ 완료 (2026-09-09)
+
+사용자가 archify(외부 아키텍처 다이어그램 도구)를 예로 들며 시스템 전체에 다이어그램 렌더링이 전무하다고 지적했다. PRD.md가 MVP 시점에 뺐던 건 "자유형 마우스 드래그 에디터"였고, ARCHITECTURE.md는 React Flow를 "검토" 항목으로만 남겨뒀었다 — 둘 다 정면으로 재판단할 시점(Phase 5/6 이후)이라 사용자에게 AskUserQuestion으로 확인해(1) 텍스트 DSL(Mermaid)을 1차로 하고 React Flow는 이후 "그리면 DSL이 생성되는" 입력 레이어로 단계적으로 확장, (2) Design Workspace와 Architecture Linter 양쪽에 동시 적용을 선택받았다. ADR-0035 참고.
+
+- [x] `frontend/package.json`에 `mermaid` 정확 버전 고정 추가 — 프론트엔드 첫 런타임 의존성
+- [x] 신규 공용 컴포넌트 `components/MermaidDiagram.tsx` — 다크모드는 이 프로젝트의 유일한 메커니즘인 `prefers-color-scheme` 미디어쿼리를 직접 감지, 렌더 실패는 인라인 에러로만 처리하고 페이지를 절대 깨뜨리지 않음
+- [x] Design Workspace: `answer` 자유 텍스트 안의 ` ```mermaid ``` ` 블록을 그대로 파싱해 실시간 미리보기(신규 `DiagramPreview.tsx`) — 제출되는 `rawText` 자체는 완전히 무변경이라 백엔드/평가 파이프라인 무변경. 템플릿 삽입 버튼 + 인라인 문법 치트시트 제공
+- [x] 백엔드 신규 `ArchitectureDiagramGenerator.kt` — `ArchitectureRiskScanner`와 같은 순회로 `flowchart TD` Mermaid 문자열을 결정론적으로 생성, 리스크 심각도(HIGH/MEDIUM)별 노드 색상 스타일링. `ArchitectureAnalysisResponse`에 `diagram` 필드 추가
+- [x] ADR-0035 작성, `docs/ARCHITECTURE.md`의 "React Flow 검토" 항목을 실제 결정으로 갱신
+
+**완료 기준 충족**: 백엔드 전체 246개 테스트 전부 통과(기존 `ArchitectureAnalysisControllerIntegrationTest`에 다이어그램 어서션 확장, 회귀 없음) — `./scripts/run-tests-isolated.sh --rerun`으로 확인. 프론트 `npx tsc --noEmit`/`npm run build` 클린 통과. 실제 브라우저로 회원가입 → Architecture Linter에서 결함 스펙 분석 → 위험도별로 빨강/노랑 색칠된 다이어그램 확인(라이트/다크 모드 둘 다) → Design Workspace에서 세션 시작 → 템플릿 삽입 버튼으로 mermaid 블록 자동 삽입 → 실시간 렌더 확인 → 문법을 의도적으로 깨뜨려 인라인 에러(페이지 안 깨짐) 확인 → 다시 유효한 문법으로 되돌려 정상 복구 확인.
+
+**진행 중 발견한 결정 사항**:
+- **`mermaid.render(id, code)`는 같은 id를 가진 엘리먼트가 이미 문서에 있으면 실패한다** — 성공 시 반환된 SVG를 `innerHTML`로 그대로 삽입해두기 때문에, 같은 컴포넌트 인스턴스가 같은 id로 다시 렌더를 시도하면(예: 성공 → 성공 재시도) 그 자체와 충돌해 실패한다. **교훈**: 렌더 호출마다 매번 새 고유 id를 발급해야 한다(카운터 ref로 해결).
+- **에러 상태에서 렌더 대상 `<div>`를 완전히 언마운트하면 영원히 복구 불가능한 상태에 빠진다** — `error && return <ErrorUI/>` 패턴으로 짜면 `containerRef.current`가 에러 상태 동안 `null`이 되고, 이후 코드를 고쳐서 렌더가 성공해도 `if (containerRef.current)` 체크가 항상 거짓이라 `setError(null)`이 절대 호출되지 않아 무한히 옛날 에러 메시지만 보여준다. 실제 브라우저 검증 중(정상→깨짐→정상 문법 되돌리기) 이 버그를 직접 발견했다. **교훈**: 렌더 대상 엘리먼트는 항상 마운트 상태를 유지하고(CSS `hidden`으로만 숨김), 에러 UI는 그 옆에 조건부로 얹는다 — React에서 "ref가 필요한 DOM 노드"를 상태에 따라 통째로 언마운트하는 패턴은 그 노드에 나중에 다시 쓰기 위한 명령형 접근(imperative access)이 필요한 경우 항상 이런 종류의 교착을 만들 수 있다.
+- **`mermaid.render()`는 실패 시 자기 자신의 내부 스크래치 컨테이너(`#d<id>`)를 `document.body`에 직접 붙여둔 채 정리하지 않는다** — React 트리 밖에 있어서 컴포넌트가 인지하지 못하고, 페이지 하단에 mermaid 자체의 기본 에러 SVG가 별도로 떠 있는 걸 브라우저 검증 중 발견했다. `finally` 블록에서 매번 `document.getElementById('d'+renderId)?.remove()`로 정리해서 해결.
+
 ---
 
 ## 진행 방식 메모

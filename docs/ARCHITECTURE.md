@@ -45,7 +45,7 @@
 
 | 영역 | 선택 | 비고 |
 |---|---|---|
-| Frontend | Next.js, React, Tailwind CSS | 설계 워크스페이스는 React Flow, 코드 입력은 Monaco Editor 검토 |
+| Frontend | Next.js, React, Tailwind CSS | 아키텍처 시각화는 Mermaid DSL(docs/adr/0035) — 설계 워크스페이스 답안에 임베드, Architecture Linter는 서버가 결정론적으로 생성. React Flow는 이 DSL을 그려서 생성하는 v2 입력 레이어 후보로 남겨둠. 코드 입력은 Monaco Editor 검토 |
 | Backend | Kotlin + Spring Boot | 모듈러 모놀리스, 도메인 상태·비동기 작업·운영 안정성에 적합 |
 | Primary DB | PostgreSQL | 사용자, 시나리오, 세션, 평가, 리포트 등 정합성이 필요한 영속 데이터. JPA/QueryDSL 또는 jOOQ |
 | Cache/Queue | Redis | 세션 캐시, rate limit, Job Queue(MVP). 확장 시 SQS 또는 Kafka 검토 |
