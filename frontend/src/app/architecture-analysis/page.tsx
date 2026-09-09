@@ -12,6 +12,7 @@ import {
   startSession,
 } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
+import { MermaidDiagram } from "@/components/MermaidDiagram";
 
 export default function ArchitectureAnalysisPage() {
   const router = useRouter();
@@ -116,6 +117,10 @@ export default function ArchitectureAnalysisPage() {
         {result && (
           <div className="mt-4 rounded bg-zinc-100 p-3 text-sm dark:bg-zinc-900">
             <p className="mb-2 font-medium">{result.scenario.title} — 발견된 리스크 {result.findings.length}건</p>
+            <div className="mb-3 rounded border border-zinc-300 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950">
+              <MermaidDiagram code={result.diagram} />
+              <p className="mt-1 text-[11px] text-zinc-400">빨강 = 높은 위험, 노랑 = 중간 위험 엔드포인트</p>
+            </div>
             {result.findings.length === 0 ? (
               <p className="text-xs text-zinc-500">뚜렷한 문제를 찾지 못했습니다.</p>
             ) : (

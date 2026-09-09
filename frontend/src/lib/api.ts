@@ -656,6 +656,7 @@ export function startAssessment(token: string): Promise<SessionResponse> {
 export interface ArchitectureAnalysis {
   scenario: ScenarioDetail;
   findings: string[];
+  diagram: string;
 }
 
 export function analyzeArchitecture(openApiSpec: string): Promise<ArchitectureAnalysis> {

@@ -24,6 +24,7 @@ import {
 import { WargameLive } from "./WargameLive";
 import { BridgeProgress } from "@/components/BridgeProgress";
 import { PhaseTimer } from "@/components/PhaseTimer";
+import { DiagramPreview } from "./DiagramPreview";
 
 const DESIGN_GUIDANCE_BY_DOMAIN: Record<string, string[]> = {
   coupon: [
@@ -350,6 +351,10 @@ export default function DesignWorkspacePage() {
                 : "설계를 자유롭게 작성하세요. 입력 내용은 자동으로 이 브라우저에 저장됩니다."
             }
           />
+
+          {!isIncident && (
+            <DiagramPreview answer={answer} onAppend={(text) => handleAnswerChange(answer + text)} />
+          )}
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
