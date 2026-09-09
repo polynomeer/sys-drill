@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ApiError, AssessmentPreview, previewAssessment, startAssessment } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 export default function AssessmentPreviewPage() {
   const params = useParams<{ token: string }>();
@@ -36,50 +39,46 @@ export default function AssessmentPreviewPage() {
     }
   }
 
-  if (loading) return <p className="p-8 text-sm text-zinc-500">불러오는 중...</p>;
-  if (error && !preview) return <p className="p-8 text-sm text-red-600">{error}</p>;
+  if (loading) return <LoadingState className="p-8" />;
+  if (error && !preview) return <p className="p-8 text-sm text-danger">{error}</p>;
   if (!preview) return null;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">{preview.organizationName}의 역량 평가</h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1 text-sm text-foreground-muted">
           {preview.candidateEmail}님께 발송된 평가입니다. 시나리오: {preview.scenarioTitle} ({preview.scenarioDomain})
         </p>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
-      {preview.expired && <p className="text-sm text-red-600">이 평가는 만료되었습니다. 조직 관리자에게 문의하세요.</p>}
-      {!preview.expired && preview.alreadyStarted && <p className="text-sm text-zinc-500">이 평가는 이미 시작되었습니다.</p>}
+      {preview.expired && <p className="text-sm text-danger">이 평가는 만료되었습니다. 조직 관리자에게 문의하세요.</p>}
+      {!preview.expired && preview.alreadyStarted && <p className="text-sm text-foreground-muted">이 평가는 이미 시작되었습니다.</p>}
 
       {!preview.expired && !preview.alreadyStarted && (
-        <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
+        <Card as="section">
           {loggedIn ? (
-            <button
-              onClick={handleStart}
-              disabled={starting}
-              className="rounded bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-            >
+            <Button onClick={handleStart} disabled={starting}>
               {starting ? "시작하는 중..." : "평가 시작하기"}
-            </button>
+            </Button>
           ) : (
             <div className="flex flex-col gap-2">
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-foreground-muted">
                 평가를 치르려면 <strong>{preview.candidateEmail}</strong>로 가입하거나 로그인해야 합니다.
               </p>
               <div className="flex gap-4">
-                <Link href="/onboarding" className="text-sm text-blue-600 underline dark:text-blue-400">
+                <Link href="/onboarding" className="text-sm text-accent underline">
                   가입하기
                 </Link>
-                <Link href="/login" className="text-sm text-blue-600 underline dark:text-blue-400">
+                <Link href="/login" className="text-sm text-accent underline">
                   로그인
                 </Link>
               </div>
             </div>
           )}
-        </section>
+        </Card>
       )}
     </div>
   );

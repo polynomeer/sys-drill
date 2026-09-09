@@ -17,6 +17,11 @@ import {
   listScenarios,
 } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 const STATUS_LABELS: Record<string, string> = {
   NOT_STARTED: "미시작",
@@ -92,45 +97,45 @@ export default function OrganizationAssessmentsPage() {
     }
   }
 
-  if (loading) return <p className="p-8 text-sm text-zinc-500">불러오는 중...</p>;
-  if (error && !org) return <p className="p-8 text-sm text-red-600">{error}</p>;
+  if (loading) return <LoadingState className="p-8" />;
+  if (error && !org) return <p className="p-8 text-sm text-danger">{error}</p>;
   if (!org) return null;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-8">
       <div>
-        <Link href={`/organizations/${orgId}`} className="text-sm text-zinc-500 underline">
+        <Link href={`/organizations/${orgId}`} className="text-sm text-foreground-muted underline">
           {org.name} 조직 상세로
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">역량 평가</h1>
-        <p className="mt-1 text-sm text-zinc-500">후보자에게 평가 링크를 보내고 결과를 확인합니다.</p>
+        <p className="mt-1 text-sm text-foreground-muted">후보자에게 평가 링크를 보내고 결과를 확인합니다.</p>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
-      <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-500">평가 목록 ({assessments.length}건)</h2>
-        {assessments.length === 0 && <p className="text-sm text-zinc-500">아직 생성된 평가가 없습니다.</p>}
+      <Card as="section">
+        <h2 className="mb-3 text-sm font-semibold text-foreground-muted">평가 목록 ({assessments.length}건)</h2>
+        {assessments.length === 0 && <p className="text-sm text-foreground-muted">아직 생성된 평가가 없습니다.</p>}
         <ul className="flex flex-col gap-3">
           {assessments.map((a) => (
             <li key={a.id} className="text-sm">
               <div className="flex items-center justify-between">
                 <span>
                   {a.candidateEmail}
-                  <span className="ml-2 text-xs text-zinc-500">({a.scenarioTitle})</span>
+                  <span className="ml-2 text-xs text-foreground-muted">({a.scenarioTitle})</span>
                 </span>
                 <span className="flex items-center gap-2">
-                  <span className="text-xs text-zinc-500">{STATUS_LABELS[a.status] ?? a.status}</span>
+                  <Badge>{STATUS_LABELS[a.status] ?? a.status}</Badge>
                   {a.status === "COMPLETED" && (
-                    <button onClick={() => handleViewReport(a)} className="text-xs text-blue-600 underline dark:text-blue-400">
+                    <Button variant="ghost" size="sm" onClick={() => handleViewReport(a)}>
                       리포트 보기
-                    </button>
+                    </Button>
                   )}
                 </span>
               </div>
               {openReportId === a.id && (
-                <div className="mt-2 rounded bg-zinc-100 p-3 text-xs dark:bg-zinc-900">
-                  {reportError && <p className="text-red-600">{reportError}</p>}
+                <div className="mt-2 rounded bg-surface-elevated p-3 text-xs ">
+                  {reportError && <p className="text-danger">{reportError}</p>}
                   {report && (
                     <>
                       <p className="mb-2">{report.summary}</p>
@@ -149,20 +154,19 @@ export default function OrganizationAssessmentsPage() {
             </li>
           ))}
         </ul>
-      </section>
+      </Card>
 
-      <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-500">새 평가 생성</h2>
+      <Card as="section">
+        <h2 className="mb-3 text-sm font-semibold text-foreground-muted">새 평가 생성</h2>
         <form onSubmit={handleCreate} className="flex flex-col gap-2">
-          <input
-            className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          <Input
             type="email"
             value={candidateEmail}
             onChange={(e) => setCandidateEmail(e.target.value)}
             placeholder="candidate@example.com"
           />
           <select
-            className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="rounded border border-border px-3 py-2 text-sm  "
             value={scenarioId}
             onChange={(e) => setScenarioId(e.target.value)}
           >
@@ -173,21 +177,17 @@ export default function OrganizationAssessmentsPage() {
               </option>
             ))}
           </select>
-          <button
-            type="submit"
-            disabled={creating}
-            className="self-start rounded bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-          >
+          <Button type="submit" disabled={creating} className="self-start">
             {creating ? "생성하는 중..." : "평가 생성"}
-          </button>
+          </Button>
         </form>
         {lastLink && (
-          <div className="mt-3 rounded bg-zinc-100 p-3 text-xs dark:bg-zinc-900">
-            <p className="mb-1 text-zinc-500">이 링크를 후보자에게 직접 전달하세요 (이메일은 자동 발송되지 않습니다):</p>
+          <div className="mt-3 rounded bg-surface-elevated p-3 text-xs ">
+            <p className="mb-1 text-foreground-muted">이 링크를 후보자에게 직접 전달하세요 (이메일은 자동 발송되지 않습니다):</p>
             <code className="break-all">{lastLink}</code>
           </div>
         )}
-      </section>
+      </Card>
     </div>
   );
 }

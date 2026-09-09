@@ -37,10 +37,8 @@ export function PhaseTimer({ deadlineAt, onExpire }: { deadlineAt: string; onExp
 
   return (
     <div
-      className={`flex items-center gap-2 rounded border px-3 py-1.5 text-sm font-mono ${
-        isWarning
-          ? "border-red-400 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300"
-          : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+      className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-mono ${
+        isWarning ? "border-danger/40 bg-danger/10 text-danger" : "border-border text-foreground-muted"
       }`}
     >
       <span aria-hidden>⏱</span>

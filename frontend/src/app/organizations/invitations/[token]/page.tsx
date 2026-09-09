@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ApiError, InvitationPreview, acceptInvitation, previewInvitation } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "관리자",
@@ -60,35 +63,31 @@ export default function InvitationAcceptPage() {
         <h1 className="text-2xl font-semibold">조직 초대</h1>
       </div>
 
-      {loading && <p className="text-sm text-zinc-500">불러오는 중...</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {loading && <LoadingState />}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
       {preview && (
-        <div className="flex flex-col gap-4 rounded border border-zinc-300 p-4 dark:border-zinc-700">
+        <Card className="flex flex-col gap-4">
           <p className="text-sm">
             <span className="font-medium">{preview.organizationName}</span>에{" "}
             <span className="font-medium">{ROLE_LABELS[preview.role] ?? preview.role}</span>(으)로 초대되었습니다.
           </p>
-          <p className="text-xs text-zinc-500">초대받은 이메일: {preview.inviteeEmail}</p>
+          <p className="text-xs text-foreground-muted">초대받은 이메일: {preview.inviteeEmail}</p>
 
-          {preview.expired && <p className="text-sm text-red-600">이 초대는 만료되었습니다.</p>}
+          {preview.expired && <p className="text-sm text-danger">이 초대는 만료되었습니다.</p>}
           {preview.alreadyResolved && !preview.expired && (
-            <p className="text-sm text-red-600">이 초대는 이미 처리되었습니다.</p>
+            <p className="text-sm text-danger">이 초대는 이미 처리되었습니다.</p>
           )}
 
           {!preview.expired && !preview.alreadyResolved && (
-            <button
-              onClick={handleAccept}
-              disabled={accepting}
-              className="rounded bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-            >
+            <Button onClick={handleAccept} disabled={accepting}>
               {accepting ? "수락하는 중..." : "수락"}
-            </button>
+            </Button>
           )}
-        </div>
+        </Card>
       )}
 
-      <Link href="/organizations" className="text-center text-sm text-zinc-500 underline">
+      <Link href="/organizations" className="text-center text-sm text-foreground-muted underline">
         내 조직 목록으로
       </Link>
     </div>

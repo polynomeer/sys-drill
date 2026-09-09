@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ApiError, AuditLogEntry, OrganizationAuditAction, OrganizationDetail, getOrganization, listAuditLog } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 const ACTION_LABELS: Record<OrganizationAuditAction, string> = {
   ORGANIZATION_CREATED: "조직 생성",
@@ -55,14 +56,14 @@ export default function OrganizationAuditLogPage() {
       .finally(() => setLoading(false));
   }, [router, orgId]);
 
-  if (loading) return <p className="p-8 text-sm text-zinc-500">불러오는 중...</p>;
+  if (loading) return <LoadingState className="p-8" />;
   if (error) {
     return (
       <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-8">
-        <Link href={`/organizations/${orgId}`} className="text-sm text-zinc-500 underline">
+        <Link href={`/organizations/${orgId}`} className="text-sm text-foreground-muted underline">
           조직 상세로
         </Link>
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-danger">{error}</p>
       </div>
     );
   }
@@ -71,17 +72,17 @@ export default function OrganizationAuditLogPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
       <div>
-        <Link href={`/organizations/${orgId}`} className="text-sm text-zinc-500 underline">
+        <Link href={`/organizations/${orgId}`} className="text-sm text-foreground-muted underline">
           {org.name} 조직 상세로
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">감사 로그</h1>
-        <p className="mt-1 text-sm text-zinc-500">조직 관리 활동 기록 (최근 {entries.length}건)</p>
+        <p className="mt-1 text-sm text-foreground-muted">조직 관리 활동 기록 (최근 {entries.length}건)</p>
       </div>
 
-      <section className="overflow-x-auto rounded border border-zinc-300 dark:border-zinc-700">
+      <section className="overflow-x-auto rounded border border-border">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-zinc-300 text-left text-xs text-zinc-500 dark:border-zinc-700">
+            <tr className="border-b border-border text-left text-xs text-foreground-muted ">
               <th className="px-4 py-2 font-medium">시각</th>
               <th className="px-4 py-2 font-medium">행위자</th>
               <th className="px-4 py-2 font-medium">행동</th>
@@ -91,21 +92,21 @@ export default function OrganizationAuditLogPage() {
           <tbody>
             {entries.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-xs text-zinc-500">
+                <td colSpan={4} className="px-4 py-6 text-center text-xs text-foreground-muted">
                   아직 기록된 활동이 없습니다.
                 </td>
               </tr>
             )}
             {entries.map((entry) => (
-              <tr key={entry.id} className="border-b border-zinc-200 last:border-0 dark:border-zinc-800">
-                <td className="px-4 py-2 text-xs text-zinc-500">
+              <tr key={entry.id} className="border-b border-border last:border-0 ">
+                <td className="px-4 py-2 text-xs text-foreground-muted">
                   {entry.createdAt ? new Date(entry.createdAt).toLocaleString("ko-KR") : "-"}
                 </td>
                 <td className="px-4 py-2">
-                  {entry.actorNickname} <span className="text-xs text-zinc-500">({entry.actorEmail})</span>
+                  {entry.actorNickname} <span className="text-xs text-foreground-muted">({entry.actorEmail})</span>
                 </td>
                 <td className="px-4 py-2">{ACTION_LABELS[entry.action] ?? entry.action}</td>
-                <td className="px-4 py-2 text-xs text-zinc-500">{formatDetail(entry)}</td>
+                <td className="px-4 py-2 text-xs text-foreground-muted">{formatDetail(entry)}</td>
               </tr>
             ))}
           </tbody>

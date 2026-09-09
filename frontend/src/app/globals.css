@@ -1,26 +1,43 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* SysDrill_UIUX_Design_Plan.docx §3 — dark navy console theme, the
+     product's only theme (no light mode): background/surface/surface-elevated
+     form the layering used by Card/Header/panels, foreground/foreground-muted
+     are primary/secondary text, accent is the single blue used for primary
+     actions, and success/warning/danger are the status vocabulary shared by
+     Badge/MetricCard/Alert across Design/Build/Incident modes. */
+  --background: #08111f;
+  --surface: #0f1b2b;
+  --surface-elevated: #132238;
+  --border: #1e2f45;
+  --foreground: #f5f7fa;
+  --foreground-muted: #94a3b8;
+  --accent: #2f80ff;
+  --accent-foreground: #f5f7fa;
+  --success: #34d399;
+  --warning: #f59e0b;
+  --danger: #ef4444;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-border: var(--border);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-noto-sans-kr);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), "Pretendard", "Noto Sans KR", Arial, sans-serif;
 }

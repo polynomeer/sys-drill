@@ -13,6 +13,10 @@ import {
 } from "@/lib/api";
 import { getStoredToken, loadBuildDraft, saveBuildDraft, saveBuildSubmissionId } from "@/lib/localSession";
 import { BridgeProgress } from "@/components/BridgeProgress";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 const CHALLENGE_SLUG = "rate-limiter";
 const POLL_INTERVAL_MS = 1000;
@@ -163,83 +167,67 @@ export default function BridgePage() {
         <BridgeProgress current="build" />
       </div>
 
-      <p className="text-sm text-zinc-500">
+      <p className="text-sm text-foreground-muted">
         Rate Limiter를 구현해 제출하면, 완료 즉시 이어서 {scenario ? `"${scenario.title}"` : "연결된"} 시스템 설계 →
         꼬리설계 → Wargame으로 넘어갑니다. 실제로 6개 stage를 모두 통과하지 못해도 제출이 완료되기만 하면 다음 단계로 진행할
         수 있습니다.
       </p>
 
-      {view === "loading" && <p className="text-sm text-zinc-500">불러오는 중...</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {view === "loading" && <LoadingState />}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
       {(view === "editing" || view === "submitting") && (
         <>
           <textarea
-            className="min-h-[360px] rounded border border-zinc-300 p-3 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="min-h-[360px] rounded border border-border p-3 font-mono text-sm  "
             value={sourceCode}
             onChange={(e) => handleSourceChange(e.target.value)}
             spellCheck={false}
           />
-          <button
-            onClick={handleSubmit}
-            disabled={view === "submitting"}
-            className="self-start rounded bg-foreground px-5 py-2 font-medium text-background disabled:opacity-50"
-          >
+          <Button onClick={handleSubmit} disabled={view === "submitting"} className="self-start">
             {view === "submitting" ? "제출하는 중..." : "제출하기"}
-          </button>
+          </Button>
         </>
       )}
 
       {view === "waiting" && (
-        <div className="flex flex-col items-center gap-3 rounded border border-zinc-300 p-8 dark:border-zinc-700">
-          <p className="text-sm text-zinc-500">샌드박스에서 stage를 채점하는 중입니다 ({submission?.status ?? "..."})...</p>
-        </div>
+        <Card className="flex flex-col items-center gap-3 p-8">
+          <p className="text-sm text-foreground-muted">샌드박스에서 stage를 채점하는 중입니다 ({submission?.status ?? "..."})...</p>
+        </Card>
       )}
 
       {view === "result" && submission && (
         <>
-          <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-            <p className="text-sm text-zinc-500">점수</p>
+          <Card as="section">
+            <p className="text-sm text-foreground-muted">점수</p>
             <p className="text-3xl font-semibold">
               {submission.score ?? 0} / {submission.totalStages}
             </p>
-          </section>
+          </Card>
 
-          <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-            <h2 className="mb-3 text-sm font-semibold text-zinc-500">Stage별 결과</h2>
+          <Card as="section">
+            <h2 className="mb-3 text-sm font-semibold text-foreground-muted">Stage별 결과</h2>
             <ul className="flex flex-col gap-3">
               {submission.stages.map((stage) => (
                 <li
                   key={stage.stageOrder}
-                  className="border-t border-zinc-200 pt-3 first:border-t-0 first:pt-0 dark:border-zinc-800"
+                  className="border-t border-border pt-3 first:border-t-0 first:pt-0 "
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">
                       {stage.stageOrder}. {stage.title}
                     </span>
-                    <span
-                      className={
-                        stage.status === "PASSED"
-                          ? "rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                          : "rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-300"
-                      }
-                    >
-                      {stage.status ?? "-"}
-                    </span>
+                    <Badge variant={stage.status === "PASSED" ? "success" : "danger"}>{stage.status ?? "-"}</Badge>
                   </div>
-                  {stage.feedback && <p className="mt-1 text-xs text-zinc-500">{stage.feedback}</p>}
+                  {stage.feedback && <p className="mt-1 text-xs text-foreground-muted">{stage.feedback}</p>}
                 </li>
               ))}
             </ul>
-          </section>
+          </Card>
 
-          <button
-            onClick={handleContinueToDesign}
-            disabled={startingSession || !scenario}
-            className="self-start rounded bg-foreground px-5 py-2 font-medium text-background disabled:opacity-50"
-          >
+          <Button onClick={handleContinueToDesign} disabled={startingSession || !scenario} className="self-start">
             {startingSession ? "이동하는 중..." : `다음: ${scenario?.title ?? "설계"}로 이동`}
-          </button>
+          </Button>
         </>
       )}
     </div>

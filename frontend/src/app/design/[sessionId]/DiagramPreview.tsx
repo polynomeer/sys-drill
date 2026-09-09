@@ -20,17 +20,17 @@ export function DiagramPreview({ answer, onAppend }: { answer: string; onAppend:
   const diagrams = extractDiagrams(answer);
 
   return (
-    <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
+    <section className="rounded border border-border p-4 ">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-500">다이어그램 미리보기</h2>
-        <button type="button" onClick={() => onAppend(TEMPLATE)} className="text-xs text-zinc-500 underline">
+        <h2 className="text-sm font-semibold text-foreground-muted">다이어그램 미리보기</h2>
+        <button type="button" onClick={() => onAppend(TEMPLATE)} className="text-xs text-foreground-muted underline">
           템플릿 삽입
         </button>
       </div>
 
       {diagrams.length === 0 ? (
-        <p className="text-xs text-zinc-500">
-          답안에 <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">```mermaid</code> 블록을 추가하면 여기에
+        <p className="text-xs text-foreground-muted">
+          답안에 <code className="rounded bg-surface-elevated px-1 ">```mermaid</code> 블록을 추가하면 여기에
           다이어그램이 표시됩니다.
         </p>
       ) : (
@@ -41,7 +41,7 @@ export function DiagramPreview({ answer, onAppend }: { answer: string; onAppend:
         </div>
       )}
 
-      <details className="mt-3 text-xs text-zinc-500">
+      <details className="mt-3 text-xs text-foreground-muted">
         <summary className="cursor-pointer select-none">Mermaid 문법 치트시트</summary>
         <ul className="mt-2 list-inside list-disc space-y-1">
           <li>

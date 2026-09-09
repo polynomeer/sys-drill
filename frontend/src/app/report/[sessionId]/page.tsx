@@ -6,6 +6,9 @@ import { useParams, useRouter } from "next/navigation";
 import { ApiError, Report, getReport } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { BridgeProgress } from "@/components/BridgeProgress";
+import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 const PHASE_LABELS: Record<string, string> = {
   INITIAL: "초기 설계",
@@ -52,9 +55,6 @@ export default function ReportPage() {
           <Link href={`/design/${sessionId}/postmortem`} className="text-sm underline">
             포스트모템
           </Link>
-          <Link href="/dashboard" className="text-sm underline">
-            대시보드로
-          </Link>
         </div>
       </div>
 
@@ -64,48 +64,40 @@ export default function ReportPage() {
         </div>
       )}
 
-      {loading && <p className="text-sm text-zinc-500">불러오는 중...</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {loading && <LoadingState />}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
       {report && (
         <>
           {report.buildSummary && (
-            <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-              <h2 className="mb-1 text-sm font-semibold text-zinc-500">Build — {report.buildSummary.challengeTitle}</h2>
+            <Card as="section">
+              <h2 className="mb-1 text-sm font-semibold text-foreground-muted">Build — {report.buildSummary.challengeTitle}</h2>
               <p className="text-2xl font-semibold">
                 {report.buildSummary.score ?? 0} / {report.buildSummary.totalStages}
               </p>
-            </section>
+            </Card>
           )}
 
-          <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-            <h2 className="mb-1 text-sm font-semibold text-zinc-500">총평</h2>
+          <Card as="section">
+            <h2 className="mb-1 text-sm font-semibold text-foreground-muted">총평</h2>
             <p className="text-sm">{report.summary ?? "-"}</p>
-          </section>
+          </Card>
 
-          <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-            <h2 className="mb-3 text-sm font-semibold text-zinc-500">단계별 결과</h2>
+          <Card as="section">
+            <h2 className="mb-3 text-sm font-semibold text-foreground-muted">단계별 결과</h2>
             <ul className="flex flex-col gap-3">
               {report.timelineFeedback.map((entry) => (
-                <li key={entry.submissionId} className="border-t border-zinc-200 pt-3 first:border-t-0 first:pt-0 dark:border-zinc-800">
+                <li key={entry.submissionId} className="border-t border-border pt-3 first:border-t-0 first:pt-0 ">
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-2 text-sm font-medium">
                       {PHASE_LABELS[entry.phase] ?? entry.phase}
-                      {entry.onTime === false && (
-                        <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950 dark:text-red-300">
-                          시간 초과
-                        </span>
-                      )}
-                      {entry.onTime === true && (
-                        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                          시간 내 제출
-                        </span>
-                      )}
+                      {entry.onTime === false && <Badge variant="danger">시간 초과</Badge>}
+                      {entry.onTime === true && <Badge variant="success">시간 내 제출</Badge>}
                     </span>
                     <span className="font-mono text-sm">{entry.totalScore ?? "-"} / 100</span>
                   </div>
                   {entry.topRisks.length > 0 && (
-                    <ul className="mt-1 list-inside list-disc text-xs text-zinc-500">
+                    <ul className="mt-1 list-inside list-disc text-xs text-foreground-muted">
                       {entry.topRisks.map((risk, i) => (
                         <li key={i}>{risk}</li>
                       ))}
@@ -114,17 +106,17 @@ export default function ReportPage() {
                 </li>
               ))}
             </ul>
-          </section>
+          </Card>
 
           {report.improvementGuide.length > 0 && (
-            <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-              <h2 className="mb-2 text-sm font-semibold text-zinc-500">다음에 시도해볼 것</h2>
+            <Card as="section">
+              <h2 className="mb-2 text-sm font-semibold text-foreground-muted">다음에 시도해볼 것</h2>
               <ul className="list-inside list-disc space-y-1 text-sm">
                 {report.improvementGuide.map((item, i) => (
                   <li key={i}>{item}</li>
                 ))}
               </ul>
-            </section>
+            </Card>
           )}
         </>
       )}

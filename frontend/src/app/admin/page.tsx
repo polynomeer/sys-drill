@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AdminDashboardStats, ApiError, getAdminDashboardStats } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
+import { Card } from "@/components/ui/Card";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 /** docs/COMMERCIALIZATION.md — no separate role check on the frontend; the backend's PlatformAccessGuard is the real gate, this page just renders whatever it returns (stats, or a 403 message). */
 export default function AdminDashboardPage() {
@@ -35,14 +36,11 @@ export default function AdminDashboardPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-8">
       <div>
-        <Link href="/dashboard" className="text-sm text-zinc-500 underline">
-          대시보드로
-        </Link>
-        <h1 className="mt-2 text-2xl font-semibold">운영 대시보드</h1>
+        <h1 className="text-2xl font-semibold">운영 대시보드</h1>
       </div>
 
-      {loading && <p className="text-sm text-zinc-500">불러오는 중...</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {loading && <LoadingState />}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
       {stats && (
         <div className="grid grid-cols-2 gap-4">
@@ -58,9 +56,9 @@ export default function AdminDashboardPage() {
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-      <p className="text-sm text-zinc-500">{label}</p>
+    <Card>
+      <p className="text-sm text-foreground-muted">{label}</p>
       <p className="text-3xl font-semibold">{value}</p>
-    </div>
+    </Card>
   );
 }

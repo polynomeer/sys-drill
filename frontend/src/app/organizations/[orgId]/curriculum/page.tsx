@@ -16,6 +16,9 @@ import {
   startSession,
 } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 export default function OrganizationCurriculumPage() {
   const params = useParams<{ orgId: string }>();
@@ -107,14 +110,14 @@ export default function OrganizationCurriculumPage() {
     return candidates.find((c) => c.id === scenarioId)?.title ?? curriculum?.steps.find((s) => s.scenarioId === scenarioId)?.title ?? scenarioId;
   }
 
-  if (loading) return <p className="p-8 text-sm text-zinc-500">불러오는 중...</p>;
+  if (loading) return <LoadingState className="p-8" />;
   if (error && !org) {
     return (
       <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-8">
-        <Link href={`/organizations/${orgId}`} className="text-sm text-zinc-500 underline">
+        <Link href={`/organizations/${orgId}`} className="text-sm text-foreground-muted underline">
           조직 상세로
         </Link>
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-danger">{error}</p>
       </div>
     );
   }
@@ -123,58 +126,59 @@ export default function OrganizationCurriculumPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
       <div>
-        <Link href={`/organizations/${orgId}`} className="text-sm text-zinc-500 underline">
+        <Link href={`/organizations/${orgId}`} className="text-sm text-foreground-muted underline">
           {org.name} 조직 상세로
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">온보딩 커리큘럼</h1>
-        <p className="mt-1 text-sm text-zinc-500">순서는 안내일 뿐 강제되지 않습니다 — 어떤 단계든 먼저 시작할 수 있습니다.</p>
+        <p className="mt-1 text-sm text-foreground-muted">순서는 안내일 뿐 강제되지 않습니다 — 어떤 단계든 먼저 시작할 수 있습니다.</p>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
-      <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-500">내 진행 상황</h2>
-        {curriculum.steps.length === 0 && <p className="text-sm text-zinc-500">아직 커리큘럼이 설정되지 않았습니다.</p>}
+      <Card as="section">
+        <h2 className="mb-3 text-sm font-semibold text-foreground-muted">내 진행 상황</h2>
+        {curriculum.steps.length === 0 && <p className="text-sm text-foreground-muted">아직 커리큘럼이 설정되지 않았습니다.</p>}
         <ol className="flex flex-col gap-2">
           {curriculum.steps.map((step) => (
             <li key={step.scenarioId} className="flex items-center justify-between text-sm">
               <span>
                 {step.order}. {step.completed ? "✅" : "⬜️"} {step.title}
-                <span className="ml-2 text-xs text-zinc-500">({step.domain})</span>
+                <span className="ml-2 text-xs text-foreground-muted">({step.domain})</span>
               </span>
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => handleStart(step.scenarioId)}
                 disabled={startingId === step.scenarioId}
-                className="rounded bg-foreground px-3 py-1 text-xs font-medium text-background disabled:opacity-50"
               >
                 {startingId === step.scenarioId ? "시작하는 중..." : step.completed ? "다시 풀기" : "시작"}
-              </button>
+              </Button>
             </li>
           ))}
         </ol>
-      </section>
+      </Card>
 
       {org.myRole === "ADMIN" && (
-        <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
-          <h2 className="mb-3 text-sm font-semibold text-zinc-500">커리큘럼 편집</h2>
+        <Card as="section">
+          <h2 className="mb-3 text-sm font-semibold text-foreground-muted">커리큘럼 편집</h2>
 
           <ol className="mb-3 flex flex-col gap-2">
-            {draftIds.length === 0 && <p className="text-sm text-zinc-500">아래에서 시나리오를 추가하세요.</p>}
+            {draftIds.length === 0 && <p className="text-sm text-foreground-muted">아래에서 시나리오를 추가하세요.</p>}
             {draftIds.map((scenarioId, index) => (
               <li key={scenarioId} className="flex items-center justify-between gap-2 text-sm">
                 <span>
                   {index + 1}. {titleFor(scenarioId)}
                 </span>
-                <span className="flex gap-1 text-xs">
-                  <button onClick={() => moveInDraft(index, -1)} disabled={index === 0} className="underline disabled:opacity-30">
+                <span className="flex gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => moveInDraft(index, -1)} disabled={index === 0}>
                     위로
-                  </button>
-                  <button onClick={() => moveInDraft(index, 1)} disabled={index === draftIds.length - 1} className="underline disabled:opacity-30">
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => moveInDraft(index, 1)} disabled={index === draftIds.length - 1}>
                     아래로
-                  </button>
-                  <button onClick={() => removeFromDraft(scenarioId)} className="text-red-600 underline">
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={() => removeFromDraft(scenarioId)}>
                     제거
-                  </button>
+                  </Button>
                 </span>
               </li>
             ))}
@@ -184,24 +188,16 @@ export default function OrganizationCurriculumPage() {
             {candidates
               .filter((c) => !draftIds.includes(c.id))
               .map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => addToDraft(c.id)}
-                  className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700"
-                >
+                <Button key={c.id} variant="secondary" size="sm" onClick={() => addToDraft(c.id)}>
                   + {c.title}
-                </button>
+                </Button>
               ))}
           </div>
 
-          <button
-            onClick={handleSave}
-            disabled={saving || draftIds.length === 0}
-            className="rounded bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-          >
+          <Button onClick={handleSave} disabled={saving || draftIds.length === 0}>
             {saving ? "저장하는 중..." : "저장"}
-          </button>
-        </section>
+          </Button>
+        </Card>
       )}
     </div>
   );

@@ -31,10 +31,10 @@ function VerifyEmailStatus() {
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 p-8 text-center">
       <h1 className="text-2xl font-semibold">이메일 인증</h1>
-      {status === "verifying" && <p className="text-sm text-zinc-500">확인하는 중...</p>}
-      {status === "done" && <p className="text-sm text-emerald-600">이메일이 인증되었습니다.</p>}
-      {status === "error" && <p className="text-sm text-red-600">유효하지 않거나 만료된 링크입니다.</p>}
-      <Link href="/dashboard" className="text-sm text-zinc-500 underline">
+      {status === "verifying" && <p className="text-sm text-foreground-muted">확인하는 중...</p>}
+      {status === "done" && <p className="text-sm text-success">이메일이 인증되었습니다.</p>}
+      {status === "error" && <p className="text-sm text-danger">유효하지 않거나 만료된 링크입니다.</p>}
+      <Link href="/dashboard" className="text-sm text-foreground-muted underline">
         대시보드로
       </Link>
     </div>

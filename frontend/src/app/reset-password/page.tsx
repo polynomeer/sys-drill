@@ -4,6 +4,8 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ApiError, confirmPasswordReset, requestPasswordReset } from "@/lib/api";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -55,30 +57,16 @@ function ResetPasswordForm() {
       {!token && (
         <form onSubmit={handleRequest} className="flex flex-col gap-4">
           {requestSent ? (
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-foreground-muted">
               해당 이메일 계정이 존재하면 재설정 링크를 보냈습니다. 메일함(및 로그)을 확인해주세요.
             </p>
           ) : (
             <>
-              <label className="flex flex-col gap-1 text-sm">
-                이메일
-                <input
-                  className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  autoFocus
-                />
-              </label>
-              {error && <p className="text-sm text-red-600">{error}</p>}
-              <button
-                type="submit"
-                disabled={submitting || !email.trim()}
-                className="rounded bg-foreground px-4 py-2 font-medium text-background disabled:opacity-50"
-              >
+              <Input label="이메일" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoFocus />
+              {error && <p className="text-sm text-danger">{error}</p>}
+              <Button type="submit" disabled={submitting || !email.trim()} className="w-full">
                 {submitting ? "요청하는 중..." : "재설정 링크 받기"}
-              </button>
+              </Button>
             </>
           )}
         </form>
@@ -87,34 +75,27 @@ function ResetPasswordForm() {
       {token && (
         <form onSubmit={handleConfirm} className="flex flex-col gap-4">
           {resetDone ? (
-            <p className="text-sm text-zinc-500">비밀번호가 변경되었습니다. 로그인 화면으로 이동합니다...</p>
+            <p className="text-sm text-foreground-muted">비밀번호가 변경되었습니다. 로그인 화면으로 이동합니다...</p>
           ) : (
             <>
-              <label className="flex flex-col gap-1 text-sm">
-                새 비밀번호 (8자 이상)
-                <input
-                  className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="********"
-                  autoFocus
-                />
-              </label>
-              {error && <p className="text-sm text-red-600">{error}</p>}
-              <button
-                type="submit"
-                disabled={submitting || newPassword.length < 8}
-                className="rounded bg-foreground px-4 py-2 font-medium text-background disabled:opacity-50"
-              >
+              <Input
+                label="새 비밀번호 (8자 이상)"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="********"
+                autoFocus
+              />
+              {error && <p className="text-sm text-danger">{error}</p>}
+              <Button type="submit" disabled={submitting || newPassword.length < 8} className="w-full">
                 {submitting ? "재설정하는 중..." : "비밀번호 재설정"}
-              </button>
+              </Button>
             </>
           )}
         </form>
       )}
 
-      <Link href="/login" className="text-center text-sm text-zinc-500 underline">
+      <Link href="/login" className="text-center text-sm text-foreground-muted underline">
         로그인으로 돌아가기
       </Link>
     </div>

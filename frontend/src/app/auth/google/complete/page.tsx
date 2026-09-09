@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { storeUser } from "@/lib/localSession";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 /** PLAN.md step 37 — the backend redirects here after a successful Google login, with the token/nickname in the URL fragment (never sent to a server, never logged). */
 export default function GoogleAuthCompletePage() {
@@ -27,7 +28,7 @@ export default function GoogleAuthCompletePage() {
   if (error) {
     return (
       <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-4 p-8 text-center">
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-danger">{error}</p>
         <Link href="/login" className="text-sm underline">
           로그인으로 돌아가기
         </Link>
@@ -37,7 +38,7 @@ export default function GoogleAuthCompletePage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center p-8">
-      <p className="text-sm text-zinc-500">로그인하는 중...</p>
+      <LoadingState label="로그인하는 중..." />
     </div>
   );
 }

@@ -4,17 +4,13 @@ import { useEffect, useId, useRef, useState } from "react";
 
 const DEBOUNCE_MS = 400;
 
-function prefersDark(): boolean {
-  return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
-}
-
 /**
  * Renders a Mermaid diagram from raw DSL text. The only place this project
  * talks to `mermaid` (its first runtime dependency beyond next/react/tailwind)
  * — kept as one small, self-contained component so a syntax error from
  * user-typed DSL (Design Workspace) never takes down the surrounding page.
- * Theme follows this app's only dark-mode mechanism (`prefers-color-scheme`,
- * see globals.css) since there is no manual toggle to read state from.
+ * Dark theme is hardcoded: per the dark-navy-console rebrand, this app has
+ * exactly one theme (no `prefers-color-scheme` branch left in globals.css).
  */
 export function MermaidDiagram({ code }: { code: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -31,7 +27,7 @@ export function MermaidDiagram({ code }: { code: string }) {
     const timer = setTimeout(() => {
       import("mermaid").then(async ({ default: mermaid }) => {
         if (cancelled) return;
-        mermaid.initialize({ startOnLoad: false, theme: prefersDark() ? "dark" : "default", securityLevel: "strict" });
+        mermaid.initialize({ startOnLoad: false, theme: "dark", securityLevel: "strict" });
         const renderId = `mermaid-${rawId}-${renderCountRef.current++}`;
         try {
           const { svg } = await mermaid.render(renderId, code);
@@ -59,9 +55,9 @@ export function MermaidDiagram({ code }: { code: string }) {
   return (
     <div>
       {error && (
-        <div className="mb-2 rounded border border-red-300 p-3 text-xs dark:border-red-800">
-          <p className="mb-2 text-red-600">{error}</p>
-          <pre className="overflow-x-auto whitespace-pre-wrap text-zinc-500">{code}</pre>
+        <div className="mb-2 rounded-lg border border-danger/40 p-3 text-xs">
+          <p className="mb-2 text-danger">{error}</p>
+          <pre className="overflow-x-auto whitespace-pre-wrap text-foreground-muted">{code}</pre>
         </div>
       )}
       {/* Always mounted (never conditionally unmounted) -- keeping containerRef

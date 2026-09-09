@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { API_BASE_URL, ApiError, login } from "@/lib/api";
 import { storeUser } from "@/lib/localSession";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,63 +38,37 @@ export default function LoginPage() {
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">로그인</h1>
-        <p className="mt-1 text-sm text-zinc-500">이메일과 비밀번호로 로그인하세요.</p>
+        <p className="mt-1 text-sm text-foreground-muted">이메일과 비밀번호로 로그인하세요.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm">
-          이메일
-          <input
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            autoFocus
-          />
-        </label>
+        <Input label="이메일" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoFocus />
 
-        <label className="flex flex-col gap-1 text-sm">
-          비밀번호
-          <input
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="********"
-          />
-        </label>
+        <Input label="비밀번호" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="********" />
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-foreground px-4 py-2 font-medium text-background disabled:opacity-50"
-        >
+        <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "로그인하는 중..." : "로그인"}
-        </button>
+        </Button>
 
-        <Link href="/reset-password" className="text-center text-xs text-zinc-500 underline">
+        <Link href="/reset-password" className="text-center text-xs text-foreground-muted underline">
           비밀번호를 잊으셨나요?
         </Link>
       </form>
 
-      <div className="flex items-center gap-3 text-xs text-zinc-400">
-        <div className="h-px flex-1 bg-zinc-300 dark:bg-zinc-700" />
+      <div className="flex items-center gap-3 text-xs text-foreground-muted">
+        <div className="h-px flex-1 bg-border" />
         또는
-        <div className="h-px flex-1 bg-zinc-300 dark:bg-zinc-700" />
+        <div className="h-px flex-1 bg-border" />
       </div>
 
       {/* PLAN.md step 37 — plain browser navigation, not a fetch call: this starts a redirect-based OAuth flow, so CORS never applies. */}
-      <a
-        href={`${API_BASE_URL}/auth/google/login`}
-        className="rounded border border-zinc-300 px-4 py-2 text-center text-sm font-medium dark:border-zinc-700"
-      >
+      <Button href={`${API_BASE_URL}/auth/google/login`} variant="secondary" className="w-full">
         Google로 계속하기
-      </a>
+      </Button>
 
-      <p className="text-center text-sm text-zinc-500">
+      <p className="text-center text-sm text-foreground-muted">
         아직 계정이 없으신가요?{" "}
         <Link href="/onboarding" className="underline">
           가입하기

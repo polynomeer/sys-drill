@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiError, signup } from "@/lib/api";
 import { storeUser } from "@/lib/localSession";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -51,66 +53,46 @@ export default function OnboardingPage() {
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">SysDrill 시작하기</h1>
-        <p className="mt-1 text-sm text-zinc-500">이메일과 비밀번호로 가입하면 바로 첫 훈련을 시작할 수 있습니다.</p>
+        <p className="mt-1 text-sm text-foreground-muted">이메일과 비밀번호로 가입하면 바로 첫 훈련을 시작할 수 있습니다.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm">
-          이메일
-          <input
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            autoFocus
-          />
-        </label>
+        <Input
+          label="이메일"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          autoFocus
+        />
 
-        <label className="flex flex-col gap-1 text-sm">
-          비밀번호 (8자 이상)
-          <input
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="********"
-          />
-        </label>
+        <Input
+          label="비밀번호 (8자 이상)"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="********"
+        />
 
-        <label className="flex flex-col gap-1 text-sm">
-          닉네임
-          <input
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            placeholder="drill-user"
-          />
-        </label>
+        <Input label="닉네임" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="drill-user" />
 
-        <label className="flex flex-col gap-1 text-sm">
-          연차 (선택)
-          <input
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
-            type="number"
-            min={0}
-            value={experienceYears}
-            onChange={(e) => setExperienceYears(e.target.value)}
-            placeholder="3"
-          />
-        </label>
+        <Input
+          label="연차 (선택)"
+          type="number"
+          min={0}
+          value={experienceYears}
+          onChange={(e) => setExperienceYears(e.target.value)}
+          placeholder="3"
+        />
 
-        <label className="flex flex-col gap-1 text-sm">
-          주 사용 스택 (선택)
-          <input
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
-            value={primaryStack}
-            onChange={(e) => setPrimaryStack(e.target.value)}
-            placeholder="Kotlin / Spring Boot"
-          />
-        </label>
+        <Input
+          label="주 사용 스택 (선택)"
+          value={primaryStack}
+          onChange={(e) => setPrimaryStack(e.target.value)}
+          placeholder="Kotlin / Spring Boot"
+        />
 
-        <label className="flex items-start gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+        <label className="flex items-start gap-2 text-sm text-foreground-muted">
           <input
             type="checkbox"
             checked={termsAccepted}
@@ -129,18 +111,14 @@ export default function OnboardingPage() {
           </span>
         </label>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-foreground px-4 py-2 font-medium text-background disabled:opacity-50"
-        >
+        <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "가입하는 중..." : "가입하고 시작하기"}
-        </button>
+        </Button>
       </form>
 
-      <p className="text-center text-sm text-zinc-500">
+      <p className="text-center text-sm text-foreground-muted">
         이미 계정이 있으신가요?{" "}
         <Link href="/login" className="underline">
           로그인

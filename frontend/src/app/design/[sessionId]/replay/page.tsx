@@ -6,6 +6,9 @@ import { useParams, useRouter } from "next/navigation";
 import { TimelineStep, getSession, getSimulationTimeline } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { MetricsPanel } from "../WargameLive";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 const AUTO_PLAY_INTERVAL_MS = 1800;
 
@@ -64,7 +67,7 @@ export default function IncidentReplayPage() {
   if (error) {
     return (
       <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 p-8">
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-danger">{error}</p>
       </div>
     );
   }
@@ -72,7 +75,7 @@ export default function IncidentReplayPage() {
   if (!domain || !steps) {
     return (
       <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 p-8">
-        <p className="text-sm text-zinc-500">불러오는 중...</p>
+        <LoadingState />
       </div>
     );
   }
@@ -80,7 +83,7 @@ export default function IncidentReplayPage() {
   if (steps.length === 0) {
     return (
       <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 p-8">
-        <p className="text-sm text-zinc-500">이 세션은 인시던트를 시작하지 않아 리플레이할 타임라인이 없습니다.</p>
+        <p className="text-sm text-foreground-muted">이 세션은 인시던트를 시작하지 않아 리플레이할 타임라인이 없습니다.</p>
       </div>
     );
   }
@@ -96,41 +99,45 @@ export default function IncidentReplayPage() {
         </Link>
       </div>
 
-      <section className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
+      <Card as="section">
         <div className="flex items-center justify-between gap-4">
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => {
               stopAutoPlay();
               setCurrentIndex((i) => Math.max(0, i - 1));
             }}
             disabled={currentIndex === 0}
-            className="rounded border border-zinc-300 px-3 py-1 text-sm disabled:opacity-40 dark:border-zinc-700"
           >
             이전
-          </button>
+          </Button>
 
           <div className="flex flex-col items-center gap-1 text-center">
-            <span className="font-mono text-xs text-zinc-500">
+            <span className="font-mono text-xs text-foreground-muted">
               {currentIndex + 1} / {steps.length}
             </span>
             <span className="text-sm font-medium">{step.label}</span>
-            <span className="text-xs text-zinc-500">{new Date(step.appliedAt).toLocaleTimeString()}</span>
+            <span className="text-xs text-foreground-muted">{new Date(step.appliedAt).toLocaleTimeString()}</span>
           </div>
 
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => {
               stopAutoPlay();
               setCurrentIndex((i) => Math.min(steps.length - 1, i + 1));
             }}
             disabled={currentIndex === steps.length - 1}
-            className="rounded border border-zinc-300 px-3 py-1 text-sm disabled:opacity-40 dark:border-zinc-700"
           >
             다음
-          </button>
+          </Button>
         </div>
 
         <div className="mt-3 flex justify-center">
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => {
               if (autoPlaying) {
                 stopAutoPlay();
@@ -139,12 +146,11 @@ export default function IncidentReplayPage() {
                 setAutoPlaying(true);
               }
             }}
-            className="rounded border border-zinc-300 px-3 py-1 text-xs dark:border-zinc-700"
           >
             {autoPlaying ? "일시정지" : "자동 재생"}
-          </button>
+          </Button>
         </div>
-      </section>
+      </Card>
 
       <MetricsPanel state={step.systemState} domain={domain} />
     </div>
