@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # The full docker-compose.yml stack (postgres/redis/kafka/toxiproxy/jaeger)
+      # on its documented default ports -- a fresh, exclusive CI runner has no
+      # concurrent local session to isolate from, so this needs none of
+      # scripts/run-tests-isolated.sh's isolated-container/network-join
+      # machinery (that exists purely to let a test run coexist with a
+      # developer's already-running local stack).
+      - name: Start infrastructure
+        run: docker compose up -d
+
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            docker compose exec -T postgres pg_isready -U sysdrill -d sysdrill && break
+            sleep 2
+          done
+
+      - name: Run backend tests
+        working-directory: backend
+        run: ./gradlew test --no-daemon
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: backend/build/test-results/test/*.xml
+
+      - name: Stop infrastructure
+        if: always()
+        run: docker compose down -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Type check
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      # docs/COMMERCIALIZATION.md — dependency vulnerability scanning; this is
+      # the frontend's own audit since npm has no equivalent for Gradle
+      # (Dependabot in dependabot.yml covers Gradle dependency updates instead).
+      - name: Audit dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=high
