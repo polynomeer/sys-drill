@@ -976,6 +976,27 @@ Phase 3-B 라이브 검증 중 커밋 `adc32da`(computeState 캐시 미스 재�
 
 **진행 중 발견한 버그와 수정(테스트 작성 중)**: 처음 작성한 회귀 테스트는 기본 `incidentRps`(30)로 `engine.computeState`를 호출해 `errorRate < 0.5`를 검증했는데, 수정 후에도 0.78로 실패했다 — 원인은 버그가 아니라 이 파일럿의 의도된 동작이었다: `INITIAL_DB_POOL_SIZE`(4)+Toxiproxy 지연 조합의 자연 처리량 한계가 ~13 req/s인데(`incident-rps` 설정 옆 calibration 주석) 기본 incident-rps(30)는 그 한계를 일부러 넘어서게 설계된 값이라 실제 커넥션 경합으로 인한 에러율 자체가 정상적으로 높다. `loadRpsOverride=3`(한계 대비 충분히 낮음)으로 바꿔 이 자연 포화를 배제하자, 그래도 완전히 새로 생성된 세션의 풀이 Toxiproxy를 통과하는 첫 물리 커넥션 몇 개를 아직 만드는 중이라 일부 요청이 Hikari의 3초 `connectionTimeout`에 걸리는 정상적인 워밍업 노이즈(관측: 약 10~17%)가 있었다 — 처음 정한 `< 0.1` 문턱값은 이 노이즈에도 실패해, 최종적으로 "거의 모든 요청이 실패"(버그: ~1.0)와 "워밍업 중 소수 실패"(정상: ~0.1~0.2)를 확실히 구분하는 `< 0.5`로 조정했다.
 
+### Slice 2 — SystemTopology 영속화 ✅ 완료 (2026-09-10)
+
+Slice 1(DesignTraits 매핑) 완료 시 남겨둔 "다음 슬라이스 후보"(`SystemTopology` 신규 엔터티)에 착수하기 전에, ADR-0037이 작업계획 단계로 미룬 질문(엔진이 노드별 토폴로지를 직접 읽을지)을 사용자에게 다시 확인했다(AskUserQuestion) — "영속화만"을 선택, `RuleBasedSimulationEngine`은 Slice 1의 `DesignTraits` 입력 경로를 그대로 유지하고 손대지 않는다.
+
+문제: `DiagramCanvas.tsx`가 그리는 노드/엣지 그래프(위치·kind·per-node trait 값)는 지금도 `frontend/src/lib/localSession.ts`의 `saveCanvasDraft`/`loadCanvasDraft`로 **브라우저 탭 로컬에만** 저장돼, 기기를 바꾸거나 브라우저 데이터가 지워지면 그린 설계가 통째로 사라진다.
+
+**저장 형태 선택**: `Postmortem` 엔터티(세션당 1행 + jsonb)와 동일한 패턴을 그대로 따랐다 — 노드를 관계형으로 쪼개지 않고, 프론트가 이미 로컬 드래프트에 쓰는 `{nodes, edges}` JSON 블롭 하나를 그대로 저장하는 완전 불투명(opaque) 저장소로 뒀다. ADR-0037 본문이 "세션당, 노드당(per session, per node)"이라고 적어 관계형 스키마를 암시하는 것처럼 읽힐 수 있지만, 지금 이 슬라이스에서 노드별로 쿼리/집계할 백엔드 소비자가 없다(엔진도 여전히 flat `DesignTraits`만 읽음) — 관계형 스키마는 아직 근거 없는 선제 설계라 판단해 미뤘다. 새 ADR은 쓰지 않았다: 이 저장 형태 선택은 나중에 노드별로 읽어야 하는 엔진 슬라이스가 오면 마이그레이션으로 되돌릴 수 있는 구현 판단이라 CLAUDE.md 3조건(특히 "되돌리기 비용이 크다")을 만족하지 않는다 — Slice 1의 결정 사항 기록과 같은 이유.
+
+- [x] `V38__create_system_topologies.sql` — `session_id`(unique, FK)+`graph`(jsonb) 1행/세션, `Postmortem`용 `V22`와 동일 모양
+- [x] `SystemTopology.kt`/`SystemTopologyRepository.kt`/`SystemTopologyDtos.kt`/`SystemTopologyService.kt`/`SystemTopologyController.kt`(`simulation` 패키지) — `PostmortemService.get`/`save` 패턴 그대로(저장 전 GET은 `saved=false`+빈 그래프 상수 반환, PUT은 upsert). `Postmortem.save`와 달리 세션 상태(`COMPLETED`) 제약 없음 — 설계 단계 내내 계속 저장되는 드래프트라서. `AuthWebConfig.kt`의 기존 `/sessions/**` 와일드카드가 새 경로를 이미 커버해 별도 등록 불필요(Phase 3-C `/postmortem-summary`처럼 flat path가 아님)
+- [x] `frontend/src/lib/api.ts`에 `getSystemTopology`/`saveSystemTopology` 추가(`getPostmortem`/`savePostmortem`과 동일 모양)
+- [x] `DiagramCanvas.tsx` — 마운트 시 `useEffect`로 백엔드 토폴로지를 조회해 `saved === true`일 때만 로컬 state를 덮어씀(백엔드에 저장된 게 없으면 로컬 드래프트를 그대로 유지 — 첫 방문/오프라인 내성 보존). 기존 `commit` 콜백(로컬 드래프트 저장 지점) 안에 `saveSystemTopology` fire-and-forget 호출을 한 줄 추가 — 실패해도 `console.error`만 하고 로컬 저장/부모 콜백 타이밍에 영향 없음
+
+**완료 기준 충족**: 백엔드 `./gradlew compileKotlin`/`compileTestKotlin` 클린, `SystemTopologyControllerIntegrationTest`(신규 3개 — 미저장 세션은 빈 그래프, 저장 후 두 번째 PUT은 같은 행에 upsert, 소유자 아닌 사용자는 404) 통과, `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.simulation.*"` 전체(회귀 포함) 통과. 프론트 `npx tsc --noEmit`/`npm run lint`(0 errors, 기존 `react-hooks/set-state-in-effect` 베이스라인 경고만)/`npm run build` 전부 클린. 실 브라우저(격리 백엔드 8084 — 기존에 쓰던 8083이 이번엔 무관한 다른 프로젝트가 점유하고 있어 포트를 바꿈): coupon 세션에서 DB 노드를 추가하고 `dbPoolSize`를 300으로 설정 → 네트워크 탭에서 `PUT /sessions/{id}/topology` 200 확인, 저장된 `graph`에 `dbPoolSize: 300`이 그대로 들어있는 것 확인 → 로컬스토리지 드래프트를 명시적으로 지운 뒤 페이지를 새로고침해도(`localStorage.removeItem` 후 reload) 노드와 `dbPoolSize=300`이 그대로 복원되는 것 확인 — 로컬 캐시가 아니라 실제로 백엔드에서 복원됨을 검증. 콘솔 에러 없음.
+
+**알려진 단순화(계획적으로 처리 안 함)**: 백엔드-로컬 동기화에 last-write-wins 같은 시각 비교가 없다 — 마운트 시 백엔드에 저장된 값이 있으면 무조건 그걸로 로컬을 덮어쓴다. 두 기기에서 동시에 같은 세션을 편집하는 케이스는 이번 슬라이스 범위 밖이다.
+
+**하지 않은 것**: 엔진이 토폴로지를 직접 읽도록 바꾸지 않음(`RuleBasedSimulationEngine` 무변경, Slice 1 경로 유지) — ADR-0037이 "작업계획 단계에서 결정"으로 미룬 훨씬 큰 후속 슬라이스로 남겨둔다. Evaluator(`HybridRuleAiEvaluator`)에 토폴로지를 새 입력으로 추가하지 않음 — `rawText`(Mermaid 텍스트, ADR-0036)는 이미 캔버스 모양을 반영 중이라, 구조화된 per-node config를 평가 컨텍스트에 넣는 건 별도 결정이 필요하다.
+
+이걸로 `docs/DRILLS_SIMULATION_VISION.md` §8의 1번 항목("Architecture Canvas를 실행 가능한 시뮬레이션 모델로 만들 것인가")이 제안했던 두 슬라이스(DesignTraits 매핑 → SystemTopology 영속화)가 모두 끝났다. 남은 후속 결정은 §8 2/3번(Phase 3 이후 후보 우선순위)과, 이번 슬라이스가 일부러 미룬 "엔진이 노드별 토폴로지를 직접 읽는" 슬라이스다.
+
 ---
 
 ## 진행 방식 메모

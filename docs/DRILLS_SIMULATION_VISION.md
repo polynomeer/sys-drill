@@ -143,7 +143,7 @@
 
 ## 8. 다음 액션 — 사용자 결정 필요
 
-1. ~~**Architecture Canvas를 실행 가능한 시뮬레이션 모델로 만들 것인가?**~~ **결정 완료(2026-09-09)** — 실행 가능한 모델로 전환. [ADR-0037](adr/0037-architecture-canvas-becomes-the-simulation-topology-source-of-truth.md)로 기록(ADR-0036 supersede). 1차 슬라이스는 완전 자유형 `SystemTopology` 대신 기존 `DesignTraits`에 캔버스 노드 config를 매핑하는 작은 범위로 구현 완료 — [PLAN.md "Drills 고도화" Slice 1](../PLAN.md) 참고. 완전 자유형 `SystemTopology`(§5.3 원안)는 다음 슬라이스 후보로 남아 있다.
+1. ~~**Architecture Canvas를 실행 가능한 시뮬레이션 모델로 만들 것인가?**~~ **결정 완료(2026-09-09)** — 실행 가능한 모델로 전환. [ADR-0037](adr/0037-architecture-canvas-becomes-the-simulation-topology-source-of-truth.md)로 기록(ADR-0036 supersede). 1차 슬라이스는 완전 자유형 `SystemTopology` 대신 기존 `DesignTraits`에 캔버스 노드 config를 매핑하는 작은 범위로 구현 완료 — [PLAN.md "Drills 고도화" Slice 1](../PLAN.md) 참고. 2차 슬라이스(2026-09-10)로 `SystemTopology` 엔터티를 추가해 캔버스 그래프를 세션당 서버에 영속화했다(엔진 결합은 아직 확장하지 않음, 영속화만) — [PLAN.md "Drills 고도화" Slice 2](../PLAN.md) 참고. 엔진이 노드별 토폴로지를 직접 읽는 슬라이스는 여전히 후속 후보로 남아 있다.
 2. **Phase 3 확장(§6 3-A/3-B/3-C)부터 순서대로 진행할 것인가?** — 기존 Phase 3가 이미 계획했던 항목이라 가장 낮은 리스크로 시작 가능.
 3. Phase 3 이후 후보(§6 표) 중 우선순위를 매길 것인가, 아니면 Phase 3 신호를 먼저 볼 것인가?
 
