@@ -9,6 +9,7 @@ import {
   SessionStatus,
   advanceSession,
   getFeedback,
+  getMentorHint,
   getSession,
   submitAnswer,
 } from "@/lib/api";
@@ -102,6 +103,9 @@ export default function DesignWorkspacePage() {
   const [error, setError] = useState<string | null>(null);
   const [diagramMode, setDiagramMode] = useState<"canvas" | "text">("canvas");
   const [canvasTraits, setCanvasTraits] = useState<Record<string, number>>({});
+  const [hints, setHints] = useState<string[] | null>(null);
+  const [hintLoading, setHintLoading] = useState(false);
+  const [hintError, setHintError] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -221,6 +225,20 @@ export default function DesignWorkspacePage() {
     setCanvasTraits(traits);
   }
 
+  /** AI 4역할 Slice 3 (Mentor) — on-demand hint for the current draft, requested explicitly (not auto/debounced). */
+  async function handleRequestHint() {
+    setHintLoading(true);
+    setHintError(null);
+    try {
+      const result = await getMentorHint(sessionId, answer);
+      setHints(result.hints);
+    } catch {
+      setHintError("힌트를 가져오지 못했습니다.");
+    } finally {
+      setHintLoading(false);
+    }
+  }
+
   async function handleSubmit(auto = false) {
     if (!auto && !answer.trim()) {
       setError("답안을 입력해주세요.");
@@ -332,6 +350,27 @@ export default function DesignWorkspacePage() {
                 : "설계를 자유롭게 작성하세요. 입력 내용은 자동으로 이 브라우저에 저장됩니다."
             }
           />
+
+          <div className="flex flex-col gap-2">
+            <Button variant="secondary" size="sm" onClick={handleRequestHint} disabled={hintLoading} className="self-start">
+              {hintLoading ? "힌트 불러오는 중..." : "힌트 받기"}
+            </Button>
+            {hintError && <p className="text-sm text-danger">{hintError}</p>}
+            {hints && (
+              <Card as="section" className="text-sm">
+                <h2 className="mb-2 font-semibold text-foreground-muted">멘토 힌트</h2>
+                {hints.length === 0 ? (
+                  <p className="text-foreground-muted">지금은 특별히 짚어줄 부분이 없습니다.</p>
+                ) : (
+                  <ul className="list-inside list-disc space-y-1 text-foreground-muted">
+                    {hints.map((hint, i) => (
+                      <li key={i}>{hint}</li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+            )}
+          </div>
 
           {!isIncident && (
             <section className="flex flex-col gap-2">

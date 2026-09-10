@@ -506,6 +506,18 @@ export function savePostmortem(sessionId: string, request: SavePostmortemRequest
   });
 }
 
+export interface MentorHint {
+  hints: string[];
+}
+
+/** AI 4역할 Slice 3 (Mentor) — on-demand hint for a draft that hasn't been submitted yet. */
+export function getMentorHint(sessionId: string, rawText: string): Promise<MentorHint> {
+  return apiFetch<MentorHint>(`/sessions/${sessionId}/mentor-hint`, {
+    method: "POST",
+    body: JSON.stringify({ rawText }),
+  });
+}
+
 export interface SystemTopology {
   sessionId: string;
   saved: boolean;
