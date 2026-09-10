@@ -961,6 +961,21 @@ P2 진행을 요청받고, 착수 전에 두 항목의 성격이 P0/P1과 근본
 
 **아직 못 고친 것**: 위 수정을 검증하던 중 **별개의, 더 깊은** 사전 존재 버그를 하나 더 발견했다 — 스키마 중복 생성 에러는 사라졌지만, 같은 재현 시나리오에서 k6 요청 13개가 전부 `relation "coupon_inventory" does not exist`로 실패했다(에러율 여전히 100%). `CouponSchemaProvisioner.provision()`은 동기 순차 DDL이라 이 타이밍 문제의 원인이 바로 보이지 않음 — Phase 3-B 범위를 벗어나는 별도 조사가 필요해 `spawn_task`로 분리했다(`task_41f7d0b0`). Traffic Lab 핵심 기능(RPS/지속시간 오버라이드) 자체는 폴링 없는 순차 curl 호출로 이미 명확히 검증됐으므로 이 잔여 버그와 무관하게 정상 동작함.
 
+### Phase 3-B 후속 버그 — real-infra coupon 스키마 provision이 SimulationService의 트랜잭션에 편입되어 DDL 커밋이 지연되던 문제 ✅ 완료 (2026-09-10)
+
+Phase 3-B 라이브 검증 중 커밋 `adc32da`(computeState 캐시 미스 재프로빙 경합 수정)를 확인한 직후, 완전히 새로운 세션으로 인시던트를 한 번만 시작(동시 클릭 없음)했는데도 메트릭 패널이 "에러율 100%"에 고정되는 걸 발견했다. 백엔드 로그에는 그 단일 k6 run에서 `org.postgresql.util.PSQLException: relation "coupon_inventory" does not exist`가 13/13 요청 전부에서 발생 — `CouponSchemaProvisioner.provision()`이 `DROP/CREATE SCHEMA` → `CREATE TABLE` → `INSERT`를 k6 실행보다 먼저, 같은 스레드에서 동기 실행하는데도 재현됐다는 점에서 기존에 고친 경합(두 요청이 겹치는 경우)과는 무관한, 단일 순차 호출로도 100% 재현되는 별개의 문제였다.
+
+원인: `SimulationService.startIncident`/`applyAction`은 `@Transactional`(`SimulationService.kt:76`, `:160`)이고, 그 안에서 동기적으로 `RealInfraCouponEngine.computeState()`/`applyAction()` → `probeAndCache()`를 호출한다. `CouponSchemaProvisioner`의 `JdbcTemplate`은 커스텀 빈이 아닌, 앱의 유일한 primary `DataSource`(JPA와 공유)에 물린 Spring Boot 기본 빈이다 — Spring의 `JpaTransactionManager`는 바로 이 plain JDBC 접근이 같은 트랜잭션에 합류하도록 그 DataSource의 커넥션을 `TransactionSynchronizationManager`에 노출하는 표준 동작을 한다. 그 결과 `provision()`의 DDL이 `startIncident`가 연 트랜잭션의 커넥션 위에서 실행되어 **커밋되지 않은 채로** 남고, 바로 이어서 같은 트랜잭션 안에서 동기 실행되는 `loadRunner.run(...)`(k6 컨테이너, `probeAndCache` 내부에서 `process.waitFor`로 블로킹)이 보내는 요청은 전부 완전히 별개의, 트랜잭션과 무관한 `SessionDataSourceRegistry`의 per-session Hikari 풀(Toxiproxy 경유)을 타므로 그 시점엔 아직 커밋되지 않은 스키마/테이블을 볼 수 없었다 — 경합이 아니라 순수한 트랜잭션 경계 순서 문제였기 때문에 동시성 없이도 매번 재현됐다.
+
+- [x] `CouponSchemaProvisioner.provision()`에 `@Transactional(propagation = Propagation.REQUIRES_NEW)` 추가 — 호출자(`startIncident`/`applyAction`)의 열린 트랜잭션과 무관하게 이 DDL만 독립된 새 트랜잭션에서 실행·커밋되도록 해, `probeAndCache`가 k6를 실행하기 전에 스키마/테이블이 다른 모든 커넥션에서 이미 보이는 상태를 보장한다.
+- [x] `RealInfraCouponEngineTest.kt`에 회귀 테스트 추가 — 기존 테스트들과 달리 `engine.computeState(...)`를 직접 부르지 않고, 이 앱에 이미 있던 `requiresNewTransactionTemplate`과 짝을 이루는 기본 `transactionTemplate`(REQUIRED 전파, `TransactionSupportConfig.kt`)으로 감싸 `startIncident`/`applyAction`과 동일한 "열린 트랜잭션 안에서 호출" 조건을 재현.
+
+**완료 기준 충족**: `./gradlew compileKotlin`/`compileTestKotlin` 클린. `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.simulation.realinfra.*"` 26/26 통과, 전체 스위트(`./scripts/run-tests-isolated.sh`) 통과. 신규 테스트는 수정 전 코드로는 `errorRate`가 사실상 1.0으로 나와 실패하고(재현 확인), 수정 후에는 통과함을 확인했다.
+
+**진행 중 발견한 결정 사항**: 새 ADR은 쓰지 않았다 — `provision()`에 `REQUIRES_NEW` 애노테이션 하나를 붙이는 것은 되돌리기 비용이 거의 0에 가까운(annotation 한 줄 제거) 변경이라 CLAUDE.md의 ADR 3조건 중 "되돌리기 비용이 실제로 크다"를 만족하지 않는다 — 대신 왜 이게 필요한지는 `provision()` 바로 위 KDoc에 근거와 함께 남겼다(재사용 가능한 독립 기록이 필요할 만큼 무겁지 않은 결정).
+
+**진행 중 발견한 버그와 수정(테스트 작성 중)**: 처음 작성한 회귀 테스트는 기본 `incidentRps`(30)로 `engine.computeState`를 호출해 `errorRate < 0.5`를 검증했는데, 수정 후에도 0.78로 실패했다 — 원인은 버그가 아니라 이 파일럿의 의도된 동작이었다: `INITIAL_DB_POOL_SIZE`(4)+Toxiproxy 지연 조합의 자연 처리량 한계가 ~13 req/s인데(`incident-rps` 설정 옆 calibration 주석) 기본 incident-rps(30)는 그 한계를 일부러 넘어서게 설계된 값이라 실제 커넥션 경합으로 인한 에러율 자체가 정상적으로 높다. `loadRpsOverride=3`(한계 대비 충분히 낮음)으로 바꿔 이 자연 포화를 배제하자, 그래도 완전히 새로 생성된 세션의 풀이 Toxiproxy를 통과하는 첫 물리 커넥션 몇 개를 아직 만드는 중이라 일부 요청이 Hikari의 3초 `connectionTimeout`에 걸리는 정상적인 워밍업 노이즈(관측: 약 10~17%)가 있었다 — 처음 정한 `< 0.1` 문턱값은 이 노이즈에도 실패해, 최종적으로 "거의 모든 요청이 실패"(버그: ~1.0)와 "워밍업 중 소수 실패"(정상: ~0.1~0.2)를 확실히 구분하는 `< 0.5`로 조정했다.
+
 ---
 
 ## 진행 방식 메모

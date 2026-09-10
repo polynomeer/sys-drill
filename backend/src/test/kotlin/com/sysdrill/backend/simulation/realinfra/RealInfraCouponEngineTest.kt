@@ -9,7 +9,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.transaction.support.TransactionTemplate
 import java.util.UUID
 
 /**
@@ -30,6 +32,7 @@ class RealInfraCouponEngineTest(
     @Autowired val schemaProvisioner: CouponSchemaProvisioner,
     @Autowired val dataSourceRegistry: SessionDataSourceRegistry,
     @Autowired val toxiproxy: ToxiproxySessionProxy,
+    @Autowired @Qualifier("transactionTemplate") val transactionTemplate: TransactionTemplate,
 ) {
     private val provisionedSessions = mutableListOf<UUID>()
 
@@ -109,5 +112,57 @@ class RealInfraCouponEngineTest(
         )
 
         assertThat(overridden.trafficRps).isLessThan(default.trafficRps)
+    }
+
+    /**
+     * Regression test: [com.sysdrill.backend.simulation.SimulationService]'s
+     * `startIncident`/`applyAction` are `@Transactional` and call straight
+     * into [RealInfraCouponEngine.computeState]/`applyAction` — this test
+     * wraps the same call the same way, via [transactionTemplate], instead of
+     * calling `engine.computeState` bare like every other test in this file.
+     * Before [CouponSchemaProvisioner.provision] was made `REQUIRES_NEW`, its
+     * DDL (issued through a plain `JdbcTemplate` on the app's primary
+     * DataSource) joined this ambient transaction and stayed uncommitted for
+     * as long as the transaction stayed open — which, here, is for the
+     * entire synchronous k6 run inside `probeAndCache`. k6's requests go
+     * through a completely separate, non-transactional per-session
+     * [SessionDataSourceRegistry] pool, so they saw a schema with no table
+     * and failed nearly every request (observed in production: 13/13 with
+     * `relation "coupon_inventory" does not exist`). This reproduced with a
+     * single sequential call — no concurrency needed.
+     *
+     * Uses a deliberately low `loadRpsOverride` (well under this pilot's
+     * ~13 req/s natural pool+latency capacity ceiling, per the calibration
+     * comment on `incident-rps`) so the dominant plausible source of errors
+     * here is the schema-visibility bug itself — the default incident-rps(30)
+     * legitimately saturates a 4-connection pool and produces a genuinely
+     * high error rate on its own (that's the pilot's point), which would
+     * mask this regression rather than isolate it.
+     *
+     * The threshold is 0.5, not near-zero: a brand new session's pool still
+     * has to grow its first few physical connections through Toxiproxy's
+     * added latency, and a handful of the earliest requests can genuinely
+     * hit Hikari's 3s connectionTimeout while it does (observed: ~0.1-0.2
+     * under a correct fix). The schema-visibility bug this guards against is
+     * qualitatively different and unmistakably distinct — it fails nearly
+     * every single request in the run (observed in production: 13/13), not
+     * a handful during warm-up.
+     */
+    @Test
+    fun `computeState does not fail nearly every request when called from inside an ambient transaction`() {
+        val sessionId = UUID.randomUUID().also { provisionedSessions += it }
+
+        val state = transactionTemplate.execute {
+            engine.computeState(
+                session(
+                    sessionId,
+                    DesignTraits(dbPoolSize = RealInfraCouponEngine.INITIAL_DB_POOL_SIZE),
+                    loadRpsOverride = 3,
+                    loadDurationOverride = 3,
+                )
+            )
+        }!!
+
+        assertThat(state.errorRate).isLessThan(0.5)
     }
 }

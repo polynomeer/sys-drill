@@ -2,6 +2,8 @@ package com.sysdrill.backend.simulation.realinfra
 
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 /**
@@ -20,7 +22,24 @@ class CouponSchemaProvisioner(private val jdbcTemplate: JdbcTemplate) {
         return "realinfra_$hex"
     }
 
-    /** Idempotent — drops any previous run's schema first, so restarting an incident for the same session is safe. */
+    /**
+     * Idempotent — drops any previous run's schema first, so restarting an
+     * incident for the same session is safe.
+     *
+     * `REQUIRES_NEW`: this is always called from inside
+     * [com.sysdrill.backend.simulation.SimulationService]'s `@Transactional`
+     * `startIncident`/`applyAction`, which shares the app's primary DataSource
+     * (and thus this bean's plain [jdbcTemplate]) with JPA. Without a fresh
+     * transaction here, this DDL would join that outer, still-open
+     * transaction and stay uncommitted while [RealInfraCouponEngine]
+     * synchronously runs k6 right after this returns — k6's requests go
+     * through a completely separate, non-transactional per-session
+     * [SessionDataSourceRegistry] pool, so they'd see none of it and fail
+     * every request with "relation does not exist" (observed empirically).
+     * `REQUIRES_NEW` commits this schema/table before returning, regardless
+     * of the caller's own transaction outcome.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun provision(sessionId: UUID): String {
         val schema = schemaName(sessionId)
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS $schema CASCADE")
