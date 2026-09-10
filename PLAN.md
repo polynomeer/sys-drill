@@ -997,6 +997,24 @@ Slice 1(DesignTraits 매핑) 완료 시 남겨둔 "다음 슬라이스 후보"(`
 
 이걸로 `docs/DRILLS_SIMULATION_VISION.md` §8의 1번 항목("Architecture Canvas를 실행 가능한 시뮬레이션 모델로 만들 것인가")이 제안했던 두 슬라이스(DesignTraits 매핑 → SystemTopology 영속화)가 모두 끝났다. 남은 후속 결정은 §8 2/3번(Phase 3 이후 후보 우선순위)과, 이번 슬라이스가 일부러 미룬 "엔진이 노드별 토폴로지를 직접 읽는" 슬라이스다.
 
+### Slice 3 — 엔진이 노드별 토폴로지를 직접 읽음 ✅ 완료 (2026-09-10)
+
+Slice 2가 미뤄둔 마지막 결정("작업계획 단계에서 결정"으로 ADR-0037이 남겨둔 엔진 결합 여부)에 착수. Slice 2까지도 실제로는 "엔진이 토폴로지를 읽는다"는 이름뿐이었다 — `POST .../simulation/incident`에 실제로 들어가는 `DesignTraits`는 여전히 **프론트엔드**(`DiagramCanvas.tsx`의 `collectTraits()`)가 "같은 kind 노드가 여러 개면 마지막 값이 이긴다"는 규칙으로 평탄화해 요청 바디로 보낸 걸 백엔드가 검증 없이 받아쓰는 구조였다. 이번 슬라이스는 이 경계를 뒤집어, `SimulationService.startIncident`가 **세션에 저장된 `SystemTopology`를 서버 스스로 DB에서 읽어** `DesignTraits`를 계산하고, 저장된 토폴로지가 있으면 클라이언트가 보낸 값보다 우선하게 했다. `RuleBasedSimulationEngine.kt`의 7개 도메인 순수 함수 자체는 전혀 건드리지 않았다 — 입력이 어디서 오는지만 바뀌었다.
+
+**집계 정책**: 같은 kind 노드가 여러 개일 때 필드별로 다르게 처리한다 — `dbPoolSize`/`consumerCount`/`readReplicaCount`/`dispatcherWorkers`/`podReplicas`(병렬 용량 단위 개수)는 **SUM**(노드를 더 그리면 총 용량이 늘어남), `cacheTtlSeconds`/`holdTimeoutSeconds`/`chunkSize`(단일 컴포넌트 설정값)는 **LAST**(기존 Slice 1/프론트 `collectTraits()`와 동일한 "마지막 노드가 이긴다" 동작 유지 — 여러 노드에 걸쳐 더할 개념이 아님).
+
+- [x] `SystemTopologyService.kt`에 `deriveDesignTraits(sessionId, domain): DesignTraits?` 추가 — 저장된 토폴로지가 없으면 `null`(폴백 트리거), 있으면 `graph` JSON을 파싱(`@JsonIgnoreProperties(ignoreUnknown = true)` 최소 DTO 3개 — `id`/`type`/`position` 등은 무시)해 위 집계 정책 테이블(`TOPOLOGY_FIELDS` — `DiagramCanvas.tsx`의 `NODE_TRAIT_CONFIG`를 그대로 옮긴 것, 필드명이 서로 어긋나지 않게 유지해야 한다는 Slice 1과 같은 결합)로 `DesignTraits()` 기본값 위에 필드만 골라 덮어씀
+- [x] `SimulationService.kt`의 `startIncident`가 `SystemTopologyService`를 새 의존성으로 받아, `!realInfra` 분기를 `systemTopologyService.deriveDesignTraits(sessionId, domain) ?: initialTraits`로 변경(real-infra 분기는 무변경 — 이미 자체 프로비저닝 최소값 로직이 있음)
+- [x] 프론트엔드는 무변경 — `collectTraits`/`onTraitsChange`/`initialTraits` 전달 경로는 캔버스를 아예 쓰지 않은 세션(텍스트 전용 설계, API 직접 호출 테스트)을 위한 폴백으로 그대로 남겨뒀다
+
+**완료 기준 충족**: `./gradlew compileKotlin`/`compileTestKotlin` 클린. `SimulationControllerIntegrationTest.kt`에 신규 테스트 추가 — product-browsing 세션에 DB kind 노드 2개(`readReplicaCount` 40+59, 합 99)를 저장한 뒤, **일부러 속이는** 클라이언트 요청 바디(`{"traits":{"readReplicaCount":0}}`)로 인시던트를 시작해도 토폴로지 기반 값이 이겨 `dbReadLoad ≈ 0.4`(`RuleBasedSimulationEngine.kt` 순수 수식으로 손계산한 정확값, 기존 `SimulationEngineTest`의 기본값 40.0과 같은 공식 — `BASE_DB_READ_CAPACITY_RPS(2000) * (1+99) = 200000`, `80000/200000`)로 나오는지 확인 — SUM 집계와 우선순위 둘 다 한 번에 증명. `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.simulation.*"` 전체(회귀 포함) 통과.
+
+**실 검증(curl E2E, 순수 백엔드 변경이라 브라우저 대신 사용)**: 격리 백엔드(포트 8084)에서 (1) product-browsing 세션에 위와 같은 토폴로지를 저장하고 `{"readReplicaCount":0}`을 보내는 인시던트 시작 요청이 실제로 `dbReadLoad: 0.3999999999999999`를 반환 — 토폴로지가 클라이언트 값을 실제로 덮어씀을 실제 HTTP 응답으로 확인. (2) 토폴로지를 저장하지 않은 별도 세션에서 `{"readReplicaCount":5}`를 보내면 `dbReadLoad: 6.666...`(폴백 경로가 클라이언트 값을 그대로 씀, `80000/12000`)로 정확히 갈리는 것 확인 — 두 경로가 실제로 다르게 동작함을 증명.
+
+**하지 않은 것**: 엣지(의존성 그래프) 기반 계산 안 함 — kind별 집계만, "이 service가 실제로 연결된 db만 카운트" 같은 그래프 순회는 §5.2 "Dependency Graph" 모듈 자체가 아직 없는 훨씬 큰 후속 결정으로 남김. 프론트엔드 `collectTraits`/`NODE_TRAIT_CONFIG` 리팩터링 안 함(폴백 경로로 그대로 유지). real-infra 엔진 무변경. 새 ADR 안 씀 — 트레이트 우선순위 출처를 바꾸는 것은 Slice 1/2와 같은 급의 되돌리기 쉬운 구현 판단(`when` 분기 한 줄)이라 CLAUDE.md 3조건 미충족.
+
+이걸로 `docs/DRILLS_SIMULATION_VISION.md` §5.3/§8이 조건부로 남겨뒀던 "Architecture Canvas가 시뮬레이션의 실제 입력이 되는" 전환이 완료됐다 — Slice 1(매핑) → Slice 2(영속화) → Slice 3(엔진이 직접 읽음)까지 세 슬라이스로 점진적으로 도달. 남은 후속 결정은 §8 2/3번(Phase 3 이후 후보 우선순위)과, 이번에도 의도적으로 미룬 엣지 인식(Dependency Graph) 슬라이스뿐이다.
+
 ---
 
 ## 진행 방식 메모
