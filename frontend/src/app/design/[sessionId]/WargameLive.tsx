@@ -207,14 +207,6 @@ const REAL_INFRA_START_EVENT: Record<string, string> = {
   notification: "실전 인프라 인시던트 시작: 실제 Kafka 토픽·컨슈머 그룹, 실제 프로듀서/컨슈머로 지표를 측정합니다.",
 };
 
-/** The same "worst load signal" the backend derives cpuUtilization from (SystemState.kt) — reused here purely to classify a log line's severity, not re-sent anywhere. */
-function deriveLevel(state: SystemState): LogLevel {
-  const status = utilizationStatus(state.cpuUtilization);
-  if (status === "danger") return "ERROR";
-  if (status === "warning") return "WARN";
-  return "INFO";
-}
-
 type HistoryPoint = { t: string; rps: number; errorRate: number };
 
 /** PLAN.md UI/UX 리뉴얼 Round 3 — EventStream/Timeline are merged into
@@ -255,7 +247,7 @@ export function WargameLive({
 
   const pushLog = useCallback(
     (message: string, forState: SystemState) => {
-      setLogs((prev) => [...prev, { time: new Date(), level: deriveLevel(forState), service: domain, message }]);
+      setLogs((prev) => [...prev, { time: new Date(), level: forState.level, service: domain, message }]);
     },
     [domain],
   );
@@ -265,7 +257,7 @@ export function WargameLive({
       const current = await getSimulationState(sessionId);
       setState(current);
       setNotStarted(false);
-      const level = deriveLevel(current);
+      const level = current.level;
       if (lastLevelRef.current !== null && lastLevelRef.current !== level) {
         pushLog(`지표 상태 변화: ${lastLevelRef.current} → ${level}`, current);
       }
@@ -281,7 +273,7 @@ export function WargameLive({
           const initial = await startIncident(sessionId, false, initialTraits);
           setState(initial);
           pushLog(INCIDENT_EVENT_BY_DOMAIN[domain] ?? INCIDENT_EVENT_BY_DOMAIN.coupon, initial);
-          lastLevelRef.current = deriveLevel(initial);
+          lastLevelRef.current = initial.level;
         }
       }
     }
@@ -312,7 +304,7 @@ export function WargameLive({
         setLogs(
           steps.map((step) => ({
             time: new Date(step.appliedAt),
-            level: deriveLevel(step.systemState),
+            level: step.systemState.level,
             service: domain,
             message: step.label,
           })),
@@ -329,7 +321,7 @@ export function WargameLive({
     try {
       const initial = await startIncident(sessionId, realInfraChoice, initialTraits);
       setState(initial);
-      lastLevelRef.current = deriveLevel(initial);
+      lastLevelRef.current = initial.level;
       pushLog(
         realInfraChoice
           ? (REAL_INFRA_START_EVENT[domain] ?? REAL_INFRA_START_EVENT.coupon)
@@ -347,7 +339,7 @@ export function WargameLive({
     try {
       const updated = await applySimulationAction(sessionId, actionType);
       setState(updated);
-      lastLevelRef.current = deriveLevel(updated);
+      lastLevelRef.current = updated.level;
       setAppliedActions((prev) => new Set(prev).add(actionType));
       pushLog(`조치 적용: ${ACTIONS.find((a) => a.type === actionType)?.label}`, updated);
     } catch {

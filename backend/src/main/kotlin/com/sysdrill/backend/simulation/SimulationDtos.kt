@@ -18,6 +18,8 @@ data class SystemStateResponse(
     val externalDependencyLatencyMs: Double,
     val cpuUtilization: Double,
     val memoryUtilization: Double,
+    /** Phase 3-A (docs/DRILLS_SIMULATION_VISION.md §6) — see [SystemState.level]. */
+    val level: String,
 ) {
     companion object {
         fun from(state: SystemState) = SystemStateResponse(
@@ -35,6 +37,7 @@ data class SystemStateResponse(
             externalDependencyLatencyMs = state.externalDependencyLatencyMs,
             cpuUtilization = state.cpuUtilization,
             memoryUtilization = state.memoryUtilization,
+            level = state.level,
         )
     }
 }

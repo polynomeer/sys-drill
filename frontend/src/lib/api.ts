@@ -219,6 +219,8 @@ export interface SystemState {
   /** Derived on the backend (SystemState.kt computed properties), not stored — see ADR for Round 3 of the UI/UX renewal. */
   cpuUtilization: number;
   memoryUtilization: number;
+  /** Phase 3-A (docs/DRILLS_SIMULATION_VISION.md §6) — log-severity classification, moved from WargameLive.tsx's deriveLevel() to the backend. */
+  level: "INFO" | "WARN" | "ERROR";
 }
 
 export interface TimelineStep {

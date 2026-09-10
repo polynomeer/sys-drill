@@ -48,4 +48,19 @@ data class SystemState(
             val latencyPressure = p95LatencyMs / (p95LatencyMs + 200.0)
             return (cpuUtilization * 0.6 + latencyPressure * 0.4).coerceIn(0.05, 0.98)
         }
+
+    /**
+     * Phase 3-A (docs/DRILLS_SIMULATION_VISION.md §6) — the log-severity classification
+     * `WargameLive.tsx`'s `deriveLevel()` used to compute client-side from
+     * [cpuUtilization], moved here so the frontend displays a backend-computed value
+     * instead of re-deriving it. Mirrors `frontend/src/lib/metrics.ts`'s
+     * `utilizationStatus()` bands exactly (0.6/0.95) — there's no shared source between
+     * the two runtimes, so a change to one needs the matching change to the other.
+     */
+    val level: String
+        get() = when {
+            cpuUtilization < 0.6 -> "INFO"
+            cpuUtilization < 0.95 -> "WARN"
+            else -> "ERROR"
+        }
 }
