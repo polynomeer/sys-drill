@@ -1015,6 +1015,23 @@ Slice 2가 미뤄둔 마지막 결정("작업계획 단계에서 결정"으로 A
 
 이걸로 `docs/DRILLS_SIMULATION_VISION.md` §5.3/§8이 조건부로 남겨뒀던 "Architecture Canvas가 시뮬레이션의 실제 입력이 되는" 전환이 완료됐다 — Slice 1(매핑) → Slice 2(영속화) → Slice 3(엔진이 직접 읽음)까지 세 슬라이스로 점진적으로 도달. 남은 후속 결정은 §8 2/3번(Phase 3 이후 후보 우선순위)과, 이번에도 의도적으로 미룬 엣지 인식(Dependency Graph) 슬라이스뿐이다.
 
+### Slice 4 — 엣지(의존성 그래프) 인식: 고립 노드 제외 ✅ 완료 (2026-09-10)
+
+Slice 3이 미뤄둔 마지막 항목. §5.2 "Dependency Graph" 모듈("없음 — 신규")의 완전한 구현(진입점에서의 실제 도달 가능성 추적)과, 단순히 "엣지로 연결된 노드만 집계에 참여" 중 사용자에게 확인받아(AskUserQuestion) 후자로 진행 — 진입점/방향성 개념을 새로 정의하지 않고 7개 도메인 전부에 그대로 일반화되는 가장 작은 슬라이스.
+
+지금까지 `SystemTopologyService.deriveDesignTraits`는 `graph.edges`를 아예 파싱하지 않고 `nodes`만 봤다 — 캔버스에 아무렇게나 떨어뜨려놓고 아무것도 연결 안 한 장식용/실수로 남은 노드도 같은 kind면 무조건 집계에 들어갔다. 이번 슬라이스로 **적어도 하나의 엣지로 다른 노드와 연결된 노드만** SUM/LAST 집계에 참여하도록 좁혔다.
+
+- [x] `TopologyNode`에 `id: String?` 추가, `TopologyGraph`에 `edges: List<TopologyEdge>` 추가, `TopologyEdge(source, target)` 신규 DTO(모두 `@JsonIgnoreProperties(ignoreUnknown = true)`)
+- [x] `deriveDesignTraits`에서 `graph.edges`의 `source`/`target`을 모두 모은 집합(`connectedIds`)을 구하고, 집계 루프 전에 `graph.nodes`를 `id in connectedIds`로 먼저 필터링 — 이후 로직(kind별 SUM/LAST)은 무변경, 입력 노드 목록만 좁힘
+
+**완료 기준 충족**: `./gradlew compileKotlin`/`compileTestKotlin` 클린. `SimulationControllerIntegrationTest.kt`에 신규 테스트 추가 — (1) 기존 Slice 3 테스트의 토폴로지에 두 db 노드를 잇는 엣지를 추가해 계속 통과하는지 확인(엣지 없이 저장하던 기존 방식은 이제 두 노드 다 고립 노드로 제외되어 결과가 바뀌므로, 테스트 자체를 "연결된" 형태로 갱신), (2) 신규 `starting the incident ignores an orphaned node's trait value` — 연결된 두 db 노드(40+59) 옆에 엣지 하나 없는 3번째 db 노드(`readReplicaCount: 999`, 일부러 아주 큰 값)를 추가해도 `dbReadLoad`가 여전히 ≈0.4(고립 노드가 진짜로 무시됨 — 반영됐다면 999가 압도적이라 결과가 완전히 달라졌을 것)로 나오는지 확인. `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.simulation.*"` 전체(회귀 포함) 통과.
+
+**실 검증(curl E2E)**: 격리 백엔드(8084)에서 세 가지 케이스를 교차 확인 — (1) n1(40)-n2(59) 엣지로 연결, n3(999) 고립 → `dbReadLoad: 0.3999999999999999`(n3 무시됨), (2) 모든 노드가 고립(엣지 없음) → `dbReadLoad: 39.99999999999999`(둘 다 무시돼 기본값 0으로 폴백 — Slice 3 이전과 동일한 결과), (3) 기존 Slice 3 테스트의 연결된 케이스 → `dbReadLoad ≈ 0.4` 그대로.
+
+**하지 않은 것**: 방향성 있는 진입점(client/gateway) 기반 도달 가능성 추적은 하지 않는다 — "연결 여부"만 보고 엣지의 방향(source→target)이나 어떤 노드가 "진입점"인지는 구분하지 않는다. 이 도메인 모델(7개 도메인이 서로 다른 kind 조합을 씀)에 일반화되는 "진입점" 개념이 아직 없어, 만들려면 그 자체가 새 설계 결정이 된다 — 필요해지면 별도 슬라이스로. 새 ADR 안 씀 — 집계 대상 노드 목록을 좁히는 필터 하나 추가는 되돌리기 쉬운 구현 판단(CLAUDE.md 3조건 미충족, Slice 1/2/3과 같은 이유).
+
+이걸로 `docs/DRILLS_SIMULATION_VISION.md` §5.2의 "Dependency Graph — 없음 — 신규" 모듈이 가장 작은 형태(연결 여부만)로 처음 생겼다. Architecture Canvas ↔ Simulation 연동(ADR-0037)은 매핑 → 영속화 → 엔진 직접 읽음 → 엣지 인식까지 네 슬라이스로 점진적으로 여기까지 왔다. 남은 후속 후보는 방향성 있는 진입점 기반 도달 가능성 추적(더 큰 결정)과 §8의 Phase 3 이후 우선순위뿐이다.
+
 ---
 
 ## 진행 방식 메모
