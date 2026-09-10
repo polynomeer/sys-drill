@@ -94,6 +94,37 @@ class EvaluationWorkerIntegrationTest(
         assertThat(evaluationQueue.deadLetterCount()).isGreaterThanOrEqualTo(1)
     }
 
+    /**
+     * AI 4역할 Slice 1 (Interviewer) — an `interviewMode` session's submission
+     * is evaluated against the distinct `interview_evaluation` prompt template
+     * (V39), not the default `design_evaluation` one (V5). The offline fake
+     * LLM completion (see [AnthropicLlmClient]) is identical regardless of
+     * which system prompt is sent, so `rubricVersion` — which
+     * [HybridRuleAiEvaluator] derives from the resolved `purpose` — is the
+     * one observable signal proving the right template was actually looked up.
+     */
+    @Test
+    fun `an interview-mode session is evaluated against the interviewer persona's prompt template`() {
+        val sessionId = mockMvc.startSession(userId, interviewMode = true)
+        val submissionId = submitRawText(sessionId, "Load Balancer -> API -> Redis -> Postgres")
+
+        awaitSessionStatus(sessionId, SessionStatus.FEEDBACK_READY)
+
+        val rubricVersion = evaluationRepository.findBySubmissionId(submissionId).single { it.isActive }.rubricVersion
+        assertThat(rubricVersion).contains("interview_evaluation")
+    }
+
+    @Test
+    fun `a non-interview session is evaluated against the default design-review prompt template`() {
+        val sessionId = mockMvc.startSession(userId)
+        val submissionId = submitRawText(sessionId, "Load Balancer -> API -> Redis -> Postgres")
+
+        awaitSessionStatus(sessionId, SessionStatus.FEEDBACK_READY)
+
+        val rubricVersion = evaluationRepository.findBySubmissionId(submissionId).single { it.isActive }.rubricVersion
+        assertThat(rubricVersion).contains("design_evaluation")
+    }
+
     @Test
     fun `duplicate delivery of the same job is processed at most once`() {
         val sessionId = mockMvc.startSession(userId)

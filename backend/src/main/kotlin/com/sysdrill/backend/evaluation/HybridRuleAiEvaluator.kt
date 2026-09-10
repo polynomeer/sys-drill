@@ -4,6 +4,7 @@ import com.sysdrill.backend.evaluation.llm.LlmClient
 import com.sysdrill.backend.evaluation.llm.LlmEvaluationResultParser
 import com.sysdrill.backend.scenario.ScenarioRepository
 import com.sysdrill.backend.scenario.ScenarioVersionRepository
+import com.sysdrill.backend.session.Session
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.submission.Submission
 import org.springframework.stereotype.Component
@@ -40,13 +41,26 @@ class HybridRuleAiEvaluator(
     private val scenarioVersionRepository: ScenarioVersionRepository,
     private val scenarioRepository: ScenarioRepository,
 ) {
-    private val purpose = "design_evaluation"
+    private val designPurpose = "design_evaluation"
+
+    /**
+     * AI 4역할 Slice 1 (Interviewer, docs/DRILLS_SIMULATION_VISION.md §6) —
+     * `Session.interviewMode` sessions get a distinct, stricter interviewer
+     * persona ([V39__seed_interview_evaluation_prompt.sql]) instead of the
+     * default design-review persona. Deliberately reuses everything else
+     * unchanged (same [Rubric], same JSON schema, same [LlmClient]) — only
+     * the system prompt this `purpose` resolves to differs.
+     */
+    private val interviewPurpose = "interview_evaluation"
 
     fun evaluate(submission: Submission): HybridEvaluationOutcome {
+        val session = sessionRepository.findById(submission.sessionId)
+            .orElseThrow { error("Session not found: ${submission.sessionId}") }
+        val purpose = if (session.interviewMode) interviewPurpose else designPurpose
         val template = promptTemplateRepository.findFirstByPurposeAndActiveTrue(purpose)
             ?: error("No active prompt template for purpose=$purpose")
 
-        val ruleFindings = RuleEvaluator.evaluate(submission.rawText, resolveDomain(submission.sessionId))
+        val ruleFindings = RuleEvaluator.evaluate(submission.rawText, resolveDomain(session))
         val userPrompt = buildUserPrompt(ruleFindings, submission)
 
         val completion = llmClient.complete(template.templateBody, userPrompt)
@@ -55,7 +69,7 @@ class HybridRuleAiEvaluator(
 
         return HybridEvaluationOutcome(
             promptTemplateId = template.id!!,
-            rubricVersion = "prd-10-v${template.version}",
+            rubricVersion = "prd-10-$purpose-v${template.version}",
             modelProvider = "anthropic",
             modelName = completion.model,
             latencyMs = completion.latencyMs,
@@ -71,8 +85,7 @@ class HybridRuleAiEvaluator(
         )
     }
 
-    private fun resolveDomain(sessionId: java.util.UUID): String {
-        val session = sessionRepository.findById(sessionId).orElseThrow { error("Session not found: $sessionId") }
+    private fun resolveDomain(session: Session): String {
         val version = scenarioVersionRepository.findById(session.scenarioVersionId)
             .orElseThrow { error("Scenario version not found: ${session.scenarioVersionId}") }
         val scenario = scenarioRepository.findById(version.scenarioId)
@@ -89,6 +102,14 @@ class HybridRuleAiEvaluator(
             appendLine("- 특이사항 없음")
         } else {
             ruleFindings.forEach { appendLine("- [${it.severity}] ${it.description}") }
+        }
+        // Only ever non-null for interviewMode sessions (SessionService.submit) — surfaces
+        // the existing timer/deadline tracking to the interviewer persona, which otherwise
+        // had no way to know a submission missed its phase deadline.
+        submission.onTime?.let { onTime ->
+            appendLine()
+            appendLine("## 제출 시각")
+            appendLine(if (onTime) "제한시간 내 제출" else "제한시간을 초과해 제출")
         }
     }
 }
