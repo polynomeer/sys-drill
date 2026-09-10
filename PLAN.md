@@ -920,6 +920,19 @@ P2 진행을 요청받고, 착수 전에 두 항목의 성격이 P0/P1과 근본
 
 **다음 슬라이스 후보**(착수 전 결정 필요): `SystemTopology` 신규 엔터티 기반 완전 자유형 노드별 상태 — [docs/DRILLS_SIMULATION_VISION.md](docs/DRILLS_SIMULATION_VISION.md) §5.3, §6 참고.
 
+### Phase 3-C — Postmortem 집계 (전체/도메인별 MTTD·MTTR) ✅ 완료 (2026-09-10)
+
+`docs/DRILLS_SIMULATION_VISION.md` §6의 Phase 3 확장 세 항목(3-A/3-B/3-C) 중 조사 결과 3-C가 가장 작은 범위임을 확인하고(세션별 MTTD/MTTR 계산·Postmortem 작성 UI는 이미 존재 — 없는 건 세션을 가로지르는 집계뿐) 사용자가 이를 선택했다.
+
+- [x] `PostmortemService.kt` — MTTD/MTTR 계산을 `mttdMttr()`로 추출해 기존 `get()`과 새 `getSummary()` 양쪽에서 재사용. `getSummary(userId)`는 `sessionRepository.findByUserIdOrderByStartedAtDesc(userId)`로 사용자의 전체 세션을 가져와 인시던트가 실제로 시작된 것만 골라 전체/도메인별 평균 + 추이를 계산 — 전부 read-time 재계산(ADR-0011 계보), 새로 영속화하는 것 없음
+- [x] 추이는 `identity/SkillProfileService.kt`의 `trendDirection()`을 재사용 — 점수(클수록 좋음) 전제인 함수를 초 단위 값을 음수로 뒤집어 넘겨서 "짧아질수록 개선"으로 재해석
+- [x] `PostmortemDtos.kt`에 `PostmortemSummaryResponse`/`PostmortemDomainSummary` 추가, `PostmortemController.kt`에 `identity/SkillProfileController.kt`와 동일한 평평한 스타일로 `GET /postmortem-summary`(`PostmortemSummaryController`) 추가
+- [x] `frontend/src/lib/api.ts`에 `getPostmortemSummary()` + 타입 추가, `profile/page.tsx`에 "장애 대응 통계" 카드(평균 MTTD/MTTR + 도메인별 목록) 추가 — 점수 추이용 `TREND_DIRECTION_LABELS`를 그대로 재사용하지 않고 별도 `TIME_TREND_LABELS`를 만듦("▲ 상승"이 시간 지표에서는 의미가 거꾸로라)
+
+**완료 기준 충족**: `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 전부 클린. 백엔드 `./gradlew compileKotlin`/`compileTestKotlin` 클린, `PostmortemControllerIntegrationTest`에 추가한 신규 테스트 2건(도메인 2개 걸친 집계, 인시던트 없는 사용자의 all-zero 케이스) 포함 전체 스위트(`./scripts/run-tests-isolated.sh`) 통과. 실 브라우저(격리 백엔드 port 8083, `next start` 프로덕션 프리뷰 — `next dev`는 사용자의 기존 dev 서버와 프로젝트 락 파일이 충돌해 사용 불가)로 coupon 세션 하나를 인시던트까지 진행한 뒤 `/profile`에서 "장애 대응 통계" 카드가 실데이터로 렌더되는지 확인, 콘솔 에러 없음 확인, 모바일(375px) 오버플로 없음 확인.
+
+**진행 중 발견한 버그와 수정**: 새 `GET /postmortem-summary`가 항상 409(`IllegalStateException: @AuthenticatedUserId used on a path AuthInterceptor isn't registered for`)로 실패했다 — `AuthWebConfig.kt`의 `addInterceptors`가 인증이 필요한 경로를 화이트리스트 방식으로 등록하는데, 새 평평한 경로(`/skill-profile`과 같은 패턴)를 거기 추가하는 걸 빠뜨렸다. `/postmortem-summary`를 `/skill-profile` 옆에 추가해 해결. **교훈**: 이 프로젝트에서 새 최상위 인증 필요 엔드포인트를 추가할 때는 컨트롤러/서비스뿐 아니라 `AuthWebConfig.kt`의 `addPathPatterns` 목록도 함께 확인해야 한다 — 컴파일도 통과하고 401(무인증)도 아닌 409로 실패해서 처음엔 내 집계 로직 자체의 버그로 오인했다.
+
 ---
 
 ## 진행 방식 메모
