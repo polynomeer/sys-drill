@@ -129,7 +129,7 @@
 
 | 순위 | 항목 | 선행 조건 | 검증 질문 |
 |---|---|---|---|
-| 1 | AI 4역할 추가(Mentor/Director/Interviewer/Postmortem Coach) | Evaluator 배관 재사용, `interviewMode`(면접형 타이머) 이미 존재 | 역할별 분리가 단일 Evaluator보다 학습 효과가 있는가? |
+| 1 | AI 4역할 추가(Mentor/Director/**~~Interviewer~~**/Postmortem Coach) — Interviewer **완료(2026-09-10)**, [PLAN.md "AI 4역할 추가" Slice 1](../PLAN.md) 참고 | Evaluator 배관 재사용, `interviewMode`(면접형 타이머) 이미 존재 | 역할별 분리가 단일 Evaluator보다 학습 효과가 있는가? |
 | 2 | Skill Graph(계층화) | SkillProfile 파이프라인 재사용 | 상위 역량 계층이 추천 품질을 실제로 개선하는가? |
 | 3 | Scenario Engine → DSL/Authoring | `ScenarioStep` jsonb 확장(이미 기반 있음), 조직 커스텀 시나리오 API(ADR-0024)로 일부 선행 구현 존재 | 콘텐츠 제작자가 코드 없이 시나리오를 늘릴 수요가 있는가? |
 | 4 | Drill Map(의존성 그래프) | Marketplace 확장 | 평면 목록보다 그래프 탐색이 실제로 더 쓰이는가? |

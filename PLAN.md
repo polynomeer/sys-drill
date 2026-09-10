@@ -1040,6 +1040,24 @@ Slice 3이 미뤄둔 마지막 항목. §5.2 "Dependency Graph" 모듈("없음 �
 
 다음 착수 대상은 **① AI 4역할 추가(Mentor/Director/Interviewer/Postmortem Coach)** — 아직 시작 전.
 
+## AI 4역할 추가 (docs/DRILLS_SIMULATION_VISION.md §6, 2026-09-10~)
+
+4개 역할 모두 AI 쪽 구현은 전혀 없다는 걸 조사로 확인했다(`HybridRuleAiEvaluator`가 유일한 AI 호출 지점, `purpose`도 `"design_evaluation"` 하나뿐). 재사용 가능한 배관은 `LlmClient`(시스템/유저 프롬프트만 받는 범용 인터페이스, Evaluator 결합 없음)와 `PromptTemplate`(purpose별 버전 관리·hot-swap 가능한 프롬프트 저장소) 둘뿐이었다. 4개 중 어느 걸 먼저 할지 사용자에게 확인했다(AskUserQuestion) — **Interviewer**를 선택했다: `Session.interviewMode` 토글과 phase별 타이머(`Submission.onTime` 기록)가 이미 있는데 정작 `HybridRuleAiEvaluator`는 이 값을 전혀 읽지 않아, 면접 모드든 아니든 AI 평가가 완전히 동일했다는 실제 갭을 닫는 선택이자, 이미 존재하는 유료 티어(Advanced/Interview)를 직접 강화한다.
+
+### Slice 1 — Interviewer ✅ 완료 (2026-09-10)
+
+`docs/PRD.md`가 Advanced/Interview 유료 티어로 이미 판매 중인 "면접형 타이머 모드"가, 실제로는 평가 로직에 전혀 영향을 주지 않는 타이머 UI일 뿐이었다는 게 핵심 발견 — `Session.interviewMode`/`Submission.onTime` 둘 다 이미 존재하는 데이터인데 `HybridRuleAiEvaluator.evaluate()`/`buildUserPrompt()` 어디서도 읽지 않았다.
+
+- [x] `V39__seed_interview_evaluation_prompt.sql` — `purpose='interview_evaluation'` 신규 시스템 프롬프트 시드. `design_evaluation`(V5)과 **완전히 같은 JSON 스키마·같은 100점 루브릭**을 쓰되, 면접관 페르소나(더 엄격한 채점 기준, `followupQuestions`를 실제 면접의 날카로운 되묻기처럼 작성하라는 지시)만 다름 — `Rubric`/`LlmEvaluationResultParser` 무변경으로 재사용
+- [x] `HybridRuleAiEvaluator.kt` — `evaluate()`가 이제 세션을 먼저 조회해 `session.interviewMode`로 `purpose`(`design_evaluation` vs `interview_evaluation`)를 고름(기존엔 고정 문자열 필드). `resolveDomain`이 세션을 다시 조회하던 걸 이미 조회한 `Session`을 받도록 리팩터 — DB 조회 횟수 그대로 유지. `buildUserPrompt`에 `submission.onTime`이 non-null(=interviewMode 세션)이면 "제한시간 내/초과 제출" 한 줄 추가 — 이미 있던 데이터를 LLM에 처음 노출. `rubricVersion`에 `purpose`를 포함시켜(`"prd-10-$purpose-v$version"`) 리포트에서 어느 페르소나로 평가됐는지 구분 가능하게 함
+- [x] `EvaluationWorkerIntegrationTest.kt`에 신규 테스트 2개 — interviewMode 세션은 `rubricVersion`에 `interview_evaluation`이, 일반 세션은 `design_evaluation`이 들어있는지 확인(오프라인 fake LLM 완료 응답은 시스템 프롬프트와 무관하게 항상 같은 JSON이라, 실제로 어느 프롬프트 템플릿이 조회됐는지 증명하는 유일한 관측 가능 신호가 `rubricVersion`)
+
+**완료 기준 충족**: `./gradlew compileKotlin`/`compileTestKotlin` 클린. 신규 테스트 2개 포함 `EvaluationWorkerIntegrationTest` 5개 전부 통과. `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.evaluation.*" --tests "com.sysdrill.backend.session.*"` 전체(회귀 포함) 통과. 실 브라우저 대신 curl E2E(격리 백엔드 8084, 순수 백엔드 변경이라 Slice 3와 같은 이유로 curl 사용) — interviewMode 세션 제출 → `GET /submissions/{id}/feedback`의 `rubricVersion`이 실제로 `"prd-10-interview_evaluation-v1"`, 일반 세션은 `"prd-10-design_evaluation-v1"`로 정확히 갈리는 것 실제 HTTP 응답으로 확인.
+
+**하지 않은 것**: `Rubric`(7개 채점 축)은 interviewer용으로 새로 만들지 않음 — 같은 100점 루브릭을 그대로 쓰고 페르소나(프롬프트)만 다르게 하는 게 "Evaluator 배관 재사용" 전제. Mentor/Director/Postmortem Coach는 이번 슬라이스 범위 밖(각각 새 트리거 시점이 필요 — 조사 결과 참고). 새 ADR 안 씀 — purpose 분기 하나 추가는 되돌리기 쉬운 구현 판단(CLAUDE.md 3조건 미충족).
+
+다음 후보는 §6 우선순위 ②(Skill Graph) 또는 AI 4역할의 나머지 3개(Mentor/Director/Postmortem Coach) 중 선택.
+
 ---
 
 ## 진행 방식 메모
