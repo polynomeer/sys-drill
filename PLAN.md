@@ -897,6 +897,31 @@ P2 진행을 요청받고, 착수 전에 두 항목의 성격이 P0/P1과 근본
 
 ---
 
+## Drills 고도화 — Architecture Canvas ↔ Simulation 연동 (docs/DRILLS_SIMULATION_VISION.md 기반, 2026-09-09~)
+
+`docs/archive`에 추가된 두 신규 문서를 종합해 [docs/DRILLS_SIMULATION_VISION.md](docs/DRILLS_SIMULATION_VISION.md)를 작성했다. 사용자가 "Architecture Canvas를 Simulation Engine과 연결된 실행 가능한 모델로 전환"하기로 결정했고, 이를 [ADR-0037](docs/adr/0037-architecture-canvas-becomes-the-simulation-topology-source-of-truth.md)로 기록(ADR-0036 supersede)했다.
+
+### Slice 1 — 기존 DesignTraits 매핑 ✅ 완료 (2026-09-09)
+
+두 가지 구현 규모(① 기존 `DesignTraits`에 캔버스 노드 config를 매핑 vs ② 완전 자유형 `SystemTopology` 신규 엔터티) 중 사용자에게 확인받아 ①로 진행했다. 조사 중 `DesignTraits.kt`가 이미 도메인별 노드급 운영 변수(`dbPoolSize`/`readReplicaCount`/`cacheTtlSeconds`/`consumerCount`/`podReplicas`/`chunkSize`/`holdTimeoutSeconds`/`dispatcherWorkers`)를 갖고 있다는 걸 발견 — 문제는 세션 시작 시 항상 하드코딩된 기본값으로만 초기화되고(`SimulationService.kt` `!realInfra -> DesignTraits()`) 설계 단계에서 사용자가 무엇을 그리든 시뮬레이션에 전혀 반영되지 않았다는 것.
+
+- [x] `SimulationDtos.kt`에 `StartIncidentRequest(val traits: DesignTraits = DesignTraits())` 추가 — Kotlin data class 기본값 덕분에 캔버스가 일부 필드만 보내도 나머지는 자동으로 기본값 유지
+- [x] `SimulationController.kt`의 `POST .../simulation/incident`가 선택적 요청 바디를 받도록 확장
+- [x] `SimulationService.kt`의 `startIncident`에 `initialTraits` 파라미터 추가, `!realInfra` 분기에서만 사용(real-infra 분기의 인프라 프로비저닝 최소값은 그대로 보호)
+- [x] `frontend/src/lib/api.ts`의 `startIncident`가 3번째 인자로 `traits`를 받아 POST 바디로 전송
+- [x] `DiagramCanvas.tsx`에 `NODE_TRAIT_CONFIG`(7개 도메인 × 관련 노드 종류 1개씩, `DesignTraits.kt` 필드와 1:1 대응) 추가, 노드에 숫자 입력 렌더링, `onTraitsChange` 콜백으로 부모에 전파. boolean 토글류 traits는 캔버스에 노출하지 않음(INCIDENT 대응 액션의 결과값이라는 의미가 강해 설계 단계 초기값으로는 어색함)
+- [x] `design/[sessionId]/page.tsx`/`WargameLive.tsx`에 `canvasTraits`/`initialTraits` 배선 — `RuleBasedSimulationEngine` 자체는 전혀 바꾸지 않음(입력이 어디서 오는지만 바뀜)
+
+**완료 기준 충족**: `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 전부 클린. 백엔드 `./gradlew compileKotlin`/`compileTestKotlin` 클린, `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.simulation.*"` 통과. 실 브라우저(격리 백엔드, port 8083)로 coupon 세션 두 개를 비교: 캔버스에서 DB 노드의 `dbPoolSize`를 300(기본 50)으로 설정한 세션은 인시던트 시작 응답이 `dbWriteLoad: 0.3 / connectionPoolUsage: 0.3 / availability: 0.98`인 반면, 기본값 그대로인 세션은 `dbWriteLoad: 1.8 / connectionPoolUsage: 1.0 / availability: 0.7`로 — 캔버스 설정이 실제로 시뮬레이션 결과를 바꾸는 걸 확인. 모바일(375px)에서 노드 안 숫자 입력이 오버플로 없이 렌더되는 것도 확인.
+
+**진행 중 발견한 결정 사항**: 새 ADR은 쓰지 않았다 — "작은 슬라이스부터"라는 시퀀싱 선택은 되돌리기 쉬운 구현 판단이라 CLAUDE.md의 ADR 3조건을 모두 만족하지 않고, ADR-0037 자체가 이미 이 질문을 작업계획에 넘긴다고 명시했다.
+
+**진행 중 발견한 버그와 수정**: 사용자가 실제 브라우저에서 `DiagramCanvas.tsx`에 노드를 추가할 때 "Cannot update a component (DesignWorkspacePage) while rendering a different component (DiagramCanvas)" 콘솔 에러를 보고했다. 원인은 `commit`(부모의 `setAnswer`/`setCanvasTraits`까지 이어지는 부수효과)이 `setNodes`의 함수형 업데이터 안에서 호출되고 있었다는 것 — React Flow가 새로 추가된 노드를 측정하며 발생시키는 "dimensions" 자동 변경이 `onNodesChange`를 예상보다 이른 타이밍(다른 컴포넌트의 렌더 도중)에 동기 호출해, 업데이터 안에서의 부수효과 호출이 안전하지 않았다. `nodes`/`edges` state 업데이트는 순수하게 유지하고, `commit`은 `useEffect`(의존성 `[nodes, edges]`)로 옮겨 렌더 이후에만 실행되도록 고쳤다. 이 리팩터링 도중 한 번 더 자기 자신을 물었다: `commit`을 effect의 의존성 배열에 그대로 넣었더니 `onMermaidChange`/`onTraitsChange`가 부모(`page.tsx`)에서 매 렌더마다 새로 만들어지는 일반 함수라 `commit`(`useCallback`)의 참조가 매번 바뀌어 effect가 무한히 재실행되는 "Maximum update depth exceeded" 루프가 발생했다 — `commit`을 ref로 참조해(`commitRef`, 별도의 무의존성 `useEffect`로 매 렌더 후 갱신) effect의 실제 의존성에서 빼는 것으로 해결했다(ref를 렌더 중에 직접 쓰는 것도 이 프로젝트의 React Compiler 순수성 규칙에 걸려 별도 effect가 필요했다). **검증 중 발견한 한계**: 이 세션에서 쓰는 Claude Browser 자동화 창은 사용자 화면에 실제로 표시되지 않는 상태(`document.visibilityState === "hidden"`, 컨테이너 실측 0×0)로 떠 있어, React Flow의 노드 크기 측정(ResizeObserver)이 진짜로 수렴 불가능한 0×0 컨테이너에서 영원히 진동하는 루프를 만들어낸다 — 이 세션 이전(HEAD) 커밋의 손대지 않은 원본 코드로 되돌려도 동일하게 재현되는 것으로 확인해, 이번 수정과 무관한 테스트 환경의 한계임을 검증했다. 실제 사용자가 보고한 증상(반복 없는 단발성 경고)과 일치하며, 이 수정 자체는 tsc/lint/build 전부 클린 상태로 완료됐지만 실제 화면에서의 최종 확인은 사용자에게 요청해야 한다.
+
+**다음 슬라이스 후보**(착수 전 결정 필요): `SystemTopology` 신규 엔터티 기반 완전 자유형 노드별 상태 — [docs/DRILLS_SIMULATION_VISION.md](docs/DRILLS_SIMULATION_VISION.md) §5.3, §6 참고.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
