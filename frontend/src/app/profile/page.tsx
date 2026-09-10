@@ -6,16 +6,19 @@ import { PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer } fro
 import {
   ApiError,
   CertificationStatus,
+  PostmortemSummary,
   ScenarioSummary,
   SessionSummary,
   SkillProfile,
   getMyCertification,
+  getPostmortemSummary,
   getSkillProfile,
   getUserSessions,
   listScenarios,
   startSession,
 } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
+import { DOMAIN_TITLES } from "@/lib/designGuidance";
 import { riskLabel } from "@/lib/riskLabels";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -40,6 +43,22 @@ const TREND_DIRECTION_LABELS: Record<string, { text: string; className: string }
   INSUFFICIENT_DATA: { text: "", className: "text-foreground-muted" },
 };
 
+// MTTD/MTTR IMPROVING means the duration got shorter, the opposite direction of TREND_DIRECTION_LABELS'
+// "▲ 상승" (which means a score went up) — reusing that text as-is would read backwards for a time metric.
+const TIME_TREND_LABELS: Record<string, { text: string; className: string }> = {
+  IMPROVING: { text: "▼ 단축", className: "text-success" },
+  DECLINING: { text: "▲ 증가", className: "text-danger" },
+  STABLE: { text: "▬ 안정", className: "text-foreground-muted" },
+  INSUFFICIENT_DATA: { text: "", className: "text-foreground-muted" },
+};
+
+function formatSeconds(seconds: number | null): string {
+  if (seconds === null) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m > 0 ? `${m}분 ${s}초` : `${s}초`;
+}
+
 /**
  * SysDrill_UIUX_Design_Plan.docx §4 — 진행률/역량 프로필/기록/배지/추천 학습
  * 경로 5개 구성요소. 전부 이미 존재하는 엔드포인트(대시보드/인증 페이지가
@@ -49,6 +68,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const [skillProfile, setSkillProfile] = useState<SkillProfile | null>(null);
   const [certification, setCertification] = useState<CertificationStatus | null>(null);
+  const [postmortemSummary, setPostmortemSummary] = useState<PostmortemSummary | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [recommended, setRecommended] = useState<ScenarioSummary | null>(null);
   const [startingRecommended, setStartingRecommended] = useState(false);
@@ -61,11 +81,12 @@ export default function ProfilePage() {
       return;
     }
 
-    Promise.all([getSkillProfile(), getMyCertification(), getUserSessions(), listScenarios()])
-      .then(([profile, cert, sessionList, scenarios]) => {
+    Promise.all([getSkillProfile(), getMyCertification(), getUserSessions(), listScenarios(), getPostmortemSummary()])
+      .then(([profile, cert, sessionList, scenarios, postmortem]) => {
         setSkillProfile(profile);
         setCertification(cert);
         setSessions(sessionList);
+        setPostmortemSummary(postmortem);
         if (profile.recommendedDomain) {
           setRecommended(scenarios.find((s) => s.domain === profile.recommendedDomain) ?? null);
         }
@@ -169,6 +190,48 @@ export default function ProfilePage() {
           <p className="mt-1 text-xs text-foreground-muted">
             누적 {skillProfile!.trend.length}회 · 최신 {skillProfile!.trend.at(-1)}점
           </p>
+        </Card>
+      )}
+
+      {postmortemSummary && postmortemSummary.totalIncidents > 0 && (
+        <Card as="section">
+          <h2 className="mb-2 text-sm font-semibold text-foreground-muted">장애 대응 통계</h2>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-foreground-muted">평균 MTTD</span>
+                {TIME_TREND_LABELS[postmortemSummary.mttdTrend].text && (
+                  <span className={`text-xs font-medium ${TIME_TREND_LABELS[postmortemSummary.mttdTrend].className}`}>
+                    {TIME_TREND_LABELS[postmortemSummary.mttdTrend].text}
+                  </span>
+                )}
+              </div>
+              <p className="font-semibold">{formatSeconds(postmortemSummary.avgMttdSeconds)}</p>
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-foreground-muted">평균 MTTR</span>
+                {TIME_TREND_LABELS[postmortemSummary.mttrTrend].text && (
+                  <span className={`text-xs font-medium ${TIME_TREND_LABELS[postmortemSummary.mttrTrend].className}`}>
+                    {TIME_TREND_LABELS[postmortemSummary.mttrTrend].text}
+                  </span>
+                )}
+              </div>
+              <p className="font-semibold">{formatSeconds(postmortemSummary.avgMttrSeconds)}</p>
+            </div>
+          </div>
+          <ul className="mt-3 space-y-1 border-t border-border pt-3 text-sm">
+            {postmortemSummary.byDomain.map((d) => (
+              <li key={d.domain} className="flex justify-between">
+                <span>
+                  {DOMAIN_TITLES[d.domain] ?? d.domain} <span className="text-foreground-muted">({d.incidentCount}회)</span>
+                </span>
+                <span className="text-foreground-muted">
+                  MTTD {formatSeconds(d.avgMttdSeconds)} · MTTR {formatSeconds(d.avgMttrSeconds)}
+                </span>
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
 

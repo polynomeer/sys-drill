@@ -34,3 +34,15 @@ class PostmortemController(
         return postmortemService.save(sessionId, request)
     }
 }
+
+/**
+ * Phase 3-C — separate flat controller (not a method on [PostmortemController]) because that controller's
+ * class-level `@RequestMapping("/sessions/{sessionId}/postmortem")` would prefix this onto a `{sessionId}`
+ * path it doesn't take; matches `identity/SkillProfileController`'s flat, token-derived-identity style.
+ */
+@RestController
+class PostmortemSummaryController(private val postmortemService: PostmortemService) {
+
+    @GetMapping("/postmortem-summary")
+    fun getSummary(@AuthenticatedUserId userId: UUID): PostmortemSummaryResponse = postmortemService.getSummary(userId)
+}

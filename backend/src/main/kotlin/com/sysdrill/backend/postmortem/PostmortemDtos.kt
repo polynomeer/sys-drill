@@ -1,5 +1,6 @@
 package com.sysdrill.backend.postmortem
 
+import com.sysdrill.backend.identity.TrendDirection
 import com.sysdrill.backend.simulation.SystemStateResponse
 import jakarta.validation.constraints.NotBlank
 import java.time.Instant
@@ -36,4 +37,21 @@ data class SavePostmortemRequest(
     val mitigationActions: List<String> = emptyList(),
     val rootFixActions: List<String> = emptyList(),
     val preventionItems: List<String> = emptyList(),
+)
+
+data class PostmortemDomainSummary(
+    val domain: String,
+    val incidentCount: Int,
+    val avgMttdSeconds: Long?,
+    val avgMttrSeconds: Long?,
+)
+
+/** Phase 3-C — cross-session aggregation, always recomputed at read time (see [PostmortemService.getSummary]), never persisted. */
+data class PostmortemSummaryResponse(
+    val totalIncidents: Int,
+    val avgMttdSeconds: Long?,
+    val avgMttrSeconds: Long?,
+    val mttdTrend: TrendDirection,
+    val mttrTrend: TrendDirection,
+    val byDomain: List<PostmortemDomainSummary>,
 )

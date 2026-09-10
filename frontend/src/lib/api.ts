@@ -390,6 +390,28 @@ export function getSkillProfile(): Promise<SkillProfile> {
   return apiFetch<SkillProfile>("/skill-profile");
 }
 
+export interface PostmortemDomainSummary {
+  domain: string;
+  incidentCount: number;
+  avgMttdSeconds: number | null;
+  avgMttrSeconds: number | null;
+}
+
+/** Phase 3-C (docs/DRILLS_SIMULATION_VISION.md §6) — cross-session MTTD/MTTR aggregation, always recomputed at read time. */
+export interface PostmortemSummary {
+  totalIncidents: number;
+  avgMttdSeconds: number | null;
+  avgMttrSeconds: number | null;
+  mttdTrend: TrendDirection;
+  mttrTrend: TrendDirection;
+  byDomain: PostmortemDomainSummary[];
+}
+
+/** No sessionId/userId param — the caller's own aggregation, derived from their token, same as getSkillProfile(). */
+export function getPostmortemSummary(): Promise<PostmortemSummary> {
+  return apiFetch<PostmortemSummary>("/postmortem-summary");
+}
+
 /** PLAN.md step 30 — no userId param: POST /sessions derives the owner from the caller's stored auth token (see apiFetch), not from client-supplied input. */
 export function startSession(
   scenarioId: string,

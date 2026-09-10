@@ -6,6 +6,7 @@ import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.session.SessionStatus
 import com.sysdrill.backend.simulation.SimulationActionType
+import com.sysdrill.backend.support.NOTIFICATION_SCENARIO_ID
 import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.startSession
 import org.assertj.core.api.Assertions.assertThat
@@ -164,5 +165,55 @@ class PostmortemControllerIntegrationTest(
             .andExpect(jsonPath("$.rootFixActions[0]").value("read replica 도입 예정"))
             .andExpect(jsonPath("$.preventionItems[0]").value("풀 사용률 알림 추가"))
             .andExpect(jsonPath("$.actionsTimeline.length()").value(1))
+    }
+
+    @Test
+    fun `postmortem summary aggregates MTTD-MTTR across the user's own sessions, grouped by domain`() {
+        val couponSessionId = mockMvc.startSession(userId)
+        mockMvc.perform(post("/sessions/$couponSessionId/simulation/incident").header("Authorization", bearerHeader(userId))).andExpect(status().isOk)
+        mockMvc.perform(
+            post("/sessions/$couponSessionId/simulation/actions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
+                .content("""{"actionType":"${SimulationActionType.STRENGTHEN_RATE_LIMIT.name}"}""")
+        ).andExpect(status().isOk)
+
+        val notificationSessionId = mockMvc.startSession(userId, scenarioId = NOTIFICATION_SCENARIO_ID)
+        mockMvc.perform(post("/sessions/$notificationSessionId/simulation/incident").header("Authorization", bearerHeader(userId))).andExpect(status().isOk)
+        mockMvc.perform(
+            post("/sessions/$notificationSessionId/simulation/actions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
+                .content("""{"actionType":"${SimulationActionType.ADD_CONSUMERS.name}"}""")
+        ).andExpect(status().isOk)
+
+        // A session that never starts an incident must not count toward totalIncidents.
+        mockMvc.startSession(userId)
+
+        val body = mockMvc.perform(get("/postmortem-summary").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.totalIncidents").value(2))
+            .andExpect(jsonPath("$.byDomain.length()").value(2))
+            .andReturn().response.contentAsString
+
+        val avgMttd = JsonPath.read<Int>(body, "$.avgMttdSeconds")
+        val avgMttr = JsonPath.read<Int>(body, "$.avgMttrSeconds")
+        assertThat(avgMttd).isGreaterThanOrEqualTo(0)
+        assertThat(avgMttr).isGreaterThanOrEqualTo(avgMttd)
+
+        val domains = JsonPath.read<List<String>>(body, "$.byDomain[*].domain")
+        assertThat(domains).containsExactlyInAnyOrder("coupon", "notification")
+    }
+
+    @Test
+    fun `postmortem summary is all-zero for a user with no incidents`() {
+        val freshUserId = userRepository.save(
+            User(email = "no-incidents-${UUID.randomUUID()}@example.com", passwordHash = "hash", nickname = "no-incidents")
+        ).id!!
+        mockMvc.startSession(freshUserId)
+
+        mockMvc.perform(get("/postmortem-summary").header("Authorization", bearerHeader(freshUserId)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.totalIncidents").value(0))
+            .andExpect(jsonPath("$.avgMttdSeconds").doesNotExist())
+            .andExpect(jsonPath("$.byDomain.length()").value(0))
     }
 }

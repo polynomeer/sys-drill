@@ -44,6 +44,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
  * `/architecture-analysis` (Phase 6, docs/adr/0034) requires auth on every
  * sub-path — fully personal, no public sub-path the way `/scenarios` or
  * assessment preview have one.
+ * `/postmortem-summary` (Phase 3-C, docs/DRILLS_SIMULATION_VISION.md §6) is
+ * registered the same way as `/skill-profile` right above it — a flat,
+ * token-derived-identity endpoint with no path parameter to guard.
  */
 @Configuration
 class AuthWebConfig(
@@ -65,6 +68,7 @@ class AuthWebConfig(
                 "/submissions/**",
                 "/build-challenges/**", "/build-submissions/**",
                 "/skill-profile",
+                "/postmortem-summary",
                 "/organizations", "/organizations/**",
                 "/admin/prompt-templates", "/admin/prompt-templates/**",
                 "/admin/dashboard/**",
