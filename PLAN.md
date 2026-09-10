@@ -933,6 +933,19 @@ P2 진행을 요청받고, 착수 전에 두 항목의 성격이 P0/P1과 근본
 
 **진행 중 발견한 버그와 수정**: 새 `GET /postmortem-summary`가 항상 409(`IllegalStateException: @AuthenticatedUserId used on a path AuthInterceptor isn't registered for`)로 실패했다 — `AuthWebConfig.kt`의 `addInterceptors`가 인증이 필요한 경로를 화이트리스트 방식으로 등록하는데, 새 평평한 경로(`/skill-profile`과 같은 패턴)를 거기 추가하는 걸 빠뜨렸다. `/postmortem-summary`를 `/skill-profile` 옆에 추가해 해결. **교훈**: 이 프로젝트에서 새 최상위 인증 필요 엔드포인트를 추가할 때는 컨트롤러/서비스뿐 아니라 `AuthWebConfig.kt`의 `addPathPatterns` 목록도 함께 확인해야 한다 — 컴파일도 통과하고 401(무인증)도 아닌 409로 실패해서 처음엔 내 집계 로직 자체의 버그로 오인했다.
 
+### Phase 3-A — 로그 심각도 계산을 백엔드로 이전 ✅ 완료 (2026-09-10)
+
+`docs/DRILLS_SIMULATION_VISION.md` §6의 3-A는 원래 "OTel 도입과 자연스럽게 묶임"이라고 썼지만, 실제로 OTel/Jaeger는 coupon/notification 실전 인프라 파일럿 2개 도메인에만 의미가 있다는 걸 조사로 확인했다(나머지 5개는 순수 규칙 기반이라 추적할 실제 실행이 없음). 사용자에게 두 범위(① 로그 심각도만 백엔드 이전 vs ② coupon/notification만 OTel 실제 확장)를 확인받아 ①로 진행했다.
+
+- [x] `SystemState.kt`에 `level: String` computed property 추가 — `WargameLive.tsx`의 `deriveLevel()`이 클라이언트에서 하던 것과 정확히 같은 `cpuUtilization` 기반 0.6/0.95 밴딩(`frontend/src/lib/metrics.ts`의 `utilizationStatus()`와 동일 임계값, 두 런타임 간 공유 소스가 없어 어느 한쪽이 바뀌면 다른 쪽도 맞춰야 한다는 주석 남김)
+- [x] `SimulationDtos.kt`의 `SystemStateResponse`에 `level` 필드 추가 — `TimelineStepResponse`가 이미 `SystemStateResponse.from(...)`을 재사용하므로 타임라인 스텝에도 자동으로 흘러들어감
+- [x] `WargameLive.tsx`의 `deriveLevel()` 함수 삭제, 6곳의 호출부를 전부 `state.level`로 교체(같은 파일의 `utilizationStatus()`는 Gauge 색상용으로 남겨둠 — 로그 심각도와 무관한 별개 용도)
+- [x] `frontend/src/lib/api.ts`의 `SystemState` 인터페이스에 `level: "INFO"|"WARN"|"ERROR"` 추가
+
+**완료 기준 충족**: `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 전부 클린. 백엔드 `./gradlew compileKotlin`/`compileTestKotlin` 클린 + 전체 스위트(`./scripts/run-tests-isolated.sh`) 통과(`SystemStateResponse`를 직접 생성자 호출하는 테스트가 없어 필드 추가로 깨진 곳 없음). curl로 인시던트 시작/타임라인 응답에 `level` 필드가 실제로 오는지 확인(`cpuUtilization: 0.98` → `"ERROR"`) → 실 브라우저(격리 백엔드 port 8083)로 세션을 인시던트까지 진행 후 로그 패널의 첫 줄이 백엔드가 보낸 `ERROR`로 렌더되는지 확인 → Rate Limit 강화 액션 적용 후 CPU가 90%로 내려가며 새 로그 줄이 `WARN`으로 바뀌는지 확인(0.6~0.95 밴드 경계 동작 확인) → 콘솔 에러 없음, 모바일(375px) 오버플로 없음 확인.
+
+**진행 중 발견한 결정 사항**: 새 ADR은 쓰지 않았다 — computed property 추가 + DTO 필드 추가 + 클라이언트 호출부 교체는 전부 되돌리기 쉬운 리팩터라 CLAUDE.md의 ADR 3조건을 만족하지 않는다.
+
 ---
 
 ## 진행 방식 메모
