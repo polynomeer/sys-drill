@@ -426,9 +426,17 @@ export function advanceSession(sessionId: string): Promise<SessionResponse> {
   return apiFetch<SessionResponse>(`/sessions/${sessionId}/advance`, { method: "POST" });
 }
 
-export function startIncident(sessionId: string, realInfra = false): Promise<SystemState> {
+/** ADR-0037 — `traits` carries the Architecture Canvas's node config (e.g. a DB node's pool size) as this session's starting DesignTraits; the backend fills in defaults for any field omitted. */
+export function startIncident(
+  sessionId: string,
+  realInfra = false,
+  traits?: Record<string, number>,
+): Promise<SystemState> {
   const query = realInfra ? "?realInfra=true" : "";
-  return apiFetch<SystemState>(`/sessions/${sessionId}/simulation/incident${query}`, { method: "POST" });
+  return apiFetch<SystemState>(`/sessions/${sessionId}/simulation/incident${query}`, {
+    method: "POST",
+    body: traits && Object.keys(traits).length > 0 ? JSON.stringify({ traits }) : undefined,
+  });
 }
 
 export function getSimulationState(sessionId: string): Promise<SystemState> {

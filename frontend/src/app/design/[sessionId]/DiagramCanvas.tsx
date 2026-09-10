@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   Controls,
@@ -22,8 +22,12 @@ import { loadCanvasDraft, saveCanvasDraft } from "@/lib/localSession";
 
 type NodeKind = "client" | "gateway" | "service" | "db" | "cache" | "queue" | "cdn";
 
-type CanvasNodeData = { label: string; kind: NodeKind };
-type CanvasFlowNodeData = CanvasNodeData & { onLabelChange: (value: string) => void };
+type CanvasNodeData = { label: string; kind: NodeKind; traitValues?: Record<string, number> };
+type CanvasFlowNodeData = CanvasNodeData & {
+  onLabelChange: (value: string) => void;
+  onTraitChange: (key: string, value: number) => void;
+  traitConfig: TraitField[];
+};
 
 const NODE_KIND_META: Record<NodeKind, { label: string; color: string; mermaidWrap: (label: string) => string }> = {
   client: { label: "Client", color: "#f59e0b", mermaidWrap: (l) => `([${l}])` },
@@ -36,6 +40,41 @@ const NODE_KIND_META: Record<NodeKind, { label: string; color: string; mermaidWr
 };
 
 const PALETTE: NodeKind[] = ["client", "gateway", "service", "db", "cache", "queue", "cdn"];
+
+type TraitField = { key: string; label: string; min: number; max: number; step: number; default: number };
+
+/**
+ * ADR-0037 — per domain, which node kind exposes which `DesignTraits` (backend)
+ * field as a design-time value, and its default (mirroring `DesignTraits.kt`'s
+ * Kotlin defaults). Only numeric capacity/config levers are exposed here —
+ * boolean toggles (rateLimitEnabled, circuitBreakerEnabled, ...) stay
+ * INCIDENT-action-only, since they read as "the response to an incident," not
+ * a design-time starting value.
+ */
+const NODE_TRAIT_CONFIG: Record<string, Partial<Record<NodeKind, TraitField[]>>> = {
+  coupon: {
+    cache: [{ key: "cacheTtlSeconds", label: "Cache TTL(초)", min: 1, max: 300, step: 1, default: 10 }],
+    db: [{ key: "dbPoolSize", label: "DB Pool Size", min: 10, max: 500, step: 10, default: 50 }],
+  },
+  notification: {
+    queue: [{ key: "consumerCount", label: "Consumer 수", min: 1, max: 32, step: 1, default: 4 }],
+  },
+  "product-browsing": {
+    db: [{ key: "readReplicaCount", label: "Read Replica 수", min: 0, max: 5, step: 1, default: 0 }],
+  },
+  payment: {
+    service: [{ key: "dispatcherWorkers", label: "Dispatcher Worker 수", min: 1, max: 32, step: 1, default: 4 }],
+  },
+  reservation: {
+    service: [{ key: "holdTimeoutSeconds", label: "Hold Timeout(초)", min: 30, max: 600, step: 10, default: 300 }],
+  },
+  "batch-settlement": {
+    service: [{ key: "chunkSize", label: "Chunk Size", min: 1000, max: 50000, step: 1000, default: 10000 }],
+  },
+  autoscaling: {
+    service: [{ key: "podReplicas", label: "Pod Replicas", min: 1, max: 20, step: 1, default: 4 }],
+  },
+};
 
 function mermaidId(index: number): string {
   return `n${index}`;
@@ -79,6 +118,24 @@ function CanvasNode({ data }: NodeProps<Node<CanvasFlowNodeData>>) {
         value={data.label}
         onChange={(e) => data.onLabelChange(e.target.value)}
       />
+      {data.traitConfig.length > 0 && (
+        <div className="nodrag mt-2 flex flex-col gap-1 border-t border-border pt-2">
+          {data.traitConfig.map((field) => (
+            <label key={field.key} className="flex items-center justify-between gap-2 text-[10px] text-foreground-muted">
+              <span>{field.label}</span>
+              <input
+                type="number"
+                min={field.min}
+                max={field.max}
+                step={field.step}
+                className="w-16 rounded border border-border bg-transparent px-1 py-0.5 text-right text-foreground outline-none"
+                value={data.traitValues?.[field.key] ?? field.default}
+                onChange={(e) => data.onTraitChange(field.key, Number(e.target.value))}
+              />
+            </label>
+          ))}
+        </div>
+      )}
       <Handle type="source" position={Position.Bottom} />
     </div>
   );
@@ -97,33 +154,90 @@ function loadInitialGraph(sessionId: string): { nodes: Node<CanvasNodeData>[]; e
   }
 }
 
+/** Flattens every node's `traitValues` into one object (last node of a given kind wins), for `onTraitsChange`/`startIncident`. */
+function collectTraits(nodes: Node<CanvasNodeData>[]): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const node of nodes) {
+    if (node.data.traitValues) Object.assign(result, node.data.traitValues);
+  }
+  return result;
+}
+
 /**
  * SysDrill_UIUX_Design_Plan.docx §5.3 — a node-and-edge canvas (Client/API
  * Gateway/Service/DB/Cache/Queue/CDN) as the primary way to build the design
- * diagram. Per ADR-0036, this never becomes a second source of truth: every
- * change re-serializes the graph to a `flowchart TD` Mermaid block and hands
- * it to `onMermaidChange`, which the parent splices into the same free-text
- * answer that already gets submitted — the canvas is an input method, not a
- * new field.
+ * diagram. Per ADR-0036, diagram *shape* never becomes a second source of
+ * truth: every change re-serializes the graph to a `flowchart TD` Mermaid
+ * block and hands it to `onMermaidChange`, which the parent splices into the
+ * same free-text answer that already gets submitted.
+ *
+ * Per ADR-0037, node *config* (e.g. a DB node's pool size) is different: it
+ * becomes this session's starting `DesignTraits` via `onTraitsChange`, sent
+ * to `startIncident` when the incident starts. Which fields a node exposes
+ * depends on the session's `domain` (`NODE_TRAIT_CONFIG`) — most node kinds
+ * expose none and render unchanged from before.
  */
 export function DiagramCanvas({
   sessionId,
+  domain,
   onMermaidChange,
+  onTraitsChange,
 }: {
   sessionId: string;
+  domain: string;
   onMermaidChange: (mermaidText: string) => void;
+  onTraitsChange?: (traits: Record<string, number>) => void;
 }) {
   const [nodes, setNodes] = useState<Node<CanvasNodeData>[]>(() => loadInitialGraph(sessionId).nodes);
   const [edges, setEdges] = useState<Edge[]>(() => loadInitialGraph(sessionId).edges);
   const placementCounterRef = useRef(0);
+  const traitConfigForDomain = useMemo(() => NODE_TRAIT_CONFIG[domain] ?? {}, [domain]);
 
   const commit = useCallback(
     (nextNodes: Node<CanvasNodeData>[], nextEdges: Edge[]) => {
       saveCanvasDraft(sessionId, JSON.stringify({ nodes: nextNodes, edges: nextEdges }));
       onMermaidChange(serializeToMermaid(nextNodes, nextEdges));
+      onTraitsChange?.(collectTraits(nextNodes));
     },
-    [onMermaidChange, sessionId],
+    [onMermaidChange, onTraitsChange, sessionId],
   );
+
+  // React Flow can invoke onNodesChange synchronously during its own
+  // render/measurement pass (observed for the "dimensions" auto-change it
+  // fires the first time a newly added node is measured) — calling `commit`
+  // (which cascades into the parent's setAnswer) from inside a setState
+  // updater is unsafe in exactly that case ("Cannot update a component
+  // while rendering a different component"). So state updates below stay
+  // pure, and this effect is the only place `commit` runs, after render.
+  // `skipCommitRef` preserves the original "don't commit every intermediate
+  // drag-position tick" behavior without putting a side effect in the
+  // updater; `isMountRef` preserves "don't commit on initial mount" (a
+  // restored draft shouldn't immediately re-splice into the answer).
+  //
+  // `commit` itself is read through a ref rather than listed as an effect
+  // dependency: `onMermaidChange`/`onTraitsChange` are plain (non-memoized)
+  // functions in the parent, recreated every parent render — including the
+  // render `commit`'s own setAnswer call causes. Depending on `commit`
+  // directly re-fired this effect on every one of those renders, an
+  // infinite loop (confirmed live: "Maximum update depth exceeded"). Only
+  // `nodes`/`edges` actually changing should trigger a commit.
+  const isMountRef = useRef(true);
+  const skipCommitRef = useRef(false);
+  const commitRef = useRef(commit);
+  useEffect(() => {
+    commitRef.current = commit;
+  });
+  useEffect(() => {
+    if (isMountRef.current) {
+      isMountRef.current = false;
+      return;
+    }
+    if (skipCommitRef.current) {
+      skipCommitRef.current = false;
+      return;
+    }
+    commitRef.current(nodes, edges);
+  }, [nodes, edges]);
 
   const nodesWithHandlers = useMemo<Node<CanvasFlowNodeData>[]>(
     () =>
@@ -131,58 +245,52 @@ export function DiagramCanvas({
         ...n,
         data: {
           ...n.data,
+          traitConfig: traitConfigForDomain[n.data.kind] ?? [],
           onLabelChange: (value: string) => {
-            setNodes((prev) => {
-              const next = prev.map((p) => (p.id === n.id ? { ...p, data: { ...p.data, label: value } } : p));
-              commit(next, edges);
-              return next;
-            });
+            setNodes((prev) => prev.map((p) => (p.id === n.id ? { ...p, data: { ...p.data, label: value } } : p)));
+          },
+          onTraitChange: (key: string, value: number) => {
+            setNodes((prev) =>
+              prev.map((p) =>
+                p.id === n.id ? { ...p, data: { ...p.data, traitValues: { ...p.data.traitValues, [key]: value } } } : p,
+              ),
+            );
           },
         },
       })),
-    [nodes, edges, commit],
+    [nodes, traitConfigForDomain],
   );
 
   function addNode(kind: NodeKind) {
     const placement = ++placementCounterRef.current;
     const meta = NODE_KIND_META[kind];
+    const fields = traitConfigForDomain[kind] ?? [];
+    const traitValues = Object.fromEntries(fields.map((f) => [f.key, f.default]));
     const newNode: Node<CanvasNodeData> = {
       id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `node-${placement}`,
       type: "canvasNode",
       position: { x: 40 + ((placement * 60) % 480), y: 40 + ((placement * 90) % 360) },
-      data: { label: meta.label, kind },
+      data: { label: meta.label, kind, traitValues },
     };
-    const next = [...nodes, newNode];
-    setNodes(next);
-    commit(next, edges);
+    setNodes((prev) => [...prev, newNode]);
   }
 
   function onNodesChange(changes: NodeChange<Node<CanvasFlowNodeData>>[]) {
-    setNodes((prev) => {
-      const next = applyNodeChanges(changes, prev) as Node<CanvasNodeData>[];
-      // Commit on drop (dragging:false) and non-position changes (add/remove);
-      // skip the many intermediate events fired while a drag is in progress —
-      // positions aren't part of the Mermaid output anyway.
-      const settled = changes.some((c) => c.type !== "position" || c.dragging === false);
-      if (settled) commit(next, edges);
-      return next;
-    });
+    // Skip committing on the many intermediate events fired while a drag is
+    // in progress — positions aren't part of the Mermaid/traits output
+    // anyway. Only the drop (dragging:false) or a non-position change
+    // (add/remove/dimensions) triggers a commit.
+    const settled = changes.some((c) => c.type !== "position" || c.dragging === false);
+    skipCommitRef.current = !settled;
+    setNodes((prev) => applyNodeChanges(changes, prev) as Node<CanvasNodeData>[]);
   }
 
   function onEdgesChange(changes: EdgeChange[]) {
-    setEdges((prev) => {
-      const next = applyEdgeChanges(changes, prev);
-      commit(nodes, next);
-      return next;
-    });
+    setEdges((prev) => applyEdgeChanges(changes, prev));
   }
 
   function onConnect(connection: Connection) {
-    setEdges((prev) => {
-      const next = addEdge(connection, prev);
-      commit(nodes, next);
-      return next;
-    });
+    setEdges((prev) => addEdge(connection, prev));
   }
 
   return (

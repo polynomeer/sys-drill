@@ -101,6 +101,7 @@ export default function DesignWorkspacePage() {
   const [feedback, setFeedback] = useState<EvaluationFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [diagramMode, setDiagramMode] = useState<"canvas" | "text">("canvas");
+  const [canvasTraits, setCanvasTraits] = useState<Record<string, number>>({});
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -215,6 +216,11 @@ export default function DesignWorkspacePage() {
     handleAnswerChange(upsertCanvasBlock(answer, mermaidText));
   }
 
+  /** ADR-0037 — canvas node config becomes this session's starting DesignTraits when the incident starts (WargameLive's `initialTraits` prop). */
+  function handleCanvasTraitsChange(traits: Record<string, number>) {
+    setCanvasTraits(traits);
+  }
+
   async function handleSubmit(auto = false) {
     if (!auto && !answer.trim()) {
       setError("답안을 입력해주세요.");
@@ -287,7 +293,7 @@ export default function DesignWorkspacePage() {
       )}
 
       {isIncident && (view === "editing" || view === "submitting") && (
-        <WargameLive sessionId={sessionId} domain={domain} isOwner />
+        <WargameLive sessionId={sessionId} domain={domain} isOwner initialTraits={canvasTraits} />
       )}
 
       {view === "spectating" && session && (
@@ -346,7 +352,12 @@ export default function DesignWorkspacePage() {
                 </button>
               </div>
               {diagramMode === "canvas" ? (
-                <DiagramCanvas sessionId={sessionId} onMermaidChange={handleCanvasMermaidChange} />
+                <DiagramCanvas
+                  sessionId={sessionId}
+                  domain={domain}
+                  onMermaidChange={handleCanvasMermaidChange}
+                  onTraitsChange={handleCanvasTraitsChange}
+                />
               ) : (
                 <DiagramPreview answer={answer} onAppend={(text) => handleAnswerChange(answer + text)} />
               )}

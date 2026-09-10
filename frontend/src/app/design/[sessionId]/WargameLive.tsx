@@ -226,11 +226,14 @@ export function WargameLive({
   sessionId,
   domain,
   isOwner = true,
+  initialTraits,
 }: {
   sessionId: string;
   domain: string;
   /** PLAN.md step 36 — Game Day spectator: hides the incident-start gate and action panel, read-only metrics only. */
   isOwner?: boolean;
+  /** ADR-0037 — the Architecture Canvas's node config, forwarded to `startIncident` as this session's starting DesignTraits. */
+  initialTraits?: Record<string, number>;
 }) {
   const ACTIONS = ACTIONS_BY_DOMAIN[domain] ?? ACTIONS_BY_DOMAIN.coupon;
   const [state, setState] = useState<SystemState | null>(null);
@@ -275,14 +278,14 @@ export function WargameLive({
         }
         if (!started.current) {
           started.current = true;
-          const initial = await startIncident(sessionId);
+          const initial = await startIncident(sessionId, false, initialTraits);
           setState(initial);
           pushLog(INCIDENT_EVENT_BY_DOMAIN[domain] ?? INCIDENT_EVENT_BY_DOMAIN.coupon, initial);
           lastLevelRef.current = deriveLevel(initial);
         }
       }
     }
-  }, [sessionId, domain, isOwner, pushLog]);
+  }, [sessionId, domain, isOwner, pushLog, initialTraits]);
 
   useEffect(() => {
     if (awaitingStartChoice) return;
@@ -324,7 +327,7 @@ export function WargameLive({
     started.current = true;
     setAwaitingStartChoice(false);
     try {
-      const initial = await startIncident(sessionId, realInfraChoice);
+      const initial = await startIncident(sessionId, realInfraChoice, initialTraits);
       setState(initial);
       lastLevelRef.current = deriveLevel(initial);
       pushLog(

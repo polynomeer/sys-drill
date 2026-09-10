@@ -24,9 +24,11 @@ class SimulationController(
         @PathVariable sessionId: UUID,
         @AuthenticatedUserId userId: UUID,
         @RequestParam(defaultValue = "false") realInfra: Boolean,
+        @RequestBody(required = false) request: StartIncidentRequest?,
     ): SystemStateResponse {
         sessionAccessGuard.requireOwner(sessionId, userId)
-        return SystemStateResponse.from(simulationService.startIncident(sessionId, realInfra))
+        val traits = request?.traits ?: DesignTraits()
+        return SystemStateResponse.from(simulationService.startIncident(sessionId, realInfra, traits))
     }
 
     /** PLAN.md step 36 — a Game Day spectator may also view live state. */

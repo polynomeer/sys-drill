@@ -74,7 +74,7 @@ class SimulationService(
      * by its existence.
      */
     @Transactional
-    fun startIncident(sessionId: UUID, realInfra: Boolean = false): SystemState {
+    fun startIncident(sessionId: UUID, realInfra: Boolean = false, initialTraits: DesignTraits = DesignTraits()): SystemState {
         // Idempotent: the frontend's real-infra opt-in gate is client-side state
         // that re-shows on every page load/reload (WargameLive.tsx), so a second
         // "인시던트 시작" click for an already-active incident is a real, reachable
@@ -94,7 +94,12 @@ class SimulationService(
             throw BadRequestException("Real-infra mode is not available for domain: $domain")
         }
         val traits = when {
-            !realInfra -> DesignTraits()
+            // ADR-0037 — the Architecture Canvas's node config becomes this
+            // session's starting DesignTraits, but only outside real-infra
+            // mode: the branches below already set infra-provisioning
+            // minimums (pool size, consumer count) that a design-time value
+            // must not silently override.
+            !realInfra -> initialTraits
             domain == RuleBasedSimulationEngine.DOMAIN_COUPON -> DesignTraits(dbPoolSize = RealInfraCouponEngine.INITIAL_DB_POOL_SIZE)
             domain == RuleBasedSimulationEngine.DOMAIN_NOTIFICATION -> DesignTraits(consumerCount = RealInfraNotificationEngine.INITIAL_CONSUMER_COUNT)
             else -> DesignTraits()

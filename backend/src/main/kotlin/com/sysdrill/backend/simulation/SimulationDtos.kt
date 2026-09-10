@@ -41,6 +41,16 @@ data class SystemStateResponse(
 
 data class ApplyActionRequest(@field:NotNull val actionType: SimulationActionType)
 
+/**
+ * ADR-0037 / DRILLS_SIMULATION_VISION.md — the Architecture Canvas can now send
+ * the design-time values it collected (e.g. a DB node's pool size) as this
+ * session's starting [DesignTraits], instead of always starting from
+ * [DesignTraits]' hardcoded defaults. Any field the client omits keeps its
+ * Kotlin default, so the canvas only needs to send the handful of fields it
+ * actually configured.
+ */
+data class StartIncidentRequest(val traits: DesignTraits = DesignTraits())
+
 data class TimelineStepResponse(
     val step: Int,
     val actionType: String?,
