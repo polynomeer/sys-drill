@@ -1058,6 +1058,23 @@ Slice 3이 미뤄둔 마지막 항목. §5.2 "Dependency Graph" 모듈("없음 �
 
 다음 후보는 §6 우선순위 ②(Skill Graph) 또는 AI 4역할의 나머지 3개(Mentor/Director/Postmortem Coach) 중 선택.
 
+### Slice 2 — Postmortem Coach ✅ 완료 (2026-09-10)
+
+Skill Graph 슬라이스 다음으로 AI 4역할로 돌아와 두 번째 역할 진행. 조사(Interviewer 슬라이스 때 이미 확인) 결과 `Postmortem`/`PostmortemService`는 사용자가 직접 쓰는 서사 필드(근본 원인/완화 조치/근본 해결 조치/재발 방지 항목)를 저장·조회만 할 뿐 AI가 전혀 관여하지 않았다 — `PostmortemService.save()`에 LLM 호출을 붙여, 저장할 때마다 코칭 피드백을 같이 생성·영속화하도록 했다.
+
+- [x] `V40__add_postmortem_coaching.sql` — `postmortems`에 `coach_strengths`/`coach_gaps`/`coach_followup_questions`(jsonb, 기본 `[]`) 3개 컬럼 추가 + `purpose='postmortem_coaching'` 신규 프롬프트 시드. MTTD/MTTR처럼 매번 재계산하는 결정론적 값이 아니라 LLM 출력이라(Evaluation과 같은 성격) 영속화 — ADR-0011은 "결정론적 파생값은 저장하지 않는다"는 것이지 "LLM 출력도 저장하지 않는다"는 게 아님(Evaluation 엔터티가 이미 선례)
+- [x] `PostmortemCoachResult.kt`/`PostmortemCoachResultParser.kt`(신규, `postmortem` 패키지) — `evaluation/llm/LlmEvaluationResult(Parser)`와 같은 패턴(markdown fence 제거 후 Jackson 파싱)이지만 스코어 루브릭이 없는 작은 스키마(`strengths`/`gaps`/`followupQuestions`) — 포스트모템 서사에는 100점 루브릭이 적용되지 않으므로 `Rubric` 재사용 안 함
+- [x] `PostmortemService.kt` — `PromptTemplateRepository`/`LlmClient`/`PostmortemCoachResultParser`를 새 의존성으로 받아, `save()`가 서사 필드를 쓴 직후 `generateCoaching()`으로 LLM을 동기 호출(설계 평가처럼 큐/워커 비동기 경로를 새로 만들지 않음 — 포스트모템 저장은 드물고 의도적인 단발 액션이라 비동기 인프라를 재사용할 이유가 없음). `get()`이 코칭 필드도 함께 반환하도록 확장
+- [x] 프론트: `api.ts`의 `Postmortem`에 `coachStrengths`/`coachGaps`/`coachFollowupQuestions` 추가. `postmortem/page.tsx`의 "직접 작성" 카드 아래에 "AI 코치 피드백" 카드 추가(잘한 점/보완할 점/추가로 생각해볼 질문, 각 섹션은 내용이 있을 때만 렌더)
+
+**완료 기준 충족**: `./gradlew compileKotlin`/`compileTestKotlin` 클린. `PostmortemControllerIntegrationTest.kt`에 신규 테스트 추가 — 저장 직후 응답과 재조회 양쪽에서 `coachStrengths`가 비어있지 않은지 확인(오프라인 fake LLM 완료 응답에도 `strengths` 필드는 채워져 있어, LLM 호출→파싱→영속화 경로가 실제로 실행됐다는 신호로 유효 — Interviewer 슬라이스의 `rubricVersion` 검증과 같은 논리). 기존 5개 포함 6개 전부 통과, `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.postmortem.*"` 전체 통과. 프론트 `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 클린.
+
+**실 검증**: 격리 백엔드(8084)에서 coupon 세션을 인시던트까지 진행해 COMPLETED로 완료한 뒤 `PUT .../postmortem` 실제 호출 → 응답에 `coachStrengths: ["오프라인 모드: 실제 LLM 평가가 아닙니다."]` 확인(오프라인 폴백이지만 실제 파싱·저장 경로 증명). 실 브라우저로 `/design/{id}/postmortem` 접속 → "AI 코치 피드백" 카드가 실제로 렌더되고 "잘한 점" 섹션에 위 문구가 나오는 것, 빈 배열인 "보완할 점"/"추가로 생각해볼 질문" 섹션은 조건부 렌더로 아예 안 나오는 것 확인. 콘솔 에러 없음.
+
+**하지 않은 것**: `Rubric`(100점 채점) 재사용 안 함 — 포스트모템 서사는 점수 매길 대상이 아니라는 판단. 설계 평가처럼 Redis 큐/`EvaluationWorker` 비동기 경로 새로 안 만듦(동기 호출로 충분). 새 ADR 안 씀 — Interviewer 슬라이스와 같은 급의 구현 판단.
+
+다음 후보는 §6 우선순위 ③(Scenario DSL) 또는 AI 4역할의 나머지 2개(Mentor/Director) 중 선택.
+
 ## Skill Graph (계층화) — 첫 슬라이스 ✅ 완료 (2026-09-10)
 
 `docs/DRILLS_SIMULATION_VISION.md` §6 우선순위 ②. 조사 결과 `SkillProfile`은 지금도 riskKey별 빈도 평탄 카운터(`weaknesses`)를 그대로 저장하고, `SkillProfileController.kt`가 읽기 시점에 `RuleEvaluator.domainByRiskKey`(riskKey → 시나리오 도메인)로 한 단계 그룹핑만 하고 있었다 — "계층화"가 이미 한 겹 있었던 셈. 하지만 도메인을 가로지르는 역량 축은 전혀 없었다: coupon의 `MISSING_CONCURRENCY_CONTROL`과 reservation의 `MISSING_RESERVATION_LOCKING`은 둘 다 "동시성 제어"라는 같은 역량인데도 서로 다른 도메인으로만 묶였다. 게다가 기존 `recommendedDomain`은 **단일 riskKey의 최대 빈도**로 도메인을 골라, 한 도메인에 중간 빈도 riskKey가 여러 개 있어도 다른 도메인의 riskKey 하나가 더 잦으면 밀리는 결함이 있었다 — 검증 질문("상위 역량 계층이 추천 품질을 실제로 개선하는가")이 정확히 겨냥하는 지점.
