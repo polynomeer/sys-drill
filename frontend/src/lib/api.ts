@@ -501,6 +501,24 @@ export function savePostmortem(sessionId: string, request: SavePostmortemRequest
   });
 }
 
+export interface SystemTopology {
+  sessionId: string;
+  saved: boolean;
+  graph: string;
+  updatedAt: string | null;
+}
+
+export function getSystemTopology(sessionId: string): Promise<SystemTopology> {
+  return apiFetch<SystemTopology>(`/sessions/${sessionId}/topology`);
+}
+
+export function saveSystemTopology(sessionId: string, graph: string): Promise<SystemTopology> {
+  return apiFetch<SystemTopology>(`/sessions/${sessionId}/topology`, {
+    method: "PUT",
+    body: JSON.stringify({ graph }),
+  });
+}
+
 export function getReport(sessionId: string): Promise<Report> {
   return apiFetch<Report>(`/sessions/${sessionId}/report`);
 }

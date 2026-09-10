@@ -19,6 +19,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { loadCanvasDraft, saveCanvasDraft } from "@/lib/localSession";
+import { getSystemTopology, saveSystemTopology } from "@/lib/api";
 
 type NodeKind = "client" | "gateway" | "service" | "db" | "cache" | "queue" | "cdn";
 
@@ -195,7 +196,13 @@ export function DiagramCanvas({
 
   const commit = useCallback(
     (nextNodes: Node<CanvasNodeData>[], nextEdges: Edge[]) => {
-      saveCanvasDraft(sessionId, JSON.stringify({ nodes: nextNodes, edges: nextEdges }));
+      const graphJson = JSON.stringify({ nodes: nextNodes, edges: nextEdges });
+      saveCanvasDraft(sessionId, graphJson);
+      // ADR-0037 next slice (persistence-only) — fire-and-forget: this is a
+      // background sync so the graph survives a device switch, not a
+      // required part of the draw flow. saveCanvasDraft above already made
+      // the graph durable for this browser tab.
+      saveSystemTopology(sessionId, graphJson).catch((err) => console.error("Failed to save canvas topology", err));
       onMermaidChange(serializeToMermaid(nextNodes, nextEdges));
       onTraitsChange?.(collectTraits(nextNodes));
     },
@@ -238,6 +245,29 @@ export function DiagramCanvas({
     }
     commitRef.current(nodes, edges);
   }, [nodes, edges]);
+
+  // ADR-0037 next slice — hydrate from the server-persisted graph once on
+  // mount, but only if the server actually has one saved: a fresh session
+  // (or a session this backend has never seen a topology PUT for) must not
+  // stomp whatever this browser tab's own localStorage draft already has
+  // (first-visit/offline tolerance, same reasoning as loadInitialGraph
+  // above). No last-write-wins timestamp comparison — the server's saved
+  // graph always wins over the local draft when both exist, which is fine
+  // for the common single-device case this slice targets.
+  useEffect(() => {
+    let cancelled = false;
+    getSystemTopology(sessionId)
+      .then((topology) => {
+        if (cancelled || !topology.saved) return;
+        const parsed = JSON.parse(topology.graph) as { nodes?: Node<CanvasNodeData>[]; edges?: Edge[] };
+        setNodes(parsed.nodes ?? []);
+        setEdges(parsed.edges ?? []);
+      })
+      .catch((err) => console.error("Failed to load canvas topology", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
 
   const nodesWithHandlers = useMemo<Node<CanvasFlowNodeData>[]>(
     () =>
