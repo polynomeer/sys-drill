@@ -1058,6 +1058,22 @@ Slice 3이 미뤄둔 마지막 항목. §5.2 "Dependency Graph" 모듈("없음 �
 
 다음 후보는 §6 우선순위 ②(Skill Graph) 또는 AI 4역할의 나머지 3개(Mentor/Director/Postmortem Coach) 중 선택.
 
+## Skill Graph (계층화) — 첫 슬라이스 ✅ 완료 (2026-09-10)
+
+`docs/DRILLS_SIMULATION_VISION.md` §6 우선순위 ②. 조사 결과 `SkillProfile`은 지금도 riskKey별 빈도 평탄 카운터(`weaknesses`)를 그대로 저장하고, `SkillProfileController.kt`가 읽기 시점에 `RuleEvaluator.domainByRiskKey`(riskKey → 시나리오 도메인)로 한 단계 그룹핑만 하고 있었다 — "계층화"가 이미 한 겹 있었던 셈. 하지만 도메인을 가로지르는 역량 축은 전혀 없었다: coupon의 `MISSING_CONCURRENCY_CONTROL`과 reservation의 `MISSING_RESERVATION_LOCKING`은 둘 다 "동시성 제어"라는 같은 역량인데도 서로 다른 도메인으로만 묶였다. 게다가 기존 `recommendedDomain`은 **단일 riskKey의 최대 빈도**로 도메인을 골라, 한 도메인에 중간 빈도 riskKey가 여러 개 있어도 다른 도메인의 riskKey 하나가 더 잦으면 밀리는 결함이 있었다 — 검증 질문("상위 역량 계층이 추천 품질을 실제로 개선하는가")이 정확히 겨냥하는 지점.
+
+- [x] `RuleEvaluator.kt`의 `domainByRiskKey` 바로 아래에 `categoryByRiskKey`(riskKey → 6개 역량 카테고리, 25개 riskKey 전부 명시적으로 나열) 추가 — `CONCURRENCY_CONSISTENCY`/`RESILIENCE`/`CACHING_DATA_ACCESS`/`ASYNC_BATCH`/`CAPACITY_TIMING`/`OBSERVABILITY`(마지막은 `Rubric.kt`의 기존 "Observability" 축 이름과 일치)
+- [x] `SkillProfileController.kt` — `weaknessesByCategory`/`recommendedCategory` 필드 추가. `recommendedDomain` 계산을 "카테고리 합산 최대 → 그 안에서 최다 riskKey → 그 도메인" 2단계로 교체(기존 "단일 riskKey 최대" 결함 수정). `SkillProfileService`/저장 스키마는 전혀 안 바꿈 — 순수 읽기 시점 파생(`domainByRiskKey`가 이미 증명한 패턴 그대로 확장, ADR-0011 계열)
+- [x] 프론트: `api.ts`에 `weaknessesByCategory`/`recommendedCategory` 추가. `riskLabels.ts` — 조사 중 발견한 실제 갭(coupon/notification/product-browsing 13개만 라벨 있고 payment/reservation/batch-settlement/autoscaling 12개는 raw 문자열로 노출되던 문제)을 메워 25개 전부 한글 라벨/설명 확보. 새 `skillCategoryLabels.ts`(6개 카테고리 한글명). `profile/page.tsx`의 "보완이 필요한 영역" 카드를 평탄 top-6 목록에서 카테고리별 그룹(합계 내림차순, 카테고리당 top-3 riskKey)으로 교체, "추천 학습 경로" 카드에 `recommendedCategory` 한글명 표시. `dashboard/page.tsx`의 압축 top-3 위젯은 스코프 최소화로 안 건드림
+
+**완료 기준 충족**: 백엔드 `./gradlew compileKotlin`/`compileTestKotlin` 클린. `SkillProfileControllerIntegrationTest.kt`에 신규 테스트 2개 추가(카테고리 그룹핑 확인, 그리고 raw count는 같아도 카테고리 합산이 더 큰 쪽이 이기는 걸 증명하는 케이스 — `MISSING_RATE_LIMIT`×3(RESILIENCE, +`MISSING_DLQ`×1로 합계 4) vs `MISSING_READ_REPLICA`×3(CACHING_DATA_ACCESS, 합계 3) → `recommendedCategory: RESILIENCE`/`recommendedDomain: coupon`) — 기존 6개 포함 8개 전부 통과, 기존 도메인 그룹핑 테스트도 무변경으로 계속 통과(우연히 이 케이스에서 신regression 아님을 확인). `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.identity.*"` 전체 통과. 프론트 `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 클린.
+
+**실 검증**: 격리 백엔드(8084)에서 coupon/reservation/product-browsing 세 도메인에 모호한 답안을 제출해 리스크를 다양하게 쌓은 뒤 `/profile`을 실 브라우저로 확인 — "동시성·정합성" 카테고리가 coupon과 reservation 양쪽 riskKey(멱등성 처리/동시성 제어/예약 락 등)를 실제로 한데 묶어 보여주는 것, 이전엔 라벨 없이 raw 문자열로 나오던 예약 관련 리스크들이 이제 한글 라벨("예약 락", "예약 타임아웃")로 나오는 것, "추천 학습 경로 · 가장 약한 영역: 동시성·정합성"이 실제로 표시되는 것을 확인. 콘솔 에러 없음.
+
+**하지 않은 것**: `SkillProfileService`/저장 스키마 무변경. `dashboard/page.tsx` 압축 위젯 무변경. 온보딩 커리큘럼(`OrganizationCurriculumStep`)·인증(`CertificationService`) 연동 안 함 — 둘 다 SkillProfile과 무관하게 동작 중이라 범위 밖. 새 ADR 안 씀 — `domainByRiskKey`와 완전히 같은 패턴의 읽기 시점 파생 필드 추가는 되돌리기 쉬운 구현 판단.
+
+다음 후보는 §6 우선순위 ③(Scenario DSL) 또는 AI 4역할의 나머지 3개(Mentor/Director/Postmortem Coach) 중 선택.
+
 ---
 
 ## 진행 방식 메모

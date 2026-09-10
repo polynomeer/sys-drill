@@ -45,7 +45,7 @@
 | Test/Traffic/Chaos Lab | `simulation/realinfra/`에 쿠폰·알림 2개 도메인만 Toxiproxy 기반 실인프라 파일럿(부하생성기/장애주입기) 존재. 나머지 5개 도메인·범용 Lab UI 없음 | **부분** — 실인프라 배관 자체는 검증됨(2개 도메인). 7개 도메인 일반화 + Lab UI는 신규 |
 | Trade-off Engine + 인앱 ADR 로깅 | 없음. 이 저장소 자체의 ADR(`docs/adr/`)은 개발자가 수동 작성하는 것이지, 훈련생이 세션 중 남기는 `DecisionRecord`가 아님 | **전무** |
 | AI 5역할 | 현재는 1역할: `evaluation/HybridRuleAiEvaluator.kt`(Rule findings → LLM 프롬프트 → 채점) — Evaluator에 해당. Mentor/Scenario Director/Interviewer/Postmortem Coach 없음 | **부분** — LLM 연동 배관(`AnthropicLlmClient`)은 재사용 가능, 나머지 4역할은 신규 프롬프트/오케스트레이션 |
-| Skill Graph | `SkillProfileController`/`SkillProfileService`가 도메인별 weaknesses/trend/recommendedDomain을 계산(ADR-0011 방식, 항상 재계산). "9개 상위 역량 + 세부 skill" 그래프는 없음 — 지금은 시나리오 도메인(7개)이 곧 역량 단위 | **부분** — 파이프라인 패턴 재사용 가능, 계층 구조(상위 역량/세부 skill)는 신규 모델링 |
+| Skill Graph | **2026-09-10 갱신**: `SkillProfileController`가 이제 도메인 그룹핑 위에 `categoryByRiskKey`(6개 교차-도메인 역량 카테고리, `RuleEvaluator.kt`)로 한 겹 더 계층화해 `weaknessesByCategory`/`recommendedCategory`를 계산(여전히 ADR-0011 방식, 읽기 시점 재계산, 저장 스키마 무변경). 원안의 "9개 상위 역량 + 세부 skill" 그래프(더 정교한 타이포노미, 별도 모델링)는 아직 아님 — 지금은 25개 riskKey를 6개 고정 카테고리로 수동 분류한 첫 슬라이스 | **완료(첫 슬라이스)** — 파이프라인 재사용 그대로, 계층 추가까지 완료. 9-역량 원안 수준의 세분화는 신호 확인 후 후속 |
 | Postmortem/Replay/Expert Replay | `getTimeline` replay(`SimulationService.kt`)로 액션 이력 재생은 이미 있음. MTTD/MTTR 집계, Expert Replay 비교, Community Median은 없음 — **ROADMAP.md Phase 3에 "Incident Replay, Postmortem 작성"으로 이미 예정** | **부분**, Phase 3와 병합 대상 |
 | System Sandbox / What-if | 없음. `AppliedAction`은 세션에 종속된 감사 로그일 뿐, "완료 후 저장해 자유롭게 변수 조정"할 저장된 시스템 개념 없음 | **전무** |
 | Drill Map(의존성 그래프) | `marketplace/page.tsx`는 평면 목록. prerequisite/skill dependency 그래프 없음 | **전무** |
@@ -130,7 +130,7 @@
 | 순위 | 항목 | 선행 조건 | 검증 질문 |
 |---|---|---|---|
 | 1 | AI 4역할 추가(Mentor/Director/**~~Interviewer~~**/Postmortem Coach) — Interviewer **완료(2026-09-10)**, [PLAN.md "AI 4역할 추가" Slice 1](../PLAN.md) 참고 | Evaluator 배관 재사용, `interviewMode`(면접형 타이머) 이미 존재 | 역할별 분리가 단일 Evaluator보다 학습 효과가 있는가? |
-| 2 | Skill Graph(계층화) | SkillProfile 파이프라인 재사용 | 상위 역량 계층이 추천 품질을 실제로 개선하는가? |
+| 2 | Skill Graph(계층화) — 첫 슬라이스 **완료(2026-09-10)**, [PLAN.md "Skill Graph(계층화) — 첫 슬라이스"](../PLAN.md) 참고 | SkillProfile 파이프라인 재사용 | 상위 역량 계층이 추천 품질을 실제로 개선하는가? |
 | 3 | Scenario Engine → DSL/Authoring | `ScenarioStep` jsonb 확장(이미 기반 있음), 조직 커스텀 시나리오 API(ADR-0024)로 일부 선행 구현 존재 | 콘텐츠 제작자가 코드 없이 시나리오를 늘릴 수요가 있는가? |
 | 4 | Drill Map(의존성 그래프) | Marketplace 확장 | 평면 목록보다 그래프 탐색이 실제로 더 쓰이는가? |
 | 5 | System Sandbox / What-if | SandboxSystem 신규 모델(완전 신규, 5개 중 유일하게 새 엔터티가 필요) | "완료 후 계속 실험"하고 싶다는 수요가 실제로 있는가? |
