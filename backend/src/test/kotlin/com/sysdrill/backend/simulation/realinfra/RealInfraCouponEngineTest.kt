@@ -43,12 +43,19 @@ class RealInfraCouponEngineTest(
         provisionedSessions.clear()
     }
 
-    private fun session(sessionId: UUID, traits: DesignTraits) = SimulationSessionState(
+    private fun session(
+        sessionId: UUID,
+        traits: DesignTraits,
+        loadRpsOverride: Int? = null,
+        loadDurationOverride: Int? = null,
+    ) = SimulationSessionState(
         sessionId = sessionId,
         domain = RuleBasedSimulationEngine.DOMAIN_COUPON,
         incidentActive = true,
         traits = traits,
         engineMode = EngineMode.REAL_INFRA,
+        loadRpsOverride = loadRpsOverride,
+        loadDurationOverride = loadDurationOverride,
     )
 
     @Test
@@ -80,5 +87,27 @@ class RealInfraCouponEngineTest(
         val limited = engine.computeState(session(limitedSessionId, DesignTraits(dbPoolSize = RealInfraCouponEngine.INITIAL_DB_POOL_SIZE, rateLimitEnabled = true)))
 
         assertThat(limited.p95LatencyMs).isLessThanOrEqualTo(unlimited.p95LatencyMs)
+    }
+
+    /**
+     * Phase 3-B — a user-chosen loadRpsOverride well below the pilot's natural
+     * pool+latency-bound throughput ceiling (~13 req/s per the calibration
+     * comment on sysdrill.simulation.realinfra.incident-rps) should actually
+     * bind the achieved traffic, unlike the default incident-rps(30) session
+     * which is capacity-bound regardless of its higher target. A relative
+     * comparison, same reasoning as the rate-limit test above — real k6
+     * wall-clock timing rules out an exact-value assertion.
+     */
+    @Test
+    fun `a low custom target RPS measurably reduces achieved traffic versus the default incident load`() {
+        val defaultSessionId = UUID.randomUUID().also { provisionedSessions += it }
+        val overriddenSessionId = UUID.randomUUID().also { provisionedSessions += it }
+
+        val default = engine.computeState(session(defaultSessionId, DesignTraits(dbPoolSize = RealInfraCouponEngine.INITIAL_DB_POOL_SIZE)))
+        val overridden = engine.computeState(
+            session(overriddenSessionId, DesignTraits(dbPoolSize = RealInfraCouponEngine.INITIAL_DB_POOL_SIZE), loadRpsOverride = 3)
+        )
+
+        assertThat(overridden.trafficRps).isLessThan(default.trafficRps)
     }
 }

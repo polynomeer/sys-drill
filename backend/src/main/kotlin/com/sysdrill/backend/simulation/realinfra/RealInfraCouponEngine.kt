@@ -40,14 +40,28 @@ class RealInfraCouponEngine(
     @Value("\${sysdrill.simulation.realinfra.baseline-rps}") private val baselineRps: Int,
     @Value("\${sysdrill.simulation.realinfra.incident-rps}") private val incidentRps: Int,
     @Value("\${sysdrill.simulation.realinfra.probe-duration-seconds}") private val probeDurationSeconds: Int,
+    // Phase 3-B — bounds for the Traffic Lab's user-chosen loadRpsOverride/
+    // loadDurationOverride (docs/DRILLS_SIMULATION_VISION.md §6). probeAndCache
+    // runs the k6 container synchronously inside the HTTP request thread, so an
+    // unbounded duration would make the request itself hang; an unbounded RPS
+    // would let one session monopolize the shared Postgres container every other
+    // real-infra session also uses.
+    @Value("\${sysdrill.simulation.realinfra.max-configurable-rps}") private val maxConfigurableRps: Int,
+    @Value("\${sysdrill.simulation.realinfra.max-configurable-duration-seconds}") private val maxConfigurableDurationSeconds: Int,
 ) : SimulationEngine {
 
     /** Per-session in-process lock — prevents a racing double `computeState` cache-miss from double-provisioning or double-probing (single-JVM-instance assumption, as elsewhere in this pilot). */
     private val sessionLocks = ConcurrentHashMap<UUID, Any>()
 
     override fun computeState(session: SimulationSessionState): SystemState =
-        measurementStore.find(session.sessionId)
-            ?: probeAndCache(session.sessionId, session.traits, session.incidentActive, provisionSchema = true)
+        measurementStore.find(session.sessionId) ?: probeAndCache(
+            session.sessionId,
+            session.traits,
+            session.incidentActive,
+            provisionSchema = true,
+            loadRpsOverride = session.loadRpsOverride,
+            loadDurationOverride = session.loadDurationOverride,
+        )
 
     override fun applyAction(current: SimulationSessionState, action: SimulationActionType): SimulationSessionState {
         val updatedTraits = mutate(current.traits, action)
@@ -71,7 +85,14 @@ class RealInfraCouponEngine(
         // The schema/table already exists from startIncident; reuse it as-is —
         // carrying forward whatever inventory state real claims already left,
         // which is more honest than silently resetting to 1000 every click.
-        probeAndCache(current.sessionId, updatedTraits, current.incidentActive, provisionSchema = false)
+        probeAndCache(
+            current.sessionId,
+            updatedTraits,
+            current.incidentActive,
+            provisionSchema = false,
+            loadRpsOverride = current.loadRpsOverride,
+            loadDurationOverride = current.loadDurationOverride,
+        )
         return updated
     }
 
@@ -89,9 +110,36 @@ class RealInfraCouponEngine(
         else -> error("$action does not apply to the real-infra coupon incident")
     }
 
-    private fun probeAndCache(sessionId: UUID, traits: DesignTraits, incidentActive: Boolean, provisionSchema: Boolean): SystemState {
+    private fun probeAndCache(
+        sessionId: UUID,
+        traits: DesignTraits,
+        incidentActive: Boolean,
+        provisionSchema: Boolean,
+        loadRpsOverride: Int? = null,
+        loadDurationOverride: Int? = null,
+    ): SystemState {
         val lock = sessionLocks.computeIfAbsent(sessionId) { Any() }
         synchronized(lock) {
+            // Phase 3-B live verification found a real race, pre-existing and
+            // unrelated to the Traffic Lab override itself: WargameLive.tsx polls
+            // GET /state every 3s, and a poll landing while an earlier
+            // computeState-triggered probe (from startIncident, or a previous
+            // poll) is still mid-k6-run reaches here too — both see
+            // measurementStore.find() return null before the first finishes
+            // writing its result, since the outer null-check in computeState()
+            // runs before this lock is even acquired. Without this re-check, the
+            // second caller would re-run schemaProvisioner.provision(sessionId)
+            // on a schema the first caller already created moments earlier
+            // (observed: DuplicateKeyException on CREATE SCHEMA), corrupting
+            // that second probe's own k6 run (observed: ~100% error rate).
+            // Only for provisionSchema=true (exclusively computeState's cache-miss
+            // path) — applyAction's provisionSchema=false call must always
+            // re-probe, since it exists specifically to reflect the action's
+            // trait change; reusing a cached pre-action measurement there would
+            // silently show the wrong (stale) numbers after every action.
+            if (provisionSchema) {
+                measurementStore.find(sessionId)?.let { return it }
+            }
             // Refreshes this session's "last active" timestamp so
             // RealInfraSessionSweepWorker (PLAN.md step 22) never sweeps a
             // session that's still genuinely in use — only ones abandoned longer
@@ -108,7 +156,12 @@ class RealInfraCouponEngine(
             stats.resetLimiter(sessionId, rateLimitCeiling, RATE_LIMIT_WINDOW_MILLIS)
             stats.resetCacheCounters(sessionId)
 
-            val targetRps = if (incidentActive) incidentRps else baselineRps
+            // Phase 3-B — the Traffic Lab's override, clamped so it can't make one
+            // session's probe monopolize the shared Postgres container (rps) or make
+            // the HTTP request thread block indefinitely (duration — probeAndCache
+            // runs the k6 container synchronously, inside this synchronized block).
+            val targetRps = (loadRpsOverride ?: if (incidentActive) incidentRps else baselineRps).coerceIn(1, maxConfigurableRps)
+            val durationSeconds = (loadDurationOverride ?: probeDurationSeconds).coerceIn(1, maxConfigurableDurationSeconds)
 
             // Sample real peak concurrent connections while k6 runs — connections are
             // short-lived per-request, so reading this only after the run would miss
@@ -124,7 +177,7 @@ class RealInfraCouponEngine(
             sampler.isDaemon = true
             sampler.start()
             val summary = try {
-                loadRunner.run(sessionId, targetRps, probeDurationSeconds)
+                loadRunner.run(sessionId, targetRps, durationSeconds)
             } finally {
                 stopSampling.set(true)
                 sampler.join(1000)
