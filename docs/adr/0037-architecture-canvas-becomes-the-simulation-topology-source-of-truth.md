@@ -1,0 +1,15 @@
+---
+status: accepted
+---
+
+# The Architecture Canvas becomes the simulation's topology source of truth, superseding 0036's "not a second source of truth"
+
+[0036](0036-diagram-canvas-is-an-input-method-that-still-serializes-to-mermaid-text.md) deliberately kept the canvas a drawing *input method* with seven label-only node kinds, no per-node config, and one-directional sync into the same Mermaid text `Session.submit`'s `rawText` already carried — explicitly to avoid becoming "a second source of truth." [DRILLS_SIMULATION_VISION.md](../DRILLS_SIMULATION_VISION.md) (synthesizing two new archive documents, `docs/archive/sysdrill_advanced_plan.md` and `SysDrill_Drills_Advanced_Plan.docx`) proposed the opposite: canvas nodes carry real operational config (instances/CPU/thread pool/timeout for a service; pool/index/replica for a database; TTL/eviction for a cache) that the simulation reads to compute capacity, latency, and cost. The user chose this direction over keeping the canvas label-only or deferring the choice.
+
+This is exactly the reversal 0036 named as its alternative and declined. We take it now because the label-only canvas cannot express the vision's core mechanic — a design decision (e.g. "add a read replica") changing simulated system behavior — no matter how the UI around it is polished; the gap is in what the canvas *is*, not how it's drawn.
+
+**What changes**: node config becomes structured input, persisted in a new `SystemTopology` entity (per session, per node) rather than only a localStorage draft. `Session.submit`'s free-text `rawText` stops being the only thing evaluation reads for architecture — the topology becomes a second, additional input alongside it. This does not touch [0011](0011-derived-values-are-never-persisted.md)'s rule: topology is an *input* like `DesignTraits`, still never a stored derived value — but it is a much more granular input than the flat per-domain traits `RuleBasedSimulationEngine` reads today.
+
+**What this ADR does not decide**: whether `RuleBasedSimulationEngine`'s seven domain-specific pure functions ([0010](0010-simulation-engine-per-domain-functions.md), which explicitly deferred a "generic, data-driven engine" pending a formula language) start reading per-node topology directly, get a new topology-aware engine variant, or keep computing from domain-flat traits with topology used only for display/cost estimates in an early slice. That is an implementation-sequencing question for the work plan, not part of the source-of-truth decision this ADR records.
+
+**Consequence of reversing 0036's containment strategy**: the three costs 0036 named as reasons to keep the canvas label-only (custom node types, layout persistence, a serialization decision) are no longer contained to "a small drawing component" — node types now need a config schema per kind, layout+config need real backend persistence (not a per-tab draft), and the canvas's Mermaid-text serialization stops being the only representation of what the user built.

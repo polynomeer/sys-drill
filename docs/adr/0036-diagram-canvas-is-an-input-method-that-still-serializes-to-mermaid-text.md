@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted — superseded by [0037](0037-architecture-canvas-becomes-the-simulation-topology-source-of-truth.md) (canvas becomes the simulation's topology source of truth)
 ---
 
 # The diagram canvas is a drawing input method that serializes to the same Mermaid text, not a second source of truth
