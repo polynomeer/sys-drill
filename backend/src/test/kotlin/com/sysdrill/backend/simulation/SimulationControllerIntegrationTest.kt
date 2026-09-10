@@ -88,7 +88,9 @@ class SimulationControllerIntegrationTest(
     /**
      * ADR-0037 next slice — the engine reads the session's saved SystemTopology
      * directly instead of trusting client-sent traits. Two "db" kind nodes
-     * (readReplicaCount 40 + 59 = 99) push product-browsing's dbReadCapacity
+     * (readReplicaCount 40 + 59 = 99), wired together by an edge (edge
+     * recognition — an orphaned node without any edge doesn't count, see the
+     * dedicated orphan test below), push product-browsing's dbReadCapacity
      * from `RuleBasedSimulationEngine.kt`'s BASE_DB_READ_CAPACITY_RPS(2000) *
      * (1 + 99) = 200000, low enough utilization (dbReadRps 80000 / 200000 =
      * 0.4) to land in the stable band — proving both that the sum aggregation
@@ -106,7 +108,7 @@ class SimulationControllerIntegrationTest(
             put("/sessions/$sessionId/topology").contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearerHeader(userId))
                 .content(
-                    """{"graph":"{\"nodes\":[{\"id\":\"n1\",\"data\":{\"kind\":\"db\",\"traitValues\":{\"readReplicaCount\":40}}},{\"id\":\"n2\",\"data\":{\"kind\":\"db\",\"traitValues\":{\"readReplicaCount\":59}}}],\"edges\":[]}"}"""
+                    """{"graph":"{\"nodes\":[{\"id\":\"n1\",\"data\":{\"kind\":\"db\",\"traitValues\":{\"readReplicaCount\":40}}},{\"id\":\"n2\",\"data\":{\"kind\":\"db\",\"traitValues\":{\"readReplicaCount\":59}}}],\"edges\":[{\"source\":\"n1\",\"target\":\"n2\"}]}"}"""
                 )
         ).andExpect(status().isOk)
 
@@ -125,6 +127,32 @@ class SimulationControllerIntegrationTest(
         // Not an exact jsonPath match: 0.9 - 0.7 (cacheHitRatio's HOT_KEY_PENALTY_SEVERE subtraction, inside
         // RuleBasedSimulationEngine.kt) isn't exactly 0.2 in IEEE754 double arithmetic, so dbReadLoad lands on
         // 0.3999999999999999, not 0.4 — same floating-point tolerance SimulationEngineTest already uses.
+        assertThat(JsonPath.read<Double>(body, "$.dbReadLoad")).isCloseTo(0.4, org.assertj.core.data.Offset.offset(0.001))
+    }
+
+    /**
+     * Edge recognition (dependency-graph slice, docs/DRILLS_SIMULATION_VISION.md
+     * §5.2) — a node without any edge attaching it to something else on the
+     * canvas is decorative/orphaned and must not count toward the aggregation.
+     * n3's readReplicaCount(999) is deliberately huge — if it were mistakenly
+     * counted, dbReadCapacity would explode and dbReadLoad would land nowhere
+     * near 0.4, making an accidental regression impossible to miss.
+     */
+    @Test
+    fun `starting the incident ignores an orphaned node's trait value`() {
+        val sessionId = mockMvc.startSession(userId, scenarioId = PRODUCT_BROWSING_SCENARIO_ID)
+        mockMvc.perform(
+            put("/sessions/$sessionId/topology").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
+                .content(
+                    """{"graph":"{\"nodes\":[{\"id\":\"n1\",\"data\":{\"kind\":\"db\",\"traitValues\":{\"readReplicaCount\":40}}},{\"id\":\"n2\",\"data\":{\"kind\":\"db\",\"traitValues\":{\"readReplicaCount\":59}}},{\"id\":\"n3\",\"data\":{\"kind\":\"db\",\"traitValues\":{\"readReplicaCount\":999}}}],\"edges\":[{\"source\":\"n1\",\"target\":\"n2\"}]}"}"""
+                )
+        ).andExpect(status().isOk)
+
+        val body = mockMvc.perform(
+            post("/sessions/$sessionId/simulation/incident").header("Authorization", bearerHeader(userId))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+
         assertThat(JsonPath.read<Double>(body, "$.dbReadLoad")).isCloseTo(0.4, org.assertj.core.data.Offset.offset(0.001))
     }
 

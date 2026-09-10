@@ -52,15 +52,25 @@ class SystemTopologyService(
     fun deriveDesignTraits(sessionId: UUID, domain: String): DesignTraits? {
         val saved = topologyRepository.findBySessionId(sessionId) ?: return null
         val graph = objectMapper.readValue(saved.graph, TopologyGraph::class.java)
+        // Edge recognition (dependency-graph slice) — a node only participates in
+        // the aggregation below if it has at least one edge attaching it to
+        // something else on the canvas. This drops decorative/orphaned nodes (drawn
+        // but never wired up) without needing a notion of "entry point" or edge
+        // direction, which don't cleanly generalize across this app's 7
+        // domain-specific node-kind conventions (unlike a single canonical
+        // client -> ... -> db chain, this canvas has no fixed shape).
+        val connectedIds = graph.edges.asSequence().flatMap { sequenceOf(it.source, it.target) }.filterNotNull().toSet()
+        val connectedNodes = graph.nodes.filter { it.id != null && it.id in connectedIds }
+
         var traits = DesignTraits()
         val kindFields = TOPOLOGY_FIELDS[domain] ?: return traits
         for ((kind, fields) in kindFields) {
             for (field in fields) {
-                val values = graph.nodes.asSequence()
+                val values = connectedNodes.asSequence()
                     .filter { it.data.kind == kind }
                     .mapNotNull { it.data.traitValues[field.key] }
                     .toList()
-                if (values.isEmpty()) continue // no node of this kind on the canvas — leave the default
+                if (values.isEmpty()) continue // no connected node of this kind on the canvas — leave the default
                 val aggregated = if (field.aggregation == Aggregation.SUM) values.sum() else values.last()
                 traits = applyField(traits, field.key, aggregated)
             }
@@ -126,10 +136,13 @@ private val TOPOLOGY_FIELDS: Map<String, Map<String, List<TopologyField>>> = map
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-private data class TopologyGraph(val nodes: List<TopologyNode> = emptyList())
+private data class TopologyGraph(val nodes: List<TopologyNode> = emptyList(), val edges: List<TopologyEdge> = emptyList())
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-private data class TopologyNode(val data: TopologyNodeData = TopologyNodeData())
+private data class TopologyNode(val id: String? = null, val data: TopologyNodeData = TopologyNodeData())
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 private data class TopologyNodeData(val kind: String? = null, val traitValues: Map<String, Double> = emptyMap())
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class TopologyEdge(val source: String? = null, val target: String? = null)
