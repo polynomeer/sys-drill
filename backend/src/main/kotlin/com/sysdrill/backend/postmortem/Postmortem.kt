@@ -38,6 +38,22 @@ class Postmortem(
     @Column(name = "prevention_items", nullable = false, columnDefinition = "jsonb")
     var preventionItems: String = "[]",
 
+    // AI 4역할 Slice 2 (Postmortem Coach) — LLM-generated coaching on the
+    // narrative above, regenerated on every save (unlike mttd/mttr, this is
+    // an LLM output, not a deterministic recomputation, so it's persisted
+    // like Evaluation's LLM output rather than derived at read time).
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "coach_strengths", nullable = false, columnDefinition = "jsonb")
+    var coachStrengths: String = "[]",
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "coach_gaps", nullable = false, columnDefinition = "jsonb")
+    var coachGaps: String = "[]",
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "coach_followup_questions", nullable = false, columnDefinition = "jsonb")
+    var coachFollowupQuestions: String = "[]",
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant? = null,

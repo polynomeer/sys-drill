@@ -29,6 +29,10 @@ data class PostmortemResponse(
     val mitigationActions: List<String>,
     val rootFixActions: List<String>,
     val preventionItems: List<String>,
+    /** AI 4역할 Slice 2 (Postmortem Coach) — LLM feedback on the narrative above, regenerated on every save; empty until [saved]. */
+    val coachStrengths: List<String>,
+    val coachGaps: List<String>,
+    val coachFollowupQuestions: List<String>,
     val updatedAt: Instant?,
 )
 

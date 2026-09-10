@@ -3,6 +3,8 @@ package com.sysdrill.backend.postmortem
 import com.sysdrill.backend.common.readStringList
 import com.sysdrill.backend.common.web.ConflictException
 import com.sysdrill.backend.common.web.NotFoundException
+import com.sysdrill.backend.evaluation.PromptTemplateRepository
+import com.sysdrill.backend.evaluation.llm.LlmClient
 import com.sysdrill.backend.identity.TrendDirection
 import com.sysdrill.backend.identity.trendDirection
 import com.sysdrill.backend.session.Session
@@ -24,6 +26,9 @@ class PostmortemService(
     private val sessionService: SessionService,
     private val simulationService: SimulationService,
     private val postmortemRepository: PostmortemRepository,
+    private val promptTemplateRepository: PromptTemplateRepository,
+    private val llmClient: LlmClient,
+    private val coachResultParser: PostmortemCoachResultParser,
     private val objectMapper: ObjectMapper,
 ) {
 
@@ -71,6 +76,9 @@ class PostmortemService(
             mitigationActions = objectMapper.readStringList(saved?.mitigationActions),
             rootFixActions = objectMapper.readStringList(saved?.rootFixActions),
             preventionItems = objectMapper.readStringList(saved?.preventionItems),
+            coachStrengths = objectMapper.readStringList(saved?.coachStrengths),
+            coachGaps = objectMapper.readStringList(saved?.coachGaps),
+            coachFollowupQuestions = objectMapper.readStringList(saved?.coachFollowupQuestions),
             updatedAt = saved?.updatedAt,
         )
     }
@@ -132,8 +140,56 @@ class PostmortemService(
         entity.mitigationActions = objectMapper.writeValueAsString(request.mitigationActions)
         entity.rootFixActions = objectMapper.writeValueAsString(request.rootFixActions)
         entity.preventionItems = objectMapper.writeValueAsString(request.preventionItems)
+
+        val coaching = generateCoaching(request)
+        entity.coachStrengths = objectMapper.writeValueAsString(coaching.strengths)
+        entity.coachGaps = objectMapper.writeValueAsString(coaching.gaps)
+        entity.coachFollowupQuestions = objectMapper.writeValueAsString(coaching.followupQuestions)
+
         postmortemRepository.save(entity)
 
         return get(sessionId)
+    }
+
+    /**
+     * AI 4역할 Slice 2 (Postmortem Coach, docs/DRILLS_SIMULATION_VISION.md §6)
+     * — reuses the same [LlmClient]/[PromptTemplateRepository] plumbing
+     * [com.sysdrill.backend.evaluation.HybridRuleAiEvaluator] uses (its own
+     * purpose-keyed [com.sysdrill.backend.evaluation.PromptTemplate] row per
+     * role, same pattern Slice 1's Interviewer persona established), but with
+     * its own small schema ([PostmortemCoachResult]) — a scored rubric
+     * doesn't apply to a postmortem narrative, so this deliberately doesn't
+     * reuse [com.sysdrill.backend.evaluation.Rubric]. Regenerated
+     * synchronously on every save (not queued like design-evaluation) — a
+     * postmortem save is a rare, deliberate action, not a high-throughput
+     * path, so there's nothing to gain from the async queue/worker machinery
+     * that exists for design evaluation.
+     */
+    private fun generateCoaching(request: SavePostmortemRequest): PostmortemCoachResult {
+        val template = promptTemplateRepository.findFirstByPurposeAndActiveTrue(COACHING_PURPOSE)
+            ?: error("No active prompt template for purpose=$COACHING_PURPOSE")
+        val userPrompt = buildString {
+            appendLine("## 근본 원인")
+            appendLine(request.rootCause)
+            appendLine()
+            appendLine("## 임시 완화 조치")
+            appendLines(request.mitigationActions)
+            appendLine()
+            appendLine("## 근본 해결 조치")
+            appendLines(request.rootFixActions)
+            appendLine()
+            appendLine("## 재발 방지 액션 아이템")
+            appendLines(request.preventionItems)
+        }
+        val completion = llmClient.complete(template.templateBody, userPrompt)
+        return coachResultParser.parse(completion.text)
+    }
+
+    private fun StringBuilder.appendLines(items: List<String>) {
+        if (items.isEmpty()) appendLine("- (작성 안 함)") else items.forEach { appendLine("- $it") }
+    }
+
+    private companion object {
+        const val COACHING_PURPOSE = "postmortem_coaching"
     }
 }

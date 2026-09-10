@@ -213,6 +213,43 @@ export default function PostmortemPage() {
           {saveError && <span className="text-sm text-danger">{saveError}</span>}
         </div>
       </Card>
+
+      {postmortem.saved &&
+        (postmortem.coachStrengths.length > 0 || postmortem.coachGaps.length > 0 || postmortem.coachFollowupQuestions.length > 0) && (
+          <Card as="section" className="flex flex-col gap-4">
+            <h2 className="text-sm font-semibold text-foreground-muted">AI 코치 피드백</h2>
+            {postmortem.coachStrengths.length > 0 && (
+              <div>
+                <p className="mb-1 text-sm font-medium">잘한 점</p>
+                <ul className="list-disc space-y-1 pl-5 text-sm text-foreground-muted">
+                  {postmortem.coachStrengths.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {postmortem.coachGaps.length > 0 && (
+              <div>
+                <p className="mb-1 text-sm font-medium">보완할 점</p>
+                <ul className="list-disc space-y-1 pl-5 text-sm text-foreground-muted">
+                  {postmortem.coachGaps.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {postmortem.coachFollowupQuestions.length > 0 && (
+              <div>
+                <p className="mb-1 text-sm font-medium">추가로 생각해볼 질문</p>
+                <ul className="list-disc space-y-1 pl-5 text-sm text-foreground-muted">
+                  {postmortem.coachFollowupQuestions.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </Card>
+        )}
     </div>
   );
 }

@@ -167,6 +167,36 @@ class PostmortemControllerIntegrationTest(
             .andExpect(jsonPath("$.actionsTimeline.length()").value(1))
     }
 
+    /**
+     * AI 4역할 Slice 2 (Postmortem Coach) — saving a postmortem also generates
+     * LLM coaching feedback and persists it alongside the narrative. No
+     * LLM_ANTHROPIC_API_KEY is configured in this test environment, so
+     * AnthropicLlmClient's offline fallback (a fixed canned JSON, see its
+     * kdoc) serves the request — it isn't shaped for postmortem coaching
+     * specifically (it's the design-evaluation schema), but it does carry a
+     * non-empty `strengths` array, so `coachStrengths` being populated here
+     * is real proof the LLM call → parse → persist path actually executed,
+     * not just that the narrative fields were saved.
+     */
+    @Test
+    fun `saving a postmortem also generates and persists coaching feedback`() {
+        val sessionId = mockMvc.startSession(userId)
+        mockMvc.perform(post("/sessions/$sessionId/simulation/incident").header("Authorization", bearerHeader(userId))).andExpect(status().isOk)
+        completeSession(sessionId)
+
+        mockMvc.perform(
+            put("/sessions/$sessionId/postmortem").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
+                .content("""{"rootCause":"DB 커넥션 풀 고갈로 대기 요청 누적"}""")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.coachStrengths.length()").value(org.hamcrest.Matchers.greaterThan(0)))
+
+        mockMvc.perform(get("/sessions/$sessionId/postmortem").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.coachStrengths.length()").value(org.hamcrest.Matchers.greaterThan(0)))
+    }
+
     @Test
     fun `postmortem summary aggregates MTTD-MTTR across the user's own sessions, grouped by domain`() {
         val couponSessionId = mockMvc.startSession(userId)

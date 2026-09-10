@@ -249,6 +249,9 @@ export interface Postmortem {
   mitigationActions: string[];
   rootFixActions: string[];
   preventionItems: string[];
+  coachStrengths: string[];
+  coachGaps: string[];
+  coachFollowupQuestions: string[];
   updatedAt: string | null;
 }
 
