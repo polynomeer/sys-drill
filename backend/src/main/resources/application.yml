@@ -112,6 +112,10 @@ sysdrill:
       baseline-rps: ${REALINFRA_BASELINE_RPS:10}
       incident-rps: ${REALINFRA_INCIDENT_RPS:30}
       max-db-pool-size: ${REALINFRA_MAX_DB_POOL_SIZE:20}
+      # Phase 3-B (docs/DRILLS_SIMULATION_VISION.md §6) — Traffic Lab bounds for
+      # a user-chosen target RPS / load duration, clamped in RealInfraCouponEngine.
+      max-configurable-rps: ${REALINFRA_MAX_CONFIGURABLE_RPS:100}
+      max-configurable-duration-seconds: ${REALINFRA_MAX_CONFIGURABLE_DURATION_SECONDS:10}
       # local.server.port (not server.port) — Spring Boot always publishes the
       # actual bound port under this key, whether fixed or random, so this
       # works unchanged for RANDOM_PORT tests and isn't hardcoded to 8081.

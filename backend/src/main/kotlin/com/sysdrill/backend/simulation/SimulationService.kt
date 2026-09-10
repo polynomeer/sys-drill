@@ -74,7 +74,13 @@ class SimulationService(
      * by its existence.
      */
     @Transactional
-    fun startIncident(sessionId: UUID, realInfra: Boolean = false, initialTraits: DesignTraits = DesignTraits()): SystemState {
+    fun startIncident(
+        sessionId: UUID,
+        realInfra: Boolean = false,
+        initialTraits: DesignTraits = DesignTraits(),
+        loadRpsOverride: Int? = null,
+        loadDurationOverride: Int? = null,
+    ): SystemState {
         // Idempotent: the frontend's real-infra opt-in gate is client-side state
         // that re-shows on every page load/reload (WargameLive.tsx), so a second
         // "인시던트 시작" click for an already-active incident is a real, reachable
@@ -111,6 +117,10 @@ class SimulationService(
             incidentActive = true,
             traits = traits,
             engineMode = engineMode,
+            // Phase 3-B — only meaningful for real-infra coupon (RealInfraCouponEngine
+            // reads and clamps these); every other domain/mode ignores them.
+            loadRpsOverride = loadRpsOverride,
+            loadDurationOverride = loadDurationOverride,
         )
         stateStore.save(sessionId, state)
         val computed = engineFor(state).computeState(state)

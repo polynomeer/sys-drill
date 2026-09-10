@@ -20,6 +20,16 @@ data class SimulationSessionState(
     val incidentActive: Boolean,
     val traits: DesignTraits,
     val engineMode: EngineMode = EngineMode.RULE_BASED,
+    /**
+     * Phase 3-B (docs/DRILLS_SIMULATION_VISION.md §6) — the Traffic Lab's
+     * user-chosen target RPS / load duration for a real-infra coupon
+     * incident, set once by [SimulationService.startIncident] and carried
+     * forward through every `applyAction` `.copy()` after that. Ignored by
+     * every other domain/engine, same as [DesignTraits]' domain-irrelevant
+     * fields already are.
+     */
+    val loadRpsOverride: Int? = null,
+    val loadDurationOverride: Int? = null,
 )
 
 /** PLAN.md step 21 — which [SimulationEngine] implementation serves this session. */
@@ -28,7 +38,7 @@ enum class EngineMode {
     REAL_INFRA,
 }
 
-/** "domain|incidentActive|rateLimitEnabled|cacheTtlSeconds|dbPoolSize|consumerCount|circuitBreakerEnabled|retryBackoffMultiplier|cachePolicySplit|singleFlightEnabled|readReplicaCount|dispatcherWorkers|idempotentPgRetryEnabled|paymentPoolIsolated|fineGrainedLockingEnabled|holdTimeoutSeconds|atomicInventoryCheckEnabled|checkpointingEnabled|chunkSize|idempotentReconciliationEnabled|podReplicas|resourceLimitsTuned|rolloutSafeguardEnabled|engineMode" — see EvaluationQueue for the same low-tech-on-purpose approach. sessionId is deliberately excluded (see [SimulationSessionState] doc) and supplied to [decode] separately. */
+/** "domain|incidentActive|rateLimitEnabled|cacheTtlSeconds|dbPoolSize|consumerCount|circuitBreakerEnabled|retryBackoffMultiplier|cachePolicySplit|singleFlightEnabled|readReplicaCount|dispatcherWorkers|idempotentPgRetryEnabled|paymentPoolIsolated|fineGrainedLockingEnabled|holdTimeoutSeconds|atomicInventoryCheckEnabled|checkpointingEnabled|chunkSize|idempotentReconciliationEnabled|podReplicas|resourceLimitsTuned|rolloutSafeguardEnabled|engineMode|loadRpsOverride|loadDurationOverride" — see EvaluationQueue for the same low-tech-on-purpose approach. sessionId is deliberately excluded (see [SimulationSessionState] doc) and supplied to [decode] separately. The last two fields are nullable Ints encoded as an empty string for null (same sentinel style as everywhere else in this codec that isn't a fixed-format type). */
 object SimulationSessionStateCodec {
 
     fun encode(state: SimulationSessionState): String =
@@ -57,6 +67,8 @@ object SimulationSessionStateCodec {
             state.traits.resourceLimitsTuned,
             state.traits.rolloutSafeguardEnabled,
             state.engineMode.name,
+            state.loadRpsOverride ?: "",
+            state.loadDurationOverride ?: "",
         ).joinToString("|")
 
     fun decode(sessionId: UUID, raw: String): SimulationSessionState {
@@ -89,6 +101,8 @@ object SimulationSessionStateCodec {
                 rolloutSafeguardEnabled = parts[22].toBoolean(),
             ),
             engineMode = EngineMode.valueOf(parts[23]),
+            loadRpsOverride = parts.getOrNull(24)?.takeIf { it.isNotEmpty() }?.toInt(),
+            loadDurationOverride = parts.getOrNull(25)?.takeIf { it.isNotEmpty() }?.toInt(),
         )
     }
 }

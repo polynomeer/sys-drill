@@ -451,15 +451,24 @@ export function advanceSession(sessionId: string): Promise<SessionResponse> {
 }
 
 /** ADR-0037 — `traits` carries the Architecture Canvas's node config (e.g. a DB node's pool size) as this session's starting DesignTraits; the backend fills in defaults for any field omitted. */
+/** Phase 3-B (docs/DRILLS_SIMULATION_VISION.md §6) — the Traffic Lab's target RPS / load duration override for a real-infra coupon incident. Ignored for every other domain/mode. */
+export interface LoadProfileOverride {
+  targetRps?: number;
+  loadDurationSeconds?: number;
+}
+
 export function startIncident(
   sessionId: string,
   realInfra = false,
   traits?: Record<string, number>,
+  loadProfile?: LoadProfileOverride,
 ): Promise<SystemState> {
   const query = realInfra ? "?realInfra=true" : "";
+  const hasTraits = traits && Object.keys(traits).length > 0;
+  const hasLoadProfile = loadProfile && (loadProfile.targetRps !== undefined || loadProfile.loadDurationSeconds !== undefined);
   return apiFetch<SystemState>(`/sessions/${sessionId}/simulation/incident${query}`, {
     method: "POST",
-    body: traits && Object.keys(traits).length > 0 ? JSON.stringify({ traits }) : undefined,
+    body: hasTraits || hasLoadProfile ? JSON.stringify({ traits, ...loadProfile }) : undefined,
   });
 }
 

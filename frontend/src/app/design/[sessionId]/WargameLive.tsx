@@ -244,6 +244,10 @@ export function WargameLive({
   // immediately, unchanged. A spectator never sees this gate — only the owner starts the incident.
   const [awaitingStartChoice, setAwaitingStartChoice] = useState(isOwner && REAL_INFRA_DOMAINS.has(domain));
   const [realInfraChoice, setRealInfraChoice] = useState(false);
+  // Phase 3-B — Traffic Lab: only coupon's real-infra pilot honors these
+  // (NotificationLoadRunner takes no rate/duration parameter at all).
+  const [targetRps, setTargetRps] = useState<number | undefined>(undefined);
+  const [loadDurationSeconds, setLoadDurationSeconds] = useState<number | undefined>(undefined);
 
   const pushLog = useCallback(
     (message: string, forState: SystemState) => {
@@ -319,7 +323,12 @@ export function WargameLive({
     started.current = true;
     setAwaitingStartChoice(false);
     try {
-      const initial = await startIncident(sessionId, realInfraChoice, initialTraits);
+      const initial = await startIncident(
+        sessionId,
+        realInfraChoice,
+        initialTraits,
+        realInfraChoice ? { targetRps, loadDurationSeconds } : undefined,
+      );
       setState(initial);
       lastLevelRef.current = initial.level;
       pushLog(
@@ -365,6 +374,28 @@ export function WargameLive({
             체크하지 않으면 기존과 동일한 규칙 기반 시뮬레이션입니다.
           </span>
         </label>
+        {realInfraChoice && domain === "coupon" && (
+          <div className="flex flex-wrap gap-3">
+            <Input
+              label="목표 RPS"
+              type="number"
+              min={1}
+              placeholder="비워두면 기본값"
+              value={targetRps ?? ""}
+              onChange={(e) => setTargetRps(e.target.value === "" ? undefined : Number(e.target.value))}
+              className="w-32"
+            />
+            <Input
+              label="부하 지속시간(초)"
+              type="number"
+              min={1}
+              placeholder="비워두면 기본값"
+              value={loadDurationSeconds ?? ""}
+              onChange={(e) => setLoadDurationSeconds(e.target.value === "" ? undefined : Number(e.target.value))}
+              className="w-32"
+            />
+          </div>
+        )}
         <Button onClick={handleManualStart} variant="secondary" className="self-start">
           인시던트 시작
         </Button>

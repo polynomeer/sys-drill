@@ -28,7 +28,9 @@ class SimulationController(
     ): SystemStateResponse {
         sessionAccessGuard.requireOwner(sessionId, userId)
         val traits = request?.traits ?: DesignTraits()
-        return SystemStateResponse.from(simulationService.startIncident(sessionId, realInfra, traits))
+        return SystemStateResponse.from(
+            simulationService.startIncident(sessionId, realInfra, traits, request?.targetRps, request?.loadDurationSeconds)
+        )
     }
 
     /** PLAN.md step 36 — a Game Day spectator may also view live state. */

@@ -52,7 +52,17 @@ data class ApplyActionRequest(@field:NotNull val actionType: SimulationActionTyp
  * Kotlin default, so the canvas only needs to send the handful of fields it
  * actually configured.
  */
-data class StartIncidentRequest(val traits: DesignTraits = DesignTraits())
+/**
+ * Phase 3-B (docs/DRILLS_SIMULATION_VISION.md §6) — [targetRps]/[loadDurationSeconds]
+ * let the Traffic Lab gate override a real-infra coupon incident's k6 load, in place
+ * of the fixed `baseline-rps`/`incident-rps`/`probe-duration-seconds` config values.
+ * Ignored for every other domain/mode, same as [traits] already is outside real-infra.
+ */
+data class StartIncidentRequest(
+    val traits: DesignTraits = DesignTraits(),
+    val targetRps: Int? = null,
+    val loadDurationSeconds: Int? = null,
+)
 
 data class TimelineStepResponse(
     val step: Int,
