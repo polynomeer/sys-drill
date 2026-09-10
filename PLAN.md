@@ -1075,6 +1075,22 @@ Skill Graph 슬라이스 다음으로 AI 4역할로 돌아와 두 번째 역할 
 
 다음 후보는 §6 우선순위 ③(Scenario DSL) 또는 AI 4역할의 나머지 2개(Mentor/Director) 중 선택.
 
+### Slice 3 — Mentor ✅ 완료 (2026-09-10)
+
+AI 4역할 중 세 번째. 조사(Interviewer/Postmortem Coach 슬라이스 때 이미 확인) 결과 Mentor는 "설계 작성 중(제출 전) 실시간 힌트"에 해당하는데, 이런 트리거 시점 자체가 전혀 없었다. **온디맨드 힌트 요청**으로 가장 작게 구현 — 자동/디바운스 트리거가 아니라 "힌트 받기" 버튼 클릭 트리거라 별도 rate-limit 없이도 호출 빈도가 자연히 제한된다. 4역할 중 가장 작은 슬라이스 — **영속화가 전혀 없다**(힌트는 매번 새로 생성되는 일회성 응답이라 저장할 이유가 없음, 새 엔터티/컬럼 없이 새 `PromptTemplate` purpose 하나 + 새 엔드포인트 하나로 끝남).
+
+- [x] `V41__seed_mentor_hint_prompt.sql` — `purpose='mentor_hint'` 신규 프롬프트 시드만(스키마 변경 없음). "정답을 주지 말고 아직 비어있거나 얕은 부분에 집중해 스스로 생각하게 유도" 지시, 스키마는 `{"hints": [...]}` 하나뿐
+- [x] 새 `mentor` 패키지(`MentorHintResult`/`MentorHintResultParser`/`MentorDtos`/`MentorService`/`MentorController`) — `PostmortemCoachResultParser`와 완전히 같은 파싱 패턴. `MentorService`는 세션 조회 → `SessionService.getScenarioDomain(session)`(이미 있는 공용 메서드 재사용 — `HybridRuleAiEvaluator`가 이 로직을 private으로 중복 구현한 것과 달리 새로 안 만듦) → `RuleEvaluator.evaluate(rawText, domain)`로 아직 안 다뤄진 개념 목록 → LLM 호출·파싱. `Submission` 엔터티를 만들지 않는 순수 read 성격의 온디맨드 호출. `POST /sessions/{sessionId}/mentor-hint`, `SessionAccessGuard.requireOwner`
+- [x] 프론트: `api.ts`에 `getMentorHint(sessionId, rawText)` 추가. `design/[sessionId]/page.tsx`의 답안 textarea 바로 아래에 "힌트 받기" 버튼 + 결과 카드 추가 — 설계 단계와 인시던트 회고 작성 단계 양쪽에서 같은 textarea/버튼을 그대로 재사용(RuleEvaluator 자체가 이미 "모든 phase의 제출에 적용" 성격이라 phase 무관하게 동작)
+
+**완료 기준 충족**: `./gradlew compileKotlin`/`compileTestKotlin` 클린. 신규 `MentorControllerIntegrationTest.kt` 3개(빈 초안/부분 초안 힌트 요청 성공, 소유자 아닌 사용자 404) 전부 통과. `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.evaluation.*" --tests "com.sysdrill.backend.mentor.*"` 전체(회귀 포함) 통과. 프론트 `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 클린. **테스트에서 주의할 점**: 오프라인 fake LLM의 고정 JSON에는 `hints` 키가 없어(설계 평가용 스키마) 오프라인 모드에서는 항상 `hints: []` — Interviewer/Postmortem Coach와 달리 "내용이 채워지는지"가 아니라 "파이프라인이 끝까지 예외 없이 실행되는지"(200 OK, 필드 존재)를 검증 신호로 삼았다.
+
+**실 검증**: 격리 백엔드(8084)에서 curl로 `POST .../mentor-hint` 호출 → `{"hints": []}` 확인(예상대로). 실 브라우저에서 "힌트 받기" 클릭 → "멘토 힌트" 카드가 실제로 렌더되고 빈 배열일 때 "지금은 특별히 짚어줄 부분이 없습니다" 안내 문구가 나오는 것 확인. 네트워크 탭에서 `POST .../mentor-hint` 200 확인, 콘솔 에러 없음(발견된 유일한 콘솔 에러는 서버 재시작 도중 있었던 폰트 리소스 로드 실패로, 이번 기능과 무관함을 네트워크 로그로 확인).
+
+**하지 않은 것**: 힌트 영속화 안 함. 자동/디바운스 트리거 안 만듦(버튼 클릭만). 서버 rate-limit 인프라 새로 안 만듦. `Rubric` 재사용 안 함. 새 ADR 안 씀 — Interviewer/Postmortem Coach와 같은 급의 구현 판단.
+
+이걸로 AI 4역할 중 Interviewer/Postmortem Coach/Mentor 세 개가 완료됐다. 남은 건 Director(인시던트 실시간 내레이션 — 4역할 중 유일하게 새 오케스트레이션이 필요해 가장 큼)뿐이다.
+
 ## Skill Graph (계층화) — 첫 슬라이스 ✅ 완료 (2026-09-10)
 
 `docs/DRILLS_SIMULATION_VISION.md` §6 우선순위 ②. 조사 결과 `SkillProfile`은 지금도 riskKey별 빈도 평탄 카운터(`weaknesses`)를 그대로 저장하고, `SkillProfileController.kt`가 읽기 시점에 `RuleEvaluator.domainByRiskKey`(riskKey → 시나리오 도메인)로 한 단계 그룹핑만 하고 있었다 — "계층화"가 이미 한 겹 있었던 셈. 하지만 도메인을 가로지르는 역량 축은 전혀 없었다: coupon의 `MISSING_CONCURRENCY_CONTROL`과 reservation의 `MISSING_RESERVATION_LOCKING`은 둘 다 "동시성 제어"라는 같은 역량인데도 서로 다른 도메인으로만 묶였다. 게다가 기존 `recommendedDomain`은 **단일 riskKey의 최대 빈도**로 도메인을 골라, 한 도메인에 중간 빈도 riskKey가 여러 개 있어도 다른 도메인의 riskKey 하나가 더 잦으면 밀리는 결함이 있었다 — 검증 질문("상위 역량 계층이 추천 품질을 실제로 개선하는가")이 정확히 겨냥하는 지점.
