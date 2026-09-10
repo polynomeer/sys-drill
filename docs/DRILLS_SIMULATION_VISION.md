@@ -121,18 +121,23 @@
 - **3-C Postmortem/Replay 고도화**: 기존 `getTimeline` 위에 MTTD/MTTR 집계 + Postmortem 작성 UI(이미 Phase 3 항목).
 - 검증 질문(기존과 동일): 면접/실습/팀 훈련으로 확장 가능한가?
 
-### Phase 3 이후 후보 (신규 영역 — Phase 3 신호 확인 후 우선순위 재검토)
+### Phase 3 이후 후보 (신규 영역)
 
-| 항목 | 선행 조건 | 검증 질문 |
-|---|---|---|
-| Scenario Engine → DSL/Authoring | `ScenarioStep` jsonb 확장(이미 기반 있음) | 콘텐츠 제작자가 코드 없이 시나리오를 늘릴 수요가 있는가? |
-| Skill Graph(계층화) | SkillProfile 파이프라인 재사용 | 상위 역량 계층이 추천 품질을 실제로 개선하는가? |
-| AI 4역할 추가(Mentor/Director/Interviewer/Postmortem Coach) | Evaluator 배관 재사용 | 역할별 분리가 단일 Evaluator보다 학습 효과가 있는가? |
-| System Sandbox / What-if | SandboxSystem 신규 모델 | "완료 후 계속 실험"하고 싶다는 수요가 실제로 있는가? |
-| Drill Map(의존성 그래프) | Marketplace 확장 | 평면 목록보다 그래프 탐색이 실제로 더 쓰이는가? |
-| **Architecture Canvas as live model** | **ADR-0036 supersede 여부 결정(§8)** | Canvas 기반 설계가 텍스트 기반보다 학습/평가 품질을 높이는가? |
+~~**Architecture Canvas as live model**~~ — **완료(2026-09-10)**. ADR-0037로 채택, Slice 1~4(매핑 → 영속화 → 엔진 직접 읽음 → 엣지 인식)로 구현 완료. §8 참고.
 
-이 후보들은 Phase 4(Team/B2B), Phase 6(Architecture Linter)와도 자원을 다툰다 — 착수 순서는 Phase 3 검증 이후 별도로 재우선순위화한다.
+**우선순위 결정 완료(2026-09-10)** — `docs/PRD.md`의 핵심 가설(시도-피드백 루프 품질, "반복되는 사고 패턴" 장기 기억, Interview 유료 티어)에 가까운 순서로 정렬. 아래 순번이 착수 순서다.
+
+| 순위 | 항목 | 선행 조건 | 검증 질문 |
+|---|---|---|---|
+| 1 | AI 4역할 추가(Mentor/Director/Interviewer/Postmortem Coach) | Evaluator 배관 재사용, `interviewMode`(면접형 타이머) 이미 존재 | 역할별 분리가 단일 Evaluator보다 학습 효과가 있는가? |
+| 2 | Skill Graph(계층화) | SkillProfile 파이프라인 재사용 | 상위 역량 계층이 추천 품질을 실제로 개선하는가? |
+| 3 | Scenario Engine → DSL/Authoring | `ScenarioStep` jsonb 확장(이미 기반 있음), 조직 커스텀 시나리오 API(ADR-0024)로 일부 선행 구현 존재 | 콘텐츠 제작자가 코드 없이 시나리오를 늘릴 수요가 있는가? |
+| 4 | Drill Map(의존성 그래프) | Marketplace 확장 | 평면 목록보다 그래프 탐색이 실제로 더 쓰이는가? |
+| 5 | System Sandbox / What-if | SandboxSystem 신규 모델(완전 신규, 5개 중 유일하게 새 엔터티가 필요) | "완료 후 계속 실험"하고 싶다는 수요가 실제로 있는가? |
+
+1·2번(AI 4역할/Skill Graph)은 기존 파이프라인을 재사용해 리스크가 낮고 PRD 핵심 가치(피드백 품질·장기 추적)에 가장 가깝다는 게 선정 이유 — "핵심 루프 품질" 축을 우선한 선택이다. 3번(Scenario DSL)은 콘텐츠 확장, 4·5번(Drill Map/Sandbox)은 핵심 루프와 거리가 멀거나(디스커버리 UX) 신규 모델이 필요해(Sandbox) 리스크가 커 뒤로 미뤘다.
+
+이 후보들은 Phase 4(Team/B2B), Phase 6(Architecture Linter)와도 자원을 다툰다 — 위 순서는 고정이 아니라, 1·2번 진행 중 새 신호가 나오면 다시 조정할 수 있다.
 
 ## 7. 하지 않는 것 / 리스크
 
@@ -144,7 +149,7 @@
 ## 8. 다음 액션 — 사용자 결정 필요
 
 1. ~~**Architecture Canvas를 실행 가능한 시뮬레이션 모델로 만들 것인가?**~~ **결정 완료(2026-09-09)** — 실행 가능한 모델로 전환. [ADR-0037](adr/0037-architecture-canvas-becomes-the-simulation-topology-source-of-truth.md)로 기록(ADR-0036 supersede). 1차 슬라이스는 완전 자유형 `SystemTopology` 대신 기존 `DesignTraits`에 캔버스 노드 config를 매핑하는 작은 범위로 구현 완료 — [PLAN.md "Drills 고도화" Slice 1](../PLAN.md) 참고. 2차 슬라이스(2026-09-10)로 `SystemTopology` 엔터티를 추가해 캔버스 그래프를 세션당 서버에 영속화했다 — [PLAN.md "Drills 고도화" Slice 2](../PLAN.md) 참고. 3차 슬라이스(2026-09-10)로 `SimulationService.startIncident`가 저장된 토폴로지를 서버에서 직접 읽어 `DesignTraits`를 계산하게 했다(같은 kind 노드가 여러 개면 필드별 SUM/LAST 집계, ADR-0037이 "작업계획 단계에서 결정"으로 미뤘던 마지막 질문) — [PLAN.md "Drills 고도화" Slice 3](../PLAN.md) 참고. 4차 슬라이스(2026-09-10)로 §5.2 "Dependency Graph"의 가장 작은 형태(엣지로 연결된 노드만 집계에 참여, 고립 노드 제외)를 추가했다 — [PLAN.md "Drills 고도화" Slice 4](../PLAN.md) 참고. 방향성 있는 진입점 기반 도달 가능성 추적은 여전히 후속 후보로 남아 있다.
-2. **Phase 3 확장(§6 3-A/3-B/3-C)부터 순서대로 진행할 것인가?** — 기존 Phase 3가 이미 계획했던 항목이라 가장 낮은 리스크로 시작 가능.
-3. Phase 3 이후 후보(§6 표) 중 우선순위를 매길 것인가, 아니면 Phase 3 신호를 먼저 볼 것인가?
+2. ~~**Phase 3 확장(§6 3-A/3-B/3-C)부터 순서대로 진행할 것인가?**~~ **결정 완료(2026-09-10)** — 3-A(로그 심각도 백엔드 이전)/3-B(Traffic Lab)/3-C(Postmortem 집계) 전부 구현 완료. [PLAN.md](../PLAN.md) 해당 라운드 참고.
+3. ~~Phase 3 이후 후보(§6 표) 중 우선순위를 매길 것인가?~~ **결정 완료(2026-09-10)** — "핵심 루프 품질" 축 우선, §6 표에 순번 기록: AI 4역할 → Skill Graph → Scenario DSL → Drill Map → Sandbox.
 
-결정되는 대로 이전 UI/UX 리뉴얼 작업과 동일한 방식(Round 단위 조사 → 계획 → 구현 → 검증 → `PLAN.md` 기록)으로 착수할 수 있다.
+결정되는 대로 이전 UI/UX 리뉴얼 작업과 동일한 방식(Round 단위 조사 → 계획 → 구현 → 검증 → `PLAN.md` 기록)으로 착수할 수 있다 — 다음 착수 대상은 §6 표 1순위, **AI 4역할 추가**다.

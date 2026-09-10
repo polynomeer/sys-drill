@@ -1032,6 +1032,14 @@ Slice 3이 미뤄둔 마지막 항목. §5.2 "Dependency Graph" 모듈("없음 �
 
 이걸로 `docs/DRILLS_SIMULATION_VISION.md` §5.2의 "Dependency Graph — 없음 — 신규" 모듈이 가장 작은 형태(연결 여부만)로 처음 생겼다. Architecture Canvas ↔ Simulation 연동(ADR-0037)은 매핑 → 영속화 → 엔진 직접 읽음 → 엣지 인식까지 네 슬라이스로 점진적으로 여기까지 왔다. 남은 후속 후보는 방향성 있는 진입점 기반 도달 가능성 추적(더 큰 결정)과 §8의 Phase 3 이후 우선순위뿐이다.
 
+### Phase 3 이후 후보 우선순위 결정 (2026-09-10, 코드 변경 없음)
+
+`docs/DRILLS_SIMULATION_VISION.md` §6/§8이 남겨둔 마지막 결정 사항. Architecture Canvas 항목은 위 네 슬라이스로 이미 완료돼 후보 표에서 제외했고, 남은 5개(Scenario DSL/Authoring, Skill Graph, AI 4역할, Drill Map, System Sandbox) 중 어느 축을 우선할지 사용자에게 확인했다(AskUserQuestion) — **"핵심 루프 품질"**(기존 Evaluator/SkillProfile 배관 재사용 + `docs/PRD.md`의 핵심 가설인 시도-피드백 루프 품질·장기 사고 패턴 기억·Interview 유료 티어에 가까운 항목 우선)을 선택.
+
+**확정된 순서**: ① AI 4역할 추가 → ② Skill Graph(계층화) → ③ Scenario Engine DSL/Authoring → ④ Drill Map(의존성 그래프) → ⑤ System Sandbox/What-if. 근거는 `docs/DRILLS_SIMULATION_VISION.md` §6 표에 기록. 고정 순서는 아니고, ①·② 진행 중 새 신호가 나오면 재조정 가능.
+
+다음 착수 대상은 **① AI 4역할 추가(Mentor/Director/Interviewer/Postmortem Coach)** — 아직 시작 전.
+
 ---
 
 ## 진행 방식 메모
