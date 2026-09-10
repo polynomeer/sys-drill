@@ -946,6 +946,21 @@ P2 진행을 요청받고, 착수 전에 두 항목의 성격이 P0/P1과 근본
 
 **진행 중 발견한 결정 사항**: 새 ADR은 쓰지 않았다 — computed property 추가 + DTO 필드 추가 + 클라이언트 호출부 교체는 전부 되돌리기 쉬운 리팩터라 CLAUDE.md의 ADR 3조건을 만족하지 않는다.
 
+### Phase 3-B — Traffic Lab: coupon 실전 인프라 부하 설정 노출 ✅ 완료 (2026-09-10)
+
+`docs/DRILLS_SIMULATION_VISION.md` §6의 마지막 항목. 원안은 Traffic Lab(RPS 패턴/read-write ratio/hot-key) + Chaos Lab(다중 장애 타입)을 전부 새로 만들어야 하는 가장 큰 범위였지만, 조사 결과 `CouponLoadRunner.run(sessionId, rps, durationSeconds)`가 이미 RPS/지속시간을 파라미터로 받는 제네릭 함수이고 아무도 그 값을 바꿔 호출하지 않는다는 걸 확인했다. 사용자에게 Traffic vs Chaos 중 선택받아 Traffic Lab(coupon만, RPS/지속시간을 사용자가 직접 설정)으로 진행했다. `NotificationLoadRunner`는 rate/duration 파라미터가 아예 없어 이번 슬라이스에서 제외.
+
+- [x] `SimulationSessionState.kt`에 `loadRpsOverride`/`loadDurationOverride` 필드 추가, 코덱 끝에 추가(레거시 24-part 인코딩과의 하위 호환을 위해 `parts.getOrNull(24/25)` 사용 — Redis TTL 6시간 동안 남아있을 수 있는 구 데이터 대비)
+- [x] `StartIncidentRequest`에 `targetRps`/`loadDurationSeconds` 추가 → `SimulationController`/`SimulationService.startIncident` 경유 → `SimulationSessionState`에 실림(ADR-0037 슬라이스 1의 `initialTraits`와 같은 자리)
+- [x] `RealInfraCouponEngine.kt`에 `max-configurable-rps`(100)/`max-configurable-duration-seconds`(10) 상한 추가 — `probeAndCache`가 HTTP 요청 스레드 안에서 동기적으로 k6를 돌리므로 무제한 허용 시 요청 자체가 멈춘 것처럼 보임
+- [x] `WargameLive.tsx`의 인시던트 시작 게이트에 `realInfraChoice && domain === "coupon"`일 때만 "목표 RPS"/"부하 지속시간(초)" 입력 2개 노출, `startIncident` 4번째 인자로 전달
+
+**완료 기준 충족**: `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 전부 클린. 백엔드 전체 스위트(`./scripts/run-tests-isolated.sh`) 통과, `RealInfraCouponEngineTest`에 상대 비교 테스트 추가(낮은 커스텀 RPS가 기본 incident-rps보다 achieved trafficRps를 뚜렷이 낮춤). curl로 직접 검증: 기본(오버라이드 없음) 세션 `trafficRps: 10.56`(용량 한계에 도달) vs `targetRps=3` 세션 `trafficRps: 3.03`(요청값과 거의 정확히 일치) — 오버라이드가 실제 k6 부하를 진짜로 제어하는 것을 확인. 실 브라우저로 coupon 도메인에서 입력 2개가 나타나고 notification 도메인에서는 안 나타나는 것 확인, 모바일(375px) 오버플로 없음 확인.
+
+**진행 중 발견하고 고친 버그**: 실 브라우저 검증 중 이번 슬라이스와 무관한 기존 동시성 버그를 발견했다 — `WargameLive.tsx`가 3초마다 `GET /state`를 폴링하는데, 폴링이 진행 중인 k6 프로브(3초+Docker 오버헤드)와 겹치면 두 번째 `computeState` 호출이 `measurementStore.find()`에서 아직 null을 보고 스키마를 또 프로비저닝하려다 `DuplicateKeyException`으로 500 에러가 났다(에러율 100%로 관측). `RealInfraCouponEngine.probeAndCache`의 `synchronized(lock)` 안에 double-checked 캐시 재확인을 추가(`provisionSchema=true`, 즉 `computeState` 경로에만 적용 — `applyAction`의 `provisionSchema=false` 경로는 액션마다 항상 새로 프로빙해야 하므로 건드리지 않음)해서 해결 — 전체 realinfra 스위트(25개) 재검증 통과, 수정 전/후 로그에서 `DuplicateKeyException` 0건 확인.
+
+**아직 못 고친 것**: 위 수정을 검증하던 중 **별개의, 더 깊은** 사전 존재 버그를 하나 더 발견했다 — 스키마 중복 생성 에러는 사라졌지만, 같은 재현 시나리오에서 k6 요청 13개가 전부 `relation "coupon_inventory" does not exist`로 실패했다(에러율 여전히 100%). `CouponSchemaProvisioner.provision()`은 동기 순차 DDL이라 이 타이밍 문제의 원인이 바로 보이지 않음 — Phase 3-B 범위를 벗어나는 별도 조사가 필요해 `spawn_task`로 분리했다(`task_41f7d0b0`). Traffic Lab 핵심 기능(RPS/지속시간 오버라이드) 자체는 폴링 없는 순차 curl 호출로 이미 명확히 검증됐으므로 이 잔여 버그와 무관하게 정상 동작함.
+
 ---
 
 ## 진행 방식 메모
