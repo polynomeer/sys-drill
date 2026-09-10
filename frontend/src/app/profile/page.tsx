@@ -20,6 +20,7 @@ import {
 import { getStoredToken } from "@/lib/localSession";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
 import { riskLabel } from "@/lib/riskLabels";
+import { categoryLabel } from "@/lib/skillCategoryLabels";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -112,11 +113,18 @@ export default function ProfilePage() {
   const passedCount = certification?.domains.filter((d) => d.passed).length ?? 0;
   const totalDomains = certification?.domains.length ?? 0;
   const radarData = certification?.domains.map((d) => ({ domain: d.title, score: d.bestScore ?? 0 })) ?? [];
-  const topWeaknesses = skillProfile
-    ? Object.values(skillProfile.weaknessesByDomain)
-        .flatMap((domainWeaknesses) => Object.entries(domainWeaknesses))
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 6)
+  // Skill Graph slice 1 — grouped by cross-domain competency category
+  // (weaknessesByCategory) instead of a flat top-N list, so e.g. coupon's
+  // MISSING_CONCURRENCY_CONTROL and reservation's MISSING_RESERVATION_LOCKING
+  // show up together under "동시성·정합성" rather than as unrelated rows.
+  const weaknessCategories = skillProfile
+    ? Object.entries(skillProfile.weaknessesByCategory)
+        .map(([category, riskKeys]) => ({
+          category,
+          total: Object.values(riskKeys).reduce((sum, count) => sum + count, 0),
+          topRiskKeys: Object.entries(riskKeys).sort((a, b) => b[1] - a[1]).slice(0, 3),
+        }))
+        .sort((a, b) => b.total - a.total)
     : [];
 
   return (
@@ -235,24 +243,37 @@ export default function ProfilePage() {
         </Card>
       )}
 
-      {topWeaknesses.length > 0 && (
+      {weaknessCategories.length > 0 && (
         <Card as="section">
-          <h2 className="mb-2 text-sm font-semibold text-foreground-muted">보완이 필요한 영역</h2>
-          <ul className="space-y-1 text-sm">
-            {topWeaknesses.map(([key, count]) => (
-              <li key={key} className="flex justify-between">
-                <span>{riskLabel(key)}</span>
-                <span className="text-foreground-muted">{count}회</span>
-              </li>
+          <h2 className="mb-3 text-sm font-semibold text-foreground-muted">보완이 필요한 영역</h2>
+          <div className="space-y-3">
+            {weaknessCategories.map(({ category, total, topRiskKeys }) => (
+              <div key={category}>
+                <div className="flex justify-between text-sm font-medium">
+                  <span>{categoryLabel(category)}</span>
+                  <span className="text-foreground-muted">{total}회</span>
+                </div>
+                <ul className="mt-1 space-y-1 pl-3 text-sm text-foreground-muted">
+                  {topRiskKeys.map(([key, count]) => (
+                    <li key={key} className="flex justify-between">
+                      <span>{riskLabel(key)}</span>
+                      <span>{count}회</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
         </Card>
       )}
 
       {recommended && (
         <Card className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-foreground-muted">추천 학습 경로</p>
+            <p className="text-sm text-foreground-muted">
+              추천 학습 경로
+              {skillProfile?.recommendedCategory && ` · 가장 약한 영역: ${categoryLabel(skillProfile.recommendedCategory)}`}
+            </p>
             <p className="font-medium">{recommended.title}</p>
           </div>
           <Button onClick={handleStartRecommended} disabled={startingRecommended} size="sm">

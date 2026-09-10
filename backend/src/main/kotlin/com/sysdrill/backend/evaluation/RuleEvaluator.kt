@@ -190,6 +190,51 @@ object RuleEvaluator {
     val domainByRiskKey: Map<String, String> =
         conceptsByDomain.flatMap { (domain, concepts) -> concepts.map { it.riskKey to domain } }.toMap()
 
+    /**
+     * Skill Graph slice 1 (docs/DRILLS_SIMULATION_VISION.md §6) — a
+     * cross-domain competency axis, unlike [domainByRiskKey] which only
+     * groups within one scenario's own concepts. E.g. coupon's
+     * MISSING_CONCURRENCY_CONTROL and reservation's MISSING_RESERVATION_LOCKING
+     * land in the same category despite belonging to different domains — the
+     * gap this exists to close. Listed explicitly (not derived) since the
+     * grouping is genuinely cross-cutting, not 1:1 with [conceptsByDomain]'s
+     * own domain buckets. Mirrors frontend/src/lib/skillCategoryLabels.ts by
+     * category slug — keep both in sync when a riskKey is added/moved.
+     */
+    val categoryByRiskKey: Map<String, String> = mapOf(
+        // CONCURRENCY_CONSISTENCY — 동시성·정합성
+        "MISSING_IDEMPOTENCY" to "CONCURRENCY_CONSISTENCY",
+        "MISSING_CONCURRENCY_CONTROL" to "CONCURRENCY_CONSISTENCY",
+        "MISSING_IDEMPOTENT_CONSUMER" to "CONCURRENCY_CONSISTENCY",
+        "MISSING_PAYMENT_IDEMPOTENCY" to "CONCURRENCY_CONSISTENCY",
+        "MISSING_TRANSACTION_BOUNDARY" to "CONCURRENCY_CONSISTENCY",
+        "MISSING_RESERVATION_LOCKING" to "CONCURRENCY_CONSISTENCY",
+        "MISSING_INVENTORY_CONSISTENCY" to "CONCURRENCY_CONSISTENCY",
+        "MISSING_RECONCILIATION" to "CONCURRENCY_CONSISTENCY",
+        // RESILIENCE — 트래픽 보호·복원력
+        "MISSING_RATE_LIMIT" to "RESILIENCE",
+        "MISSING_RETRY_BACKOFF" to "RESILIENCE",
+        "MISSING_DLQ" to "RESILIENCE",
+        "MISSING_CIRCUIT_BREAKER" to "RESILIENCE",
+        "MISSING_PG_RETRY_BACKOFF" to "RESILIENCE",
+        "MISSING_ROLLOUT_SAFETY" to "RESILIENCE",
+        // CACHING_DATA_ACCESS — 캐싱·데이터 접근 전략
+        "MISSING_CACHE_POLICY_SEPARATION" to "CACHING_DATA_ACCESS",
+        "MISSING_KEY_DISTRIBUTION" to "CACHING_DATA_ACCESS",
+        "MISSING_SINGLE_FLIGHT" to "CACHING_DATA_ACCESS",
+        "MISSING_READ_REPLICA" to "CACHING_DATA_ACCESS",
+        // ASYNC_BATCH — 비동기·배치 처리
+        "MISSING_ASYNC_BOUNDARY" to "ASYNC_BATCH",
+        "MISSING_CHUNKING" to "ASYNC_BATCH",
+        "MISSING_RESTARTABILITY" to "ASYNC_BATCH",
+        // CAPACITY_TIMING — 용량·시간 제약 설계
+        "MISSING_RESERVATION_TIMEOUT" to "CAPACITY_TIMING",
+        "MISSING_AUTOSCALING" to "CAPACITY_TIMING",
+        "MISSING_RESOURCE_LIMITS" to "CAPACITY_TIMING",
+        // OBSERVABILITY — 관측 가능성 (Rubric.kt의 "Observability" 축과 이름을 맞춤)
+        "MISSING_OBSERVABILITY" to "OBSERVABILITY",
+    )
+
     /** PLAN.md step 34 — an unrecognized domain (e.g. an org's custom scenario) yields no findings rather than silently borrowing coupon's rubric, which would grade unrelated text against the wrong keywords. */
     fun evaluate(rawText: String?, domain: String): List<RuleFinding> {
         val concepts = conceptsByDomain[domain] ?: return emptyList()

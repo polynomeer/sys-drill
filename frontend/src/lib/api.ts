@@ -272,8 +272,10 @@ export type TrendDirection = "IMPROVING" | "DECLINING" | "STABLE" | "INSUFFICIEN
 export interface SkillProfile {
   userId: string;
   weaknessesByDomain: Record<string, Record<string, number>>;
+  weaknessesByCategory: Record<string, Record<string, number>>;
   trend: number[];
   trendDirection: TrendDirection;
+  recommendedCategory: string | null;
   recommendedDomain: string | null;
 }
 

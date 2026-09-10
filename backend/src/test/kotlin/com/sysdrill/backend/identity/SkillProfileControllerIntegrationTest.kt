@@ -51,6 +51,41 @@ class SkillProfileControllerIntegrationTest(
             .andExpect(jsonPath("$.recommendedDomain").value("notification"))
     }
 
+    /** Skill Graph slice 1 — the same flat weaknesses grouped by cross-domain competency category (`RuleEvaluator.categoryByRiskKey`), not scenario domain. */
+    @Test
+    fun `weaknesses from different scenario domains are grouped by cross-domain category`() {
+        skillProfileService.recordEvaluation(userId, listOf("MISSING_CONCURRENCY_CONTROL"), totalScore = 60) // coupon -> CONCURRENCY_CONSISTENCY
+        skillProfileService.recordEvaluation(userId, listOf("MISSING_RESERVATION_LOCKING"), totalScore = 55) // reservation -> CONCURRENCY_CONSISTENCY
+        skillProfileService.recordEvaluation(userId, listOf("MISSING_READ_REPLICA"), totalScore = 65) // product-browsing -> CACHING_DATA_ACCESS
+
+        mockMvc.perform(get("/skill-profile").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.weaknessesByCategory.CONCURRENCY_CONSISTENCY.MISSING_CONCURRENCY_CONTROL").value(1))
+            .andExpect(jsonPath("$.weaknessesByCategory.CONCURRENCY_CONSISTENCY.MISSING_RESERVATION_LOCKING").value(1))
+            .andExpect(jsonPath("$.weaknessesByCategory.CACHING_DATA_ACCESS.MISSING_READ_REPLICA").value(1))
+    }
+
+    /**
+     * Skill Graph slice 1 — the case the old single-riskKey-max rule got
+     * wrong: MISSING_RATE_LIMIT and MISSING_READ_REPLICA tie on raw count (3
+     * each), but MISSING_RATE_LIMIT's category (RESILIENCE) also contains
+     * MISSING_DLQ(1), giving RESILIENCE a higher *category* total (4) than
+     * CACHING_DATA_ACCESS's (3) — so the recommendation should follow the
+     * category with more underlying weakness, not just whichever single
+     * riskKey happens to tie for the top individual count.
+     */
+    @Test
+    fun `recommendedDomain follows the category with the highest summed weakness, not just the single most frequent riskKey`() {
+        skillProfileService.recordEvaluation(userId, listOf("MISSING_RATE_LIMIT", "MISSING_RATE_LIMIT", "MISSING_RATE_LIMIT"), totalScore = 50)
+        skillProfileService.recordEvaluation(userId, listOf("MISSING_DLQ"), totalScore = 50)
+        skillProfileService.recordEvaluation(userId, listOf("MISSING_READ_REPLICA", "MISSING_READ_REPLICA", "MISSING_READ_REPLICA"), totalScore = 50)
+
+        mockMvc.perform(get("/skill-profile").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.recommendedCategory").value("RESILIENCE"))
+            .andExpect(jsonPath("$.recommendedDomain").value("coupon"))
+    }
+
     @Test
     fun `trend direction is IMPROVING when recent scores are clearly higher`() {
         listOf(40, 42, 41, 70, 75, 72).forEach { score ->
