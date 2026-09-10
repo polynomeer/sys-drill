@@ -51,6 +51,7 @@ class SimulationService(
     private val appliedActionRepository: AppliedActionRepository,
     private val realInfraCouponEngine: RealInfraCouponEngine,
     private val realInfraNotificationEngine: RealInfraNotificationEngine,
+    private val systemTopologyService: SystemTopologyService,
     private val objectMapper: ObjectMapper,
 ) {
 
@@ -100,12 +101,15 @@ class SimulationService(
             throw BadRequestException("Real-infra mode is not available for domain: $domain")
         }
         val traits = when {
-            // ADR-0037 — the Architecture Canvas's node config becomes this
-            // session's starting DesignTraits, but only outside real-infra
-            // mode: the branches below already set infra-provisioning
-            // minimums (pool size, consumer count) that a design-time value
-            // must not silently override.
-            !realInfra -> initialTraits
+            // ADR-0037 next slice — the engine reads the session's saved
+            // SystemTopology directly (server-side DB read, not the client's
+            // request body) when one exists; the client-sent initialTraits
+            // (Slice 1) is only a fallback for sessions that never saved a
+            // topology (text-only design, API-driven test flows). Only
+            // outside real-infra mode: the branches below already set
+            // infra-provisioning minimums (pool size, consumer count) that
+            // a design-time value must not silently override.
+            !realInfra -> systemTopologyService.deriveDesignTraits(sessionId, domain) ?: initialTraits
             domain == RuleBasedSimulationEngine.DOMAIN_COUPON -> DesignTraits(dbPoolSize = RealInfraCouponEngine.INITIAL_DB_POOL_SIZE)
             domain == RuleBasedSimulationEngine.DOMAIN_NOTIFICATION -> DesignTraits(consumerCount = RealInfraNotificationEngine.INITIAL_CONSUMER_COUNT)
             else -> DesignTraits()

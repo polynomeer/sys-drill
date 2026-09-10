@@ -3,6 +3,7 @@ package com.sysdrill.backend.simulation
 import com.jayway.jsonpath.JsonPath
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
+import com.sysdrill.backend.support.PRODUCT_BROWSING_SCENARIO_ID
 import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.startSession
 import org.assertj.core.api.Assertions.assertThat
@@ -15,6 +16,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.util.UUID
@@ -81,6 +83,49 @@ class SimulationControllerIntegrationTest(
 
         assertThat(JsonPath.read<Double>(finalState, "$.dbReadLoad")).isLessThan(0.6)
         assertThat(JsonPath.read<Double>(finalState, "$.dbWriteLoad")).isLessThan(0.6)
+    }
+
+    /**
+     * ADR-0037 next slice — the engine reads the session's saved SystemTopology
+     * directly instead of trusting client-sent traits. Two "db" kind nodes
+     * (readReplicaCount 40 + 59 = 99) push product-browsing's dbReadCapacity
+     * from `RuleBasedSimulationEngine.kt`'s BASE_DB_READ_CAPACITY_RPS(2000) *
+     * (1 + 99) = 200000, low enough utilization (dbReadRps 80000 / 200000 =
+     * 0.4) to land in the stable band — proving both that the sum aggregation
+     * is real (not just reading one node) and that it's actually driving the
+     * simulation math, not merely stored. `SimulationEngineTest`'s existing
+     * `the product-browsing incident craters the cache hit ratio and overloads
+     * DB reads` test asserts the same domain's default (readReplicaCount=0)
+     * dbReadLoad as 40.0 — this is the same formula, just with a topology-derived
+     * replica count instead of the default.
+     */
+    @Test
+    fun `starting the incident reads the saved topology's node counts, not the request body's traits`() {
+        val sessionId = mockMvc.startSession(userId, scenarioId = PRODUCT_BROWSING_SCENARIO_ID)
+        mockMvc.perform(
+            put("/sessions/$sessionId/topology").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
+                .content(
+                    """{"graph":"{\"nodes\":[{\"id\":\"n1\",\"data\":{\"kind\":\"db\",\"traitValues\":{\"readReplicaCount\":40}}},{\"id\":\"n2\",\"data\":{\"kind\":\"db\",\"traitValues\":{\"readReplicaCount\":59}}}],\"edges\":[]}"}"""
+                )
+        ).andExpect(status().isOk)
+
+        // A request-body traits value the saved topology must override.
+        val body = mockMvc.perform(
+            post("/sessions/$sessionId/simulation/incident").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
+                .content("""{"traits":{"readReplicaCount":0}}""")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.trafficRps").value(10000.0))
+            .andExpect(jsonPath("$.errorRate").value(0.001))
+            .andExpect(jsonPath("$.p95LatencyMs").value(60.0))
+            .andReturn().response.contentAsString
+
+        // Not an exact jsonPath match: 0.9 - 0.7 (cacheHitRatio's HOT_KEY_PENALTY_SEVERE subtraction, inside
+        // RuleBasedSimulationEngine.kt) isn't exactly 0.2 in IEEE754 double arithmetic, so dbReadLoad lands on
+        // 0.3999999999999999, not 0.4 — same floating-point tolerance SimulationEngineTest already uses.
+        assertThat(JsonPath.read<Double>(body, "$.dbReadLoad")).isCloseTo(0.4, org.assertj.core.data.Offset.offset(0.001))
     }
 
     @Test
