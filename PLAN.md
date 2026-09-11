@@ -1150,6 +1150,31 @@ AI 4역할의 마지막 항목. 나머지 셋과 달리 유일하게 새 트리�
 
 ---
 
+## Drill Map(④) — 보류, System Sandbox(⑤)로 우선순위 변경 (2026-09-11)
+
+Drill Map 조사 결과, 지금까지의 모든 후보와 달리 **실제 기반이 전혀 없다**는 걸 확인했다 — `Scenario`에 prerequisite/dependency 필드가 없고, 공식 7개 도메인 시나리오는 전부 난이도가 `'MEDIUM'`으로 동일하게 시드돼 있어 "진행 경로"를 그릴 실제 데이터조차 없다. 온보딩 커리큘럼(조직별 수동 순서 목록)이나 SkillProfile의 `recommendedDomain`(도메인 단위 추천, 시나리오 그래프 아님)도 재사용 가능한 기반이 아니었다. 비전 문서 스스로도 이 항목을 "핵심 루프와 거리가 먼 디스커버리 UX"로 평가했고, 검증 질문 자체가 아직 아무 신호도 없는 상태 — 지금 "가장 작은 슬라이스"를 고르면 가짜 prerequisite 데이터로 그래프 UI만 만드는 것이 된다.
+
+사용자에게 이 발견을 공유하고(AskUserQuestion) **Drill Map은 건너뛰고 System Sandbox(⑤)로** 진행하기로 했다. 실제 콘텐츠 결정(어떤 시나리오가 어떤 시나리오의 선행인지)이 생기면 재검토.
+
+## System Sandbox / What-if — 완료 후 인시던트 샌드박스 재개 ✅ 완료 (2026-09-11)
+
+§6 우선순위 ⑤(마지막 남은 후보). 비전 문서의 §5.1 데이터 모델 표는 이 항목에 "SandboxSystem 신규 엔터티 필요(5개 중 유일)"라고 적어뒀지만, 조사 결과 이 전제도 틀렸다 — `SimulationService.startIncident`/`applyAction`/`getState`는 `Session.status`를 전혀 확인하지 않는다. 세션이 COMPLETED여도 시뮬레이션 엔드포인트는 이미 100% 동작한다 — 다만 프론트가 `view === "completed"`가 되는 순간 `WargameLive`를 아예 언마운트해버려서 UI에서만 막혀 있었다.
+
+**중요한 스코프 결정**: `submit`/`advance`/`SessionStateMachine`은 건드리지 않았다 — `COMPLETED`는 여전히 종결 상태(재제출 불가)로 남긴다. 조사 중 `CertificationService.status()`가 세션당 제출물 평균을 내는 방식이라, 같은 세션에 제출물이 더 쌓이면 그 평균이 왜곡될 위험을 발견했다 — 재채점 경로는 건드리지 않고, 순수하게 **시뮬레이션 파라미터만 계속 실험**하는 것으로 범위를 좁혀 이 위험을 원천 차단했다.
+
+- [x] `design/[sessionId]/page.tsx`의 `"completed"` 뷰에 `sandboxOpen` state + "샌드박스에서 계속 실험하기" 토글 버튼 추가(`isIncident`인 세션에만 노출 — 설계 전용 2단계 시나리오에는 안 보임). 토글 켜면 기존 `WargameLive`를 owner-interactive 모드로 그대로 마운트 — **백엔드 변경 전혀 없음**, 새 엔티티도 없음
+- [x] `WargameLive`가 이미 가진 404-복구 로직(Redis TTL 만료 시 저장된 SystemTopology로 자동 재시드)을 그대로 재사용 — 별도의 "만료 처리" 코드를 새로 작성하지 않음
+
+**완료 기준 충족**: `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 클린. 백엔드 변경이 전혀 없어 백엔드 테스트/컴파일 불필요.
+
+**실 검증**: 격리 백엔드(8084)에서 coupon 세션을 실제로 INITIAL→FOLLOWUP→INCIDENT→COMPLETED까지 완주시킨 뒤, 실 브라우저로 "샌드박스에서 계속 실험하기" 클릭 → `WargameLive`가 마운트되고 실시간 지표 패널이 뜨는 것 확인 → "Rate Limit 강화" 액션을 실제로 클릭 → `trafficRps 6000→3000`, `errorRate 30%→2.0%`로 지표가 실제로 바뀌는 것 확인(= 진짜로 다시 실험이 되는 것) → 이후 세션 상태를 다시 조회해 여전히 `status: COMPLETED`인 것 확인(= 재채점/인증 경로 오염 없음) → "샌드박스 닫기"로 정상 언마운트 확인. 콘솔 에러 없음.
+
+**하지 않은 것**: 새 `SandboxSystem` 엔티티 안 만듦(불필요했음). `submit`/`advance`/재채점 경로 무변경. real-infra 세션의 샌드박스 재진입 시 k6 재실행 비용에 대한 별도 경고/제한 안 둠(기존 `startIncident`/`applyAction`과 동일하게 동작 — 별도 처리 불필요하다고 판단). 새 ADR 안 씀 — 순수 프론트 렌더링 조건 변경.
+
+이걸로 `docs/DRILLS_SIMULATION_VISION.md` §6 우선순위 ①~⑤ 중 ①(AI 4역할)·②(Skill Graph)·③(Scenario DSL)·⑤(Sandbox)가 완료됐다. 남은 건 실제 콘텐츠 신호가 생기면 재검토할 ④(Drill Map)뿐이다.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.

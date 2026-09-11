@@ -47,8 +47,8 @@
 | AI 5역할 | **2026-09-11 갱신**: 원안의 5역할 중 4역할(Mentor/Director/Interviewer/Postmortem Coach)이 전부 완료. Evaluator(`evaluation/HybridRuleAiEvaluator.kt`) 기반 Interviewer, Postmortem Coach(`PostmortemService.save()`), Mentor(`mentor/MentorService.kt`, 온디맨드 힌트)는 기존 트리거 시점 재사용. Director(`SimulationService.startIncident`가 반환하는 `IncidentStartResult.narration`, `purpose='director_narration'`)만 유일하게 새 트리거 시점(인시던트 시작)이 필요했다 — real-infra 세션은 k6 레이턴시 누적을 피하려 제외, LLM 실패 시 기존 정적 문자열로 fail-open. 넷 다 새 오케스트레이션/엔터티 없이 `LlmClient`/`PromptTemplate`(purpose별) 배관만 재사용 | **완료** — 원안의 "Evaluator에 해당하는 1역할"에서 4역할로 확장 완료. 5번째(Evaluator 자체는 이미 있었으니 사실상 전체)는 이걸로 마무리 |
 | Skill Graph | **2026-09-10 갱신**: `SkillProfileController`가 이제 도메인 그룹핑 위에 `categoryByRiskKey`(6개 교차-도메인 역량 카테고리, `RuleEvaluator.kt`)로 한 겹 더 계층화해 `weaknessesByCategory`/`recommendedCategory`를 계산(여전히 ADR-0011 방식, 읽기 시점 재계산, 저장 스키마 무변경). 원안의 "9개 상위 역량 + 세부 skill" 그래프(더 정교한 타이포노미, 별도 모델링)는 아직 아님 — 지금은 25개 riskKey를 6개 고정 카테고리로 수동 분류한 첫 슬라이스 | **완료(첫 슬라이스)** — 파이프라인 재사용 그대로, 계층 추가까지 완료. 9-역량 원안 수준의 세분화는 신호 확인 후 후속 |
 | Postmortem/Replay/Expert Replay | `getTimeline` replay(`SimulationService.kt`)로 액션 이력 재생은 이미 있음. MTTD/MTTR 집계, Expert Replay 비교, Community Median은 없음 — **ROADMAP.md Phase 3에 "Incident Replay, Postmortem 작성"으로 이미 예정** | **부분**, Phase 3와 병합 대상 |
-| System Sandbox / What-if | 없음. `AppliedAction`은 세션에 종속된 감사 로그일 뿐, "완료 후 저장해 자유롭게 변수 조정"할 저장된 시스템 개념 없음 | **전무** |
-| Drill Map(의존성 그래프) | `marketplace/page.tsx`는 평면 목록. prerequisite/skill dependency 그래프 없음 | **전무** |
+| System Sandbox / What-if | **2026-09-11 갱신**: `design/[sessionId]/page.tsx`가 COMPLETED 세션에서도 "샌드박스에서 계속 실험하기" 토글로 `WargameLive`를 재마운트 — `SimulationService`의 시뮬레이션 엔드포인트가 애초에 `Session.status`를 전혀 확인하지 않아(신규 엔터티 불필요, 프론트 렌더링 조건만 변경) `AppliedAction`/`SimulationStateStore`/저장된 `SystemTopology`를 그대로 재사용. `submit`/`advance`/재채점 경로는 무변경(계속 COMPLETED 종결) | **완료(첫 슬라이스)** |
+| Drill Map(의존성 그래프) | **2026-09-11 갱신**: 조사 결과 실제 기반이 전무함을 재확인(prerequisite 필드 없음, 공식 시나리오 난이도가 전부 동일값이라 진행 경로 데이터 자체가 없음) — 사용자 확인 하에 보류, System Sandbox를 먼저 진행 | **전무, 보류** |
 | Build↔Design 컴포넌트 재사용 | Build Mode는 6개 챌린지(`rate-limiter`/`queue`/`circuit-breaker`/`distributed-lock`/`retry-backoff`/`event-bus`, `BuildChallenge` 데이터 기반 — 1개가 아니라 이미 6개, 일반화도 돼 있음). 단, 완료한 구현이 Design/Incident 세션의 실제 컴포넌트로 재사용되는 연결은 없음(Bridge Mode가 `buildSubmissionId` FK로 세션에 연결하는 정도까지만) | **부분** |
 
 **한 가지 발견**: Build Mode는 요약에 있던 "1개 챌린지"보다 이미 진전돼 있다(6개, 데이터 기반 일반화 완료) — 이 설계서의 다른 항목에도 참고할 만한 선례("하드코딩 대신 데이터 기반 확장"이 이미 이 코드베이스에서 실제로 일어난 사례).
@@ -132,8 +132,8 @@
 | 1 | ~~AI 4역할 추가(Mentor/Director/Interviewer/Postmortem Coach)~~ — **전체 완료(2026-09-11)**, [PLAN.md "AI 4역할 추가" Slice 1~4](../PLAN.md) 참고 | Evaluator 배관 재사용, `interviewMode`(면접형 타이머) 이미 존재 | 역할별 분리가 단일 Evaluator보다 학습 효과가 있는가? |
 | 2 | Skill Graph(계층화) — 첫 슬라이스 **완료(2026-09-10)**, [PLAN.md "Skill Graph(계층화) — 첫 슬라이스"](../PLAN.md) 참고 | SkillProfile 파이프라인 재사용 | 상위 역량 계층이 추천 품질을 실제로 개선하는가? |
 | 3 | Scenario Engine → DSL/Authoring — 첫 슬라이스 **완료(2026-09-11)**, [PLAN.md "Scenario DSL/Authoring"](../PLAN.md) 참고. **정정**: `ScenarioStep.triggerCondition`은 실제로는 어디서도 읽히지 않는 죽은 데이터였다(재사용 가능한 "기반"이 아니었음) — 실제로 구현한 건 커스텀 시나리오(ADR-0024)가 기존 7개 도메인 중 선택 시 INCIDENT 단계를 추가할 수 있게 한 것(ADR-0038). 진짜 조건부 분기 엔진은 여전히 미구현, 별도 후속 후보로 남음 | ~~`ScenarioStep` jsonb 확장(이미 기반 있음)~~, 조직 커스텀 시나리오 API(ADR-0024)로 일부 선행 구현 존재 | 콘텐츠 제작자가 코드 없이 시나리오를 늘릴 수요가 있는가? |
-| 4 | Drill Map(의존성 그래프) | Marketplace 확장 | 평면 목록보다 그래프 탐색이 실제로 더 쓰이는가? |
-| 5 | System Sandbox / What-if | SandboxSystem 신규 모델(완전 신규, 5개 중 유일하게 새 엔터티가 필요) | "완료 후 계속 실험"하고 싶다는 수요가 실제로 있는가? |
+| 4 | Drill Map(의존성 그래프) — **보류(2026-09-11)**, 실제 prerequisite/난이도 데이터가 없어 가짜 데이터로 그래프 UI만 만드는 상황이라 사용자 확인 하에 순서를 미룸 | Marketplace 확장 | 평면 목록보다 그래프 탐색이 실제로 더 쓰이는가? |
+| 5 | System Sandbox / What-if — 첫 슬라이스 **완료(2026-09-11)**, [PLAN.md "System Sandbox / What-if"](../PLAN.md) 참고. **정정**: 신규 엔터티가 필요하다는 전제가 틀렸음 — 시뮬레이션 엔드포인트는 애초에 세션 상태를 안 봄 | ~~SandboxSystem 신규 모델(완전 신규, 5개 중 유일하게 새 엔터티가 필요)~~ | "완료 후 계속 실험"하고 싶다는 수요가 실제로 있는가? |
 
 1·2번(AI 4역할/Skill Graph)은 기존 파이프라인을 재사용해 리스크가 낮고 PRD 핵심 가치(피드백 품질·장기 추적)에 가장 가깝다는 게 선정 이유 — "핵심 루프 품질" 축을 우선한 선택이다. 3번(Scenario DSL)은 콘텐츠 확장, 4·5번(Drill Map/Sandbox)은 핵심 루프와 거리가 멀거나(디스커버리 UX) 신규 모델이 필요해(Sandbox) 리스크가 커 뒤로 미뤘다.
 
