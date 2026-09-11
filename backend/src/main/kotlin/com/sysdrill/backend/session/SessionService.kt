@@ -16,6 +16,7 @@ import com.sysdrill.backend.reporting.ReportService
 import com.sysdrill.backend.scenario.ScenarioStep
 import com.sysdrill.backend.submission.Submission
 import com.sysdrill.backend.submission.SubmissionRepository
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
@@ -43,6 +44,7 @@ class SessionService(
     @Value("\${sysdrill.session.interview-timer.followup-seconds}") private val followupTimerSeconds: Long,
     @Value("\${sysdrill.session.interview-timer.incident-seconds}") private val incidentTimerSeconds: Long,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
 
     @Transactional
     fun startSession(
@@ -146,13 +148,18 @@ class SessionService(
      */
     private fun extractPrompt(step: ScenarioStep, session: Session): String? {
         val content = step.content ?: return null
-        @Suppress("UNCHECKED_CAST")
-        val map = objectMapper.readValue(content, Map::class.java) as Map<String, Any?>
-        map["prompt"]?.let { return it as? String }
+        return try {
+            @Suppress("UNCHECKED_CAST")
+            val map = objectMapper.readValue(content, Map::class.java) as Map<String, Any?>
+            map["prompt"]?.let { return it as? String }
 
-        @Suppress("UNCHECKED_CAST")
-        val variants = map["variants"] as? List<Map<String, Any?>> ?: return null
-        return selectVariant(variants, session)["prompt"] as? String
+            @Suppress("UNCHECKED_CAST")
+            val variants = map["variants"] as? List<Map<String, Any?>> ?: return null
+            selectVariant(variants, session)["prompt"] as? String
+        } catch (ex: Exception) {
+            log.warn("Failed to parse ScenarioStep content for step ${step.id}", ex)
+            null
+        }
     }
 
     /**

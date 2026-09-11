@@ -2,6 +2,7 @@ package com.sysdrill.backend.session
 
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
+import com.sysdrill.backend.scenario.ScenarioStepRepository
 import com.sysdrill.backend.support.COUPON_SCENARIO_ID
 import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.startSession
@@ -32,6 +33,7 @@ class SessionControllerIntegrationTest(
     @Autowired val mockMvc: MockMvc,
     @Autowired val userRepository: UserRepository,
     @Autowired val sessionRepository: SessionRepository,
+    @Autowired val scenarioStepRepository: ScenarioStepRepository,
 ) {
     private lateinit var userId: UUID
 
@@ -59,6 +61,25 @@ class SessionControllerIntegrationTest(
             .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
             .andExpect(jsonPath("$.currentPhase").value("INITIAL"))
             .andExpect(jsonPath("$.currentStepPrompt").value(org.hamcrest.Matchers.containsString("선착순")))
+    }
+
+    /**
+     * SessionService.extractPrompt used to `as Map<String, Any?>`-cast the
+     * parsed step content with no try/catch, so any malformed
+     * ScenarioStep.content (bad migration, manual DB edit) would surface as
+     * an unhandled 500 mid-session instead of a graceful null prompt.
+     */
+    @Test
+    fun `a session with malformed step content returns 200 with a null prompt instead of 500`() {
+        val sessionId = mockMvc.startSession(userId)
+        val session = sessionRepository.findById(sessionId).orElseThrow()
+        val initialStep = scenarioStepRepository.findByScenarioVersionIdAndStepOrder(session.scenarioVersionId, 1)!!
+        initialStep.content = "[1,2,3]" // valid JSON, but not the expected {"prompt": ...} object shape
+        scenarioStepRepository.save(initialStep)
+
+        mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.currentStepPrompt").doesNotExist())
     }
 
     @Test
