@@ -1175,6 +1175,26 @@ Drill Map 조사 결과, 지금까지의 모든 후보와 달리 **실제 기반
 
 ---
 
+## 커스텀 루브릭 — 조직 커스텀 시나리오에 자체 채점 기준 적용 ✅ 완료 (2026-09-11)
+
+§6 항목이 모두 소진된 뒤 `docs/ROADMAP.md`의 다음 Phase 항목을 검토(AskUserQuestion)한 결과 발견한 Phase 4의 마지막 미착수 항목("Private Scenario, **커스텀 루브릭**, SSO/RBAC/Audit Log" — 나머지는 전부 완료). 조사 결과 이번에도 이 세션에서 반복돼온 패턴을 또 발견했다 — **`Scenario.scoringProfile`(jsonb) 컬럼이 이미 존재하고 7개 공식 시나리오 전부 시드까지 돼 있는데, 백엔드 코드 어디서도 읽지 않는다.** 시드값은 실제 루브릭 데이터가 아니라 `{"rubricRef": "docs/PRD.md#10-평가-루브릭-100점"}`(문서 포인터)뿐이지만, 컬럼 자체와 저장 경로는 이미 준비돼 있어 새 엔터티/마이그레이션 없이 이 필드의 의미를 확장하는 것만으로 커스텀 루브릭을 얹을 수 있었다.
+
+- [x] `Rubric.kt`의 `validateAndScore`에 기본값 있는 2번째 파라미터(`dimensions: Map<String, Int> = Rubric.dimensions`) 추가 — 클램프+합산+미지 이름 무시 로직 자체는 그대로, 어떤 차원 집합과 비교할지만 바뀜. 기존 1-인자 호출부는 전부 무변경으로 계속 컴파일됨
+- [x] `ScenarioDtos.kt`의 `CreateCustomScenarioRequest`에 `rubricDimensions: Map<String, Int>? = null` 추가 — 없으면 기존과 동일하게 `Rubric.dimensions` 사용
+- [x] `CustomScenarioService.create()` — `rubricDimensions`가 있으면 합계가 100(`Rubric.maxTotal`)인지 검증(아니면 400), `Scenario(...)` 생성자에 `scoringProfile = ...`을 처음으로 명시적으로 채워 저장
+- [x] `HybridRuleAiEvaluator.kt` — `resolveDomain(session): String`을 `resolveScenario(session): Scenario`로 확장하고 `resolveCustomDimensions(scoringProfile)`을 추가해 `"dimensions"` 키를 파싱. `evaluate()`가 커스텀 차원이 있으면 그걸, 없으면 기본 `Rubric.dimensions`를 사용해 유저 프롬프트에 항상 명시(`## 채점 루브릭 (총 N점)` 섹션, 시스템 프롬프트는 전혀 안 건드림) + 채점. `rubricVersion`에 커스텀일 때만 `-custom` 접미사
+- [x] 프론트: `api.ts`의 `CreateCustomScenarioRequest`에 `rubricDimensions?: Record<string, number>` 추가. `organizations/[orgId]/page.tsx`에 "커스텀 채점 루브릭 (선택, 한 줄에 '이름:점수', 합계 100)" textarea 추가 — Postmortem 페이지의 "한 줄에 하나씩" 파싱 컨벤션을 확장한 `parseRubricLines` 헬퍼로 클라이언트에서도 합계 100을 먼저 검증(서버가 이중 검증), 형식 오류/합계 불일치 시 폼 제출 자체를 막고 에러 메시지 표시, 비어있으면 `rubricDimensions` 안 보냄(기존 동작 유지)
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. `RubricTest.kt`에 2-인자 `validateAndScore` 테스트 1개 추가(총 5개). `OrganizationControllerIntegrationTest.kt`에 신규 테스트 2개 추가 — (1) 합계가 100이 아닌 `rubricDimensions`(90)로 생성 시 400, (2) 유효한 커스텀 루브릭(`{"보안 검토":50,"비용 효율성":50}`, 기본 7축과 이름이 전혀 안 겹침)으로 커스텀 시나리오 생성 → 세션 제출·평가까지 진행 → `GET /submissions/{id}/feedback`의 `rubricVersion`에 `-custom` 접미사, **`totalScore == 0`**(오프라인 fake LLM은 기존 7축 이름으로만 채점값을 주므로, 커스텀 축과 이름이 하나도 안 겹치면 전부 0점 처리되는 게 "커스텀 루브릭이 실제로 적용됐다"는 결정론적 증거) 확인 — 기존 34개 포함 36개 전부 통과. `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.evaluation.*" --tests "com.sysdrill.backend.organization.*"` 전체(회귀 포함, 82개) 통과. 프론트 `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 클린.
+
+**실 검증**: 격리 백엔드(8084)에서 curl이 아니라 **실제 브라우저 폼**으로 조직 관리자 로그인 → 시나리오 생성 폼에 "보안 검토:50\n비용 효율성:50" 루브릭 텍스트를 입력해 커스텀 시나리오 생성 → 세션을 실제로 진행시켜 제출 → 피드백 화면이 에러 없이 정상 렌더되는 것, 네트워크 탭에서 `GET .../feedback` 응답의 `rubricVersion: "prd-10-design_evaluation-v1-custom"`, `totalScore: 0`(오프라인 모드에서의 결정론적 증거가 브라우저에서도 그대로 재현됨)을 확인. 추가로 클라이언트 검증도 실 브라우저에서 확인 — 합계가 90인 루브릭으로 제출 시 네트워크 요청 없이 폼 자체에서 "루브릭 점수 합계는 100이어야 합니다 (현재 90)" 에러가 뜨고 시나리오가 생성되지 않는 것(목록에 추가 안 됨)까지 확인. 콘솔 에러 없음.
+
+**하지 않은 것**: 마켓플레이스 발행(`PublishMarketplaceScenarioRequest`)에 커스텀 루브릭 추가 안 함 — 조직 커스텀 시나리오만. interviewMode용 커스텀 루브릭 안 함 — `interview_evaluation` purpose는 여전히 고정 `Rubric.dimensions`만 사용. 시나리오 상세 응답에 저장된 커스텀 루브릭을 미리 보여주는 UI 안 만듦 — 피드백 화면(`rubricScores`를 이미 범용적으로 렌더링)에서 사후 확인 가능한 것으로 충분. 새 ADR 안 씀 — 이미 존재하던 미사용 컬럼의 의미를 확장하는 것은 되돌리기 쉬운 구현 판단(DesignTraits 매핑 등 같은 선례가 이 세션에 이미 여럿 있음).
+
+이걸로 `docs/ROADMAP.md` Phase 4의 미착수 항목은 On-call Readiness와 SSO/RBAC뿐이다(Audit Log는 `OrganizationAuditLogService`로 이미 구현돼 쓰이고 있음).
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
