@@ -106,6 +106,16 @@ export default function DesignWorkspacePage() {
   const [hints, setHints] = useState<string[] | null>(null);
   const [hintLoading, setHintLoading] = useState(false);
   const [hintError, setHintError] = useState<string | null>(null);
+  // System Sandbox — the simulation endpoints (startIncident/applyAction/getState)
+  // have no SessionStatus check at all (confirmed by reading SimulationService),
+  // so reopening WargameLive for an already-COMPLETED incident session just works
+  // unmodified: it resumes the cached state if the 6h Redis TTL hasn't expired, or
+  // re-seeds a fresh one from the session's saved SystemTopology if it has —
+  // exactly WargameLive's existing 404-recovery path for a normal live incident.
+  // Deliberately NOT wired into submit/advance/SessionStateMachine — those stay
+  // COMPLETED-terminal so re-experimenting here can never re-grade the session or
+  // skew CertificationService's per-session average.
+  const [sandboxOpen, setSandboxOpen] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -424,10 +434,20 @@ export default function DesignWorkspacePage() {
       {view === "failed" && <Alert variant="danger">평가에 실패했습니다. 잠시 후 다시 시도해주세요.</Alert>}
 
       {view === "completed" && (
-        <Card className="flex flex-col items-start gap-3 p-6">
-          <p className="text-sm text-foreground-muted">이 세션은 이미 종료되었습니다.</p>
-          <Button href={`/report/${sessionId}`}>리포트 보기</Button>
-        </Card>
+        <>
+          <Card className="flex flex-col items-start gap-3 p-6">
+            <p className="text-sm text-foreground-muted">이 세션은 이미 종료되었습니다.</p>
+            <div className="flex gap-2">
+              <Button href={`/report/${sessionId}`}>리포트 보기</Button>
+              {isIncident && (
+                <Button variant="secondary" onClick={() => setSandboxOpen((open) => !open)}>
+                  {sandboxOpen ? "샌드박스 닫기" : "샌드박스에서 계속 실험하기"}
+                </Button>
+              )}
+            </div>
+          </Card>
+          {isIncident && sandboxOpen && <WargameLive sessionId={sessionId} domain={domain} isOwner initialTraits={{}} />}
+        </>
       )}
 
       {view === "result" && feedback && (
