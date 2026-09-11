@@ -1207,6 +1207,19 @@ Drill Map 조사 결과, 지금까지의 모든 후보와 달리 **실제 기반
 
 ---
 
+## 기술부채/버그 점검 — SessionService 예외 처리 + MetricCard 정리 ✅ 완료 (2026-09-11)
+
+Phase 4 보류 이후 "다음 과정"으로 사용자가 기술부채/버그 점검을 선택. 전체 코드베이스를 훑은 결과 대체로 깨끗했고(TODO/FIXME/`@ts-ignore`/`@Suppress` 대부분 정상, 죽은 코드도 거의 없음), 구체적으로 조치할 만한 건 2가지였다.
+
+- [x] **`SessionService.kt`의 `extractPrompt` 예외 처리** — `objectMapper.readValue(content, Map::class.java) as Map<String, Any?>`가 try/catch 없이 노출돼 있어, `ScenarioStep.content`가 예상 모양(`{"prompt": ...}`/`{"variants": [...]}`)이 아닌 유효 JSON(예: 배열)이면 `getCurrentStepPrompt`가 그대로 예외를 던져 세션 조회가 500으로 터지는 구조였다. 같은 패턴인 `HybridRuleAiEvaluator.resolveCustomDimensions`(커스텀 루브릭 라운드에서 만든 코드)는 이미 try/catch로 감싸져 있어 일관성도 깨져 있었다. `extractPrompt` 전체를 try/catch로 감싸 파싱 실패 시 경고 로그 후 `null` 반환하도록 수정 — 두 호출부(`SessionController`/`OrganizationAssessmentService`) 모두 원래부터 `String?`을 받아 null을 정상적으로 처리하고 있어 안전한 fail-open.
+- [x] **`MetricCard.tsx` 삭제** — 다크 네이비 리브랜드(`f5e2089`) 때 디자인 시스템 일부로 추가됐지만 이후 어떤 페이지에서도 실제로 쓰인 적이 없는 컴포넌트(grep 전수 확인, 0건). 죽은 UI 컴포넌트는 아무도 안 써서 아무도 안 고치다가 나중에 재사용하려 할 때 망가져 있는 게 발견되는 패턴이라 제거.
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. `SessionControllerIntegrationTest.kt`에 신규 테스트 1개 추가(`ScenarioStep.content`를 유효 JSON이지만 예상과 다른 모양(`[1,2,3]`)으로 만든 뒤 `GET /sessions/{id}`가 500이 아니라 200 + `currentStepPrompt` 필드 자체가 없는 것을 확인 — 처음엔 Postgres jsonb 컬럼 자체가 문법적으로 잘못된 JSON을 DB 레벨에서 거부해 테스트가 실패했고, "유효한 JSON이지만 기대한 모양이 아님"으로 바꿔 실제 버그 시나리오를 재현). `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.session.*"` 전체(8개 클래스, 36개, 기존 35개 포함) 통과. 프론트 `npx tsc --noEmit`/`npm run lint`(0 errors, 기존 12개 경고 베이스라인 그대로)/`npm run build` 클린.
+
+**하지 않은 것**: jacoco 커버리지 리포트 재점검 안 함(점검 결과 최근 부분 테스트 실행분만 반영해 왜곡돼 있었음 — 전체 스위트 재실행이 필요하지만 이번 라운드 스코프 밖으로 사용자가 보류). ADR-0037(캔버스가 시뮬레이션 토폴로지 소스 오브 트루스)이 유예해둔 엔진 토폴로지 인식 격차도 이번엔 기록만 하고 보류 — 구조적 작업이라 사용자가 큰 스코프로 판단해 미룸. 새 ADR 안 씀 — 둘 다 명백한 버그 수정/죽은 코드 삭제로 대안·트레이드오프가 없는 결정.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
