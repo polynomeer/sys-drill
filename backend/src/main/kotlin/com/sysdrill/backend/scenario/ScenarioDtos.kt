@@ -39,6 +39,15 @@ data class CreateCustomScenarioRequest(
     @field:NotBlank val initialPrompt: String,
     @field:NotBlank val followupPrompt: String,
     val incidentPrompt: String? = null,
+    /**
+     * ROADMAP.md Phase 4 "커스텀 루브릭" — optional; omitted, evaluation uses
+     * [com.sysdrill.backend.evaluation.Rubric]'s default 7-dimension set,
+     * unchanged from before this field existed. Provided, must sum to
+     * [com.sysdrill.backend.evaluation.Rubric.maxTotal] (100, validated in
+     * [CustomScenarioService.create]) and replaces the default set for every
+     * session on this scenario.
+     */
+    val rubricDimensions: Map<String, Int>? = null,
 )
 
 /** Phase 5 (Scenario Marketplace, docs/adr/0031) — any authenticated user publishes a scenario, same INITIAL+FOLLOWUP-only shape as CreateCustomScenarioRequest. */

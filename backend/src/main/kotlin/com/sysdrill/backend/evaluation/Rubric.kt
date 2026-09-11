@@ -20,7 +20,14 @@ object Rubric {
      * whatever total the LLM reported, clamping each dimension to its max
      * and ignoring unrecognized dimension names — the "구조화 JSON 스키마 검증"
      * PLAN.md step 5 asks for.
+     *
+     * [dimensions] defaults to this object's own PRD-defined set, but a
+     * caller can pass a scenario-specific override (ROADMAP.md Phase 4
+     * "커스텀 루브릭" — `Scenario.scoringProfile`, see
+     * [com.sysdrill.backend.evaluation.HybridRuleAiEvaluator]) — the scoring
+     * logic itself (clamp + sum, ignore unknown names) doesn't change either
+     * way, only which dimension/max pairs it checks against.
      */
-    fun validateAndScore(rubricScores: Map<String, Int>): Int =
+    fun validateAndScore(rubricScores: Map<String, Int>, dimensions: Map<String, Int> = this.dimensions): Int =
         dimensions.entries.sumOf { (name, max) -> (rubricScores[name] ?: 0).coerceIn(0, max) }
 }

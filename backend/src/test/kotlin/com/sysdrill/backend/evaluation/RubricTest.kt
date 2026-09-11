@@ -36,4 +36,13 @@ class RubricTest {
         val scores = mapOf("아키텍처 적합성" to 20, "이상한_키" to 100)
         assertThat(Rubric.validateAndScore(scores)).isEqualTo(20)
     }
+
+    /** ROADMAP.md Phase 4 "커스텀 루브릭" — an explicit dimensions override scores against that set instead of the default 7. */
+    @Test
+    fun `scores against a custom dimension set when one is passed explicitly`() {
+        val customDimensions = mapOf("보안 검토" to 50, "비용 효율성" to 50)
+        val scores = mapOf("보안 검토" to 40, "비용 효율성" to 30, "요구사항 해석력" to 15) // last one is a default-set name, ignored here
+
+        assertThat(Rubric.validateAndScore(scores, customDimensions)).isEqualTo(70)
+    }
 }

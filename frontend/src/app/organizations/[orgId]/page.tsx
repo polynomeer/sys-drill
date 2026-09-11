@@ -35,6 +35,29 @@ const ROLE_LABELS: Record<string, string> = {
   MEMBER: "멤버",
 };
 
+/** ROADMAP.md Phase 4 "커스텀 루브릭" — "이름:점수" 한 줄씩, 합계 100(Rubric.maxTotal)을 클라이언트에서도 검증
+ * (서버가 이중 검증하지만, 빈 텍스트영역 제출 실패 전에 미리 알려주기 위함). 비어있으면 dimensions는 빈 객체. */
+function parseRubricLines(value: string): { dimensions: Record<string, number>; error: string | null } {
+  const lines = value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (lines.length === 0) return { dimensions: {}, error: null };
+  const dimensions: Record<string, number> = {};
+  for (const line of lines) {
+    const idx = line.indexOf(":");
+    const name = idx >= 0 ? line.slice(0, idx).trim() : "";
+    const score = idx >= 0 ? Number(line.slice(idx + 1).trim()) : NaN;
+    if (!name || !Number.isFinite(score)) {
+      return { dimensions: {}, error: `루브릭 형식 오류: "${line}" (예: 보안 검토:50)` };
+    }
+    dimensions[name] = score;
+  }
+  const sum = Object.values(dimensions).reduce((a, b) => a + b, 0);
+  if (sum !== 100) return { dimensions, error: `루브릭 점수 합계는 100이어야 합니다 (현재 ${sum})` };
+  return { dimensions, error: null };
+}
+
 export default function OrganizationDetailPage() {
   const params = useParams<{ orgId: string }>();
   const router = useRouter();
@@ -63,6 +86,7 @@ export default function OrganizationDetailPage() {
   // between a free-text field and a constrained dropdown.
   const [includeIncident, setIncludeIncident] = useState(false);
   const [scenarioIncidentPrompt, setScenarioIncidentPrompt] = useState("");
+  const [scenarioRubricText, setScenarioRubricText] = useState("");
   const [creatingScenario, setCreatingScenario] = useState(false);
   const [startingScenarioId, setStartingScenarioId] = useState<string | null>(null);
 
@@ -138,6 +162,11 @@ export default function OrganizationDetailPage() {
     e.preventDefault();
     if (!scenarioTitle.trim() || !scenarioDomain.trim() || !scenarioInitialPrompt.trim() || !scenarioFollowupPrompt.trim()) return;
     if (includeIncident && !scenarioIncidentPrompt.trim()) return;
+    const { dimensions: rubricDimensions, error: rubricError } = parseRubricLines(scenarioRubricText);
+    if (rubricError) {
+      setError(rubricError);
+      return;
+    }
     setCreatingScenario(true);
     setError(null);
     try {
@@ -148,6 +177,7 @@ export default function OrganizationDetailPage() {
         initialPrompt: scenarioInitialPrompt.trim(),
         followupPrompt: scenarioFollowupPrompt.trim(),
         incidentPrompt: includeIncident ? scenarioIncidentPrompt.trim() : undefined,
+        rubricDimensions: Object.keys(rubricDimensions).length > 0 ? rubricDimensions : undefined,
       });
       setScenarioTitle("");
       setScenarioDomain("");
@@ -156,6 +186,7 @@ export default function OrganizationDetailPage() {
       setScenarioFollowupPrompt("");
       setIncludeIncident(false);
       setScenarioIncidentPrompt("");
+      setScenarioRubricText("");
       setScenarios(await listOrganizationScenarios(orgId));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "시나리오를 만들지 못했습니다.");
@@ -319,6 +350,12 @@ export default function OrganizationDetailPage() {
                 rows={3}
               />
             )}
+            <Textarea
+              value={scenarioRubricText}
+              onChange={(e) => setScenarioRubricText(e.target.value)}
+              placeholder={"커스텀 채점 루브릭 (선택, 한 줄에 '이름:점수', 합계 100)\n예: 보안 검토:50\n비용 효율성:50"}
+              rows={3}
+            />
             <Button type="submit" disabled={creatingScenario} className="self-start">
               {creatingScenario ? "만드는 중..." : "시나리오 만들기"}
             </Button>

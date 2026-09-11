@@ -108,6 +108,8 @@ export interface CreateCustomScenarioRequest {
   followupPrompt: string;
   /** ADR-0038 — only meaningful for createCustomScenario (organization scenarios); publishMarketplaceScenario ignores it. Requires `domain` to be one of the 7 known simulation domains. */
   incidentPrompt?: string;
+  /** ROADMAP.md Phase 4 "커스텀 루브릭" — only meaningful for createCustomScenario; publishMarketplaceScenario ignores it. Omitted, evaluation uses the default 7-dimension rubric. Provided, must sum to 100. */
+  rubricDimensions?: Record<string, number>;
 }
 
 export type SessionStatus =

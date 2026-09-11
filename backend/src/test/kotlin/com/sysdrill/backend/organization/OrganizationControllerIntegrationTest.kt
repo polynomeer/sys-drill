@@ -602,6 +602,81 @@ class OrganizationControllerIntegrationTest(
             .andExpect(jsonPath("$.trafficRps").value(6000.0))
     }
 
+    /** ROADMAP.md Phase 4 "커스텀 루브릭" — rubricDimensions not summing to Rubric.maxTotal (100) is rejected. */
+    @Test
+    fun `creating a custom scenario with rubric dimensions that don't sum to 100 is rejected`() {
+        val admin = createUser("scenario-admin9")
+        val orgId = createOrg(admin.id!!)
+
+        mockMvc.perform(
+            post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin.id!!))
+                .content(
+                    """{"title":"루브릭 오류","domain":"internal-payment","initialPrompt":"a","followupPrompt":"b",
+                        |"rubricDimensions":{"보안 검토":50,"비용 효율성":40}}""".trimMargin()
+                )
+        ).andExpect(status().isBadRequest)
+    }
+
+    /**
+     * ROADMAP.md Phase 4 "커스텀 루브릭" — a scenario with a custom rubric is
+     * scored against that rubric instead of Rubric.kt's default 7 dimensions.
+     * No LLM_ANTHROPIC_API_KEY is configured in this test environment, so
+     * AnthropicLlmClient's offline fallback serves the request — its canned
+     * JSON only has scores under the *default* 7 Korean dimension names
+     * (see its kdoc), and this scenario's custom dimensions ("보안 검토"/
+     * "비용 효율성") share no name with any of them. So if the custom rubric
+     * is genuinely being applied, every dimension scores 0 (no matching key)
+     * and totalScore is 0 — if the default rubric were used by mistake
+     * instead, the offline fallback's fixed scores would still sum to 60
+     * (the same total every other offline-mode evaluation test in this
+     * codebase observes). That gap is the deterministic proof.
+     */
+    @Test
+    fun `a scenario with a custom rubric is scored against it, not the default rubric`() {
+        val admin = createUser("scenario-admin10")
+        val owner = createUser("scenario-owner10")
+        val orgId = createOrg(admin.id!!)
+        val token = invite(orgId, admin.id!!, owner.email)
+        mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(owner.id!!)))
+
+        val createResponse = mockMvc.perform(
+            post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin.id!!))
+                .content(
+                    """{"title":"보안 중심 결제 시나리오","domain":"internal-payment",
+                        |"initialPrompt":"a","followupPrompt":"b",
+                        |"rubricDimensions":{"보안 검토":50,"비용 효율성":50}}""".trimMargin()
+                )
+        ).andExpect(status().isCreated).andReturn().response.contentAsString
+        val scenarioId = JsonPath.read<String>(createResponse, "$.id")
+
+        val sessionResponse = mockMvc.perform(
+            post("/sessions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(owner.id!!))
+                .content("""{"scenarioId":"$scenarioId"}""")
+        ).andExpect(status().isCreated).andReturn().response.contentAsString
+        val sessionId = UUID.fromString(JsonPath.read(sessionResponse, "$.id"))
+
+        val submissionResponse = mockMvc.perform(
+            post("/sessions/$sessionId/submissions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(owner.id!!))
+                .content("""{"rawText":"그냥 API 서버 하나로 처리합니다."}""")
+        ).andExpect(status().isCreated).andReturn().response.contentAsString
+        val submissionId = JsonPath.read<String>(submissionResponse, "$.id")
+
+        val deadline = Instant.now().plusSeconds(10)
+        while (Instant.now().isBefore(deadline)) {
+            if (sessionRepository.findById(sessionId).orElseThrow().status == SessionStatus.FEEDBACK_READY) break
+            Thread.sleep(100)
+        }
+
+        mockMvc.perform(get("/submissions/$submissionId/feedback").header("Authorization", bearerHeader(owner.id!!)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.rubricVersion", org.hamcrest.Matchers.endsWith("-custom")))
+            .andExpect(jsonPath("$.totalScore").value(0))
+    }
+
     private fun startCustomScenarioSession(orgId: UUID, admin: UUID, owner: UUID): UUID {
         val response = mockMvc.perform(
             post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)

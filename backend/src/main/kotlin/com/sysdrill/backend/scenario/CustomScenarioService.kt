@@ -4,6 +4,7 @@ import com.sysdrill.backend.common.web.BadRequestException
 import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.content.ContentItem
 import com.sysdrill.backend.content.ContentItemRepository
+import com.sysdrill.backend.evaluation.Rubric
 import com.sysdrill.backend.organization.OrganizationAccessGuard
 import com.sysdrill.backend.organization.OrganizationAuditAction
 import com.sysdrill.backend.organization.OrganizationAuditLogService
@@ -25,6 +26,12 @@ import tools.jackson.databind.ObjectMapper
  * hardcoded dispatch `error(...)`. This keeps the engine/RuleEvaluator
  * completely unmodified; a real per-domain-formula authoring DSL remains a
  * separate, much larger candidate.
+ *
+ * ROADMAP.md Phase 4 "커스텀 루브릭" — an org can also optionally define its
+ * own scoring dimensions ([CreateCustomScenarioRequest.rubricDimensions]),
+ * stored in `Scenario.scoringProfile` and read by
+ * [com.sysdrill.backend.evaluation.HybridRuleAiEvaluator] instead of the
+ * default [Rubric].
  */
 @Service
 class CustomScenarioService(
@@ -45,12 +52,27 @@ class CustomScenarioService(
                 "domain must be one of ${RuleBasedSimulationEngine.KNOWN_DOMAINS} to include an incident step: ${request.domain}"
             )
         }
+        if (request.rubricDimensions != null && request.rubricDimensions.values.sum() != Rubric.maxTotal) {
+            throw BadRequestException("rubricDimensions must sum to ${Rubric.maxTotal}: got ${request.rubricDimensions.values.sum()}")
+        }
 
         val content = contentItemRepository.save(
             ContentItem(type = "SCENARIO", title = request.title, difficulty = request.difficulty)
         )
         val scenario = scenarioRepository.save(
-            Scenario(contentId = content.id!!, domain = request.domain, organizationId = orgId)
+            Scenario(
+                contentId = content.id!!,
+                domain = request.domain,
+                organizationId = orgId,
+                // ROADMAP.md Phase 4 "커스텀 루브릭" — this column already existed
+                // (seeded for every official scenario as a doc-reference pointer,
+                // e.g. V2__seed_coupon_scenario.sql's {"rubricRef": "..."}) but was
+                // never read anywhere; HybridRuleAiEvaluator now reads a "dimensions"
+                // key from it when present. null (the default) means "use Rubric's
+                // built-in 7-dimension set", same as every scenario before this field
+                // had a second meaning.
+                scoringProfile = request.rubricDimensions?.let { objectMapper.writeValueAsString(mapOf("dimensions" to it)) },
+            )
         )
         val version = scenarioVersionRepository.save(
             ScenarioVersion(scenarioId = scenario.id!!, versionNo = 1, status = "PUBLISHED")

@@ -2,12 +2,14 @@ package com.sysdrill.backend.evaluation
 
 import com.sysdrill.backend.evaluation.llm.LlmClient
 import com.sysdrill.backend.evaluation.llm.LlmEvaluationResultParser
+import com.sysdrill.backend.scenario.Scenario
 import com.sysdrill.backend.scenario.ScenarioRepository
 import com.sysdrill.backend.scenario.ScenarioVersionRepository
 import com.sysdrill.backend.session.Session
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.submission.Submission
 import org.springframework.stereotype.Component
+import tools.jackson.databind.ObjectMapper
 
 data class HybridEvaluationOutcome(
     val promptTemplateId: java.util.UUID,
@@ -40,6 +42,7 @@ class HybridRuleAiEvaluator(
     private val sessionRepository: SessionRepository,
     private val scenarioVersionRepository: ScenarioVersionRepository,
     private val scenarioRepository: ScenarioRepository,
+    private val objectMapper: ObjectMapper,
 ) {
     private val designPurpose = "design_evaluation"
 
@@ -60,16 +63,19 @@ class HybridRuleAiEvaluator(
         val template = promptTemplateRepository.findFirstByPurposeAndActiveTrue(purpose)
             ?: error("No active prompt template for purpose=$purpose")
 
-        val ruleFindings = RuleEvaluator.evaluate(submission.rawText, resolveDomain(session))
-        val userPrompt = buildUserPrompt(ruleFindings, submission)
+        val scenario = resolveScenario(session)
+        val customDimensions = resolveCustomDimensions(scenario.scoringProfile)
+        val dimensions = customDimensions ?: Rubric.dimensions
+        val ruleFindings = RuleEvaluator.evaluate(submission.rawText, scenario.domain)
+        val userPrompt = buildUserPrompt(ruleFindings, submission, dimensions)
 
         val completion = llmClient.complete(template.templateBody, userPrompt)
         val llmResult = resultParser.parse(completion.text)
-        val score = Rubric.validateAndScore(llmResult.rubricScores)
+        val score = Rubric.validateAndScore(llmResult.rubricScores, dimensions)
 
         return HybridEvaluationOutcome(
             promptTemplateId = template.id!!,
-            rubricVersion = "prd-10-$purpose-v${template.version}",
+            rubricVersion = "prd-10-$purpose-v${template.version}" + if (customDimensions != null) "-custom" else "",
             modelProvider = "anthropic",
             modelName = completion.model,
             latencyMs = completion.latencyMs,
@@ -85,15 +91,35 @@ class HybridRuleAiEvaluator(
         )
     }
 
-    private fun resolveDomain(session: Session): String {
+    private fun resolveScenario(session: Session): Scenario {
         val version = scenarioVersionRepository.findById(session.scenarioVersionId)
             .orElseThrow { error("Scenario version not found: ${session.scenarioVersionId}") }
-        val scenario = scenarioRepository.findById(version.scenarioId)
+        return scenarioRepository.findById(version.scenarioId)
             .orElseThrow { error("Scenario not found: ${version.scenarioId}") }
-        return scenario.domain
     }
 
-    private fun buildUserPrompt(ruleFindings: List<RuleFinding>, submission: Submission): String = buildString {
+    /**
+     * ROADMAP.md Phase 4 "커스텀 루브릭" — `Scenario.scoringProfile` predates
+     * this feature (seeded for every official scenario as a doc-reference
+     * pointer, e.g. `{"rubricRef": "..."}`) and was never read anywhere
+     * before now. Returns null (→ caller falls back to [Rubric.dimensions])
+     * unless it parses as JSON with a `"dimensions"` object — that covers
+     * both `null` and the pre-existing `rubricRef` shape safely, without
+     * needing to distinguish them explicitly.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun resolveCustomDimensions(scoringProfile: String?): Map<String, Int>? {
+        if (scoringProfile.isNullOrBlank()) return null
+        return try {
+            val parsed = objectMapper.readValue(scoringProfile, Map::class.java) as Map<String, Any>
+            val raw = parsed["dimensions"] as? Map<String, Any> ?: return null
+            raw.mapValues { (_, v) -> (v as Number).toInt() }
+        } catch (ex: Exception) {
+            null
+        }
+    }
+
+    private fun buildUserPrompt(ruleFindings: List<RuleFinding>, submission: Submission, dimensions: Map<String, Int>): String = buildString {
         appendLine("## 사용자 제출 답안")
         appendLine(submission.rawText?.takeIf { it.isNotBlank() } ?: "(제출된 텍스트가 없습니다)")
         appendLine()
@@ -103,6 +129,14 @@ class HybridRuleAiEvaluator(
         } else {
             ruleFindings.forEach { appendLine("- [${it.severity}] ${it.description}") }
         }
+        // Always explicit here (not just left to the system prompt), so a
+        // scenario-specific rubric (Phase 4 "커스텀 루브릭") overrides the
+        // system prompt's own listing without needing a second system prompt
+        // variant per scenario — total always equals Rubric.maxTotal (100),
+        // enforced by CustomScenarioService.create's validation at write time.
+        appendLine()
+        appendLine("## 채점 루브릭 (총 ${dimensions.values.sum()}점) — 아래 항목만 사용하세요")
+        dimensions.forEach { (name, max) -> appendLine("- $name ($max 점)") }
         // Only ever non-null for interviewMode sessions (SessionService.submit) — surfaces
         // the existing timer/deadline tracking to the interviewer persona, which otherwise
         // had no way to know a submission missed its phase deadline.
