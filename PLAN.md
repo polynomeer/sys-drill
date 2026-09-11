@@ -1195,6 +1195,18 @@ Drill Map 조사 결과, 지금까지의 모든 후보와 달리 **실제 기반
 
 ---
 
+## Phase 4 나머지(On-call Readiness / RBAC 세분화 / SSO) — 전체 보류 (2026-09-11)
+
+커스텀 루브릭 완료 후 "다음 과정"으로 Phase 4의 마지막 세 후보(On-call Readiness, RBAC 세분화, 실제 SSO)를 조사했다. 셋 다 지금 시점엔 착수할 실제 근거가 부족하다는 결론에 도달해 전체를 보류한다 — Drill Map과 같은 패턴의 판단.
+
+- **On-call Readiness**: `docs/PRD.md`/`ARCHITECTURE.md`/`DRILLS_SIMULATION_VISION.md` 어디에도 스펙이 없고(ROADMAP.md의 네 글자 문구가 전부), on-call 스케줄/로테이션/페이저 개념이 코드 어디에도 없다. 옆 항목(신규 입사자 온보딩 트랙)은 `OrganizationCurriculumService`(ADR-0030)로 이미 구현됐지만, 그 ADR 자체가 "ROADMAP.md의 한 줄짜리 문구가 강제 요건을 전혀 주지 않는다"고 명시할 만큼 이 라인 전체가 원래 미완성 스펙이었다. Drill Map급 백지 상태.
+- **RBAC 세분화**: 표면적으로는 가장 유망해 보였다 — 조직 축(`OrganizationRole` ADMIN/MEMBER)과 플랫폼 축(`User.platformRole`, ADR-0025)이 이미 실제로 동작 중이기 때문. 하지만 `OrganizationAccessGuard.requireAdmin` 호출 지점 11곳을 전수 조사한 결과, ADMIN 전용 액션이 멤버 관리(4개)·커리큘럼·평가(assessment) 3개·감사 로그·시나리오 생성으로 흩어져 있어 자연스러운 분리 축이 없었다 — "멤버 관리 vs 그 외"로 나눠도 나머지 7개가 서로 이질적이라 임의 분할이 된다. 게다가 애초에 근거로 삼았던 "ADR-0025가 재검토를 예고했다"는 전제도 틀렸다 — ADR-0025는 `User.platformRole`(플랫폼 축)만 다루고, `OrganizationRole`의 이분법 자체는 어떤 ADR도 검토·유예한 적이 없다(그냥 처음부터 안 나뉜 것).
+- **실제 SSO(SAML/OIDC)**: 스코프는 셋 중 유일하게 명확하다(신규 IdP 연동 인프라 구축). 하지만 기반이 전혀 없다 — 기존 Google 로그인(`GoogleAuthService`)은 자체 문서 주석으로 "조직 단위 엔터프라이즈 SSO가 아니라 이메일/비밀번호 가입의 대안일 뿐"이라고 명시돼 있다. 셋 중 가장 큰 작업이라 실 신호 없이 지금 들어가는 건 스코프 리스크가 크다.
+
+사용자에게 이 조사 결과를 공유하고(AskUserQuestion) **Phase 4 전체 보류**로 확정했다. 실제 신호(사용자 요청, 멀티-페르소나 조직 사례 등)가 생기면 재검토.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
