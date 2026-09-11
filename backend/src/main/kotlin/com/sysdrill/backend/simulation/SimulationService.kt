@@ -2,11 +2,14 @@ package com.sysdrill.backend.simulation
 
 import com.sysdrill.backend.common.web.BadRequestException
 import com.sysdrill.backend.common.web.NotFoundException
+import com.sysdrill.backend.evaluation.PromptTemplateRepository
+import com.sysdrill.backend.evaluation.llm.LlmClient
 import com.sysdrill.backend.scenario.ScenarioRepository
 import com.sysdrill.backend.scenario.ScenarioVersionRepository
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.simulation.realinfra.RealInfraCouponEngine
 import com.sysdrill.backend.simulation.realinfra.RealInfraNotificationEngine
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
@@ -39,6 +42,12 @@ data class TimelineStep(
     val systemState: SystemState,
 )
 
+/** AI 4역할 Slice 4 (Director) — [narration] is only ever non-null on a fresh, rule-based incident start; see [SimulationService.startIncident]. */
+data class IncidentStartResult(
+    val state: SystemState,
+    val narration: String? = null,
+)
+
 /** Sentinel [AppliedAction.actionType] for the incident-start row — deliberately not a [SimulationActionType] member, since it isn't a user-applicable action. */
 const val INCIDENT_STARTED = "INCIDENT_STARTED"
 
@@ -52,8 +61,12 @@ class SimulationService(
     private val realInfraCouponEngine: RealInfraCouponEngine,
     private val realInfraNotificationEngine: RealInfraNotificationEngine,
     private val systemTopologyService: SystemTopologyService,
+    private val promptTemplateRepository: PromptTemplateRepository,
+    private val llmClient: LlmClient,
+    private val directorNarrationResultParser: DirectorNarrationResultParser,
     private val objectMapper: ObjectMapper,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
 
     /**
      * Which [SimulationEngine] serves [EngineMode.REAL_INFRA] for each opted-in
@@ -81,7 +94,7 @@ class SimulationService(
         initialTraits: DesignTraits = DesignTraits(),
         loadRpsOverride: Int? = null,
         loadDurationOverride: Int? = null,
-    ): SystemState {
+    ): IncidentStartResult {
         // Idempotent: the frontend's real-infra opt-in gate is client-side state
         // that re-shows on every page load/reload (WargameLive.tsx), so a second
         // "인시던트 시작" click for an already-active incident is a real, reachable
@@ -90,8 +103,10 @@ class SimulationService(
         // second INCIDENT_STARTED row, which getTimeline's replay can't handle
         // (SimulationActionType has no such member — discovered via the
         // UI/UX 리뉴얼 Round 3 live verification, PLAN.md).
+        // No narration on this replay path — a re-click of an already-started
+        // incident shouldn't fire a second LLM call.
         stateStore.find(sessionId)?.takeIf { it.incidentActive }?.let { existing ->
-            return engineFor(existing).computeState(existing)
+            return IncidentStartResult(state = engineFor(existing).computeState(existing))
         }
 
         val session = sessionRepository.findById(sessionId)
@@ -143,7 +158,39 @@ class SimulationService(
                 ),
             )
         )
-        return computed
+        // AI 4역할 Slice 4 (Director) — rule-based sessions only: real-infra
+        // applyAction/first-computeState already runs k6 synchronously (3-10s+,
+        // see RealInfraCouponEngine's own doc comment), and stacking an LLM call
+        // on top of that would make an already-slow path slower for no real gain.
+        val narration = if (!realInfra) generateNarration(domain, computed) else null
+        return IncidentStartResult(state = computed, narration = narration)
+    }
+
+    /**
+     * Fail-open by design: a narration failure must never break incident
+     * start, which worked fine before this feature existed and is the core
+     * simulation flow, not an optional add-on. Returns null (the frontend
+     * falls back to its own static per-domain narration string) on any
+     * failure — missing/misconfigured prompt template, LLM error, bad JSON.
+     */
+    private fun generateNarration(domain: String, state: SystemState): String? = try {
+        val template = promptTemplateRepository.findFirstByPurposeAndActiveTrue(DIRECTOR_NARRATION_PURPOSE)
+        if (template == null) {
+            null
+        } else {
+            val userPrompt = buildString {
+                appendLine("## 도메인")
+                appendLine(domain)
+                appendLine()
+                appendLine("## 방금 계산된 시스템 지표")
+                appendLine(objectMapper.writeValueAsString(SystemStateResponse.from(state)))
+            }
+            val completion = llmClient.complete(template.templateBody, userPrompt)
+            directorNarrationResultParser.parse(completion.text).narration
+        }
+    } catch (ex: Exception) {
+        log.warn("Director narration generation failed for domain={}: {}", domain, ex.message)
+        null
     }
 
     private fun resolveDomain(scenarioVersionId: UUID): String {
@@ -300,5 +347,9 @@ class SimulationService(
             "긍정 효과: 메모리 사용량이 request/limit에 맞게 조정돼 OOM kill로 인한 Pod 재시작 반복 해소. 가능한 부작용: limit을 너무 낮게 잡으면 정상 부하에서도 스로틀링 발생 가능."
         SimulationActionType.ENABLE_ROLLOUT_SAFEGUARD ->
             "긍정 효과: readiness probe/PodDisruptionBudget으로 롤링 배포 중에도 가용 용량 유지. 가능한 부작용: 배포 자체의 소요 시간 증가."
+    }
+
+    private companion object {
+        const val DIRECTOR_NARRATION_PURPOSE = "director_narration"
     }
 }

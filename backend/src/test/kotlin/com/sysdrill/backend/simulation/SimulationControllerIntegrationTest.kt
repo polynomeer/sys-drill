@@ -86,6 +86,26 @@ class SimulationControllerIntegrationTest(
     }
 
     /**
+     * AI 4역할 Slice 4 (Director) — starting a rule-based incident now also
+     * attempts LLM narration generation (`SimulationService.generateNarration`),
+     * but this must never break the core incident-start flow. No
+     * LLM_ANTHROPIC_API_KEY is configured in this test environment, so the
+     * offline fallback (a fixed JSON with no `narration` key, see
+     * AnthropicLlmClient's kdoc) parses to a null narration — this test's
+     * main point is that the response still succeeds with every existing
+     * field intact (fail-open in practice, not just in theory).
+     */
+    @Test
+    fun `starting the incident still succeeds when director narration comes back empty`() {
+        val sessionId = mockMvc.startSession(userId)
+
+        mockMvc.perform(post("/sessions/$sessionId/simulation/incident").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.trafficRps").value(6000.0))
+            .andExpect(jsonPath("$.narration").doesNotExist())
+    }
+
+    /**
      * ADR-0037 next slice — the engine reads the session's saved SystemTopology
      * directly instead of trusting client-sent traits. Two "db" kind nodes
      * (readReplicaCount 40 + 59 = 99), wired together by an edge (edge

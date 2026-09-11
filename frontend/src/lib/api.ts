@@ -221,6 +221,8 @@ export interface SystemState {
   memoryUtilization: number;
   /** Phase 3-A (docs/DRILLS_SIMULATION_VISION.md §6) — log-severity classification, moved from WargameLive.tsx's deriveLevel() to the backend. */
   level: "INFO" | "WARN" | "ERROR";
+  /** AI 4역할 Slice 4 (Director) — LLM narration for a fresh incident start, rule-based sessions only. Null/absent otherwise (real-infra, LLM failure, or any other response) — callers should fall back to a static string. */
+  narration?: string | null;
 }
 
 export interface TimelineStep {

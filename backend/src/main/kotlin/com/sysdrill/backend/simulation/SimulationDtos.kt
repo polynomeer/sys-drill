@@ -20,9 +20,11 @@ data class SystemStateResponse(
     val memoryUtilization: Double,
     /** Phase 3-A (docs/DRILLS_SIMULATION_VISION.md §6) — see [SystemState.level]. */
     val level: String,
+    /** AI 4역할 Slice 4 (Director) — LLM narration generated once, on a fresh (non-idempotent-replay) incident start, rule-based sessions only. Null everywhere else ([getState]/[applyAction]/[getTimeline], real-infra sessions, or on LLM failure — fail-open, see [SimulationService.startIncident]). */
+    val narration: String? = null,
 ) {
     companion object {
-        fun from(state: SystemState) = SystemStateResponse(
+        fun from(state: SystemState, narration: String? = null) = SystemStateResponse(
             trafficRps = state.trafficRps,
             p95LatencyMs = state.p95LatencyMs,
             errorRate = state.errorRate,
@@ -38,6 +40,7 @@ data class SystemStateResponse(
             cpuUtilization = state.cpuUtilization,
             memoryUtilization = state.memoryUtilization,
             level = state.level,
+            narration = narration,
         )
     }
 }

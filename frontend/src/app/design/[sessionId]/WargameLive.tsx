@@ -178,6 +178,13 @@ const ACTIONS_BY_DOMAIN: Record<string, ActionDef[]> = {
   ],
 };
 
+/**
+ * AI 4역할 Slice 4 (Director) — the fallback for when the backend didn't send
+ * `SystemState.narration` (real-infra sessions, which skip generation
+ * entirely; or a rule-based session where the LLM call itself failed —
+ * SimulationService.generateNarration fails open). Kept as static text,
+ * not removed, since it's the only narration real-infra sessions ever see.
+ */
 const INCIDENT_EVENT_BY_DOMAIN: Record<string, string> = {
   coupon: "인시던트 발생: 트래픽 20배 급증, Redis latency 상승 → DB write hotspot",
   notification: "인시던트 발생: provider timeout → 재시도 폭증 → consumer lag 증가",
@@ -276,7 +283,7 @@ export function WargameLive({
           started.current = true;
           const initial = await startIncident(sessionId, false, initialTraits);
           setState(initial);
-          pushLog(INCIDENT_EVENT_BY_DOMAIN[domain] ?? INCIDENT_EVENT_BY_DOMAIN.coupon, initial);
+          pushLog(initial.narration ?? INCIDENT_EVENT_BY_DOMAIN[domain] ?? INCIDENT_EVENT_BY_DOMAIN.coupon, initial);
           lastLevelRef.current = initial.level;
         }
       }
@@ -305,13 +312,23 @@ export function WargameLive({
     getSimulationTimeline(sessionId)
       .then((steps) => {
         if (steps.length === 0) return;
-        setLogs(
-          steps.map((step) => ({
-            time: new Date(step.appliedAt),
-            level: step.systemState.level,
-            service: domain,
-            message: step.label,
-          })),
+        // Only seed if nothing has been live-appended yet (a returning/spectating
+        // viewer with an empty panel) — otherwise this fetch, which races the
+        // startIncident call that also flips `state` from null, would overwrite
+        // the just-pushed live incident-start line (AI 4역할 Slice 4's narration,
+        // or the static fallback before it) with the terser stored
+        // AppliedAction.effect ("인시던트 시작") the instant it resolves. Found
+        // during Director live verification — this bug already existed for the
+        // static-string line, just went unnoticed since both said something similar.
+        setLogs((prev) =>
+          prev.length > 0
+            ? prev
+            : steps.map((step) => ({
+                time: new Date(step.appliedAt),
+                level: step.systemState.level,
+                service: domain,
+                message: step.label,
+              })),
         );
       })
       .catch(() => {
@@ -332,9 +349,10 @@ export function WargameLive({
       setState(initial);
       lastLevelRef.current = initial.level;
       pushLog(
-        realInfraChoice
-          ? (REAL_INFRA_START_EVENT[domain] ?? REAL_INFRA_START_EVENT.coupon)
-          : (INCIDENT_EVENT_BY_DOMAIN[domain] ?? INCIDENT_EVENT_BY_DOMAIN.coupon),
+        initial.narration ??
+          (realInfraChoice
+            ? (REAL_INFRA_START_EVENT[domain] ?? REAL_INFRA_START_EVENT.coupon)
+            : (INCIDENT_EVENT_BY_DOMAIN[domain] ?? INCIDENT_EVENT_BY_DOMAIN.coupon)),
         initial,
       );
     } catch {
