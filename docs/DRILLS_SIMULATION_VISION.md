@@ -131,7 +131,7 @@
 |---|---|---|---|
 | 1 | ~~AI 4역할 추가(Mentor/Director/Interviewer/Postmortem Coach)~~ — **전체 완료(2026-09-11)**, [PLAN.md "AI 4역할 추가" Slice 1~4](../PLAN.md) 참고 | Evaluator 배관 재사용, `interviewMode`(면접형 타이머) 이미 존재 | 역할별 분리가 단일 Evaluator보다 학습 효과가 있는가? |
 | 2 | Skill Graph(계층화) — 첫 슬라이스 **완료(2026-09-10)**, [PLAN.md "Skill Graph(계층화) — 첫 슬라이스"](../PLAN.md) 참고 | SkillProfile 파이프라인 재사용 | 상위 역량 계층이 추천 품질을 실제로 개선하는가? |
-| 3 | Scenario Engine → DSL/Authoring | `ScenarioStep` jsonb 확장(이미 기반 있음), 조직 커스텀 시나리오 API(ADR-0024)로 일부 선행 구현 존재 | 콘텐츠 제작자가 코드 없이 시나리오를 늘릴 수요가 있는가? |
+| 3 | Scenario Engine → DSL/Authoring — 첫 슬라이스 **완료(2026-09-11)**, [PLAN.md "Scenario DSL/Authoring"](../PLAN.md) 참고. **정정**: `ScenarioStep.triggerCondition`은 실제로는 어디서도 읽히지 않는 죽은 데이터였다(재사용 가능한 "기반"이 아니었음) — 실제로 구현한 건 커스텀 시나리오(ADR-0024)가 기존 7개 도메인 중 선택 시 INCIDENT 단계를 추가할 수 있게 한 것(ADR-0038). 진짜 조건부 분기 엔진은 여전히 미구현, 별도 후속 후보로 남음 | ~~`ScenarioStep` jsonb 확장(이미 기반 있음)~~, 조직 커스텀 시나리오 API(ADR-0024)로 일부 선행 구현 존재 | 콘텐츠 제작자가 코드 없이 시나리오를 늘릴 수요가 있는가? |
 | 4 | Drill Map(의존성 그래프) | Marketplace 확장 | 평면 목록보다 그래프 탐색이 실제로 더 쓰이는가? |
 | 5 | System Sandbox / What-if | SandboxSystem 신규 모델(완전 신규, 5개 중 유일하게 새 엔터티가 필요) | "완료 후 계속 실험"하고 싶다는 수요가 실제로 있는가? |
 

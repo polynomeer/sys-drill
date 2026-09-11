@@ -1128,6 +1128,28 @@ AI 4역할의 마지막 항목. 나머지 셋과 달리 유일하게 새 트리�
 
 ---
 
+## Scenario DSL/Authoring — 커스텀 시나리오에 INCIDENT 단계 허용 ✅ 완료 (2026-09-11)
+
+§6 우선순위 ③. 조사 중 계획 문서의 전제("`ScenarioStep` jsonb 확장, 이미 기반 있음")가 실제로는 틀렸다는 걸 발견했다 — `ScenarioStep.triggerCondition`은 모든 콘텐츠 경로(공식/커스텀 둘 다)에서 저장만 되고 **어디서도 읽히지 않는 죽은 데이터**였다. `SessionService.advance()`는 그냥 `step_order + 1`로 선형 진행할 뿐, 조건부 분기 엔진 자체가 존재하지 않았다. 사용자에게 이 발견을 공유하고 범위를 확인했다(AskUserQuestion) — 실제 분기 엔진 구축(훨씬 큰 별도 작업)이 아니라 **기존 7개 도메인 선택 + INCIDENT 단계 허용**으로 진행.
+
+`ADR-0024`가 커스텀 시나리오를 INITIAL+FOLLOWUP 2단계로 고정한 이유는 도메인이 자유 텍스트라 `RuleBasedSimulationEngine`의 하드코딩된 7-way dispatch(`else -> error(...)`)와 절대 매칭이 안 됐기 때문이었다 — 도메인을 자유 텍스트 대신 **기존 7개 중 선택**으로만 제한하면, 엔진/`RuleEvaluator` 코드를 전혀 안 건드리고 INCIDENT 단계(워게임)를 열 수 있다는 게 이번 슬라이스의 핵심 발견. 이 결정을 새 **ADR-0038**로 기록했다(ADR-0024가 명시적으로 "no Incident/Wargame in v1"이라고 선언했던 걸 뒤집는 결정이라 CLAUDE.md 3조건을 모두 만족).
+
+- [x] `RuleBasedSimulationEngine.kt`에 `KNOWN_DOMAINS`(기존 7개 `DOMAIN_*` 상수의 집합) 추가
+- [x] `ScenarioDtos.kt`의 `CreateCustomScenarioRequest`에 `incidentPrompt: String? = null` 추가 — 없으면 기존과 동일한 2단계(도메인은 여전히 자유 텍스트, 엔진에 안 닿으므로 문제 없음), 있으면 3단계. **`PublishMarketplaceScenarioRequest`(마켓플레이스 발행)는 건드리지 않음** — 이번 스코프는 조직 커스텀 시나리오만
+- [x] `CustomScenarioService.create()` — `incidentPrompt`가 있을 때만 `domain in KNOWN_DOMAINS` 검증(400) 후, 공식 콘텐츠(`V2__seed_coupon_scenario.sql`)와 완전히 같은 `{"prompt": ...}` 모양으로 3번째 `ScenarioStep`(INCIDENT) 저장
+- [x] `docs/adr/0038-....md` 신규 작성 + `docs/adr/README.md` 갱신
+- [x] 프론트: `api.ts`의 `CreateCustomScenarioRequest`에 `incidentPrompt?: string` 추가(마켓플레이스 발행 호출부는 그냥 안 보냄). `organizations/[orgId]/page.tsx` — "장애 대응(Wargame) 단계 추가" 체크박스 토글 추가: 체크 전엔 기존과 동일한 자유 텍스트 도메인 입력, 체크하면 도메인 입력이 7개 도메인 드롭다운(`designGuidance.ts`의 `DOMAIN_TITLES`로 한글 라벨)으로 바뀌고 인시던트 프롬프트 textarea가 나타남
+
+**완료 기준 충족**: `./gradlew compileKotlin`/`compileTestKotlin` 클린. `OrganizationControllerIntegrationTest.kt`에 신규 테스트 2개 추가 — (1) `incidentPrompt`와 자유 텍스트 도메인을 같이 보내면 400, 같은 자유 텍스트 도메인이라도 `incidentPrompt` 없이는 그대로 생성 성공(회귀), (2) 알려진 도메인(coupon)+`incidentPrompt`로 생성 → 세션을 INITIAL→FOLLOWUP→INCIDENT까지 실제로 진행시킨 뒤 `POST .../simulation/incident`가 진짜 coupon 공식으로 계산된 지표(`trafficRps: 6000.0`)를 반환하는 것까지 end-to-end로 확인 — 기존 34개 포함 36개 전부 통과. `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.scenario.*" --tests "com.sysdrill.backend.organization.*"` 전체(회귀 포함) 통과. 프론트 `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 클린.
+
+**실 검증**: 격리 백엔드(8084)에서 실제 브라우저로 조직 관리자 로그인 → 시나리오 생성 폼에서 체크박스 클릭 시 도메인 입력이 드롭다운(7개 한글 라벨)으로 바뀌는 것 확인 → 실제 폼 제출로 coupon 도메인 + 인시던트 프롬프트를 가진 시나리오 생성 → 그 시나리오로 세션을 실제로 진행시켜 INCIDENT 단계 도달 및 `trafficRps: 6000.0`(coupon 공식 그대로) 확인 — curl로 만든 게 아니라 **실제 폼에서 만든 시나리오**로 전체 흐름을 검증. 콘솔 에러 없음.
+
+**하지 않은 것**: 실제 `triggerCondition` 조건부 분기 엔진 구축 안 함(AskUserQuestion에서 확인, 별도의 훨씬 큰 작업). 마켓플레이스 발행 무변경. 커스텀 시나리오 수정/삭제 엔드포인트 추가 안 함(기존에도 없었음). 시나리오 목록에 "워게임 포함" 표시 배지 추가 안 함.
+
+다음 §6 후보는 ④(Drill Map) → ⑤(System Sandbox) 순.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
