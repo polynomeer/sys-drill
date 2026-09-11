@@ -1091,6 +1091,25 @@ AI 4역할 중 세 번째. 조사(Interviewer/Postmortem Coach 슬라이스 때 
 
 이걸로 AI 4역할 중 Interviewer/Postmortem Coach/Mentor 세 개가 완료됐다. 남은 건 Director(인시던트 실시간 내레이션 — 4역할 중 유일하게 새 오케스트레이션이 필요해 가장 큼)뿐이다.
 
+### Slice 4 — Director ✅ 완료 (2026-09-11) — AI 4역할 전체 완료
+
+AI 4역할의 마지막 항목. 나머지 셋과 달리 유일하게 새 트리거 시점이 필요했다 — 인시던트 내레이션이 100% 정적 문자열(`WargameLive.tsx`의 `INCIDENT_EVENT_BY_DOMAIN`)이고 백엔드 시뮬레이션 경로 어디에도 LLM 호출이 없었다. 사용자에게 트리거 범위를 확인해(AskUserQuestion) **인시던트 시작 시점만**(액션마다는 안 함)으로 정했다 — real-infra 세션(coupon/notification)의 `applyAction`은 이미 k6를 요청 스레드 안에서 동기 실행해 3~10초+ 걸리는데 그 위에 LLM 호출까지 쌓이는 걸 피하기 위해 real-infra 세션 자체를 내레이션 생성 대상에서 제외했다.
+
+- [x] `V42__seed_director_narration_prompt.sql` — `purpose='director_narration'` 신규 프롬프트 시드만(스키마 변경 없음). "방금 계산된 시스템 지표(JSON)를 참고해 수치를 나열하지 말고 실제 상황을 1~2문장으로" 지시, 스키마는 `{"narration": "..."}` 하나
+- [x] `DirectorNarrationResult.kt`/`DirectorNarrationResultParser.kt`(신규, `simulation` 패키지) — `PostmortemCoachResultParser`/`MentorHintResultParser`와 같은 파싱 패턴
+- [x] `SimulationService.kt` — `startIncident`의 반환 타입을 `SystemState`에서 `IncidentStartResult(state, narration)`로 변경. 신규 인시던트 시작 경로에서만(멱등 재조회 경로는 제외 — 재클릭마다 LLM 또 안 부름) `!realInfra`일 때 `generateNarration(domain, computed)` 호출, **fail-open**(try/catch로 감싸 LLM 실패/예외 시 `null` 반환 + 경고 로그만 — `startIncident` 자체는 절대 실패 안 함, 기존 핵심 흐름 보호가 최우선)
+- [x] `SimulationDtos.kt` — `SystemStateResponse`에 `narration: String? = null`(trailing, 기본값) 추가, `from(state, narration = null)`로 시그니처 확장 — `getState`/`applyAction`/`getTimeline`의 기존 호출부는 전부 무변경
+- [x] `SimulationController.kt` — `startIncident`만 `SystemStateResponse.from(result.state, narration = result.narration)`로 수정
+- [x] 프론트: `api.ts`의 `SystemState`에 `narration?: string | null` 추가. `WargameLive.tsx`의 인시던트 시작 두 경로(자동 시작/수동 게이트) 모두 `initial.narration ?? <기존 정적 문자열>` 폴백으로 변경 — real-infra거나 LLM 실패 시 기존 정적 텍스트가 그대로 나옴
+
+**완료 기준 충족**: `./gradlew compileKotlin`/`compileTestKotlin` 클린. `SimulationControllerIntegrationTest.kt`에 신규 테스트 추가(rule-based 인시던트 시작이 narration 생성 시도 후에도 여전히 성공하고 핵심 필드가 그대로인지 — 오프라인 fake LLM엔 `narration` 키가 없어 `null`이 정상, 이번에도 "핵심 흐름이 안 깨지는지"가 신호). 기존 7개 포함 전부 통과. `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.simulation.*"` 전체(real-infra Docker/k6 테스트 포함) 통과. 프론트 `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 클린.
+
+**진행 중 발견하고 고친 버그**: 실 브라우저 검증 중, 인시던트 시작 시 내레이션(또는 폴백 정적 문자열) 로그 줄이 나타난 직후 "인시던트 시작"이라는 훨씬 짧은 문구로 곧바로 덮어써지는 걸 발견했다. 원인: `WargameLive.tsx`의 "타임라인에서 로그를 한 번 시드하는" `useEffect`(재방문/관전자를 위해 `getSimulationTimeline`으로 과거 로그를 복원하는 용도)가 `state`가 null→non-null로 바뀔 때마다(=정확히 인시던트 시작 시점에도) 실행되는데, 그 안의 `setLogs(steps.map(...))`가 배열을 통째로 교체해버려서, `handleManualStart`/`refreshState`가 막 `pushLog`로 추가한 실시간 내레이션 줄을 타임라인의 `AppliedAction.effect`(하드코딩된 "인시던트 시작")로 덮어쓰고 있었다. **이 버그는 이번 슬라이스 이전부터 있던 것**(예전의 정적 "인시던트 발생: ..." 문자열도 똑같이 덮어써지고 있었다 — 둘 다 "인시던트" 관련 문구라 겹쳐 보여서 아무도 눈치채지 못했을 뿐) — 하지만 Director 슬라이스의 목적 자체(사용자가 내레이션을 실제로 보는 것)를 무력화하므로 이번 슬라이스 범위 안에서 고쳤다. 수정: `setLogs(steps.map(...))`를 `setLogs((prev) => prev.length > 0 ? prev : steps.map(...))`로 바꿔, 이미 실시간으로 뭔가 쌓인 상태라면(=이 브라우저 탭에서 방금 인시던트를 시작한 경우) 타임라인 시드가 덮어쓰지 않도록 함 — 실제로 복원이 필요한 케이스(로그가 비어있는 재방문/관전)는 그대로 동작.
+
+**하지 않은 것**: `applyAction`(액션마다 내레이션) 안 함. real-infra 세션은 내레이션 생성 안 함(레이턴시 누적 방지). 내레이션을 `AppliedActionSnapshot`/`getTimeline`에 영속화 안 함(Mentor 힌트와 같은 이유 — 휘발성). 새 ADR 안 씀.
+
+이걸로 **AI 4역할(Mentor/Director/Interviewer/Postmortem Coach) 전체가 완료**됐다. 남은 §6 후보는 ③(Scenario DSL/Authoring) → ④(Drill Map) → ⑤(System Sandbox) 순.
+
 ## Skill Graph (계층화) — 첫 슬라이스 ✅ 완료 (2026-09-10)
 
 `docs/DRILLS_SIMULATION_VISION.md` §6 우선순위 ②. 조사 결과 `SkillProfile`은 지금도 riskKey별 빈도 평탄 카운터(`weaknesses`)를 그대로 저장하고, `SkillProfileController.kt`가 읽기 시점에 `RuleEvaluator.domainByRiskKey`(riskKey → 시나리오 도메인)로 한 단계 그룹핑만 하고 있었다 — "계층화"가 이미 한 겹 있었던 셈. 하지만 도메인을 가로지르는 역량 축은 전혀 없었다: coupon의 `MISSING_CONCURRENCY_CONTROL`과 reservation의 `MISSING_RESERVATION_LOCKING`은 둘 다 "동시성 제어"라는 같은 역량인데도 서로 다른 도메인으로만 묶였다. 게다가 기존 `recommendedDomain`은 **단일 riskKey의 최대 빈도**로 도메인을 골라, 한 도메인에 중간 빈도 riskKey가 여러 개 있어도 다른 도메인의 riskKey 하나가 더 잦으면 밀리는 결함이 있었다 — 검증 질문("상위 역량 계층이 추천 품질을 실제로 개선하는가")이 정확히 겨냥하는 지점.
