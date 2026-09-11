@@ -22,13 +22,23 @@ data class ScenarioDetailResponse(
     val creatorNickname: String? = null,
 )
 
-/** PLAN.md step 34 — an org ADMIN authors a private scenario via API (docs/adr/0024), fixed to exactly INITIAL + FOLLOWUP (no Incident/Wargame in v1). */
+/**
+ * PLAN.md step 34 — an org ADMIN authors a private scenario via API (docs/adr/0024).
+ * ADR-0038 — [incidentPrompt] is optional: omitted, this is still the original
+ * INITIAL+FOLLOWUP-only shape with [domain] as a free-text label (never reaches
+ * the simulation engine, so any string is fine — an org's own internal system
+ * name, say). Provided, [CustomScenarioService.create] adds a 3rd INCIDENT step,
+ * which *does* need [domain] to be one of [com.sysdrill.backend.simulation.RuleBasedSimulationEngine.KNOWN_DOMAINS]
+ * (validated in the service, only in that case) so it reaches a real
+ * [com.sysdrill.backend.simulation.SimulationEngine] instead of erroring.
+ */
 data class CreateCustomScenarioRequest(
     @field:NotBlank val title: String,
     val difficulty: String?,
     @field:NotBlank val domain: String,
     @field:NotBlank val initialPrompt: String,
     @field:NotBlank val followupPrompt: String,
+    val incidentPrompt: String? = null,
 )
 
 /** Phase 5 (Scenario Marketplace, docs/adr/0031) — any authenticated user publishes a scenario, same INITIAL+FOLLOWUP-only shape as CreateCustomScenarioRequest. */

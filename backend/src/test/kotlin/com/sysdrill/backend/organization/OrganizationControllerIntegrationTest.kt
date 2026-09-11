@@ -521,6 +521,87 @@ class OrganizationControllerIntegrationTest(
         ).andExpect(status().isBadRequest)
     }
 
+    /** ADR-0038 — an incidentPrompt with a free-text (unrecognized) domain is rejected; without incidentPrompt, the same free-text domain is fine (unchanged from ADR-0024). */
+    @Test
+    fun `creating a custom scenario with an incident prompt requires a known simulation domain`() {
+        val admin = createUser("scenario-admin7")
+        val orgId = createOrg(admin.id!!)
+
+        mockMvc.perform(
+            post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin.id!!))
+                .content(
+                    """{"title":"사내 결제 장애","domain":"internal-payment",
+                        |"initialPrompt":"a","followupPrompt":"b","incidentPrompt":"c"}""".trimMargin()
+                )
+        ).andExpect(status().isBadRequest)
+
+        // Unchanged from before ADR-0038: a free-text domain is still fine as long as there's no incident step.
+        mockMvc.perform(
+            post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin.id!!))
+                .content("""{"title":"사내 결제 장애","domain":"internal-payment","initialPrompt":"a","followupPrompt":"b"}""")
+        ).andExpect(status().isCreated)
+    }
+
+    /** ADR-0038 — a custom scenario that picks a known domain and provides an incidentPrompt reaches a real INCIDENT step, wired into the actual RuleBasedSimulationEngine/RuleEvaluator for that domain (not a design-only 2-step scenario). */
+    @Test
+    fun `a custom scenario with a known domain and an incident prompt reaches a real Wargame incident`() {
+        val admin = createUser("scenario-admin8")
+        val owner = createUser("scenario-owner8")
+        val orgId = createOrg(admin.id!!)
+        val token = invite(orgId, admin.id!!, owner.email)
+        mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(owner.id!!)))
+
+        val createResponse = mockMvc.perform(
+            post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(admin.id!!))
+                .content(
+                    """{"title":"쿠폰 파일럿","domain":"coupon",
+                        |"initialPrompt":"쿠폰 시스템을 설계하세요","followupPrompt":"트래픽이 늘었습니다",
+                        |"incidentPrompt":"Redis latency가 급증합니다"}""".trimMargin()
+                )
+        ).andExpect(status().isCreated).andReturn().response.contentAsString
+        val scenarioId = JsonPath.read<String>(createResponse, "$.id")
+
+        val sessionResponse = mockMvc.perform(
+            post("/sessions").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(owner.id!!))
+                .content("""{"scenarioId":"$scenarioId"}""")
+        ).andExpect(status().isCreated).andExpect(jsonPath("$.currentPhase").value("INITIAL")).andReturn().response.contentAsString
+        val sessionId = UUID.fromString(JsonPath.read(sessionResponse, "$.id"))
+
+        fun submitAndWaitForFeedback() {
+            mockMvc.perform(
+                post("/sessions/$sessionId/submissions").contentType(MediaType.APPLICATION_JSON)
+                    .header("Authorization", bearerHeader(owner.id!!))
+                    .content("""{"rawText":"그냥 API 서버 하나로 처리합니다."}""")
+            ).andExpect(status().isCreated)
+            val deadline = Instant.now().plusSeconds(10)
+            while (Instant.now().isBefore(deadline)) {
+                if (sessionRepository.findById(sessionId).orElseThrow().status == SessionStatus.FEEDBACK_READY) return
+                Thread.sleep(100)
+            }
+            error("Session $sessionId did not reach FEEDBACK_READY in time")
+        }
+
+        submitAndWaitForFeedback()
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(owner.id!!)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.currentPhase").value("FOLLOWUP"))
+        submitAndWaitForFeedback()
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(owner.id!!)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.currentPhase").value("INCIDENT"))
+            .andExpect(jsonPath("$.status").value("IN_PROGRESS")) // not COMPLETED -- a 3rd step exists, unlike a design-only custom scenario
+
+        // The real proof: this reaches RuleBasedSimulationEngine's actual coupon formula, not the
+        // hardcoded `error(...)` a free-text/unrecognized domain would have hit.
+        mockMvc.perform(post("/sessions/$sessionId/simulation/incident").header("Authorization", bearerHeader(owner.id!!)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.trafficRps").value(6000.0))
+    }
+
     private fun startCustomScenarioSession(orgId: UUID, admin: UUID, owner: UUID): UUID {
         val response = mockMvc.perform(
             post("/organizations/$orgId/scenarios").contentType(MediaType.APPLICATION_JSON)
@@ -569,7 +650,7 @@ class OrganizationControllerIntegrationTest(
             .andExpect(status().isNotFound)
     }
 
-    /** Fixed scenario_version id seeded by V2__seed_coupon_scenario.sql — has a real INCIDENT step, unlike a custom scenario (step 34/ADR-0024's INITIAL+FOLLOWUP-only cut). */
+    /** Fixed scenario_version id seeded by V2__seed_coupon_scenario.sql — has a real INCIDENT step; `startCustomScenarioSession`'s `customScenarioBody` deliberately doesn't (no incidentPrompt, ADR-0038), so this fixture is still needed wherever a test specifically wants a 3-step session without building one via the custom-scenario API. */
     private val couponScenarioVersionIdForSpectating = UUID.fromString("a0000000-0000-0000-0000-000000000003")
 
     @Test

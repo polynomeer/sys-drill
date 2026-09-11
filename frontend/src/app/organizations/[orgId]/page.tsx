@@ -22,6 +22,7 @@ import {
   startSession,
 } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
+import { DOMAIN_TITLES } from "@/lib/designGuidance";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -56,6 +57,12 @@ export default function OrganizationDetailPage() {
   const [scenarioDifficulty, setScenarioDifficulty] = useState("");
   const [scenarioInitialPrompt, setScenarioInitialPrompt] = useState("");
   const [scenarioFollowupPrompt, setScenarioFollowupPrompt] = useState("");
+  // ADR-0038 — an incident (Wargame) step is only possible when domain is one
+  // of the 7 known simulation domains, not the free-text label the domain
+  // field otherwise accepts, so this toggle switches the domain input itself
+  // between a free-text field and a constrained dropdown.
+  const [includeIncident, setIncludeIncident] = useState(false);
+  const [scenarioIncidentPrompt, setScenarioIncidentPrompt] = useState("");
   const [creatingScenario, setCreatingScenario] = useState(false);
   const [startingScenarioId, setStartingScenarioId] = useState<string | null>(null);
 
@@ -130,6 +137,7 @@ export default function OrganizationDetailPage() {
   async function handleCreateScenario(e: React.FormEvent) {
     e.preventDefault();
     if (!scenarioTitle.trim() || !scenarioDomain.trim() || !scenarioInitialPrompt.trim() || !scenarioFollowupPrompt.trim()) return;
+    if (includeIncident && !scenarioIncidentPrompt.trim()) return;
     setCreatingScenario(true);
     setError(null);
     try {
@@ -139,12 +147,15 @@ export default function OrganizationDetailPage() {
         domain: scenarioDomain.trim(),
         initialPrompt: scenarioInitialPrompt.trim(),
         followupPrompt: scenarioFollowupPrompt.trim(),
+        incidentPrompt: includeIncident ? scenarioIncidentPrompt.trim() : undefined,
       });
       setScenarioTitle("");
       setScenarioDomain("");
       setScenarioDifficulty("");
       setScenarioInitialPrompt("");
       setScenarioFollowupPrompt("");
+      setIncludeIncident(false);
+      setScenarioIncidentPrompt("");
       setScenarios(await listOrganizationScenarios(orgId));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "시나리오를 만들지 못했습니다.");
@@ -264,14 +275,50 @@ export default function OrganizationDetailPage() {
 
         {org.myRole === "ADMIN" && (
           <form onSubmit={handleCreateScenario} className="mt-4 flex flex-col gap-2 border-t border-border pt-4 ">
-            <p className="text-xs text-foreground-muted">새 시나리오 만들기 (설계 + 꼬리설계 2단계, 장애 대응 단계는 없습니다)</p>
+            <p className="text-xs text-foreground-muted">
+              새 시나리오 만들기 (설계 + 꼬리설계 2단계{includeIncident ? " + 장애 대응" : ", 장애 대응 단계는 없습니다"})
+            </p>
             <Input value={scenarioTitle} onChange={(e) => setScenarioTitle(e.target.value)} placeholder="제목" />
             <div className="flex gap-2">
-              <Input className="flex-1" value={scenarioDomain} onChange={(e) => setScenarioDomain(e.target.value)} placeholder="도메인 라벨 (예: internal-payment)" />
+              {includeIncident ? (
+                <select
+                  className="flex-1 rounded border border-border bg-transparent px-2 py-1.5 text-sm"
+                  value={scenarioDomain}
+                  onChange={(e) => setScenarioDomain(e.target.value)}
+                >
+                  <option value="">도메인 선택</option>
+                  {Object.entries(DOMAIN_TITLES).map(([domain, title]) => (
+                    <option key={domain} value={domain}>
+                      {title} ({domain})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input className="flex-1" value={scenarioDomain} onChange={(e) => setScenarioDomain(e.target.value)} placeholder="도메인 라벨 (예: internal-payment)" />
+              )}
               <Input className="w-32" value={scenarioDifficulty} onChange={(e) => setScenarioDifficulty(e.target.value)} placeholder="난이도" />
             </div>
             <Textarea value={scenarioInitialPrompt} onChange={(e) => setScenarioInitialPrompt(e.target.value)} placeholder="초기 설계 프롬프트" rows={3} />
             <Textarea value={scenarioFollowupPrompt} onChange={(e) => setScenarioFollowupPrompt(e.target.value)} placeholder="꼬리설계 프롬프트" rows={3} />
+            <label className="flex items-center gap-2 text-xs text-foreground-muted">
+              <input
+                type="checkbox"
+                checked={includeIncident}
+                onChange={(e) => {
+                  setIncludeIncident(e.target.checked);
+                  if (e.target.checked && scenarioDomain.trim() && !(scenarioDomain in DOMAIN_TITLES)) setScenarioDomain("");
+                }}
+              />
+              장애 대응(Wargame) 단계 추가 — 위 도메인이 기존 7개 시뮬레이션 도메인 중 하나로 제한됩니다
+            </label>
+            {includeIncident && (
+              <Textarea
+                value={scenarioIncidentPrompt}
+                onChange={(e) => setScenarioIncidentPrompt(e.target.value)}
+                placeholder="장애 대응 프롬프트 (예: Redis latency가 급증합니다)"
+                rows={3}
+              />
+            )}
             <Button type="submit" disabled={creatingScenario} className="self-start">
               {creatingScenario ? "만드는 중..." : "시나리오 만들기"}
             </Button>

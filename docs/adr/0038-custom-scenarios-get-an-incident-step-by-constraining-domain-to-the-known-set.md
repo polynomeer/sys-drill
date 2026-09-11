@@ -1,0 +1,15 @@
+---
+status: accepted
+---
+
+# A custom scenario can add an Incident/Wargame step, but only by picking a domain from the simulation engine's known set — not by authoring a new one
+
+[0024](0024-custom-scenarios-coexist-with-migration-content-and-scope-cut-to-design-only.md) fixed custom scenarios to exactly INITIAL+FOLLOWUP specifically because a custom scenario's `domain` is free text: `RuleBasedSimulationEngine.computeState`/`applyAction` dispatch on it through a hardcoded 7-way `when` with `else -> error(...)`, and `RuleEvaluator.conceptsByDomain` is a hardcoded per-domain keyword map, so free text would either crash the simulation or require an org to author its own formulas/rubric — judged a substantially larger feature at the time.
+
+Investigating `docs/DRILLS_SIMULATION_VISION.md` §6's "Scenario Engine → DSL/Authoring" item found that its stated precondition — "`ScenarioStep` jsonb 확장, 이미 기반 있음" — doesn't actually hold: `ScenarioStep.triggerCondition` is written by every content path (official and custom) but read by none; `SessionService.advance()` sequences steps by plain `step_order + 1`. There is no conditional-branching evaluator to extend, dormant or otherwise — building one is genuinely new engineering, not a matter of wiring up existing infrastructure. That's out of scope here (see the "하지 않는 것" note in PLAN.md's round record); a real trigger-condition DSL remains a separate, larger candidate.
+
+**What changes**: `CreateCustomScenarioRequest` gains an optional `incidentPrompt`. Omitted, a custom scenario is unchanged from 0024 — free-text `domain`, INITIAL+FOLLOWUP only. Provided, `CustomScenarioService.create` also inserts a 3rd `INCIDENT` `ScenarioStep`, in exactly the same `{"prompt": ...}` shape every official scenario's own Incident step already uses (e.g. `V2__seed_coupon_scenario.sql`) — but only after checking `domain` is one of `RuleBasedSimulationEngine.KNOWN_DOMAINS`, the same 7 values the engine's `when` already dispatches on. An org picking, say, `coupon` gets the exact same simulation formulas and `RuleEvaluator` concepts a public coupon scenario gets; nothing in the engine or evaluator changes.
+
+This is deliberately the smaller of two forks considered: generalizing the simulation engine to read scenario-authored formulas/parameters (a real, data-driven simulation DSL) is the alternative that would actually satisfy "author a scenario in a genuinely new domain," but is a much larger investment than validating whether org admins want the Incident step at all. Constraining `domain` to the known set converts the ask from "invent a new domain's physics" to "reuse one of 7 already-built ones," which costs one validation check and zero changes to `RuleBasedSimulationEngine`/`RuleEvaluator`.
+
+Free-text `domain` is still allowed for INITIAL+FOLLOWUP-only scenarios (`incidentPrompt` omitted) — an org's own internal-system label never reaches the engine in that case, same as before this ADR. The constraint only applies when opting into the Incident step.

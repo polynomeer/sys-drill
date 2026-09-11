@@ -106,6 +106,8 @@ export interface CreateCustomScenarioRequest {
   domain: string;
   initialPrompt: string;
   followupPrompt: string;
+  /** ADR-0038 — only meaningful for createCustomScenario (organization scenarios); publishMarketplaceScenario ignores it. Requires `domain` to be one of the 7 known simulation domains. */
+  incidentPrompt?: string;
 }
 
 export type SessionStatus =

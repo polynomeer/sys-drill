@@ -27,6 +27,22 @@ object RuleBasedSimulationEngine : SimulationEngine {
     const val DOMAIN_AUTOSCALING = "autoscaling"
 
     /**
+     * ADR-0038 — the exact domain set [computeState]/[applyAction] below can
+     * dispatch on. Custom scenarios (`CustomScenarioService`) validate a
+     * user-chosen domain against this set before allowing an INCIDENT step,
+     * instead of accepting free text that would fall through to `error(...)`.
+     */
+    val KNOWN_DOMAINS: Set<String> = setOf(
+        DOMAIN_COUPON,
+        DOMAIN_NOTIFICATION,
+        DOMAIN_PRODUCT_BROWSING,
+        DOMAIN_PAYMENT,
+        DOMAIN_RESERVATION,
+        DOMAIN_BATCH_SETTLEMENT,
+        DOMAIN_AUTOSCALING,
+    )
+
+    /**
      * utilization = incoming_load / max_capacity bands, per docs/ARCHITECTURE.md §6:
      * 0~60% 안정 / 60~80% latency 증가 / 80~95% p95·p99 급등 / 95~100% error 증가 / 100%+ timeout·drop.
      * Shared by every domain below — the bands are a property of *any* saturating

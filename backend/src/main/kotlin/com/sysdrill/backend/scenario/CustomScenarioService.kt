@@ -1,11 +1,13 @@
 package com.sysdrill.backend.scenario
 
+import com.sysdrill.backend.common.web.BadRequestException
 import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.content.ContentItem
 import com.sysdrill.backend.content.ContentItemRepository
 import com.sysdrill.backend.organization.OrganizationAccessGuard
 import com.sysdrill.backend.organization.OrganizationAuditAction
 import com.sysdrill.backend.organization.OrganizationAuditLogService
+import com.sysdrill.backend.simulation.RuleBasedSimulationEngine
 import java.util.UUID
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -14,9 +16,15 @@ import tools.jackson.databind.ObjectMapper
 /**
  * PLAN.md step 34 — org-scoped private scenarios, authored via API instead of
  * a Flyway seed (docs/adr/0024, a deliberate partial exception to
- * docs/adr/0002 which still governs the public scenarios). v1 is fixed to
- * exactly two steps (INITIAL, FOLLOWUP) — no Incident/Wargame — so this
- * never touches RuleBasedSimulationEngine's hardcoded domain dispatch.
+ * docs/adr/0002 which still governs the public scenarios).
+ *
+ * ADR-0038 — an optional 3rd INCIDENT step is now allowed, but only for
+ * [RuleBasedSimulationEngine.KNOWN_DOMAINS] (the 7 domains the simulation
+ * engine actually has a formula for) — never a free-text domain, which is
+ * exactly what would fall through to `RuleBasedSimulationEngine`'s
+ * hardcoded dispatch `error(...)`. This keeps the engine/RuleEvaluator
+ * completely unmodified; a real per-domain-formula authoring DSL remains a
+ * separate, much larger candidate.
  */
 @Service
 class CustomScenarioService(
@@ -32,6 +40,11 @@ class CustomScenarioService(
     @Transactional
     fun create(orgId: UUID, adminUserId: UUID, request: CreateCustomScenarioRequest): ScenarioDetailResponse {
         accessGuard.requireAdmin(orgId, adminUserId)
+        if (!request.incidentPrompt.isNullOrBlank() && request.domain !in RuleBasedSimulationEngine.KNOWN_DOMAINS) {
+            throw BadRequestException(
+                "domain must be one of ${RuleBasedSimulationEngine.KNOWN_DOMAINS} to include an incident step: ${request.domain}"
+            )
+        }
 
         val content = contentItemRepository.save(
             ContentItem(type = "SCENARIO", title = request.title, difficulty = request.difficulty)
@@ -59,6 +72,22 @@ class CustomScenarioService(
                 content = objectMapper.writeValueAsString(mapOf("prompt" to request.followupPrompt)),
             )
         )
+        // ADR-0038 — same content shape as INITIAL/FOLLOWUP (and identical to
+        // every official scenario's own INCIDENT step, e.g. V2__seed_coupon_scenario.sql)
+        // — the domain check above already guarantees this reaches a real
+        // SimulationEngine/RuleEvaluator instead of RuleBasedSimulationEngine's
+        // `error(...)` fallback.
+        if (!request.incidentPrompt.isNullOrBlank()) {
+            scenarioStepRepository.save(
+                ScenarioStep(
+                    scenarioVersionId = version.id!!,
+                    stepOrder = 3,
+                    stepType = "INCIDENT",
+                    triggerCondition = objectMapper.writeValueAsString(mapOf("afterStepOrder" to 2)),
+                    content = objectMapper.writeValueAsString(mapOf("prompt" to request.incidentPrompt)),
+                )
+            )
+        }
         auditLog.record(orgId, adminUserId, OrganizationAuditAction.CUSTOM_SCENARIO_CREATED, mapOf("scenarioId" to scenario.id.toString(), "title" to request.title))
         return ScenarioResponses.toDetail(scenario, content, objectMapper)
     }
