@@ -1220,6 +1220,21 @@ Phase 4 보류 이후 "다음 과정"으로 사용자가 기술부채/버그 점
 
 ---
 
+## 전체 백엔드 테스트 재실행 — jacoco 커버리지 왜곡 해소 ✅ 완료 (2026-09-12)
+
+지난 라운드에서 보류했던 항목. `./scripts/run-tests-isolated.sh`(인자 없이 전체)를 재실행해 실제 커버리지를 확인했다.
+
+**결과**: **281개 테스트 전부 통과**(57개 클래스, 0 skipped/failures/errors) — 과거 격리 환경 이슈로 계속 넘겨오다 근본 해결됐던 `RealInfraCouponControllerSessionTrackingTest`/`RealInfraCouponTracingTest` 2개도 포함. 새로 생성된 jacoco XML을 패키지별로 집계한 결과 대부분 87%+였고(`identity`/`certification`/`admin`/`submission` 등 여럿은 100%), 눈에 띄게 낮은 3곳(`tools` 0%, `mail` 47.4%, `evaluation/llm` 57.8%)을 클래스 단위로 파고든 결과 **셋 다 진짜 위험이 아니라 외부 I/O 경계**였다:
+- `tools/CleanupStaleKafkaTopics.kt` — Spring Bean이 아닌 독립 CLI 유지보수 스크립트(자체 문서 주석에 "스크립트로만 실행, 직접 실행 금지"라고 명시). 실 Kafka 브로커 없이는 테스트 불가하고, 앱 자체에 안 묶여 있어 커버리지 미달이 리스크가 아님.
+- `mail` — `LoggingEmailSender`(SMTP 미설정 시 기본, 모든 테스트 환경에서 실제로 쓰이는 쪽)는 잘 커버됨. 0%는 `SmtpEmailSender`(실 SMTP 릴레이 설정 시에만 활성화)뿐 — 5줄짜리 얇은 어댑터로 분기 없음.
+- `evaluation/llm` — 미커버 클래스는 전부 `AnthropicRequest`/`AnthropicResponse`/`AnthropicUsage` 등 **실제 Anthropic API 호출 시에만 역직렬화되는 DTO**. 이 세션의 테스트 환경엔 `LLM_ANTHROPIC_API_KEY`가 설정된 적이 없어(오프라인 fake 응답만 사용) 애초에 이 경로를 탈 수가 없다 — `AnthropicLlmClient`의 오프라인 폴백 경로는 커버되고, 실 API 경로만 미커버.
+
+**완료 기준 충족**: `BUILD SUCCESSFUL`, 전체 XML 집계로 281/281 통과 확인(개별 클래스별 `failures="0" errors="0"` 전수 확인). jacoco XML을 직접 파싱해 패키지/클래스별 라인 커버리지 산출.
+
+**하지 않은 것**: 위 세 경계에 대한 신규 테스트 작성 안 함 — 실 자격증명/실 브로커 없이 유닛테스트로 커버할 수 없는 부분이라 mock을 억지로 씌우는 것보다 현재 상태(오프라인/기본 경로만 커버)가 낫다고 판단. ADR-0037 토폴로지 격차는 여전히 보류(이번 라운드 스코프 밖). 새 ADR 안 씀 — 조사·기록성 라운드.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
