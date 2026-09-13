@@ -120,13 +120,31 @@ class SimulationService(
             // SystemTopology directly (server-side DB read, not the client's
             // request body) when one exists; the client-sent initialTraits
             // (Slice 1) is only a fallback for sessions that never saved a
-            // topology (text-only design, API-driven test flows). Only
-            // outside real-infra mode: the branches below already set
-            // infra-provisioning minimums (pool size, consumer count) that
-            // a design-time value must not silently override.
+            // topology (text-only design, API-driven test flows).
             !realInfra -> systemTopologyService.deriveDesignTraits(sessionId, domain) ?: initialTraits
-            domain == RuleBasedSimulationEngine.DOMAIN_COUPON -> DesignTraits(dbPoolSize = RealInfraCouponEngine.INITIAL_DB_POOL_SIZE)
-            domain == RuleBasedSimulationEngine.DOMAIN_NOTIFICATION -> DesignTraits(consumerCount = RealInfraNotificationEngine.INITIAL_CONSUMER_COUNT)
+            // ADR-0037 gap fix — real-infra mode used to always start from a
+            // hardcoded, deliberately-undersized trait (see the INITIAL_*
+            // constants' own kdoc), silently discarding a canvas topology the
+            // user carefully designed the moment they flipped the real-infra
+            // toggle. It's honored here too now: a topology-derived value
+            // survives only when it differs from the rule-based-formula
+            // default (DesignTraits.DEFAULT_DB_POOL_SIZE=50/DEFAULT_CONSUMER_COUNT=4)
+            // — i.e. the user actually set it via a connected node — so a
+            // session with no canvas customization still starts undersized
+            // for the "action has room to show an effect" pedagogy. Either
+            // way, RealInfraCouponEngine/RealInfraNotificationEngine's own
+            // probeAndCache already clamps to MIN_*/max*Count regardless of
+            // source, so honoring a canvas value here was never unsafe.
+            domain == RuleBasedSimulationEngine.DOMAIN_COUPON -> DesignTraits(
+                dbPoolSize = systemTopologyService.deriveDesignTraits(sessionId, domain)
+                    ?.dbPoolSize?.takeIf { it != DesignTraits.DEFAULT_DB_POOL_SIZE }
+                    ?: RealInfraCouponEngine.INITIAL_DB_POOL_SIZE
+            )
+            domain == RuleBasedSimulationEngine.DOMAIN_NOTIFICATION -> DesignTraits(
+                consumerCount = systemTopologyService.deriveDesignTraits(sessionId, domain)
+                    ?.consumerCount?.takeIf { it != DesignTraits.DEFAULT_CONSUMER_COUNT }
+                    ?: RealInfraNotificationEngine.INITIAL_CONSUMER_COUNT
+            )
             else -> DesignTraits()
         }
         val engineMode = if (realInfra) EngineMode.REAL_INFRA else EngineMode.RULE_BASED

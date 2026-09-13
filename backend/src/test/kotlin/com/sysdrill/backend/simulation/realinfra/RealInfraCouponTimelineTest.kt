@@ -3,6 +3,7 @@ package com.sysdrill.backend.simulation.realinfra
 import com.jayway.jsonpath.JsonPath
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
+import com.sysdrill.backend.simulation.SimulationStateStore
 import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.startSession
 import org.assertj.core.api.Assertions.assertThat
@@ -16,6 +17,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.util.UUID
 
@@ -37,6 +39,7 @@ class RealInfraCouponTimelineTest(
     @Autowired val schemaProvisioner: CouponSchemaProvisioner,
     @Autowired val dataSourceRegistry: SessionDataSourceRegistry,
     @Autowired val toxiproxy: ToxiproxySessionProxy,
+    @Autowired val stateStore: SimulationStateStore,
 ) {
     private lateinit var userId: UUID
     private val provisionedSessions = mutableListOf<UUID>()
@@ -86,5 +89,35 @@ class RealInfraCouponTimelineTest(
             assertThat(JsonPath.read<Double>(timeline, "$[$step].systemState.externalDependencyLatencyMs"))
                 .isEqualTo(toxiproxy.configuredLatencyMs.toDouble())
         }
+    }
+
+    /**
+     * ADR-0037 gap fix — real-infra mode used to always start from
+     * RealInfraCouponEngine.INITIAL_DB_POOL_SIZE (4), silently discarding a
+     * saved SystemTopology the moment the user flipped the real-infra toggle.
+     * 10 is deliberately outside both the rule-based default (50) and the
+     * real-infra undersized default (4), and within max-db-pool-size (20,
+     * see application.yml) so the real HikariCP pool this test provisions
+     * actually gets sized to it.
+     */
+    @Test
+    fun `starting a real-infra coupon incident honors a saved topology's dbPoolSize`() {
+        val sessionId = mockMvc.startSession(userId).also { provisionedSessions += it }
+        // Two connected nodes, not one — deriveDesignTraits only aggregates nodes
+        // with at least one edge attaching them to something else on the canvas
+        // (an orphaned node is decorative and excluded), same setup as
+        // SimulationControllerIntegrationTest's topology tests.
+        mockMvc.perform(
+            put("/sessions/$sessionId/topology").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
+                .content(
+                    """{"graph":"{\"nodes\":[{\"id\":\"n1\",\"data\":{\"kind\":\"db\",\"traitValues\":{\"dbPoolSize\":10}}},{\"id\":\"n2\",\"data\":{\"kind\":\"db\",\"traitValues\":{}}}],\"edges\":[{\"source\":\"n1\",\"target\":\"n2\"}]}"}"""
+                )
+        ).andExpect(status().isOk)
+
+        mockMvc.perform(post("/sessions/$sessionId/simulation/incident?realInfra=true").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+
+        assertThat(stateStore.find(sessionId)?.traits?.dbPoolSize).isEqualTo(10)
     }
 }
