@@ -1249,6 +1249,24 @@ Phase 4 보류 이후 "다음 과정"으로 사용자가 기술부채/버그 점
 
 ---
 
+## ADR-0037 토폴로지 격차 — 나머지 2개 처리 ✅ 완료 (2026-09-13)
+
+사용자가 지난 라운드에서 남긴 2개(TOPOLOGY_FIELDS↔프론트 일관성 검증, real-infra 모드의 토폴로지 무시)를 이어서 요청.
+
+**TOPOLOGY_FIELDS↔프론트 일관성 검증**: 백엔드 `SystemTopologyService.TOPOLOGY_FIELDS`(7개 도메인 전부)와 프론트 `DiagramCanvas.tsx`의 `NODE_TRAIT_CONFIG`를 필드 단위로 대조 조사한 결과 **불일치 없음** — 두 파일 모두 자체 문서 주석에 "서로 미러링해야 한다"고 명시돼 있고, 실제로 7개 도메인 전부에서 노드 종류·trait 키 이름이 정확히 일치했다. `applyField()`의 `when` 분기도 `TOPOLOGY_FIELDS`가 선언한 8개 키 전부를 커버해 silent no-op도 없었다. **고칠 게 없어 코드 변경 없음.**
+
+**real-infra 모드의 토폴로지 무시**: 조사 결과 진짜 버그였다 — `startIncident`가 real-infra 분기(coupon/notification)에서 항상 하드코딩된 undersized 기본값(`INITIAL_DB_POOL_SIZE=4`/`INITIAL_CONSUMER_COUNT=1`)만 쓰고 `deriveDesignTraits`를 아예 호출하지 않아, 사용자가 캔버스에 공들여 설정한 토폴로지(예: `dbPoolSize`)가 real-infra 토글을 켜는 순간 조용히 무시되고 있었다. 게다가 이 값들은 장식이 아니라 실제로 쓰인다 — `RealInfraCouponEngine.probeAndCache`가 실제 HikariCP 풀 크기를, `RealInfraNotificationEngine.probeAndCache`가 실제 Kafka consumer 병렬도를 이 값으로 설정한 뒤 진짜 k6 부하를 쏜다. "undersized로 시작해야 액션이 효과를 보여줄 여지가 있다"는 기존 주석의 근거는 사용자가 캔버스를 안 건드린 세션에만 적용돼야 하는 논리였는데, 코드는 캔버스를 건드렸든 안 건드렸든 항상 무시하고 있었다.
+
+- [x] `SimulationService.kt`의 `startIncident` — coupon/notification real-infra 분기를 `systemTopologyService.deriveDesignTraits(sessionId, domain)`을 먼저 시도하도록 수정. 단, 파생값이 **rule-based 기본값(`DesignTraits.DEFAULT_DB_POOL_SIZE=50`/`DEFAULT_CONSUMER_COUNT=4`)과 다를 때만** 채택 — 사용자가 캔버스에서 실제로 값을 바꾼 경우와 캔버스를 아예 안 건드린 경우(토폴로지가 존재해도 연결된 노드가 없으면 `deriveDesignTraits`가 규칙 기반 기본값을 그대로 반환)를 구분해, 후자는 여전히 undersized 초기값(`INITIAL_DB_POOL_SIZE`/`INITIAL_CONSUMER_COUNT`)으로 시작하는 기존 교육적 의도를 보존. 어느 쪽이든 `probeAndCache`의 `coerceIn(MIN_*, max*)` 클램핑이 항상 적용되므로 안전.
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. `RealInfraCouponTimelineTest.kt`에 신규 테스트 1개 추가(연결된 db 노드 2개(dbPoolSize=10, 나머지 하나는 빈 traitValues) 토폴로지 저장 → `POST .../incident?realInfra=true` → `SimulationStateStore`에 저장된 상태의 `traits.dbPoolSize`가 기본값 4도, rule-based 기본값 50도 아닌 10인지 확인 — 실제 HikariCP 풀까지 만들어지는 RANDOM_PORT 통합 테스트). 타겟 재실행(`SimulationControllerIntegrationTest`/`RealInfraCouponTimelineTest`/`RealInfraNotificationEngineTest`/`RealInfraCouponEngineTest`, 총 16개) 전부 통과.
+
+**진행 중 발견한 플레이키니스(내 변경과 무관, 조사 후 원인 확정)**: `simulation.*` 전체 스위트를 두 번 연달아 돌리는 동안 `RealInfraCouponEngineTest`가 매번 **다른** 개별 테스트에서 무작위로 실패(예: "trafficRps가 0.0", "errorRate가 정확히 경계값 0.5") — 전부 실제 k6 부하 측정값에 대한 경계 비교 assertion. 이 테스트는 `SimulationService`를 거치지 않고 `RealInfraCouponEngine`을 직접 `DesignTraits(dbPoolSize = INITIAL_DB_POOL_SIZE)`로 호출하므로 내 변경이 닿을 수 없는 경로였다 — `git stash`로 변경을 완전히 걷어낸 원래 코드에서도 같은 테스트가 전체 스위트 동시 실행 시에만 흔들리고 격리 실행(단독, 또는 관련 4개 클래스만)에서는 매번 4/4 깨끗이 통과하는 걸 재현해, "여러 real-infra 테스트 클래스가 동시에 실제 k6/Toxiproxy/Postgres를 두드릴 때의 리소스 경합"이 원인이라고 확정했다. 이번 라운드 스코프 밖의 기존 환경 이슈로 별도 조치 없이 기록만 남김.
+
+**하지 않은 것**: `RealInfraCouponEngineTest`의 동시 부하 플레이키니스 자체는 고치지 않음(원인은 확정했으나 별도 작업 — 예: 격리 스크립트가 real-infra 테스트 클래스를 순차 실행하도록 강제하는 것 — 이 필요해 이번 스코프 밖). 프론트엔드 변경 없음(real-infra 토글에 "캔버스 토폴로지를 무시합니다" 경고 문구가 있었다면 이제는 더 이상 사실이 아니게 돼 애초에 추가할 필요가 없어짐). 새 ADR 안 씀 — 둘 다 ADR-0037이 이미 열어둔 범위 안의 버그 수정/무변경 판단.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
