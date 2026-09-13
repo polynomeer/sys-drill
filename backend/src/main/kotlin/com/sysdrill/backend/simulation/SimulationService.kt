@@ -270,7 +270,13 @@ class SimulationService(
             val session = sessionRepository.findById(sessionId)
                 .orElseThrow { NotFoundException("Session not found: $sessionId") }
             val domain = resolveDomain(session.scenarioVersionId)
-            var replayState = SimulationSessionState(sessionId, domain, incidentActive = true, traits = DesignTraits())
+            // ADR-0037 — mirrors startIncident's topology-first traits resolution
+            // above: a replay must start from the same traits the live incident
+            // actually started with, not the engine's bare defaults, or a session
+            // with a saved topology would replay wrong numbers after a Redis TTL
+            // expiry/spectator reload.
+            val traits = systemTopologyService.deriveDesignTraits(sessionId, domain) ?: DesignTraits()
+            var replayState = SimulationSessionState(sessionId, domain, incidentActive = true, traits = traits)
             events.mapIndexed { index, event ->
                 // Skip every INCIDENT_STARTED row by value, not just index 0 — a
                 // pre-existing session may have more than one (see startIncident's

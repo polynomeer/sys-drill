@@ -206,6 +206,40 @@ class SimulationControllerIntegrationTest(
         assertThat(JsonPath.read<Double>(timeline, "$[3].systemState.p95LatencyMs")).isEqualTo(80.0)
     }
 
+    /**
+     * ADR-0037 gap fix — `getTimeline`'s rule-based replay used to rebuild
+     * state from `DesignTraits()` bare defaults instead of the session's
+     * saved SystemTopology, so a replay (after a Redis TTL expiry, or a
+     * spectator loading the timeline) would show different numbers than the
+     * live incident actually started with. product-browsing's readReplicaCount
+     * makes the gap impossible to miss: with topology (99 replicas, same
+     * setup as "starting the incident reads the saved topology's node
+     * counts" above) dbReadLoad starts around 0.4; with the old
+     * DesignTraits() default (readReplicaCount=0) it would be 40.0 (see
+     * SimulationEngineTest's "the product-browsing incident craters the
+     * cache hit ratio and overloads DB reads").
+     */
+    @Test
+    fun `the timeline replay uses the session's saved topology, not bare engine defaults`() {
+        val sessionId = mockMvc.startSession(userId, scenarioId = PRODUCT_BROWSING_SCENARIO_ID)
+        mockMvc.perform(
+            put("/sessions/$sessionId/topology").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
+                .content(
+                    """{"graph":"{\"nodes\":[{\"id\":\"n1\",\"data\":{\"kind\":\"db\",\"traitValues\":{\"readReplicaCount\":40}}},{\"id\":\"n2\",\"data\":{\"kind\":\"db\",\"traitValues\":{\"readReplicaCount\":59}}}],\"edges\":[{\"source\":\"n1\",\"target\":\"n2\"}]}"}"""
+                )
+        ).andExpect(status().isOk)
+
+        mockMvc.perform(post("/sessions/$sessionId/simulation/incident").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+
+        val timeline = mockMvc.perform(get("/sessions/$sessionId/simulation/timeline").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+
+        assertThat(JsonPath.read<Double>(timeline, "$[0].systemState.dbReadLoad")).isCloseTo(0.4, org.assertj.core.data.Offset.offset(0.001))
+    }
+
     @Test
     fun `the timeline is empty for a session with no incident started`() {
         val sessionId = mockMvc.startSession(userId)
