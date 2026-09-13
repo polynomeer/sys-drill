@@ -1235,6 +1235,20 @@ Phase 4 보류 이후 "다음 과정"으로 사용자가 기술부채/버그 점
 
 ---
 
+## ADR-0037 토폴로지 격차 — getTimeline 리플레이 경로 수정 ✅ 완료 (2026-09-13)
+
+사용자가 "ADR-0037 토폴로지 격차"를 이어서 진행해달라고 요청. 다시 깊게 조사한 결과, 지난 기술부채 점검에서 "격차가 커지고 있다"고 평가했던 게 **틀렸다는 걸 확인했다** — `SimulationService.startIncident`가 이미 `SystemTopologyService.deriveDesignTraits()`로 캔버스 토폴로지를 실제 `DesignTraits`로 변환해 엔진에 먹이는 계층을 갖추고 있었고, `SimulationControllerIntegrationTest.kt`의 기존 테스트(`starting the incident reads the saved topology's node counts`)가 이미 이걸 검증하고 있었다. ADR-0037이 "이 ADR이 결정하지 않는 것"으로 남겨뒀던 질문(엔진이 토폴로지를 읽을지)은 사실상 이미 답이 나 있었던 것.
+
+다만 재조사 중 진짜 남은 좁은 격차 3개를 발견해 사용자에게 공유(AskUserQuestion)했고, 사용자가 그중 **`getTimeline`의 rule-based 리플레이 경로**를 선택했다: `startIncident`는 토폴로지를 읽어 traits를 만드는데, `getTimeline`(세션의 `AppliedAction` 이력으로부터 타임라인을 재구성하는 경로 — Redis TTL 만료 후 재조회나 Game Day 관전자가 타는 경로)은 `DesignTraits()` 빈 기본값으로 리플레이를 시작하고 있어, 저장된 토폴로지가 있는 세션은 실제 인시던트 시작 수치와 리플레이 수치가 서로 달라지는 실제 버그였다.
+
+- [x] `SimulationService.kt`의 `getTimeline` — rule-based 분기의 `replayState` 초기 traits를 `DesignTraits()` 하드코딩에서 `systemTopologyService.deriveDesignTraits(sessionId, domain) ?: DesignTraits()`(`startIncident`와 완전히 같은 패턴)로 교체
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. `SimulationControllerIntegrationTest.kt`에 신규 테스트 1개 추가(product-browsing 시나리오에 리드 레플리카 2개(합계 99) 토폴로지 저장 → 인시던트 시작 → `GET .../timeline`의 0번째 스텝(합성 "인시던트 시작" 스텝)의 `dbReadLoad`가 기본값 40.0이 아니라 토폴로지 반영값 0.4에 가까운지 확인 — 기존 "starting the incident reads the saved topology's node counts" 테스트와 정확히 같은 토폴로지 설정을 재사용해 "라이브 시작 수치"와 "리플레이 수치"가 이제 일치함을 증명). `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.simulation.*"` 전체(real-infra 포함 75개, 기존 74개 포함) 통과.
+
+**하지 않은 것**: 나머지 두 격차(7개 도메인 TOPOLOGY_FIELDS↔프론트 NODE_TRAIT_CONFIG 일관성 검증, real-infra 모드의 토폴로지 무시)는 이번 라운드에서 다루지 않음 — 사용자가 셋 중 이 항목만 선택. 새 ADR 안 씀 — ADR-0037이 이미 "구현 시퀀싱 질문"이라고 명시적으로 열어둔 범위 안의 버그 수정이라 새로운 트레이드오프 결정이 아님.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
