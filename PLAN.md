@@ -1280,6 +1280,24 @@ Phase 4 보류 이후 "다음 과정"으로 사용자가 기술부채/버그 점
 
 ---
 
+## Drill Map 재검토 — 난이도 슬라이스 ✅ 완료 (2026-09-14)
+
+Phase 4/기술부채/ADR-0037/플레이키니스까지 모든 후보가 소진된 뒤 "다음 과정"으로 Drill Map(§6 우선순위 ④, 2026-09-11에 "실제 기반 전무"로 보류됐던 항목)을 다시 검토해달라는 요청. 그 사이 추가된 기능들(Skill Graph의 `recommendedDomain`, 커스텀 루브릭의 `scoringProfile`, 온보딩 커리큘럼)이 혹시 우연히 기반을 만들었는지 다시 조사했지만 **선행조건/난이도 분화 둘 다 여전히 전무함을 재확인**했다 — `Scenario`/`ContentItem` 엔티티에 선행조건 필드는 없고, 공식 7개 시나리오는 지금도 전부 `difficulty='MEDIUM'`으로 동일. `OrganizationCurriculumStep`(온보딩 순서)이 유일하게 실존하는 인접 데이터였지만 조직별 advisory 선형 순서일 뿐 선행조건/난이도 그래프가 아니었다.
+
+사용자에게 이 결과를 공유하고(AskUserQuestion) "선행조건 그래프 전체"가 아니라 **난이도를 실제로 부여하는 가장 작은 슬라이스부터** 진행하기로 했다. 7개 도메인의 객관적 신호(RuleEvaluator 체크 개수, real-infra 지원 여부, 고정 FOLLOWUP vs 3-variant 적응형 FOLLOWUP, MVP 시기 vs 이후 추가 시기)를 조사해 근거 있는 배정안을 만들고 사용자 확인을 받았다.
+
+- [x] `V43__diversify_official_scenario_difficulty.sql` — 공식 7개 시나리오의 `content_items.difficulty`를 `coupon=EASY`(가장 먼저 만들어진 파일럿, 단일 FOLLOWUP, real-infra 지원) / `notification·product-browsing=MEDIUM`(여전히 MVP 시기 단일 FOLLOWUP, notification은 RuleEvaluator 체크 5개로 7개 도메인 중 최다) / `payment·reservation·batch-settlement·autoscaling=HARD`(전부 3-variant 적응형 FOLLOWUP으로 나중에 추가, 결제/예약 정합성·배치 재처리 정합성·K8s 오토스케일링 등 더 까다로운 개념)로 갱신 — 고정 UUID로 각 시나리오의 `content_item` 행을 직접 타겟
+- [x] 프론트엔드 코드 변경 없음 — `dashboard/page.tsx`가 이미 `scenario.difficulty ? " · " + scenario.difficulty : ""`로 렌더링하고 있어 데이터만 바뀌면 즉시 반영됨(마켓플레이스 페이지도 이미 `Badge`로 `difficulty`를 필터링 가능하게 렌더링 중)
+- [x] `docs/DRILLS_SIMULATION_VISION.md` §6 갱신 — Drill Map 행을 "전무, 보류"에서 "부분(난이도만 확보), 그래프/prerequisite는 여전히 전무"로 정정
+
+**완료 기준 충족**: 마이그레이션 적용 후 `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.CoreDomainRepositoryTest" --tests "com.sysdrill.backend.scenario.*"` 전체(16개) 통과 — `ScenarioControllerIntegrationTest`는 difficulty를 단언하지 않아(domain/title만) 회귀 걱정 없음, `CoreDomainRepositoryTest`의 `difficulty="MEDIUM"` 참조는 자체 테스트 픽스처(시드 데이터 조회 아님)라 무관함을 확인.
+
+**실 검증**: 격리 백엔드(8084)에서 `curl GET /scenarios`로 7개 공식 시나리오의 `difficulty`가 의도대로 나뉘어 나오는 것 확인 → 실제 브라우저로 로그인 후 `/dashboard`에서 "선착순 쿠폰 · EASY", "알림 이벤트 처리 · MEDIUM", "주문/결제 · HARD" 등 실제로 다른 난이도 라벨이 렌더링되는 것 확인(프론트 코드 무변경으로 자동 반영). 콘솔 에러 없음.
+
+**하지 않은 것**: 선행조건/의존성 그래프 자체는 여전히 미구현 — 이번 슬라이스는 난이도 데이터만. 그래프 UI(노드/엣지 시각화) 안 만듦 — 여전히 "가짜 엣지 데이터 위에 UI만 만드는" 상황을 피하기 위함, 실제 엣지 데이터가 생기면 재검토. 커스텀/마켓플레이스 시나리오의 `difficulty` 값에는 손 안 댐(사용자가 자유 텍스트로 이미 입력 중). 난이도 한글 라벨링(EASY/MEDIUM/HARD → 쉬움/보통/어려움) 안 함 — 기존 마켓플레이스 배지가 이미 raw 영어 문자열을 그대로 렌더링하는 컨벤션이라 일관성 유지, 필요해지면 별도 라운드. 새 ADR 안 씀 — 시드 데이터 갱신은 되돌리기 쉬운 콘텐츠 결정.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
