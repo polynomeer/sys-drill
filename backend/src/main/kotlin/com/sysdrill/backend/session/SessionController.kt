@@ -22,6 +22,8 @@ data class SessionSummaryResponse(
     val scenarioTitle: String,
     val startedAt: Instant,
     val completedAt: Instant?,
+    /** Drill Map 난이도 선행 추천 슬라이스 — `resolveScenarioMeta`가 이미 조회하는 ContentItem에서 그대로 가져옴. */
+    val difficulty: String? = null,
 )
 
 @RestController
@@ -51,12 +53,14 @@ class SessionController(
     @GetMapping
     fun list(@AuthenticatedUserId userId: UUID): List<SessionSummaryResponse> =
         sessionRepository.findByUserIdOrderByStartedAtDesc(userId).map { session ->
+            val meta = resolveScenarioMeta(session.scenarioVersionId)
             SessionSummaryResponse(
                 id = session.id!!,
                 status = session.status,
-                scenarioTitle = resolveScenarioTitle(session.scenarioVersionId),
+                scenarioTitle = meta.title,
                 startedAt = session.startedAt,
                 completedAt = session.completedAt,
+                difficulty = meta.difficulty,
             )
         }
 
@@ -84,11 +88,16 @@ class SessionController(
         return toResponse(sessionService.advance(id), userId)
     }
 
-    private fun resolveScenarioTitle(scenarioVersionId: UUID): String {
-        val version = scenarioVersionRepository.findById(scenarioVersionId).orElse(null) ?: return "알 수 없는 시나리오"
-        val scenario = scenarioRepository.findById(version.scenarioId).orElse(null) ?: return "알 수 없는 시나리오"
+    /** Drill Map 난이도 선행 추천 슬라이스 — title과 difficulty를 한 번의 조회 체인으로 함께 반환(추가 DB 호출 없음). */
+    private data class ScenarioMeta(val title: String, val difficulty: String?)
+
+    private fun resolveScenarioMeta(scenarioVersionId: UUID): ScenarioMeta {
+        val version = scenarioVersionRepository.findById(scenarioVersionId).orElse(null)
+            ?: return ScenarioMeta("알 수 없는 시나리오", null)
+        val scenario = scenarioRepository.findById(version.scenarioId).orElse(null)
+            ?: return ScenarioMeta("알 수 없는 시나리오", null)
         val content = contentItemRepository.findById(scenario.contentId).orElse(null)
-        return content?.title ?: scenario.domain
+        return ScenarioMeta(content?.title ?: scenario.domain, content?.difficulty)
     }
 
     private fun toResponse(session: Session, callerId: UUID): SessionResponse =

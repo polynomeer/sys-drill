@@ -38,6 +38,10 @@ const TREND_DIRECTION_LABELS: Record<string, { text: string; className: string }
   INSUFFICIENT_DATA: { text: "", className: "text-foreground-muted" },
 };
 
+/** Drill Map 난이도 선행 추천 슬라이스 — 3단계 전순서가 이번 슬라이스의 "그래프" 전부.
+ * 세션 시작을 막지 않는 advisory 힌트에만 쓰인다(ADR-0030과 같은 철학). */
+const TIER_ORDER = ["EASY", "MEDIUM", "HARD"];
+
 /** SysDrill_UIUX_Design_Plan.docx §5.1 — the three Drill modes are
  * descriptive cards linking into Drills' type tabs, not independently
  * browsable content (System Design and Incident share the same underlying
@@ -108,6 +112,16 @@ export default function DashboardPage() {
   const orderedScenarios = recommendedScenario
     ? [recommendedScenario, ...scenarios.filter((s) => s.id !== recommendedScenario.id)]
     : scenarios;
+
+  const completedTiers = new Set(
+    sessions.filter((s) => s.status === "COMPLETED" && s.difficulty).map((s) => s.difficulty!)
+  );
+  function needsPrereq(difficulty: string | null | undefined): boolean {
+    if (!difficulty) return false;
+    const tierIndex = TIER_ORDER.indexOf(difficulty);
+    if (tierIndex <= 0) return false; // 알 수 없는 값이거나 이미 최하위 티어면 힌트 없음
+    return !TIER_ORDER.slice(0, tierIndex).some((lowerTier) => completedTiers.has(lowerTier));
+  }
 
   const domainCount = new Set(scenarios.map((s) => s.domain)).size;
   const summaryColumnCount = [topWeaknesses.length > 0, (skillProfile?.trend.length ?? 0) > 0, sessions.length > 0].filter(Boolean).length;
@@ -277,6 +291,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-foreground-muted">
                   {scenario.domain}
                   {scenario.difficulty ? ` · ${scenario.difficulty}` : ""}
+                  {needsPrereq(scenario.difficulty) ? " · 선행 추천: 쉬움 난이도 먼저" : ""}
                 </p>
               </div>
               <Button variant="secondary" onClick={() => handleStart(scenario.id)} disabled={startingId === scenario.id}>

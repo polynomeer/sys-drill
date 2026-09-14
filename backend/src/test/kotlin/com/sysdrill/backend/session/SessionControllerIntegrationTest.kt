@@ -175,6 +175,28 @@ class SessionControllerIntegrationTest(
             .andExpect(jsonPath("$.completedAt").exists())
     }
 
+    /**
+     * Drill Map 난이도 선행 추천 슬라이스 — `GET /sessions`(대시보드 "최근 진행" 패널)가
+     * 완료된 세션의 시나리오 난이도를 실제로 내려주는지 확인. coupon은 V43 마이그레이션으로
+     * EASY로 부여됨.
+     */
+    @Test
+    fun `listing sessions includes the scenario's difficulty`() {
+        val sessionId = mockMvc.startSession(userId)
+        forceFeedbackReady(sessionId)
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId))).andExpect(status().isOk) // -> FOLLOWUP
+        forceFeedbackReady(sessionId)
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId))).andExpect(status().isOk) // -> INCIDENT
+        forceFeedbackReady(sessionId)
+        mockMvc.perform(post("/sessions/$sessionId/advance").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("COMPLETED"))
+
+        mockMvc.perform(get("/sessions").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[?(@.id == '$sessionId')].difficulty").value("EASY"))
+    }
+
     @Test
     fun `getting another user's session 404s instead of leaking it`() {
         val sessionId = mockMvc.startSession(userId)

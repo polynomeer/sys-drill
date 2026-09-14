@@ -274,6 +274,8 @@ export interface SessionSummary {
   scenarioTitle: string;
   startedAt: string;
   completedAt: string | null;
+  /** Drill Map 난이도 선행 추천 슬라이스 — 완료된 세션의 시나리오 난이도. */
+  difficulty?: string | null;
 }
 
 export type TrendDirection = "IMPROVING" | "DECLINING" | "STABLE" | "INSUFFICIENT_DATA";
