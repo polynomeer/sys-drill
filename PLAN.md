@@ -1267,6 +1267,19 @@ Phase 4 보류 이후 "다음 과정"으로 사용자가 기술부채/버그 점
 
 ---
 
+## RealInfraCouponEngineTest 동시 부하 플레이키니스 수정 ✅ 완료 (2026-09-14)
+
+지난 라운드에서 원인만 확정하고 스코프 밖으로 미뤘던 항목을 사용자가 이어서 요청. 더 깊이 파본 결과 이전 가설(sys-drill 테스트 스위트 내부의 Spring 컨텍스트 누적/스레드 경합)보다 훨씬 단순하고 확실한 원인을 찾았다 — `docker info`/`docker ps`로 확인한 결과 이 머신의 Docker Desktop VM은 **10 CPU/8GB 고정 자원 풀**인데, 그 순간 **sys-drill과 무관한 다른 프로젝트들(code-drill, monticker, fbctf-reference, paritypay, quno 등)의 컨테이너가 21개나 동시에** 그 풀을 나눠 쓰고 있었다. `CouponLoadRunner`가 매 프로브마다 새로 띄우는 k6 컨테이너는 `--cpus 1.0`로 제한돼 있어, 이 공유 VM이 붐빌 때 3초 측정 윈도우 동안 실제 CPU 시간을 거의 못 받아 트래픽이 0에 가깝게 찍히거나 지연시간이 튀는 것으로 설명이 완결된다. 이건 sys-drill 코드의 버그가 아니라 **이 로컬 머신의 현재 상태**이므로, 사용자에게 원인을 공유하고(AskUserQuestion) 코드를 건드리지 않는 프로덕션 대신 **테스트 레벨 바운드-재시도**로 방향을 정했다 — `RealInfraCouponEngineTest`의 클래스 kdoc과 ADR-0014가 이미 "실측치는 범위/상대 비교로 검증한다"고 선언한 철학을 재시도 횟수로 한 단계 더 확장하는 것뿐, `CouponLoadRunner` 등 프로덕션 코드는 전혀 안 건드렸다.
+
+- [x] `RealInfraCouponEngineTest.kt`에 `retryFlaky(times: Int = 2, block: () -> Unit)` 헬퍼 추가 — `repeat` 내부에서 블록을 실행해 성공하면 non-local `return`으로 즉시 탈출(`repeat`가 `inline`이라 가능), 실패(`AssertionError`)하면 다음 시도로 넘어가고 마지막 실패만 최종적으로 던짐. 매 시도마다 세션을 새로 만들어(같은 세션을 재사용하지 않음, 매번 진짜 새 프로브) `provisionedSessions`에 추가해 `@AfterEach`의 기존 정리 로직이 그대로 커버
+- [x] 이번 세션에서 실제로 흔들렸던 3개 테스트(`a fresh incident produces a real, plausible measurement`, `a low custom target RPS measurably reduces achieved traffic versus the default incident load`, `computeState does not fail nearly every request when called from inside an ambient transaction`)만 `retryFlaky { }`로 감쌈 — 흔들린 적 없는 `enabling the rate limit measurably reduces p95 latency...`는 증거 없이 선제적으로 안 건드림
+
+**완료 기준 충족**: `./gradlew compileTestKotlin` 클린. `RealInfraCouponEngineTest` 단독 격리 실행 4/4 통과. `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.simulation.*"` 전체(76개) 통과, 이번엔 `RealInfraCouponEngineTest`도 포함해 어떤 클래스도 안 흔들림.
+
+**하지 않은 것**: `CouponLoadRunner`/k6 컨테이너의 `--cpus` 상향 등 프로덕션 코드 변경 안 함 — 실측 파이프라인 자체를 왜곡할 위험. Docker Desktop VM 리소스 설정이나 이 머신에서 실행 중인 다른 프로젝트의 컨테이너 정리 안 함 — 이 세션(sys-drill 저장소) 범위 밖의 로컬 환경 문제이고, 사용자 동의 없이 다른 작업에 영향을 줄 수 있어 건드리지 않음. `RealInfraNotificationEngineTest` 등 다른 real-infra 테스트 클래스에 같은 재시도 패턴 선제 적용 안 함 — 흔들린 증거가 없음. 새 ADR 안 씀 — 테스트 견고성 개선일 뿐 프로덕션 트레이드오프가 아님.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
