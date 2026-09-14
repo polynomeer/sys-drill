@@ -116,6 +116,10 @@ function MarketplaceContent() {
     }
   }
 
+  // dashboard/page.tsx의 "선행 추천" advisory 힌트(TIER_ORDER: EASY→MEDIUM→HARD)는 여기
+  // 적용하지 않는다 — 그 3단계 전순서는 공식 7개 시나리오(V43 마이그레이션)에만 의미가
+  // 있고, 마켓플레이스 시나리오는 발행자가 자유 텍스트로 입력하는 difficulty라 순서
+  // 비교 자체가 성립하지 않는다(의도된 스코프 제외, 버그 아님).
   const difficulties = useMemo(
     () => Array.from(new Set(scenarios.map((s) => s.difficulty).filter((d): d is string => !!d))),
     [scenarios],

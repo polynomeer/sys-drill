@@ -127,23 +127,33 @@ class SimulationService(
             // constants' own kdoc), silently discarding a canvas topology the
             // user carefully designed the moment they flipped the real-infra
             // toggle. It's honored here too now: a topology-derived value
-            // survives only when it differs from the rule-based-formula
-            // default (DesignTraits.DEFAULT_DB_POOL_SIZE=50/DEFAULT_CONSUMER_COUNT=4)
-            // — i.e. the user actually set it via a connected node — so a
-            // session with no canvas customization still starts undersized
-            // for the "action has room to show an effect" pedagogy. Either
-            // way, RealInfraCouponEngine/RealInfraNotificationEngine's own
-            // probeAndCache already clamps to MIN_*/max*Count regardless of
-            // source, so honoring a canvas value here was never unsafe.
+            // survives only when SystemTopologyService confirms the user
+            // actually set it via a connected node (`wasFieldExplicitlySet`,
+            // not a value-equality guess against the rule-based default — an
+            // earlier version of this fix used `!= DesignTraits.DEFAULT_*`,
+            // which silently discarded an explicit choice that happened to
+            // equal that default, e.g. a user deliberately setting dbPoolSize
+            // to exactly 50). A session with no canvas customization still
+            // starts undersized for the "action has room to show an effect"
+            // pedagogy. Either way, RealInfraCouponEngine/
+            // RealInfraNotificationEngine's own probeAndCache already clamps
+            // to MIN_*/max*Count regardless of source, so honoring a canvas
+            // value here was never unsafe.
             domain == RuleBasedSimulationEngine.DOMAIN_COUPON -> DesignTraits(
-                dbPoolSize = systemTopologyService.deriveDesignTraits(sessionId, domain)
-                    ?.dbPoolSize?.takeIf { it != DesignTraits.DEFAULT_DB_POOL_SIZE }
-                    ?: RealInfraCouponEngine.INITIAL_DB_POOL_SIZE
+                dbPoolSize = if (systemTopologyService.wasFieldExplicitlySet(sessionId, domain, "dbPoolSize")) {
+                    systemTopologyService.deriveDesignTraits(sessionId, domain)?.dbPoolSize
+                        ?: RealInfraCouponEngine.INITIAL_DB_POOL_SIZE
+                } else {
+                    RealInfraCouponEngine.INITIAL_DB_POOL_SIZE
+                }
             )
             domain == RuleBasedSimulationEngine.DOMAIN_NOTIFICATION -> DesignTraits(
-                consumerCount = systemTopologyService.deriveDesignTraits(sessionId, domain)
-                    ?.consumerCount?.takeIf { it != DesignTraits.DEFAULT_CONSUMER_COUNT }
-                    ?: RealInfraNotificationEngine.INITIAL_CONSUMER_COUNT
+                consumerCount = if (systemTopologyService.wasFieldExplicitlySet(sessionId, domain, "consumerCount")) {
+                    systemTopologyService.deriveDesignTraits(sessionId, domain)?.consumerCount
+                        ?: RealInfraNotificationEngine.INITIAL_CONSUMER_COUNT
+                } else {
+                    RealInfraNotificationEngine.INITIAL_CONSUMER_COUNT
+                }
             )
             else -> DesignTraits()
         }

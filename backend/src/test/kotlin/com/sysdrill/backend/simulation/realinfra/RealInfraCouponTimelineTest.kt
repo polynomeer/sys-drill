@@ -120,4 +120,30 @@ class RealInfraCouponTimelineTest(
 
         assertThat(stateStore.find(sessionId)?.traits?.dbPoolSize).isEqualTo(10)
     }
+
+    /**
+     * Regression for a narrow edge case the first fix (above) reintroduced:
+     * an earlier version distinguished "topology-derived" from "untouched"
+     * by comparing against `DesignTraits.DEFAULT_DB_POOL_SIZE` (50) — so a
+     * user who deliberately set the canvas dbPoolSize to exactly 50 got
+     * silently overridden to the undersized default anyway, the same
+     * silent-override bug the fix claimed to close. `wasFieldExplicitlySet`
+     * fixes this by checking the topology itself, not the resulting value.
+     */
+    @Test
+    fun `starting a real-infra coupon incident honors a topology dbPoolSize that collides with the rule-based default`() {
+        val sessionId = mockMvc.startSession(userId).also { provisionedSessions += it }
+        mockMvc.perform(
+            put("/sessions/$sessionId/topology").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
+                .content(
+                    """{"graph":"{\"nodes\":[{\"id\":\"n1\",\"data\":{\"kind\":\"db\",\"traitValues\":{\"dbPoolSize\":20}}},{\"id\":\"n2\",\"data\":{\"kind\":\"db\",\"traitValues\":{\"dbPoolSize\":30}}}],\"edges\":[{\"source\":\"n1\",\"target\":\"n2\"}]}"}"""
+                )
+        ).andExpect(status().isOk)
+
+        mockMvc.perform(post("/sessions/$sessionId/simulation/incident?realInfra=true").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+
+        assertThat(stateStore.find(sessionId)?.traits?.dbPoolSize).isEqualTo(50)
+    }
 }

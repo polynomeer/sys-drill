@@ -50,18 +50,7 @@ class SystemTopologyService(
      * deliberately empty canvas is still a valid, complete input.
      */
     fun deriveDesignTraits(sessionId: UUID, domain: String): DesignTraits? {
-        val saved = topologyRepository.findBySessionId(sessionId) ?: return null
-        val graph = objectMapper.readValue(saved.graph, TopologyGraph::class.java)
-        // Edge recognition (dependency-graph slice) — a node only participates in
-        // the aggregation below if it has at least one edge attaching it to
-        // something else on the canvas. This drops decorative/orphaned nodes (drawn
-        // but never wired up) without needing a notion of "entry point" or edge
-        // direction, which don't cleanly generalize across this app's 7
-        // domain-specific node-kind conventions (unlike a single canonical
-        // client -> ... -> db chain, this canvas has no fixed shape).
-        val connectedIds = graph.edges.asSequence().flatMap { sequenceOf(it.source, it.target) }.filterNotNull().toSet()
-        val connectedNodes = graph.nodes.filter { it.id != null && it.id in connectedIds }
-
+        val connectedNodes = resolveConnectedNodes(sessionId) ?: return null
         var traits = DesignTraits()
         val kindFields = TOPOLOGY_FIELDS[domain] ?: return traits
         for ((kind, fields) in kindFields) {
@@ -76,6 +65,40 @@ class SystemTopologyService(
             }
         }
         return traits
+    }
+
+    /**
+     * Whether [domain]'s saved topology has at least one connected node
+     * explicitly setting [fieldKey] — [deriveDesignTraits]'s return value
+     * alone can't distinguish "user explicitly set this to the rule-based
+     * default value" from "never touched, stayed at the default," which
+     * matters only where that distinction has a real consequence: real-infra
+     * mode's deliberately-undersized starting traits (see the real-infra
+     * branches in [SimulationService.startIncident]) must not silently
+     * override a value the user genuinely chose, even if it happens to
+     * collide with [DesignTraits]'s own default for that field.
+     */
+    fun wasFieldExplicitlySet(sessionId: UUID, domain: String, fieldKey: String): Boolean {
+        val connectedNodes = resolveConnectedNodes(sessionId) ?: return false
+        val kindFields = TOPOLOGY_FIELDS[domain] ?: return false
+        return kindFields.any { (kind, fields) ->
+            fields.any { it.key == fieldKey } &&
+                connectedNodes.any { it.data.kind == kind && it.data.traitValues.containsKey(fieldKey) }
+        }
+    }
+
+    // Edge recognition (dependency-graph slice) — a node only participates in the
+    // aggregation above if it has at least one edge attaching it to something else
+    // on the canvas. This drops decorative/orphaned nodes (drawn but never wired
+    // up) without needing a notion of "entry point" or edge direction, which don't
+    // cleanly generalize across this app's 7 domain-specific node-kind conventions
+    // (unlike a single canonical client -> ... -> db chain, this canvas has no
+    // fixed shape).
+    private fun resolveConnectedNodes(sessionId: UUID): List<TopologyNode>? {
+        val saved = topologyRepository.findBySessionId(sessionId) ?: return null
+        val graph = objectMapper.readValue(saved.graph, TopologyGraph::class.java)
+        val connectedIds = graph.edges.asSequence().flatMap { sequenceOf(it.source, it.target) }.filterNotNull().toSet()
+        return graph.nodes.filter { it.id != null && it.id in connectedIds }
     }
 
     private fun applyField(traits: DesignTraits, key: String, value: Double): DesignTraits = when (key) {
