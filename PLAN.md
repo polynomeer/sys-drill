@@ -1332,6 +1332,21 @@ Phase 4/기술부채/ADR-0037/플레이키니스까지 모든 후보가 소진�
 
 ---
 
+## 자유 개선 라운드 2 — `wasFieldExplicitlySet` 격리 테스트 추가 ✅ 완료 (2026-09-14)
+
+직전 라운드의 연장으로 재스캔한 결과, 유일하게 실행 가능한 후보는 신규 `wasFieldExplicitlySet`의 격리 테스트 부재였다 — 기존 커버리지는 `RealInfraCouponTimelineTest`의 통합 테스트 2개뿐(각각 실제 HikariCP 풀·k6 프로브를 동반해 2초+ 걸리고, 어떤 분기가 깨졌는지 정확히 짚어주지 못함).
+
+`SystemTopologyServiceTest.kt`를 새로 작성하며 **스캔 자체가 놓쳤던 실제 제약을 발견**했다 — `wasFieldExplicitlySet`/`deriveDesignTraits`는 Kotlin 코드 레벨에서 `Session`을 전혀 조회하지 않지만, `system_topologies.session_id`에 실제 DB 레벨 FK(`system_topologies_session_id_fkey`)가 걸려 있어, 순수하게 `SystemTopology` 로우만 직접 저장하는 첫 시도는 5개 테스트 전부 `DataIntegrityViolationException`으로 실패했다. `mockMvc.startSession(userId)`로 진짜 세션을 만들도록 고쳐 해결 — 여전히 시나리오/워게임 머신은 안 건드리고 세션 존재만 충족시키는 선이라, 기존 통합 테스트보다는 훨씬 가볍다.
+
+- [x] `SystemTopologyServiceTest.kt` 신규 — 6개 테스트: 토폴로지 미저장/잘못된 노드 종류/필드 키 없음/고아 노드(엣지 없음)/정상 연결(+규칙 기반 기본값과 값이 우연히 같은 경우)/알 수 없는 도메인
+- [x] `SystemTopology.kt`의 클래스 kdoc 갱신 — "nothing server-side queries per-node yet"가 `deriveDesignTraits`/`wasFieldExplicitlySet` 추가로 더 이상 사실이 아니어서 정정(직접 읽다가 발견)
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. 신규 테스트 6/6 통과(FK 제약 발견 전 1차 시도는 5개 실패 → 수정 후 재확인). `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.simulation.*"` 전체(83개, 기존 77개 포함) 통과.
+
+**하지 않은 것**: 다른 도메인(notification 등)의 `wasFieldExplicitlySet` 케이스는 추가 안 함 — coupon 하나로 로직의 모든 분기(kind 불일치/키 없음/고아/정상/미지 도메인)를 이미 다 짚어서 나머지 6개 도메인은 반복일 뿐. 새 ADR 안 씀 — 테스트 추가와 주석 정정뿐.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
