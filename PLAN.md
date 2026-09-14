@@ -1298,6 +1298,23 @@ Phase 4/기술부채/ADR-0037/플레이키니스까지 모든 후보가 소진�
 
 ---
 
+## Drill Map — 난이도 기반 선행 추천(advisory) 슬라이스 ✅ 완료 (2026-09-14)
+
+사용자가 Drill Map을 "선행조건 그래프까지" 더 밀어붙여달라고 요청. 직전 라운드에서 부여한 난이도(EASY/MEDIUM/HARD) 위에, 비전 문서가 원래 말한 "L1→L2→L3... prerequisite 그래프"의 가장 작은 형태 — 3단계 전순서(총 순서, total order) — 를 이용해 advisory 힌트를 추가했다. `ADR-0030`(온보딩 커리큘럼)의 "순서는 안내일 뿐 강제되지 않습니다" 철학을 그대로 따라 세션 시작을 절대 막지 않는다.
+
+`EnterPlanMode`로 설계를 미리 검토·승인받았다 — 조사 결과 완료 데이터(`CertificationService.status()`가 이미 쓰는 `Session → ScenarioVersion → Scenario → ContentItem` 체인)와 난이도 데이터가 둘 다 이미 존재해, 새 엔터티나 새 쿼리 없이 기존 `GET /sessions`가 이미 조회하는 `ContentItem`에서 `difficulty`만 한 필드 더 꺼내면 되는 슬라이스였다.
+
+- [x] `SessionController.kt` — `SessionSummaryResponse`에 trailing `difficulty: String? = null` 추가. 기존 `resolveScenarioTitle(): String`을 `resolveScenarioMeta(): ScenarioMeta(title, difficulty)`로 교체(추가 DB 호출 없이 이미 조회하던 `ContentItem`에서 함께 반환), `list()`가 이걸로 `scenarioTitle`/`difficulty` 둘 다 채움
+- [x] 프론트: `api.ts`의 `SessionSummary`에 `difficulty?: string | null` 추가. `dashboard/page.tsx`에 `TIER_ORDER = ["EASY","MEDIUM","HARD"]`(3단계 전순서 = 이번 슬라이스의 "그래프" 전부)와 `completedTiers`(완료된 세션들의 난이도 집합) 파생, `needsPrereq()` 헬퍼(알 수 없는 난이도는 항상 `false` — 절대 안 막음) 추가. 기존 `{domain} · {difficulty}` 줄에 이어서 `· 선행 추천: 쉬움 난이도 먼저`만 덧붙임(새 UI 엘리먼트 없음, "시작" 버튼은 항상 그대로 활성)
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. `SessionControllerIntegrationTest.kt`에 신규 테스트 1개 추가(coupon 세션을 COMPLETED까지 진행 → `GET /sessions`의 `difficulty`가 "EASY"인지 확인). `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.session.*"` 전체(37개, 기존 36개 포함) 통과. 프론트 `npx tsc --noEmit`/`npm run lint`(0 errors, 기존 12개 경고 베이스라인 그대로)/`npm run build` 클린.
+
+**실 검증**: 격리 백엔드(8084)에서 curl로 테스트 유저를 만들어 coupon(EASY) 세션을 INITIAL→FOLLOWUP→INCIDENT까지 실제로 완주(COMPLETED)시킨 뒤 `GET /sessions`로 `difficulty: "EASY"` 확인 → 실 브라우저로 이 유저의 `/dashboard`를 열어 모든 MEDIUM/HARD 시나리오에서 힌트가 **사라진** 것 확인(선행조건 충족) → 완료 이력이 전혀 없는 **두 번째 신규 유저**로 같은 페이지를 열어 notification/product-browsing/payment/reservation/autoscaling/batch-settlement/community-rate-limit 등 MEDIUM·HARD 시나리오 전부에 "선행 추천: 쉬움 난이도 먼저" 힌트가 **뜨는** 것을, coupon(EASY)/cert-irrelevant(EASY)에는 안 뜨는 것을 확인 — 두 경우 모두 "시작" 버튼은 계속 활성 상태(하드 게이팅 없음). 콘솔 에러 없음.
+
+**하지 않은 것**: 세션 시작 게이팅 안 함(advisory만). 새 prerequisite/그래프 엔터티·테이블 안 만듦 — `TIER_ORDER`(3단계 전순서)가 이번 슬라이스의 그래프 전부이고, 특정 시나리오 쌍 간의 임의 의존성(예: "예약 시스템은 쿠폰을 선행해야 함")은 여전히 안 만듦(근거 없는 콘텐츠 결정이라 회피). 노드/엣지 시각화 그래프 UI 안 만듦. `GET /scenarios`(비인증) 무변경. 새 ADR 안 씀 — 되돌리기 쉬운 읽기 전용 파생 로직.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
