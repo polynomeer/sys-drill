@@ -19,9 +19,10 @@ import java.util.UUID
  * localStorage draft ([DiagramCanvas.tsx]'s `saveCanvasDraft`). [graph] is an
  * opaque JSON blob (the same `{nodes, edges}` shape the frontend already
  * serializes) — this entity deliberately does not model nodes as separate
- * rows, since nothing server-side queries per-node yet (the simulation
- * engine still reads [DesignTraits] via Slice 1, unchanged). One row per
- * session, same shape as [com.sysdrill.backend.postmortem.Postmortem].
+ * rows; per-node reads (e.g. [SystemTopologyService.deriveDesignTraits]/
+ * [SystemTopologyService.wasFieldExplicitlySet]) parse this blob in memory
+ * instead of a relational per-node query. One row per session, same shape as
+ * [com.sysdrill.backend.postmortem.Postmortem].
  */
 @Entity
 @Table(name = "system_topologies")
