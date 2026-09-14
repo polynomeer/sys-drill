@@ -1315,6 +1315,23 @@ Phase 4/기술부채/ADR-0037/플레이키니스까지 모든 후보가 소진�
 
 ---
 
+## 자유 개선 라운드 — real-infra 토폴로지 값-충돌 엣지 케이스 수정 ✅ 완료 (2026-09-14)
+
+사용자가 "잘 모르겠으니 자유롭게 결정해달라"고 요청. 최근 커밋들(ADR-0037 real-infra 수정, Drill Map 두 라운드)을 다시 훑는 스캔을 돌려 아직 안 걸린 새 후보를 찾았다.
+
+**발견**: `SimulationService.kt`의 real-infra traits 해석이 "토폴로지에서 파생된 값 vs 사용자가 안 건드린 기본값"을 **값 동등성**(`derived.dbPoolSize != DesignTraits.DEFAULT_DB_POOL_SIZE`)으로 구분하고 있었다 — 커밋 `95f6df1`이 "캔버스 토폴로지를 real-infra 모드도 반영하도록" 고친 바로 그 수정인데, 사용자가 캔버스에서 dbPoolSize를 **정확히 50**(규칙 기반 기본값과 우연히 같은 값)으로 명시적으로 설정하면 "안 건드린 것"으로 오인돼 undersized 기본값(4)으로 조용히 덮어써지는 좁은 엣지 케이스가 남아 있었다 — 그 수정이 고치려던 것과 정확히 같은 종류의 silent override 버그가 한 값만 남기고 재발한 셈. `consumerCount`도 같은 패턴으로 4(알림의 규칙 기반 기본값이자 real-infra undersized 초기값)에서 동일 문제.
+
+- [x] `SystemTopologyService.kt` — `deriveDesignTraits`의 토폴로지 파싱/연결 노드 필터링 로직을 `resolveConnectedNodes` private 헬퍼로 추출(중복 없이 재사용). 신규 `wasFieldExplicitlySet(sessionId, domain, fieldKey): Boolean` 추가 — 값이 아니라 "연결된 노드가 이 필드 키를 실제로 갖고 있는가"를 직접 확인
+- [x] `SimulationService.kt`의 real-infra 분기(coupon/notification) — 값 동등성 비교(`?.takeIf { it != DEFAULT_* }`)를 `wasFieldExplicitlySet` 체크로 교체. 기존 3개 호출부(rule-based 분기, getTimeline 리플레이)는 `deriveDesignTraits` 자체를 그대로 써서 무변경 — 이 엣지 케이스가 실제로 문제되는 real-infra 2개 분기만 건드림
+
+부수적으로 스캔에서 나온 사소한 항목(대시보드는 새 "선행 추천" 힌트를 보여주지만 마켓플레이스는 같은 `difficulty` 필드를 쓰면서도 안 보여줘 비일관적으로 보일 수 있음)도 짧은 주석으로 정리 — `marketplace/page.tsx`에 "이건 의도된 스코프 제외(마켓플레이스 시나리오는 자유 텍스트 난이도라 3단계 전순서가 성립 안 함)"를 문서화. 코드 동작 변경 없음.
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. `RealInfraCouponTimelineTest.kt`에 신규 회귀 테스트 1개 추가(연결된 db 노드 2개 합계가 정확히 50(20+30)인 토폴로지 → real-infra 인시던트 시작 → `SimulationStateStore`의 `traits.dbPoolSize`가 4(undersized 기본값)가 아니라 50인지 확인). `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.simulation.*"` 전체(77개, 기존 76개 포함) 통과. 프론트 `npx tsc --noEmit` 클린(주석만 추가라 lint/build는 이미 동일 패턴으로 검증된 범위).
+
+**하지 않은 것**: 마켓플레이스에 실제 선행 추천 힌트 기능을 만들지 않음 — 주석으로 "의도된 제외"만 문서화, 자유 텍스트 난이도에 3단계 전순서를 적용하는 건 근거 없는 확장이라 범위 밖으로 판단. `ScenarioController`의 `resolveScenarioMeta`↔`ScenarioResponses.toSummary` 간 사소한 로직 중복(스캔에서 함께 발견)은 정리 안 함 — 스캔 자체가 "명백한 버그가 아닌 설계 포인트"라고 판단했고, 두 헬퍼의 폴백 동작(제목 없을 때 "알 수 없는 시나리오" vs `scenario.domain`)이 실제로 달라 억지로 합치면 오히려 의미가 흐려짐. 새 ADR 안 씀 — 되돌리기 쉬운 버그 수정.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
