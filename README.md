@@ -10,7 +10,9 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-![Wargame Live — 인시던트 발생 후 Rate Limit 강화 → Cache TTL 조정 액션을 적용해 RPS/에러율이 회복되는 모습](docs/images/03-wargame.png)
+![Wargame Live 데모 — 인시던트 시작 → Rate Limit 강화 → Cache TTL 조정, 실시간 지표와 차트가 회복되는 22초](docs/images/demo-wargame.gif)
+
+<sub>Wargame Live — 설계한 시스템에 "Redis latency 급증 → DB write hotspot" 인시던트가 주입되고, Rate Limit 강화 → Cache TTL 조정 액션을 적용하자 RPS 6000→3000, 에러율 2.0%→0.1%로 회복되는 과정. 로그 첫 줄은 AI Director가 생성한 상황 내레이션.</sub>
 
 ## 왜 만들었나
 
