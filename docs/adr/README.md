@@ -2,6 +2,20 @@
 
 Short records of decisions that are hard to reverse, would surprise a future reader, and were a real trade-off between genuine alternatives — not every decision, just the ones worth explaining "why" for. See [CLAUDE.md](../../CLAUDE.md) for when and how these get written.
 
+## Start here
+
+38건을 다 읽을 필요는 없습니다. 이 프로젝트의 성격을 가장 잘 보여주는 순서로 다섯 개를 고르면:
+
+1. [0004](0004-async-jobs-enqueued-only-after-commit.md) — 커밋 후에만 큐에 push. 같은 버그를 두 파이프라인에서 독립적으로 만난 뒤 규칙이 됨
+2. [0027](0027-evaluation-idempotency-guarded-by-db-constraint-not-just-in-app-dedup-check.md) — 멱등성은 앱의 dedup 체크가 아니라 DB 부분 유니크 인덱스가 보장
+3. [0007](0007-docker-sandboxed-build-execution.md) — 제출 코드는 `--network none` + 리소스 상한 컨테이너에서만 실행
+4. [0013](0013-coupon-real-infra-pilot-schema-per-session.md) — 실제 인프라 시뮬레이션은 컨테이너-per-session이 아니라 schema-per-session
+5. [0037](0037-architecture-canvas-becomes-the-simulation-topology-source-of-truth.md) — 캔버스를 "그림"에서 "시뮬레이션 입력"으로 승격. [0036](0036-diagram-canvas-is-an-input-method-that-still-serializes-to-mermaid-text.md)을 명시적으로 뒤집은 기록
+
+같은 규칙의 예외를 어떻게 좁게 허용했는지 보려면 [0011](0011-derived-values-are-never-persisted.md) → [0016](0016-incident-replay-snapshots-only-for-real-infra.md), [0014](0014-real-infra-tests-use-range-assertions.md)를 이어서 읽으면 됩니다. 이 결정들을 코드 위치와 함께 풀어 쓴 문서는 [TECHNICAL_HIGHLIGHTS.md](../TECHNICAL_HIGHLIGHTS.md)입니다.
+
+## All records
+
 | # | Decision |
 |---|---|
 | [0001](0001-plain-uuid-scalar-references-across-aggregates.md) | Plain UUID scalar fields instead of JPA relationships across aggregate boundaries |
