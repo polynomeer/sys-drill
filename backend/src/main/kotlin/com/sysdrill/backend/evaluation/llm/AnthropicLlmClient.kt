@@ -53,8 +53,24 @@ class AnthropicLlmClient(
             ?: error("Empty response body from Anthropic")
         val latencyMs = (System.currentTimeMillis() - startedAt).toInt()
 
+        // Truncation is a configuration problem, not a parse problem — say so
+        // directly. Without this check the failure surfaces downstream as
+        // either a JSON parse error (budget ran out mid-string) or "No text
+        // content block" (the model spent the entire budget on its own
+        // thinking, which counts against max_tokens, and never got to the
+        // answer). Both were seen in the wild at max_tokens=2000.
+        if (response.stop_reason == "max_tokens") {
+            val output = response.usage?.output_tokens ?: 0
+            val thinking = response.usage?.output_tokens_details?.thinking_tokens ?: 0
+            error(
+                "Anthropic response truncated at max_tokens=$maxTokens " +
+                    "(output_tokens=$output, of which thinking_tokens=$thinking) — " +
+                    "raise LLM_ANTHROPIC_MAX_TOKENS"
+            )
+        }
+
         val text = response.content.firstOrNull { it.type == "text" }?.text
-            ?: error("No text content block in Anthropic response")
+            ?: error("No text content block in Anthropic response (stop_reason=${response.stop_reason})")
 
         return LlmCompletionResult(
             text = text,

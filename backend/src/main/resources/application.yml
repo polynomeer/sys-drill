@@ -80,7 +80,15 @@ sysdrill:
       base-url: ${LLM_ANTHROPIC_BASE_URL:https://api.anthropic.com}
       api-key: ${LLM_ANTHROPIC_API_KEY:}
       model: ${LLM_ANTHROPIC_MODEL:claude-sonnet-5}
-      max-tokens: ${LLM_ANTHROPIC_MAX_TOKENS:2000}
+      # A ceiling, not a spend target — the model stops at end_turn long before
+      # this and only the tokens actually generated are billed. It has to cover
+      # the model's own thinking (claude-sonnet-5 thinks adaptively by default
+      # and its thinking tokens count against max_tokens) PLUS the Korean JSON
+      # evaluation. Measured on a real design_evaluation call: ~1.7k thinking
+      # + ~1.9k text = ~3.6k output tokens. The previous 2000 was silently
+      # fatal — the model spent the whole budget thinking and returned no text
+      # block at all, or cut the JSON mid-string (both seen 2026-09-21).
+      max-tokens: ${LLM_ANTHROPIC_MAX_TOKENS:16000}
   build:
     queue-key: ${BUILD_QUEUE_KEY:sysdrill:build:jobs}
     sandbox-image: ${BUILD_SANDBOX_IMAGE:python:3.12-slim}

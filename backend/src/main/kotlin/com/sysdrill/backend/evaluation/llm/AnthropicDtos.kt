@@ -16,7 +16,13 @@ data class AnthropicRequest(
 
 data class AnthropicContentBlock(val type: String? = null, val text: String? = null)
 
-data class AnthropicUsage(val input_tokens: Int = 0, val output_tokens: Int = 0)
+data class AnthropicOutputTokensDetails(val thinking_tokens: Int = 0)
+
+data class AnthropicUsage(
+    val input_tokens: Int = 0,
+    val output_tokens: Int = 0,
+    val output_tokens_details: AnthropicOutputTokensDetails? = null,
+)
 
 data class AnthropicResponse(
     val id: String? = null,
