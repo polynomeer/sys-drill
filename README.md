@@ -57,8 +57,10 @@ SysDrill의 가설은 "수백만 사용자 규모의 경험 자체는 복제할 
 |---|---|
 | **Build** — Rate Limiter를 6개 stage로 구현, Docker 샌드박스에서 채점 | **Design (꼬리설계)** — 조건이 바뀌면 캔버스 위 토폴로지를 다시 설계. 노드 config가 시뮬레이션 입력이 됨 |
 | ![Build Mode 채점 결과](docs/images/07-bridge.png) | ![System Design Workspace 캔버스](docs/images/02-tail-design.png) |
-| **Postmortem** — MTTD/MTTR·지표 변화를 자동 계산, 근본 원인과 재발 방지를 직접 작성 | **Dashboard** — 도메인별 시나리오, Bridge Mode, 난이도 기반 선행 추천 |
-| ![포스트모템](docs/images/06-postmortem.png) | ![대시보드](docs/images/01-dashboard.png) |
+| **AI 피드백** — Rule + LLM 하이브리드 평가. 루브릭 7항목 점수, 잘한 점·놓친 점, HIGH/MEDIUM 실무 리스크, 꼬리질문 | **Postmortem** — MTTD/MTTR·지표 변화를 자동 계산, 근본 원인과 재발 방지를 직접 작성 |
+| ![AI 피드백](docs/images/04-feedback.png) | ![포스트모템](docs/images/06-postmortem.png) |
+| **Report** — 초기 설계 → 꼬리설계 → 장애 대응 3단계 결과와 다음 추천 Drill | **Dashboard** — 도메인별 시나리오, Bridge Mode, 난이도 기반 선행 추천 |
+| ![세션 리포트](docs/images/05-report.png) | ![대시보드](docs/images/01-dashboard.png) |
 
 ## 아키텍처
 
