@@ -89,6 +89,10 @@ class ReportAndSkillProfileIntegrationTest(
             .andExpect(jsonPath("$.timelineFeedback[1].phase").value("FOLLOWUP"))
             .andExpect(jsonPath("$.timelineFeedback[2].phase").value("INCIDENT"))
             .andExpect(jsonPath("$.summary").value(containsString("3개 단계")))
+            // Offline-fallback evaluations all score 60, so the session mean is 60 —
+            // and the summary sentence must quote that same number (one formula, ReportService.averageScore).
+            .andExpect(jsonPath("$.averageScore").value(60))
+            .andExpect(jsonPath("$.summary").value(containsString("평균 점수 60/100")))
 
         mockMvc.perform(get("/skill-profile").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk)

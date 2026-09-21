@@ -310,6 +310,8 @@ export interface Report {
   sessionId: string;
   version: number;
   summary: string | null;
+  /** Integer mean of the evaluated phases — the session's one headline score, same number the summary sentence quotes. */
+  averageScore: number | null;
   timelineFeedback: TimelineEntry[];
   improvementGuide: string[];
   buildSummary: BuildSummary | null;

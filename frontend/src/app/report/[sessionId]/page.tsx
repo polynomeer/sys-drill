@@ -105,7 +105,11 @@ export default function ReportPage() {
     }
   }
 
-  const headlineScore = report?.timelineFeedback.at(-1)?.totalScore ?? null;
+  // The gauge and the summary sentence next to it must quote the same
+  // number: the server-computed session average (the figure certification
+  // also uses), not the last phase's score. Per-phase scores are listed in
+  // 단계별 결과 below.
+  const headlineScore = report?.averageScore ?? null;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
@@ -134,7 +138,7 @@ export default function ReportPage() {
         <>
           <Card className="flex flex-wrap items-center gap-6">
             {headlineScore !== null && (
-              <Gauge label="최종 점수" value={headlineScore / 100} status={scoreStatus(headlineScore)} size={120} />
+              <Gauge label="평균 점수" value={headlineScore / 100} status={scoreStatus(headlineScore)} size={120} />
             )}
             <div className="min-w-0 flex-1">
               <p className="text-sm text-foreground-muted">총평</p>

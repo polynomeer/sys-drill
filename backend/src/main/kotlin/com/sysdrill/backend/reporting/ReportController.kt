@@ -15,6 +15,8 @@ data class ReportResponse(
     val sessionId: UUID,
     val version: Int,
     val summary: String?,
+    /** Integer mean of the evaluated phases (never persisted — ADR-0011; derived from [timelineFeedback] at read time). */
+    val averageScore: Int?,
     val timelineFeedback: List<TimelineEntry>,
     val improvementGuide: List<String>,
     val buildSummary: BuildSummary?,

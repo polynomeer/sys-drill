@@ -22,6 +22,17 @@ data class TimelineEntry(
     val onTime: Boolean?,
 )
 
+/**
+ * The one session-level score: integer mean of every evaluated phase, same
+ * formula CertificationService uses per session. Both the persisted summary
+ * sentence and ReportResponse.averageScore come from here so the gauge and
+ * the text on the report page can never disagree.
+ */
+fun averageScore(timeline: List<TimelineEntry>): Int? {
+    val scores = timeline.mapNotNull { it.totalScore }
+    return if (scores.isNotEmpty()) scores.sum() / scores.size else null
+}
+
 /** Bridge Mode (PLAN.md step 10): the Build submission a session was entered from, folded into its report. */
 data class BuildSummary(
     val submissionId: UUID,
@@ -66,8 +77,7 @@ class ReportService(
             )
         }
 
-        val scores = timeline.mapNotNull { it.totalScore }
-        val averageScore = if (scores.isNotEmpty()) scores.sum() / scores.size else null
+        val averageScore = averageScore(timeline)
         val summary = if (averageScore != null) {
             "총 ${timeline.size}개 단계를 완료했습니다. 평균 점수 ${averageScore}/100."
         } else {
