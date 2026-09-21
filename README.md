@@ -171,7 +171,7 @@ sequenceDiagram
 
 ## 엔지니어링 하이라이트
 
-의사결정 38건을 [ADR](docs/adr/README.md)로 기록했습니다. 그중 먼저 볼 만한 것:
+의사결정 38건을 [ADR](docs/adr/README.md)로 기록했습니다. 아래 항목을 문제 → 선택 → 근거 → 코드 위치 순으로 풀어 쓴 문서가 [docs/TECHNICAL_HIGHLIGHTS.md](docs/TECHNICAL_HIGHLIGHTS.md)입니다.
 
 - **Docker 네트워크 격리 샌드박스 채점** ([ADR-0007](docs/adr/0007-docker-sandboxed-build-execution.md)) — 사용자 코드를 `--network none`, CPU/메모리 제한, 타임아웃 하에서 실행. 채점 스크립트 자체는 파일시스템이 아니라 DB에 버전 관리 ([ADR-0006](docs/adr/0006-config-as-data.md)).
 - **트랜잭션 커밋 후에만 큐에 push** ([ADR-0004](docs/adr/0004-async-jobs-enqueued-only-after-commit.md)) — 워커가 아직 커밋되지 않은 Submission을 읽고 조용히 job을 버리던 경쟁 조건을 `@TransactionalEventListener(AFTER_COMMIT)`로 차단. 두 파이프라인에서 같은 버그가 독립적으로 재발한 뒤 규칙이 됨.
@@ -238,6 +238,7 @@ cd backend && ./gradlew test        # compose 스택이 떠 있어야 합니다
 |---|---|
 | [docs/PRD.md](docs/PRD.md) | 제품 정의, 타깃, 4개 모드, 평가 루브릭, MVP 범위, 비즈니스 모델 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 설계 원칙, 도메인 모델, 세션 상태 머신, 시뮬레이션/평가 파이프라인 |
+| [docs/TECHNICAL_HIGHLIGHTS.md](docs/TECHNICAL_HIGHLIGHTS.md) | 어려웠던 문제 7가지와 삽질 기록 — 문제 → 선택 → 근거 → 코드 위치 |
 | [docs/adr/](docs/adr/README.md) | 아키텍처 결정 기록 38건 — "왜 이렇게 했는가" |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phase 1 (MVP) ~ Phase 6 (Architecture Linter) |
 | [docs/DRILLS_SIMULATION_VISION.md](docs/DRILLS_SIMULATION_VISION.md) | Architecture Canvas ↔ Simulation 연동 비전과 현재 구현 격차 분석 |
