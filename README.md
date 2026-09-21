@@ -230,7 +230,7 @@ SYSDRILL_USER_ID=<온보딩에서 발급된 ID> ./submit.sh                     
 cd backend && ./gradlew test        # compose 스택이 떠 있어야 합니다
 ```
 
-로컬 개발 스택과 격리된 별도 컨테이너로 돌리려면 `./scripts/run-tests-isolated.sh`를 사용합니다. CI는 [.github/workflows/ci.yml](.github/workflows/ci.yml)에서 동일한 compose 스택 위에서 백엔드/프론트엔드를 검증합니다.
+로컬 개발 스택과 격리된 별도 컨테이너로 돌리려면 `./scripts/run-tests-isolated.sh`를 사용합니다. CI는 [.github/workflows/ci.yml](.github/workflows/ci.yml)에서 동일한 compose 스택 위에서 백엔드/프론트엔드를 검증합니다. 테스트 구조와 전략은 [docs/TESTING.md](docs/TESTING.md).
 
 ## 문서
 
@@ -240,6 +240,8 @@ cd backend && ./gradlew test        # compose 스택이 떠 있어야 합니다
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 설계 원칙, 도메인 모델, 세션 상태 머신, 시뮬레이션/평가 파이프라인 |
 | [docs/TECHNICAL_HIGHLIGHTS.md](docs/TECHNICAL_HIGHLIGHTS.md) | 어려웠던 문제 7가지와 삽질 기록 — 문제 → 선택 → 근거 → 코드 위치 |
 | [docs/adr/](docs/adr/README.md) | 아키텍처 결정 기록 38건 — "왜 이렇게 했는가" |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) · [docs/TESTING.md](docs/TESTING.md) | 로컬 실행, 저장소 규칙, Build 과제 추가 방법 · 세 층 테스트 전략과 플레이키니스 대응 |
+| [frontend/README.md](frontend/README.md) | 프론트엔드 구조, api.ts 단일 진입점, 캔버스 ↔ Mermaid ↔ 토폴로지 관계 |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phase 1 (MVP) ~ Phase 6 (Architecture Linter) |
 | [docs/DRILLS_SIMULATION_VISION.md](docs/DRILLS_SIMULATION_VISION.md) | Architecture Canvas ↔ Simulation 연동 비전과 현재 구현 격차 분석 |
 | [docs/UX_STRATEGY.md](docs/UX_STRATEGY.md) · [docs/COMMERCIALIZATION.md](docs/COMMERCIALIZATION.md) | UX 전략, 상용화 준비 (인증/결제/운영) |
