@@ -32,9 +32,15 @@ jobs:
             sleep 2
           done
 
+      # realinfra-load 태그 제외 — 이 태그가 붙은 두 클래스의 단언은 k6 가 측정
+      # 창 안에서 실제로 달성한 처리량에 의존해서, 코어가 부족한 공유 러너에서는
+      # 코드와 무관하게 trafficRps=0.0 / errorRate=1.0 으로 깨진다. 임계값을
+      # 낮추면 단언이 무의미해지므로(ADR-0014) CI 에서만 빼고 나머지 real-infra
+      # 테스트(스키마 프로비저닝 · Toxiproxy · sweep · Kafka · 추적)는 그대로
+      # 돌린다. 근거와 로컬 실행법은 docs/TESTING.md 참고.
       - name: Run backend tests
         working-directory: backend
-        run: ./gradlew test --no-daemon
+        run: ./gradlew test --no-daemon -PexcludeTags=realinfra-load
 
       - name: Upload test results
         if: always()

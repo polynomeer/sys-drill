@@ -9,6 +9,7 @@ import com.sysdrill.backend.support.startSession
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -31,6 +32,19 @@ import java.util.UUID
  * to reach the app from inside its k6 container; MockMvc still dispatches
  * requests the normal (simulated, no real socket) way regardless.
  */
+/**
+ * `realinfra-load` — 이 클래스의 단언은 k6가 측정 창 안에서 **실제로 달성한
+ * 처리량**에 의존한다. 그래서 CPU 여유가 없는 환경에서는 코드와 무관하게
+ * 깨진다: 공유 러너에서 trafficRps가 0.0, errorRate가 1.0으로 찍히는 식이다
+ * (k6 컨테이너가 `--cpus 1.0`인데 JVM 앱·Postgres·Toxiproxy와 코어를 나눠
+ * 쓰고, 그 위에 Toxiproxy의 300ms 지연 하한까지 얹힌다).
+ *
+ * ADR-0014가 정한 "실측값은 범위·상대 비교로만 단언한다"의 한계 지점이다 —
+ * `> 0`보다 더 느슨하게 만들면 단언 자체가 무의미해지므로, 임계값을 낮추는
+ * 대신 태그로 분리해 CI에서 제외한다(.github/workflows/ci.yml). 로컬에서는
+ * 기본 실행에 그대로 포함되며, docs/TESTING.md 참고.
+ */
+@Tag("realinfra-load")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 class RealInfraCouponTimelineTest(

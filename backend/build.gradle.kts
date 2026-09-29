@@ -103,7 +103,15 @@ springBoot {
 }
 
 tasks.withType<Test> {
-	useJUnitPlatform()
+	// `-PexcludeTags=realinfra-load` 로 특정 태그를 뺀다 (CI 에서 사용).
+	// 인자를 주지 않으면 아무것도 제외하지 않으므로, 로컬 `./gradlew test` 와
+	// scripts/run-tests-isolated.sh 는 지금까지와 똑같이 전부 실행한다.
+	useJUnitPlatform {
+		val excluded = (project.findProperty("excludeTags") as String?)
+			?.split(",")?.map(String::trim)?.filter(String::isNotEmpty)
+			.orEmpty()
+		if (excluded.isNotEmpty()) excludeTags(*excluded.toTypedArray())
+	}
 	// Gradle's default test worker heap (512m) is too small for this suite: 41
 	// @SpringBootTest classes each load their own context, and Spring's test
 	// context cache keeps several alive at once (HikariCP pool + thread pools
