@@ -66,9 +66,13 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
+      # `next typegen` 먼저 — layout.tsx 의 LayoutProps 같은 타입은 Next 16 이
+      # .next/types 로 생성하므로, 생성 없이 tsc 를 돌리면 CI 에서만 TS2304 로
+      # 실패한다(로컬은 dev/build 산출물이 남아 있어 통과). npm script 안에
+      # 묶어 로컬에서도 같은 명령으로 재현되게 한다.
       - name: Type check
         working-directory: frontend
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Build
         working-directory: frontend
