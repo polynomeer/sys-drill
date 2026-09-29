@@ -72,7 +72,7 @@ flowchart TB
 
     subgraph BE["<b>Backend</b> · Kotlin / Spring Boot 4 · Modular Monolith"]
         direction LR
-        API["REST API · 18 modules<br/>identity · scenario · session · submission<br/>organization · certification · …"]
+        API["REST API · 19 패키지<br/>identity · scenario · session · submission<br/>organization · certification · …"]
         SIM["SimulationEngine<br/>도메인별 순수 함수로<br/>SystemState 결정론적 계산"]
         RI["Real-Infra Engines<br/>coupon · notification<br/>schema / topic-per-session"]
     end
@@ -149,12 +149,13 @@ sequenceDiagram
     API-->>U: 201 Created (session → SUBMITTED)
     Q-->>W: LPOP (재시도 3회 후 dead-letter)
     W->>DB: 활성 Evaluation UNIQUE 인덱스로 중복 소비 차단 — ADR-0027
-    par Rule 기반
-        W->>R: 요구사항 누락 · 임계값 위반 · 리스크 플래그
-    and AI 기반
-        W->>L: 프롬프트 템플릿 (DB 버전 관리) + structured output
-    end
-    W->>DB: Evaluation 저장 (점수 · 항목별 · 리스크)
+    W->>R: 요구사항 누락 · 임계값 위반 판정
+    R-->>W: RuleFinding (MEDIUM)
+    Note over W,L: 규칙 판정 결과를 "사전 점검"으로<br/>프롬프트에 넣어 같은 지적 반복을 막는다
+    W->>L: 시스템 프롬프트(DB 버전 관리) + 답안 + 규칙 판정 + 루브릭
+    L-->>W: structured JSON (항목 점수 · 리스크 · 꼬리질문)
+    W->>W: 총점을 항목 점수로 재계산·클램프 (LLM 총점 불신)
+    W->>DB: Evaluation 저장 (규칙 MEDIUM + LLM HIGH 리스크 병합)
     U->>API: GET /submissions/{id}/feedback (polling)
     API-->>U: 총점 · 항목별 점수 · 잘한 점 · 놓친 점 · 실무 리스크
 ```
@@ -189,7 +190,7 @@ sequenceDiagram
 | 항목 | 수치 |
 |---|---|
 | 개발 기간 | 2026-08-24 ~ (진행 중), 커밋 230+ |
-| 백엔드 | Kotlin 179 파일 · 도메인 모듈 18개 · Flyway 마이그레이션 43개 |
+| 백엔드 | Kotlin 179 파일 · 패키지 19개(도메인 17 + 공통·도구 2) · Flyway 마이그레이션 43개 · REST 엔드포인트 67개 |
 | 테스트 | 테스트 클래스 63개 · `@Test` 295개 (단위 + 실제 compose 스택 대상 통합 + real-infra 파일럿 범위 단언) |
 | 프론트엔드 | 페이지 30개 · TypeScript/TSX 54 파일 |
 | 콘텐츠 | 시나리오 도메인 7개 (쿠폰·알림·상품조회·결제·예약·배치정산·오토스케일링) · Build 과제 6개 (Rate Limiter·Queue·Circuit Breaker·Distributed Lock·Retry/Backoff·Event Bus) |
