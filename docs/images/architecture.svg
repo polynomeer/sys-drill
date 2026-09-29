@@ -1,0 +1,293 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1014" width="1440" height="1014" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Segoe UI', 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+  <defs>
+    <style>
+      .band      { fill: #11161d; stroke: #262d38; stroke-width: 1; }
+      .card      { fill: #171d26; stroke: #2b3442; stroke-width: 1; }
+      .bandlabel { font-size: 13px; font-weight: 700; letter-spacing: .09em; }
+      .bandnote  { font-size: 12px; fill: #7d8796; }
+      .t         { font-size: 14.5px; font-weight: 600; fill: #e6edf3; }
+      .s         { font-size: 11.5px; fill: #8b949e; }
+      .flow      { font-size: 11.5px; fill: #9aa4b2; font-weight: 600; }
+      .mono      { font-family: 'SF Mono', SFMono-Regular, ui-monospace, Menlo, Consolas, monospace; }
+      .ln        { stroke: #3d4756; stroke-width: 1.6; fill: none; }
+    </style>
+
+    <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0 1 L7.5 4.5 L0 8 Z" fill="#3d4756"/>
+    </marker>
+
+    <!-- ── icon glyphs (24×24, stroke-based, one visual language) ───────── -->
+    <g id="i-browser" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2.5" y="4" width="19" height="16" rx="2.5"/><path d="M2.5 9h19"/>
+      <circle cx="6" cy="6.6" r=".9" fill="currentColor" stroke="none"/><circle cx="9" cy="6.6" r=".9" fill="currentColor" stroke="none"/>
+      <path d="M6.5 13h7M6.5 16.5h10"/>
+    </g>
+    <g id="i-canvas" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="9" y="2.5" width="6" height="4.5" rx="1"/><rect x="2.5" y="16" width="6" height="4.5" rx="1"/><rect x="15.5" y="16" width="6" height="4.5" rx="1"/>
+      <path d="M12 7v4.5M12 11.5H5.5V16M12 11.5h6.5V16"/>
+    </g>
+    <g id="i-pulse" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2.5 12.5h4l2.5-6 3.5 12 2.5-8 2 2h4.5"/>
+    </g>
+    <g id="i-doc" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5.5 2.5h8l5 5v14h-13z"/><path d="M13.5 2.5v5h5"/><path d="M8.5 12h7M8.5 15.5h7M8.5 19h4"/>
+    </g>
+    <g id="i-shield" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2.5l8 3v6c0 5-3.4 9.2-8 10.5C7.4 20.7 4 16.5 4 11.5v-6z"/><circle cx="12" cy="10.5" r="2"/><path d="M12 12.5v3"/>
+    </g>
+    <g id="i-book" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 4.5h6a3 3 0 013 3v13a2.6 2.6 0 00-2.6-2.6H3z"/><path d="M21 4.5h-6a3 3 0 00-3 3v13a2.6 2.6 0 012.6-2.6H21z"/>
+    </g>
+    <g id="i-flow" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="5" cy="6.5" r="2.6"/><circle cx="5" cy="17.5" r="2.6"/><circle cx="19" cy="12" r="2.6"/>
+      <path d="M7.4 7.6L16.6 11M7.4 16.4L16.6 13"/>
+    </g>
+    <g id="i-org" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 5.6a3 3 0 010 4.8M18.5 14.6A6 6 0 0121 20"/>
+    </g>
+    <g id="i-scan" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 8V5a2 2 0 012-2h3M21 8V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3M21 16v3a2 2 0 01-2 2h-3"/><path d="M3 12h18"/>
+    </g>
+    <g id="i-queue" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2.5" y="4.5" width="13" height="4" rx="1.3"/><rect x="2.5" y="10" width="13" height="4" rx="1.3"/><rect x="2.5" y="15.5" width="13" height="4" rx="1.3"/>
+      <path d="M18 7.5v9M18 16.5l-2-2.2M18 16.5l2-2.2"/>
+    </g>
+    <g id="i-gear" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3.2"/>
+      <path d="M12 2.6v3M12 18.4v3M21.4 12h-3M5.6 12h-3M18.6 5.4l-2.1 2.1M7.5 16.5l-2.1 2.1M18.6 18.6l-2.1-2.1M7.5 7.5L5.4 5.4"/>
+    </g>
+    <g id="i-cube" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2.5l8.5 4.8v9.4L12 21.5 3.5 16.7V7.3z"/><path d="M3.5 7.3L12 12.1l8.5-4.8M12 12.1v9.4"/>
+    </g>
+    <g id="i-fx" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2.5l2.2 5.6 5.8 2.1-5.8 2.1L12 18l-2.2-5.7L4 10.2l5.8-2.1z"/><path d="M18.5 16.5l.9 2.2 2.1.8-2.1.8-.9 2.2-.9-2.2-2.1-.8 2.1-.8z"/>
+    </g>
+    <g id="i-db" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="12" cy="5.8" rx="8" ry="3.3"/><path d="M4 5.8v12.4c0 1.8 3.6 3.3 8 3.3s8-1.5 8-3.3V5.8"/><path d="M4 12c0 1.8 3.6 3.3 8 3.3s8-1.5 8-3.3"/>
+    </g>
+    <g id="i-bolt" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M13.5 2.5L5 13.5h5.5L9.5 21.5 19 10.5h-5.8z"/>
+    </g>
+    <g id="i-stream" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="6" cy="12" r="2.4"/><path d="M8.4 12h4M14 8.5h6M14 12h6M14 15.5h6"/><path d="M12.4 12l1.6-3.5M12.4 12l1.6 3.5"/>
+    </g>
+    <g id="i-chaos" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2.5 8.5h6l-2 3.5h4l-2 3.5h6"/><path d="M18 5.5l3 3-3 3M18 13l3 3-3 3"/>
+    </g>
+    <g id="i-gauge" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3.5 18a9 9 0 1117 0"/><path d="M12 18l4.5-6"/><circle cx="12" cy="18" r="1.6" fill="currentColor" stroke="none"/>
+    </g>
+    <g id="i-trace" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 4.5v15h18"/><rect x="6" y="6" width="11" height="2.8" rx="1.2"/><rect x="8.5" y="10.5" width="8" height="2.8" rx="1.2"/><rect x="11" y="15" width="5.5" height="2.8" rx="1.2"/>
+    </g>
+  </defs>
+
+  <rect width="1440" height="1014" fill="#0b0f15"/>
+
+  <!-- ── title ────────────────────────────────────────────────────────── -->
+  <text x="36" y="44" fill="#e6edf3" font-size="22" font-weight="700">SysDrill — 시스템 아키텍처</text>
+  <text x="36" y="66" class="s">Design → Build → Break → Recover · Kotlin/Spring Boot 4 모듈러 모놀리스 + 2계층 시뮬레이션</text>
+  <g transform="translate(1180,30)">
+    <rect x="0" y="0" width="52" height="20" rx="5" fill="#132033" stroke="#1f3a5f"/><text x="26" y="14" fill="#6ea8ff" font-size="11" text-anchor="middle">동기</text>
+    <rect x="62" y="0" width="52" height="20" rx="5" fill="#2a1f0c" stroke="#5a4416"/><text x="88" y="14" fill="#e3a008" font-size="11" text-anchor="middle">비동기</text>
+    <rect x="124" y="0" width="100" height="20" rx="5" fill="#1a2b1e" stroke="#2d5136"/><text x="174" y="14" fill="#4ade80" font-size="11" text-anchor="middle">opt-in 실제 인프라</text>
+  </g>
+
+  <!-- ══ BAND 1 · FRONTEND ═══════════════════════════════════════════════ -->
+  <rect class="band" x="32" y="86" width="1376" height="128" rx="12"/>
+  <rect x="32" y="86" width="4" height="128" rx="2" fill="#3b82f6"/>
+  <text x="52" y="110" class="bandlabel" fill="#6ea8ff">FRONTEND</text>
+  <text x="140" y="110" class="bandnote">Next.js 16 App Router · React 19 · TypeScript · Tailwind 4 — 페이지 30 (26 client)</text>
+
+  <g fill="none">
+    <rect class="card" x="56" y="122" width="318" height="74" rx="9"/>
+    <rect x="56" y="122" width="3.5" height="74" rx="1.75" fill="#3b82f6"/>
+    <g transform="translate(72,140)" color="#6ea8ff" stroke="#6ea8ff"><use href="#i-browser"/></g>
+    <text x="106" y="150" class="t">Design Workspace</text><text x="106" y="170" class="s">설계 답안 · 단계별 타이머 · AI 힌트</text>
+
+    <rect class="card" x="392" y="122" width="318" height="74" rx="9"/>
+    <rect x="392" y="122" width="3.5" height="74" rx="1.75" fill="#3b82f6"/>
+    <g transform="translate(408,140)" color="#6ea8ff" stroke="#6ea8ff"><use href="#i-canvas"/></g>
+    <text x="442" y="150" class="t">Architecture Canvas</text><text x="442" y="170" class="s">React Flow → Mermaid + 노드 config</text>
+
+    <rect class="card" x="728" y="122" width="318" height="74" rx="9"/>
+    <rect x="728" y="122" width="3.5" height="74" rx="1.75" fill="#3b82f6"/>
+    <g transform="translate(744,140)" color="#6ea8ff" stroke="#6ea8ff"><use href="#i-pulse"/></g>
+    <text x="778" y="150" class="t">Wargame Live</text><text x="778" y="170" class="s">3초 폴링 · 지표/차트/로그 · 대응 액션</text>
+
+    <rect class="card" x="1064" y="122" width="318" height="74" rx="9"/>
+    <rect x="1064" y="122" width="3.5" height="74" rx="1.75" fill="#3b82f6"/>
+    <g transform="translate(1080,140)" color="#6ea8ff" stroke="#6ea8ff"><use href="#i-doc"/></g>
+    <text x="1114" y="150" class="t">Report · Replay · Postmortem</text><text x="1114" y="170" class="s">단계별 점수 · 타임라인 · MTTD/MTTR</text>
+  </g>
+
+  <path class="ln" d="M720 214 V250" marker-end="url(#arw)"/>
+  <rect x="640" y="222" width="160" height="20" rx="5" fill="#0b0f15"/>
+  <text x="720" y="236" class="flow" text-anchor="middle">REST + JWT Bearer</text>
+
+  <!-- ══ BAND 2 · BACKEND ════════════════════════════════════════════════ -->
+  <rect class="band" x="32" y="258" width="1376" height="212" rx="12"/>
+  <rect x="32" y="258" width="4" height="212" rx="2" fill="#6366f1"/>
+  <text x="52" y="282" class="bandlabel" fill="#a5b4fc">BACKEND · MODULAR MONOLITH</text>
+  <text x="372" y="282" class="bandnote">Kotlin 2.3 · Spring Boot 4.1 · Java 21 — 19 패키지(도메인 17) · 179 파일 · REST 엔드포인트 67</text>
+
+  <g>
+    <rect class="card" x="56" y="298" width="254" height="72" rx="9"/>
+    <g transform="translate(70,312)" color="#a5b4fc" stroke="#a5b4fc"><use href="#i-shield"/></g>
+    <text x="102" y="322" class="t">auth · identity</text><text x="70" y="344" class="s">JWT · Google OAuth · RBAC</text><text x="70" y="360" class="s">비밀번호 재설정 · 이메일 인증</text>
+
+    <rect class="card" x="324" y="298" width="254" height="72" rx="9"/>
+    <g transform="translate(338,312)" color="#a5b4fc" stroke="#a5b4fc"><use href="#i-book"/></g>
+    <text x="370" y="322" class="t">content · scenario</text><text x="338" y="344" class="s">Flyway 시딩 콘텐츠 (ADR-0002)</text><text x="338" y="360" class="s">공식 7 도메인 · 마켓플레이스</text>
+
+    <rect class="card" x="592" y="298" width="254" height="72" rx="9"/>
+    <g transform="translate(606,312)" color="#a5b4fc" stroke="#a5b4fc"><use href="#i-flow"/></g>
+    <text x="638" y="322" class="t">session · submission</text><text x="606" y="344" class="s">7상태 상태 머신 · 조건부 UPDATE</text><text x="606" y="360" class="s">단계 전이 · 제출 멱등성</text>
+
+    <rect class="card" x="860" y="298" width="254" height="72" rx="9"/>
+    <g transform="translate(874,312)" color="#a5b4fc" stroke="#a5b4fc"><use href="#i-org"/></g>
+    <text x="906" y="322" class="t">organization</text><text x="874" y="344" class="s">초대 · 커리큘럼 · 평가(assessment)</text><text x="874" y="360" class="s">감사 로그 · Game Day 관전</text>
+
+    <rect class="card" x="1128" y="298" width="254" height="72" rx="9"/>
+    <g transform="translate(1142,312)" color="#a5b4fc" stroke="#a5b4fc"><use href="#i-scan"/></g>
+    <text x="1174" y="322" class="t">architecture</text><text x="1142" y="344" class="s">OpenAPI 스펙 파싱 → 리스크 스캔</text><text x="1142" y="360" class="s">결정론적 다이어그램 생성</text>
+
+    <rect class="card" x="56" y="382" width="254" height="72" rx="9"/>
+    <rect x="56" y="382" width="3.5" height="72" rx="1.75" fill="#f59e0b"/>
+    <g transform="translate(72,396)" color="#e3a008" stroke="#e3a008"><use href="#i-fx"/></g>
+    <text x="104" y="406" class="t">evaluation</text><text x="72" y="428" class="s">Rule + LLM 하이브리드 · 루브릭</text><text x="72" y="444" class="s">프롬프트 템플릿 DB 버전 관리</text>
+
+    <rect class="card" x="324" y="382" width="254" height="72" rx="9"/>
+    <rect x="324" y="382" width="3.5" height="72" rx="1.75" fill="#a855f7"/>
+    <g transform="translate(340,396)" color="#c084fc" stroke="#c084fc"><use href="#i-gear"/></g>
+    <text x="372" y="406" class="t">simulation</text><text x="340" y="428" class="s">엔진 선택 · SystemTopology</text><text x="340" y="444" class="s">AppliedAction 기록 · 리플레이</text>
+
+    <rect class="card" x="592" y="382" width="254" height="72" rx="9"/>
+    <rect x="592" y="382" width="3.5" height="72" rx="1.75" fill="#f59e0b"/>
+    <g transform="translate(608,396)" color="#e3a008" stroke="#e3a008"><use href="#i-cube"/></g>
+    <text x="640" y="406" class="t">build</text><text x="608" y="428" class="s">Build 과제 6종 · stage별 채점</text><text x="608" y="444" class="s">샌드박스 실행 위임</text>
+
+    <rect class="card" x="860" y="382" width="254" height="72" rx="9"/>
+    <g transform="translate(874,396)" color="#a5b4fc" stroke="#a5b4fc"><use href="#i-doc"/></g>
+    <text x="906" y="406" class="t">reporting · certification</text><text x="874" y="428" class="s">세션 리포트 · postmortem</text><text x="874" y="444" class="s">인증은 live 계산 (ADR-0032)</text>
+
+    <rect class="card" x="1128" y="382" width="254" height="72" rx="9"/>
+    <g transform="translate(1142,396)" color="#a5b4fc" stroke="#a5b4fc"><use href="#i-fx"/></g>
+    <text x="1174" y="406" class="t">mentor · mail · admin</text><text x="1142" y="428" class="s">AI 힌트 · SMTP/로그 폴백</text><text x="1142" y="444" class="s">프롬프트 템플릿 관리</text>
+  </g>
+
+  <path class="ln" d="M300 470 V520" marker-end="url(#arw)"/>
+  <rect x="150" y="480" width="300" height="20" rx="5" fill="#0b0f15"/>
+  <text x="300" y="494" class="flow" text-anchor="middle">AFTER_COMMIT enqueue (ADR-0004)</text>
+
+  <path class="ln" d="M1030 470 V520" marker-end="url(#arw)"/>
+  <rect x="900" y="480" width="260" height="20" rx="5" fill="#0b0f15"/>
+  <text x="1030" y="494" class="flow" text-anchor="middle">computeState / applyAction</text>
+
+  <!-- ══ BAND 3a · ASYNC ═════════════════════════════════════════════════ -->
+  <rect class="band" x="32" y="528" width="628" height="196" rx="12"/>
+  <rect x="32" y="528" width="4" height="196" rx="2" fill="#f59e0b"/>
+  <text x="52" y="552" class="bandlabel" fill="#e3a008">비동기 처리</text>
+  <text x="168" y="552" class="bandnote">Redis Job Queue · 인프로세스 단일 스레드 워커</text>
+
+  <rect class="card" x="56" y="568" width="196" height="136" rx="9"/>
+  <g transform="translate(70,584)" color="#e3a008" stroke="#e3a008"><use href="#i-queue"/></g>
+  <text x="102" y="594" class="t">Redis Queue</text>
+  <text x="70" y="618" class="s mono" font-size="10.5">sysdrill:evaluation:jobs</text>
+  <text x="70" y="634" class="s mono" font-size="10.5">sysdrill:build:jobs</text>
+  <text x="70" y="650" class="s mono" font-size="10.5">*:dead-letter</text>
+  <text x="70" y="674" class="s">RPUSH / LPOP</text>
+  <text x="70" y="690" class="s">재시도 3회 → DLQ</text>
+
+  <path class="ln" d="M256 636 H288" marker-end="url(#arw)"/>
+
+  <rect class="card" x="292" y="568" width="348" height="62" rx="9"/>
+  <g transform="translate(306,584)" color="#e3a008" stroke="#e3a008"><use href="#i-fx"/></g>
+  <text x="338" y="594" class="t">EvaluationWorker</text>
+  <text x="306" y="616" class="s">RuleEvaluator(결정 가능 사실) ∥ Claude(트레이드오프)</text>
+
+  <rect class="card" x="292" y="642" width="348" height="62" rx="9"/>
+  <g transform="translate(306,658)" color="#e3a008" stroke="#e3a008"><use href="#i-cube"/></g>
+  <text x="338" y="668" class="t">BuildRunnerWorker</text>
+  <text x="306" y="690" class="s">stage별 Docker 컨테이너 실행 → 채점</text>
+
+  <!-- ══ BAND 3b · SIMULATION ════════════════════════════════════════════ -->
+  <rect class="band" x="692" y="528" width="716" height="196" rx="12"/>
+  <rect x="692" y="528" width="4" height="196" rx="2" fill="#a855f7"/>
+  <text x="712" y="552" class="bandlabel" fill="#c084fc">SIMULATION ENGINE — 2계층</text>
+  <text x="990" y="552" class="bandnote">interface SimulationEngine · 세션 단위로 구현 교체 (ADR-0018)</text>
+
+  <rect class="card" x="716" y="568" width="330" height="136" rx="9"/>
+  <rect x="716" y="568" width="3.5" height="136" rx="1.75" fill="#a855f7"/>
+  <g transform="translate(732,584)" color="#c084fc" stroke="#c084fc"><use href="#i-gear"/></g>
+  <text x="764" y="594" class="t">Rule-based (기본)</text>
+  <text x="732" y="618" class="s">도메인별 순수 함수 7개 (ADR-0010)</text>
+  <text x="732" y="636" class="s">coupon · notification · product-browsing</text>
+  <text x="732" y="652" class="s">payment · reservation · batch · autoscaling</text>
+  <text x="732" y="676" class="s">SystemState 12지표 · 액션 21종</text>
+  <text x="732" y="692" class="s">결정론적 → 리플레이는 재계산 (ADR-0011)</text>
+
+  <rect class="card" x="1062" y="568" width="322" height="136" rx="9"/>
+  <rect x="1062" y="568" width="3.5" height="136" rx="1.75" fill="#22c55e"/>
+  <g transform="translate(1078,584)" color="#4ade80" stroke="#4ade80"><use href="#i-chaos"/></g>
+  <text x="1110" y="594" class="t">Real-Infra (opt-in)</text>
+  <text x="1078" y="618" class="s">coupon — 스키마/풀 per session (ADR-0013)</text>
+  <text x="1078" y="636" class="s">notification — 토픽 per session (ADR-0017)</text>
+  <text x="1078" y="652" class="s">실제 지연 주입 + 실제 부하 측정</text>
+  <text x="1078" y="676" class="s">비재현적 → 스냅샷 저장 (ADR-0016)</text>
+  <text x="1078" y="692" class="s">유휴 6h 세션 백그라운드 회수</text>
+
+  <path class="ln" d="M348 724 V784" marker-end="url(#arw)"/>
+  <path class="ln" d="M880 724 V784" marker-end="url(#arw)"/>
+  <path class="ln" d="M1222 724 V784" marker-end="url(#arw)"/>
+
+  <!-- ══ BAND 4 · INFRA & EXTERNAL ═══════════════════════════════════════ -->
+  <rect class="band" x="32" y="792" width="880" height="190" rx="12"/>
+  <rect x="32" y="792" width="4" height="190" rx="2" fill="#22c55e"/>
+  <text x="52" y="816" class="bandlabel" fill="#4ade80">INFRASTRUCTURE</text>
+  <text x="232" y="816" class="bandnote">docker compose — 로컬·CI 동일 스택</text>
+
+  <rect class="card" x="56" y="832" width="268" height="62" rx="9"/>
+  <g transform="translate(70,848)" color="#4ade80" stroke="#4ade80"><use href="#i-db"/></g>
+  <text x="102" y="858" class="t">PostgreSQL 16</text>
+  <text x="70" y="880" class="s">테이블 29 · Flyway 43 · ddl-auto=validate</text>
+
+  <rect class="card" x="336" y="832" width="268" height="62" rx="9"/>
+  <g transform="translate(350,848)" color="#4ade80" stroke="#4ade80"><use href="#i-bolt"/></g>
+  <text x="382" y="858" class="t">Redis 7</text>
+  <text x="350" y="880" class="s">Job Queue · 세션 상태(TTL 6h) · rate limit</text>
+
+  <rect class="card" x="616" y="832" width="272" height="62" rx="9"/>
+  <g transform="translate(630,848)" color="#4ade80" stroke="#4ade80"><use href="#i-stream"/></g>
+  <text x="662" y="858" class="t">Kafka 3.9 (KRaft)</text>
+  <text x="630" y="880" class="s">real-infra notification 전용 · 토픽/세션</text>
+
+  <rect class="card" x="56" y="906" width="268" height="62" rx="9"/>
+  <g transform="translate(70,922)" color="#4ade80" stroke="#4ade80"><use href="#i-chaos"/></g>
+  <text x="102" y="932" class="t">Toxiproxy</text>
+  <text x="70" y="954" class="s">DB 지연 주입 300±50ms · 포트/세션</text>
+
+  <rect class="card" x="336" y="906" width="268" height="62" rx="9"/>
+  <g transform="translate(350,922)" color="#4ade80" stroke="#4ade80"><use href="#i-trace"/></g>
+  <text x="382" y="932" class="t">Jaeger (OTLP)</text>
+  <text x="350" y="954" class="s">real-infra 구간 분산 추적 · 샘플링 100%</text>
+
+  <rect class="card" x="616" y="906" width="272" height="62" rx="9"/>
+  <g transform="translate(630,922)" color="#4ade80" stroke="#4ade80"><use href="#i-gauge"/></g>
+  <text x="662" y="932" class="t">k6 (일회성 컨테이너)</text>
+  <text x="630" y="954" class="s">실제 HTTP 부하 생성 → p95/에러율 실측</text>
+
+  <rect class="band" x="944" y="792" width="464" height="190" rx="12"/>
+  <rect x="944" y="792" width="4" height="190" rx="2" fill="#ef4444"/>
+  <text x="964" y="816" class="bandlabel" fill="#f87171">EXTERNAL · SANDBOX</text>
+
+  <rect class="card" x="968" y="832" width="416" height="62" rx="9"/>
+  <g transform="translate(982,848)" color="#f87171" stroke="#f87171"><use href="#i-fx"/></g>
+  <text x="1014" y="858" class="t">Anthropic Claude API</text>
+  <text x="982" y="880" class="s">5개 역할 프롬프트 · structured output · 키 없으면 스텁</text>
+
+  <rect class="card" x="968" y="906" width="416" height="62" rx="9"/>
+  <g transform="translate(982,922)" color="#f87171" stroke="#f87171"><use href="#i-cube"/></g>
+  <text x="1014" y="932" class="t">Docker 채점 샌드박스</text>
+  <text x="982" y="954" class="s mono" font-size="10.5">--network none --cpus 0.5 --memory 128m --pids-limit 64</text>
+</svg>
