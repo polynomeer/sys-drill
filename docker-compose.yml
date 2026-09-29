@@ -14,6 +14,12 @@
 services:
   postgres:
     image: postgres:16-alpine
+    # 기본값 100 으로는 전체 테스트 스위트가 "FATAL: sorry, too many clients
+    # already" 로 깨진다 — real-infra 파일럿이 세션마다 전용 HikariDataSource 를
+    # 열고(ADR-0013), 그 위에 @SpringBootTest 컨텍스트 캐시가 여러 개의 앱 풀을
+    # 동시에 살려두기 때문. scripts/run-tests-isolated.sh 가 자신의 격리
+    # Postgres 에 이미 쓰고 있던 값과 동일하게 맞춘다.
+    command: postgres -c max_connections=300
     environment:
       POSTGRES_DB: sysdrill
       POSTGRES_USER: sysdrill
