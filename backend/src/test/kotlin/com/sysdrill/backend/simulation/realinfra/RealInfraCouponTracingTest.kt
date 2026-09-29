@@ -38,6 +38,17 @@ class RealInfraCouponTracingTest(
     private val jaegerClient = RestClient.create()
     private val provisionedSessions = mutableListOf<UUID>()
 
+    /**
+     * Same variable and default as docker-compose.yml's
+     * `"${'$'}{JAEGER_UI_PORT:-16686}:16686"`, so the two can't drift. Hardcoding
+     * 16686 here made this the one test `scripts/run.sh`'s port-conflict
+     * avoidance couldn't help: whenever something else on the machine already
+     * holds 16686 (another project's Jaeger), compose publishes the UI
+     * somewhere else and this test failed with a connection error that looked
+     * like a tracing bug rather than a port mismatch.
+     */
+    private val jaegerUiPort: String = System.getenv("JAEGER_UI_PORT") ?: "16686"
+
     @AfterEach
     fun cleanUp() {
         provisionedSessions.forEach {
@@ -81,7 +92,7 @@ class RealInfraCouponTracingTest(
         val deadline = Instant.now().plus(timeout)
         while (Instant.now().isBefore(deadline)) {
             val body = jaegerClient.get()
-                .uri("http://localhost:16686/api/traces?service=backend&operation=coupon.db.claim&limit=50")
+                .uri("http://localhost:$jaegerUiPort/api/traces?service=backend&operation=coupon.db.claim&limit=50")
                 .retrieve()
                 .body(String::class.java) ?: ""
             findMatchingSpan(body, sessionId)?.let { return it }
