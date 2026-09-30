@@ -1,4 +1,4 @@
-import { getStoredToken } from "./localSession";
+import { clearStoredUser, getStoredToken } from "./localSession";
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8081";
 
@@ -359,6 +359,16 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
+    // docs/COMMERCIALIZATION.md — a 401 mid-session means the token is no
+    // longer valid (expired, or the user behind it is gone from the DB, see
+    // UserExistenceCache). /auth/* is excluded: login/page.tsx already
+    // treats its own 401 as "wrong email or password", not "session
+    // expired" -- redirecting there would just bounce the login page off
+    // itself.
+    if (res.status === 401 && !path.startsWith("/auth/") && typeof window !== "undefined") {
+      clearStoredUser();
+      window.location.href = "/login?reason=expired";
+    }
     const body = await res.text().catch(() => "");
     throw new ApiError(res.status, `${path} failed: ${res.status} ${body}`);
   }

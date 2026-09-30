@@ -1,15 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { API_BASE_URL, ApiError, login } from "@/lib/api";
 import { storeUser } from "@/lib/localSession";
+import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const expired = useSearchParams().get("reason") === "expired";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -40,6 +50,8 @@ export default function LoginPage() {
         <h1 className="text-2xl font-semibold">로그인</h1>
         <p className="mt-1 text-sm text-foreground-muted">이메일과 비밀번호로 로그인하세요.</p>
       </div>
+
+      {expired && <Alert variant="warning">세션이 만료되었습니다. 다시 로그인해주세요.</Alert>}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Input label="이메일" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoFocus />
