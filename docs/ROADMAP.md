@@ -60,6 +60,21 @@
 - 착수 전 확인할 것: v1 다이어그램 기능이 실제로 쓰이는가(사용자가 자발적으로 mermaid 블록을 답안에 포함하는가), 문법 장벽이 실제 이탈 요인으로 보고되는가.
 - 검증할 질문: 그리기 모드가 있으면 다이어그램 사용률이 유의미하게 오르는가, 아니면 대부분 템플릿 삽입 정도로 충분한가?
 
+## 4개 영역 확장 계획안 (2026-09-30, 미착수)
+
+`docs/archive/`의 제안서 4건(drill · learning · community · monitoring-ui)을 현재 구현과 대조해 채택·축소·보류를 가른 계획안이다. 각 문서가 슬라이스·완료 기준·ADR 후보를 따로 갖고, 아래는 네 문서를 합친 권장 착수 순서다.
+
+- [OBSERVABILITY_UI_PLAN.md](OBSERVABILITY_UI_PLAN.md) (O) — **먼저 읽기**. 나머지가 전제로 쓰는 시간축(O0-a)과 조사 행위 기록(O0-b)
+- [DRILLS_EXPANSION_PLAN.md](DRILLS_EXPANSION_PLAN.md) (M) · [LEARNING_EXPANSION_PLAN.md](LEARNING_EXPANSION_PLAN.md) (L4~) · [COMMUNITY_EXPANSION_PLAN.md](COMMUNITY_EXPANSION_PLAN.md) (C7~)
+
+| 순서 | 묶음 | 슬라이스 | 성격 |
+|---|---|---|---|
+| 1 | 연결과 운영 마무리 | L4 Drill↔개념 링크 · C7 토론 운영 UI·노출 · O1 Mission Control | 새 저장소 거의 없음, 즉시 체감 |
+| 2 | 기반 | O0-a 시간축 · M1 요구사항 질의 · M2 규모 추정 · M4 설계 방어 · L5 랩 · L6 Capacity Lab | M1·M2는 coupon 1개 도메인 새 버전으로 먼저 검증 |
+| 3 | 시간축 위의 판단 | O2 시계열·변경 오버레이 · O3 Service Map · M3 SLO · O5 알림·SLO · M5 복구 분리 · M6 Counterfactual · C8 설계 비교 · C9 Fork My Run | |
+| 4 | 깊이 | O4 로그 · O0-b 조사 기록 · L7 숙련·지식 맵 · L8 장애 패턴 · M7 가정 · M8 비용·복잡도 · M10 신뢰도 · M11 상태 공지 · C10 앵커 리뷰 · C11 홈 | |
+| 5 | 후보 (신호 확인 후) | O6 트레이스 · O7 Readiness · M9 Deploy 도메인 · M12 Runbook · L9 진단 퍼즐 · L10 오개념 · C12 주간 퍼즐 · C13 챌린지 · C14 평판 | M9는 공식 도메인 추가라 인증·랭킹까지 번짐 |
+
 ## 로드맵 운영 원칙
 
 - 각 Phase는 이전 Phase의 핵심 검증 질문에 긍정적인 신호가 있어야 다음으로 진행한다.

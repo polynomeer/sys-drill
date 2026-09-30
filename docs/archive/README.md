@@ -24,4 +24,15 @@
 | backend_wargame_platform_product_plan.docx | 가장 상세한 제품 기획서 (IA, 와이어프레임 포함) |
 | 멘토링_서비스_시스템_설계_문서.docx | 실제 구현 기준에 가장 가까운 시스템 설계 기준 문서 |
 
+## 기능 제안서 (2026-09-30 추가)
+
+초기 브레인스토밍과 달리 MVP 이후 시점에 영역별로 받은 제안서다. 각각을 현재 구현과 대조한 계획안이 따로 있다.
+
+| 파일 | 내용 | 계획안 |
+|---|---|---|
+| drill-feature-proposal.md | 요구사항 질의부터 Counterfactual Replay까지 Drill 확장 27항목 | [DRILLS_EXPANSION_PLAN.md](../DRILLS_EXPANSION_PLAN.md) |
+| learning-feature-proposal.md | Knowledge Map · 인터랙티브 랩 · 장애 패턴 사전 등 21항목 | [LEARNING_EXPANSION_PLAN.md](../LEARNING_EXPANSION_PLAN.md) |
+| community-feature-proposal.md | 풀이 비교 · 앵커 리뷰 · Fork My Run 등 24항목 | [COMMUNITY_EXPANSION_PLAN.md](../COMMUNITY_EXPANSION_PLAN.md) |
+| monitoring-ui-proposal.md | Mission Control · Observe 워크스페이스 · 알림/SLO 등 28항목 | [OBSERVABILITY_UI_PLAN.md](../OBSERVABILITY_UI_PLAN.md) |
+
 원본은 `.docx`/`.md` 그대로 두었으며, 필요 시 `pandoc -t markdown` 또는 `unzip`으로 `word/document.xml`을 읽어 원문을 확인할 수 있습니다.
