@@ -30,6 +30,9 @@ data class ScenarioDetailResponse(
     val steps: List<ScenarioStepSummaryResponse>? = null,
     /** The INITIAL step's prompt only — FOLLOWUP/INCIDENT prompts stay hidden until the session reaches them, so the overview doesn't spoil the mid-session "conditions changed" twist. */
     val initialPrompt: String? = null,
+    /** docs/LEARNING_COMMUNITY_PLAN.md §6.3 difficulty signal, same numbers as the marketplace list — the overview page needs them for official scenarios too, which that list doesn't include. */
+    val completedCount: Long? = null,
+    val averageScore: Int? = null,
 )
 
 data class ScenarioStepSummaryResponse(

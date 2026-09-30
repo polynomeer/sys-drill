@@ -17,6 +17,7 @@ class ScenarioController(
     private val scenarioRepository: ScenarioRepository,
     private val scenarioVersionRepository: ScenarioVersionRepository,
     private val scenarioStepRepository: ScenarioStepRepository,
+    private val scenarioStatsService: ScenarioStatsService,
     private val contentItemRepository: ContentItemRepository,
     private val userRepository: UserRepository,
     private val objectMapper: ObjectMapper,
@@ -43,9 +44,12 @@ class ScenarioController(
         val steps = version?.let { scenarioStepRepository.findByScenarioVersionIdOrderByStepOrder(it.id!!) }.orEmpty()
         val initialPrompt = steps.firstOrNull { it.stepType == "INITIAL" }?.content
             ?.let { objectMapper.readValue(it, Map::class.java)["prompt"] as? String }
+        val stats = scenarioStatsService.byScenarioId(listOf(id))[id]
         return ScenarioResponses.toDetail(scenario, content, objectMapper, creatorNickname).copy(
             steps = steps.map { ScenarioStepSummaryResponse(order = it.stepOrder, type = it.stepType) },
             initialPrompt = initialPrompt,
+            completedCount = stats?.completedCount,
+            averageScore = stats?.averageScore,
         )
     }
 }

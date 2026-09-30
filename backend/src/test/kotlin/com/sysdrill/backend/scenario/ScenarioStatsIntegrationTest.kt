@@ -13,7 +13,9 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.time.Duration
 import java.time.Instant
@@ -76,6 +78,12 @@ class ScenarioStatsIntegrationTest(
         assertThat(after!!.completedCount).isEqualTo(before + 1)
         // 오프라인 폴백 평가는 매 단계 60점이므로 평균은 0~100 안의 실제 값이어야 한다.
         assertThat(after.averageScore).isNotNull().isBetween(0, 100)
+
+        // Drill 개요 페이지(docs/CODECRAFTERS_BENCHMARK.md §3.1)는 공식 시나리오 통계를 상세 응답에서 받는다.
+        mockMvc.perform(get("/scenarios/$scenarioId"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.completedCount").value(after.completedCount))
+            .andExpect(jsonPath("$.averageScore").value(after.averageScore!!))
     }
 
     @Test
