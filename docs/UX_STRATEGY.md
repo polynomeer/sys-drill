@@ -81,3 +81,7 @@ Phase B(반응형 레이아웃), Phase C(핵심 루프 화면 리디자인), Pha
 ## 별도 트랙 — 외부 디자인 기획서 기반 전면 리뉴얼 (2026-09-09~)
 
 사용자가 외부에서 작성된 `SysDrill_UIUX_Design_Plan.docx`(다크 네이비 콘솔 톤, Home/Drills/Learning/Community IA, "Drill" 용어 체계)를 기준으로 화면 기획을 다시 하고 UI/UX를 리뉴얼해달라고 요청했다. 이 문서의 방향은 Phase A(라이트 테마, 기존 IA 유지)와 다르며, Phase A 위에 이어가는 것이 아니라 **Phase A의 디자인 토큰과 컴포넌트를 다크 네이비 팔레트로 교체하는 별도 리브랜드**다. 진행 상황은 [PLAN.md](../PLAN.md)의 "UI/UX 리뉴얼" 절을 참고 — Phase A~D 번호 체계와는 독립적으로 Round 1/2/3으로 진행한다.
+
+## 다음 — 학습 루프 구조 개선 (2026-09-30)
+
+디자인 시스템과 개별 화면 완성도 다음 단계로, CodeCrafters를 벤치마킹해 카탈로그 → Drill 개요 → 단계별 진행 → 피드백 → 공유로 이어지는 학습 루프 자체를 재구성하는 개선안을 [CODECRAFTERS_BENCHMARK.md](CODECRAFTERS_BENCHMARK.md)에 정리했다.
