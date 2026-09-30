@@ -10,6 +10,12 @@ data class ScenarioSummaryResponse(
     val difficulty: String?,
     val organizationId: UUID?,
     val creatorNickname: String? = null,
+    /**
+     * docs/LEARNING_COMMUNITY_PLAN.md §6.3 — 난이도·인기 신호. 마켓플레이스 목록에서만
+     * 채워지고 나머지 경로에서는 null 이다(집계 비용을 목록마다 치르지 않기 위해).
+     */
+    val completedCount: Long? = null,
+    val averageScore: Int? = null,
 )
 
 data class ScenarioDetailResponse(

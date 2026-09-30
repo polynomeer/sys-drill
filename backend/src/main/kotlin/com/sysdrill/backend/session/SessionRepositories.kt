@@ -13,6 +13,13 @@ interface SessionCompletionStats {
     fun getLastCompletedAt(): Instant?
 }
 
+/** docs/LEARNING_COMMUNITY_PLAN.md §6.3 — 시나리오 난이도 신호용 집계 한 줄. */
+interface ScenarioVersionStats {
+    fun getScenarioVersionId(): UUID
+    fun getCompletedCount(): Long
+    fun getAverageScore(): Double?
+}
+
 interface SessionRepository : JpaRepository<Session, UUID> {
 
     /**
@@ -46,6 +53,24 @@ interface SessionRepository : JpaRepository<Session, UUID> {
 
     /** docs/COMMERCIALIZATION.md — admin dashboard's daily activity count. */
     fun countByStatusAndCompletedAtAfter(status: SessionStatus, after: Instant): Long
+
+    /**
+     * docs/LEARNING_COMMUNITY_PLAN.md §6.3 — 시나리오별 "몇 명이 풀었고 평균 몇 점인가".
+     *
+     * [ScenarioVersionStats.getAverageScore] 는 완료 세션들의 **단계 점수** 평균이다
+     * (세션 평균을 다시 평균낸 값이 아니다). 세션마다 단계 수가 같아 실질적 차이는
+     * 작고, 목적이 순위가 아니라 난이도 신호이므로 한 번의 집계 쿼리로 끝낸다.
+     */
+    @Query(
+        "select s.scenarioVersionId as scenarioVersionId, " +
+            "count(distinct s.id) as completedCount, avg(e.totalScore) as averageScore " +
+            "from Session s, com.sysdrill.backend.submission.Submission sub, com.sysdrill.backend.evaluation.Evaluation e " +
+            "where sub.sessionId = s.id and e.submissionId = sub.id and e.isActive = true " +
+            "and s.status = com.sysdrill.backend.session.SessionStatus.COMPLETED " +
+            "and s.scenarioVersionId in :versionIds " +
+            "group by s.scenarioVersionId"
+    )
+    fun statsByScenarioVersionIds(versionIds: Collection<UUID>): List<ScenarioVersionStats>
 
     /**
      * docs/LEARNING_COMMUNITY_PLAN.md §6.1 (벤치마크) — every finished run of one

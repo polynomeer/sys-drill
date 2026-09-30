@@ -15,6 +15,9 @@ interface ScenarioRepository : JpaRepository<Scenario, UUID> {
 
 interface ScenarioVersionRepository : JpaRepository<ScenarioVersion, UUID> {
     fun findFirstByScenarioIdAndStatusOrderByVersionNoDesc(scenarioId: UUID, status: String): ScenarioVersion?
+
+    /** docs/LEARNING_COMMUNITY_PLAN.md §6.3 — 시나리오 통계가 그 시나리오의 모든 버전을 함께 센다. */
+    fun findByScenarioIdIn(scenarioIds: Collection<UUID>): List<ScenarioVersion>
 }
 
 interface ScenarioStepRepository : JpaRepository<ScenarioStep, UUID> {

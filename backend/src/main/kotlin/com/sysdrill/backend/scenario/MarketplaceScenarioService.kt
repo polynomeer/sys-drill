@@ -23,6 +23,7 @@ class MarketplaceScenarioService(
     private val scenarioStepRepository: ScenarioStepRepository,
     private val userRepository: UserRepository,
     private val objectMapper: ObjectMapper,
+    private val scenarioStatsService: ScenarioStatsService,
 ) {
 
     @Transactional
@@ -67,8 +68,18 @@ class MarketplaceScenarioService(
     private fun toSummaries(scenarios: List<Scenario>): List<ScenarioSummaryResponse> {
         val contentById = contentItemRepository.findAllById(scenarios.map { it.contentId }).associateBy { it.id }
         val nicknameByCreatorId = userRepository.findAllById(scenarios.mapNotNull { it.creatorUserId }).associate { it.id to it.nickname }
+        // §6.3 — 목록에 난이도 신호를 붙인다. 시나리오 하나당 조회하지 않고 한 번에 집계한다.
+        val statsByScenarioId = scenarioStatsService.byScenarioId(scenarios.mapNotNull { it.id })
         return scenarios.map { scenario ->
-            ScenarioResponses.toSummary(scenario, contentById[scenario.contentId], scenario.creatorUserId?.let { nicknameByCreatorId[it] })
+            val stats = scenario.id?.let { statsByScenarioId[it] }
+            ScenarioResponses.toSummary(
+                scenario,
+                contentById[scenario.contentId],
+                scenario.creatorUserId?.let { nicknameByCreatorId[it] },
+            ).copy(
+                completedCount = stats?.completedCount ?: 0,
+                averageScore = stats?.averageScore,
+            )
         }
     }
 }
