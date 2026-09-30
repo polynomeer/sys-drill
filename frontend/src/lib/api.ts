@@ -100,8 +100,20 @@ export interface ScenarioSummary {
   averageScore?: number | null;
 }
 
+export interface ScenarioStepSummary {
+  order: number;
+  type: string;
+}
+
 export interface ScenarioDetail extends ScenarioSummary {
   baseRequirements: unknown;
+  /** docs/CODECRAFTERS_BENCHMARK.md §3.1 — filled only by getScenario(), for the Drill overview roadmap. */
+  steps?: ScenarioStepSummary[] | null;
+  /** INITIAL step prompt only; FOLLOWUP/INCIDENT prompts are never exposed before the session reaches them. */
+  initialPrompt?: string | null;
+  /** Same difficulty signal as the marketplace list, but for every public scenario (that list omits official ones). */
+  completedCount?: number | null;
+  averageScore?: number | null;
 }
 
 export interface CreateCustomScenarioRequest {
@@ -409,6 +421,11 @@ export function verifyEmail(token: string): Promise<void> {
 
 export function listScenarios(): Promise<ScenarioSummary[]> {
   return apiFetch<ScenarioSummary[]>("/scenarios");
+}
+
+/** Public, like listScenarios() — the Drill overview page works logged out. */
+export function getScenario(scenarioId: string): Promise<ScenarioDetail> {
+  return apiFetch<ScenarioDetail>(`/scenarios/${scenarioId}`);
 }
 
 /** PLAN.md step 31 — no userId param: GET /sessions lists the caller's own sessions, derived from their token. */

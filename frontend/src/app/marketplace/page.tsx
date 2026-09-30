@@ -8,7 +8,6 @@ import {
   listMarketplaceScenarios,
   listMyMarketplaceScenarios,
   publishMarketplaceScenario,
-  startSession,
 } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { Badge } from "@/components/ui/Badge";
@@ -47,7 +46,6 @@ function MarketplaceContent() {
   const [mine, setMine] = useState<ScenarioSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [startingScenarioId, setStartingScenarioId] = useState<string | null>(null);
 
   const [activeType, setActiveType] = useState<DrillType>("all");
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
@@ -101,18 +99,6 @@ function MarketplaceContent() {
       setError(err instanceof ApiError ? err.message : "시나리오를 등록하지 못했습니다.");
     } finally {
       setPublishing(false);
-    }
-  }
-
-  async function handleStart(scenarioId: string) {
-    setStartingScenarioId(scenarioId);
-    setError(null);
-    try {
-      const session = await startSession(scenarioId);
-      router.push(`/design/${session.id}`);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "세션을 시작하지 못했습니다.");
-      setStartingScenarioId(null);
     }
   }
 
@@ -227,8 +213,9 @@ function MarketplaceContent() {
                     </span>
                   )}
                 </span>
-                <Button size="sm" variant="secondary" onClick={() => handleStart(scenario.id)} disabled={startingScenarioId === scenario.id}>
-                  {startingScenarioId === scenario.id ? "시작하는 중..." : "시작"}
+                {/* docs/CODECRAFTERS_BENCHMARK.md §3.1 — sessions start only from the overview page's CTA. */}
+                <Button size="sm" variant="secondary" href={`/drills/${scenario.id}`}>
+                  자세히 보기
                 </Button>
               </li>
             ))}

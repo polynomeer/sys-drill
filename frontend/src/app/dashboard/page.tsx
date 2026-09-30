@@ -11,10 +11,10 @@ import {
   getSkillProfile,
   getUserSessions,
   listScenarios,
-  startSession,
 } from "@/lib/api";
 import { getStoredNickname, getStoredToken } from "@/lib/localSession";
 import { useConceptLabels } from "@/lib/useConceptLabels";
+import { completedTiers, needsPrereq } from "@/lib/drillPrereq";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -38,10 +38,6 @@ const TREND_DIRECTION_LABELS: Record<string, { text: string; className: string }
   INSUFFICIENT_DATA: { text: "", className: "text-foreground-muted" },
 };
 
-/** Drill Map 난이도 선행 추천 슬라이스 — 3단계 전순서가 이번 슬라이스의 "그래프" 전부.
- * 세션 시작을 막지 않는 advisory 힌트에만 쓰인다(ADR-0030과 같은 철학). */
-const TIER_ORDER = ["EASY", "MEDIUM", "HARD"];
-
 /** SysDrill_UIUX_Design_Plan.docx §5.1 — the three Drill modes are
  * descriptive cards linking into Drills' type tabs, not independently
  * browsable content (System Design and Incident share the same underlying
@@ -61,8 +57,6 @@ export default function DashboardPage() {
   const [skillProfile, setSkillProfile] = useState<SkillProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [startingId, setStartingId] = useState<string | null>(null);
-  const [interviewMode, setInterviewMode] = useState(false);
 
   useEffect(() => {
     if (!getStoredToken()) {
@@ -84,22 +78,6 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, [router]);
 
-  async function handleStart(scenarioId: string) {
-    if (!getStoredToken()) {
-      router.replace("/onboarding");
-      return;
-    }
-    setStartingId(scenarioId);
-    setError(null);
-    try {
-      const session = await startSession(scenarioId, undefined, undefined, interviewMode);
-      router.push(`/design/${session.id}`);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "세션을 시작하지 못했습니다.");
-      setStartingId(null);
-    }
-  }
-
   const topWeaknesses = skillProfile
     ? Object.values(skillProfile.weaknessesByDomain)
         .flatMap((domainWeaknesses) => Object.entries(domainWeaknesses))
@@ -114,15 +92,7 @@ export default function DashboardPage() {
     ? [recommendedScenario, ...scenarios.filter((s) => s.id !== recommendedScenario.id)]
     : scenarios;
 
-  const completedTiers = new Set(
-    sessions.filter((s) => s.status === "COMPLETED" && s.difficulty).map((s) => s.difficulty!)
-  );
-  function needsPrereq(difficulty: string | null | undefined): boolean {
-    if (!difficulty) return false;
-    const tierIndex = TIER_ORDER.indexOf(difficulty);
-    if (tierIndex <= 0) return false; // 알 수 없는 값이거나 이미 최하위 티어면 힌트 없음
-    return !TIER_ORDER.slice(0, tierIndex).some((lowerTier) => completedTiers.has(lowerTier));
-  }
+  const completed = completedTiers(sessions);
 
   const domainCount = new Set(scenarios.map((s) => s.domain)).size;
   const summaryColumnCount = [topWeaknesses.length > 0, (skillProfile?.trend.length ?? 0) > 0, sessions.length > 0].filter(Boolean).length;
@@ -260,19 +230,6 @@ export default function DashboardPage() {
 
         {loading && <LoadingState />}
 
-        <label className="flex items-start gap-2 text-sm text-foreground-muted">
-          <input
-            type="checkbox"
-            checked={interviewMode}
-            onChange={(e) => setInterviewMode(e.target.checked)}
-            className="mt-0.5"
-          />
-          <span>
-            면접형 타이머 모드로 시작 — 각 단계마다 제한 시간이 표시되고, 시간이 다 되면 현재까지 작성한 내용이 자동
-            제출됩니다.
-          </span>
-        </label>
-
         <ul className="flex flex-col gap-3">
           {orderedScenarios.map((scenario) => (
             <Card
@@ -292,11 +249,12 @@ export default function DashboardPage() {
                 <p className="text-xs text-foreground-muted">
                   {scenario.domain}
                   {scenario.difficulty ? ` · ${scenario.difficulty}` : ""}
-                  {needsPrereq(scenario.difficulty) ? " · 선행 추천: 쉬움 난이도 먼저" : ""}
+                  {needsPrereq(scenario.difficulty, completed) ? " · 선행 추천: 쉬움 난이도 먼저" : ""}
                 </p>
               </div>
-              <Button variant="secondary" onClick={() => handleStart(scenario.id)} disabled={startingId === scenario.id}>
-                {startingId === scenario.id ? "시작하는 중..." : "시작"}
+              {/* docs/CODECRAFTERS_BENCHMARK.md §3.1 — sessions start only from the overview page's CTA. */}
+              <Button variant="secondary" href={`/drills/${scenario.id}`}>
+                자세히 보기
               </Button>
             </Card>
           ))}
