@@ -16,6 +16,9 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Benchmark run artifacts (regenerated per run, not source)
+scripts/benchmark/results/
+
 # Dependencies / build output
 node_modules/
 __pycache__/
