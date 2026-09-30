@@ -25,4 +25,7 @@ interface OrganizationInvitationRepository : JpaRepository<OrganizationInvitatio
 interface OrganizationAssessmentRepository : JpaRepository<OrganizationAssessment, UUID> {
     fun findByToken(token: String): OrganizationAssessment?
     fun findByOrganizationId(organizationId: UUID): List<OrganizationAssessment>
+
+    /** Which of these sessions are hiring-assessment results — kept out of public activity (community/ActivityService). */
+    fun findByResultSessionIdIn(sessionIds: Collection<UUID>): List<OrganizationAssessment>
 }

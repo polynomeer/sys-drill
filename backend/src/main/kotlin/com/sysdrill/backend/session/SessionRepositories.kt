@@ -106,6 +106,9 @@ interface SessionRepository : JpaRepository<Session, UUID> {
      */
     fun findByScenarioVersionIdAndStatus(scenarioVersionId: UUID, status: SessionStatus): List<Session>
 
+    /** docs/CODECRAFTERS_BENCHMARK.md §3.8 — newest completions first; the caller filters and de-duplicates by user. */
+    fun findTop50ByScenarioVersionIdInAndStatusOrderByCompletedAtDesc(versionIds: Collection<UUID>, status: SessionStatus): List<Session>
+
     /** 슬라이스 6 (docs/adr/0041) — 한 시나리오의 모든 버전에서 공개된 풀이, 최신 공개순. */
     fun findByScenarioVersionIdInAndVisibilityOrderBySharedAtDesc(
         scenarioVersionIds: Collection<UUID>,
