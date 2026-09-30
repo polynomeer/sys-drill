@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LearningCategory, getLearningConcepts } from "@/lib/api";
+import { LearningCategory, LearningPath, getLearningConcepts, getLearningPath } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { LearningPathPanel } from "@/components/LearningPathPanel";
 import { DESIGN_GUIDANCE_BY_DOMAIN, DOMAIN_TITLES, INCIDENT_GUIDANCE } from "@/lib/designGuidance";
 
 /**
@@ -19,6 +20,7 @@ import { DESIGN_GUIDANCE_BY_DOMAIN, DOMAIN_TITLES, INCIDENT_GUIDANCE } from "@/l
 export default function LearningPage() {
   const router = useRouter();
   const [categories, setCategories] = useState<LearningCategory[] | null>(null);
+  const [path, setPath] = useState<LearningPath | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,6 +31,8 @@ export default function LearningPage() {
     getLearningConcepts()
       .then(setCategories)
       .catch(() => setError("개념 목록을 불러오지 못했습니다."));
+    // 경로는 부가 패널이다 — 실패해도 개념 목록은 그대로 보여준다.
+    getLearningPath().then(setPath).catch(() => setPath(null));
   }, [router]);
 
   const totalWeakness = (categories ?? []).reduce((sum, c) => sum + c.myWeaknessCount, 0);
@@ -47,12 +51,11 @@ export default function LearningPage() {
 
       {categories && (
         <>
+          {path && <LearningPathPanel path={path} />}
           {totalWeakness > 0 && (
-            <Card>
-              <p className="text-sm">
-                지금까지 평가에서 <strong>{totalWeakness}회</strong> 지적받았습니다. 약점이 많은 역량부터 정렬했습니다.
-              </p>
-            </Card>
+            <p className="text-xs text-foreground-muted">
+              아래 개념 목록은 약점이 많은 역량부터 정렬했습니다 (총 {totalWeakness}회 지적).
+            </p>
           )}
 
           <section className="flex flex-col gap-5">

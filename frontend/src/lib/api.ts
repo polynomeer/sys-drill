@@ -610,6 +610,32 @@ export interface LearningConceptDetail {
   myWeaknessCount: number;
 }
 
+/** docs/LEARNING_COMMUNITY_PLAN.md §5.3 — 내 약점에서 파생한 학습 경로 (저장되지 않음). */
+export type LearningStepStatus = "NOT_STARTED" | "IN_PROGRESS" | "ADDRESSED";
+
+export interface LearningPathStep {
+  riskKey: string;
+  label: string;
+  summary: string;
+  status: LearningStepStatus;
+  weaknessCount: number;
+  /** 왜 이 상태인지 — 추천에 근거를 붙이는 것이 이 화면의 요점이다. */
+  evidence: string;
+  relatedDomains: string[];
+  relatedChallenges: string[];
+}
+
+export interface LearningPath {
+  recommendedCategory: string | null;
+  categoryLabel: string | null;
+  rationale: string;
+  steps: LearningPathStep[];
+}
+
+export function getLearningPath(): Promise<LearningPath> {
+  return apiFetch<LearningPath>("/learning/path");
+}
+
 export function getLearningConcepts(): Promise<LearningCategory[]> {
   return apiFetch<LearningCategory[]>("/learning/concepts");
 }
