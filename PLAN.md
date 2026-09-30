@@ -1347,6 +1347,30 @@ Phase 4/기술부채/ADR-0037/플레이키니스까지 모든 후보가 소진�
 
 ---
 
+## Build 챌린지에 TypeScript 언어 추가 (rate-limiter만) ✅ 완료 (2026-09-30)
+
+사용자 질문("과제 서비스가 Python 기준으로만 제공되나? 다른 언어도 추가해보자")에서 시작. 조사 결과 Build Mode 6개 챌린지 전부 Python 전용이었고, `BuildChallenge.languages` 컬럼은 이미 존재하지만 지금까지 어디서도 읽히지 않는 죽은 필드였다. 채점 하니스 자체가 Python(제출 코드를 `import`해 직접 호출)이라 언어 추가는 도커 이미지만 바꾸는 게 아니라 **챌린지마다 그 언어의 관용적인 채점 스크립트를 새로 짜야** 하는 일이라는 걸 사용자에게 공유하고(AskUserQuestion), 범위를 **rate-limiter 챌린지 하나 × TypeScript 하나**로 좁혔다.
+
+**TS 실행 환경 자체를 코드 작성 전에 직접 프로토타입으로 검증**했다 — `node:22-slim` + `node --experimental-strip-types`로 `.ts`를 컴파일 없이 바로 실행 가능(ESM `import "./x.ts"` 확장자 명시 필수, npm install/네트워크 불필요, `--network none` 샌드박스와 호환)하지만 타입만 벗겨낼 뿐이라 생성자 파라미터 프로퍼티 같은 일부 TS 문법은 지원 안 함(`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` 직접 재현). Stage 3(동시성)는 Node가 싱글스레드라 Python의 OS 스레드 테스트를 그대로 옮길 수 없어서, `InMemoryStore.incr()`를 (Python 버전과 달리) **이미 완성된 채로 제공**하되 의도적으로 비원자적(실제 네트워크 왕복을 흉내낸 await 지점 포함)으로 설계 — `Promise.all`로 200개 동시 호출을 날리면 락 없는 구현은 200개가 다 통과(버그)하고 락을 건 구현은 정확히 capacity만큼만 통과하는 걸 직접 실행해 검증했다. 6개 스테이지 전부를 정답/미구현 스텁/락-없는-naive 구현 셋 다로 실제 실행해, 의도한 대로(naive는 stage 3만 실패, 나머지 5개는 통과) 판별력이 있는지 먼저 증명한 뒤 코드를 작성했다.
+
+- [x] `SandboxExecutor.kt` — `LanguageRuntime` 데이터 클래스 + `languageRuntimes` 맵(`TOPOLOGY_FIELDS`와 같은 작은 정적 설정 맵 패턴) 추가, `run()` 시그니처에 `language` 파라미터 추가해 이미지/테스트파일명/실행커맨드를 챌린지별로 분기. `application.yml`에 `sysdrill.build.sandbox-image-typescript`(`node:22-slim`) 신규 추가
+- [x] `BuildRunnerWorker.kt` — `sandboxExecutor.run(challenge.languages, ...)`로 한 줄 변경
+- [x] `SandboxExecutorTest.kt` — 기존 5개 호출에 `"python"` 인자 추가(동작 무변경)
+- [x] 신규 `V44__seed_rate_limiter_typescript_challenge.sql` — `rate-limiter-ts` 챌린지 + 6개 스테이지(TS로 포팅, stage 3만 재설계)
+- [x] 신규 `challenges/rate-limiter-ts/`(Python 버전 미러) — `rate_limiter.ts`(스텁), `README.md`, `submit.sh`(Bearer 토큰 방식으로 — 실제 `BuildController`가 body의 `userId`가 아니라 JWT를 쓴다는 걸 확인하고 기존 Python `submit.sh`의 stale한 패턴 대신 맞게 작성), `stages/stage{1-6}_test.ts`
+- [x] `frontend/package.json`에 `@codemirror/lang-javascript` 추가
+- [x] `bridge/page.tsx` — Python/TypeScript 토글(`language` state), `SLUGS`/`STUB_TEMPLATES` 맵으로 슬러그·스텁·CodeMirror 확장 전환
+
+**진행 중 발견하고 고친 버그**: V44를 처음 그대로 적용하니 **전체 build 패키지 22개 테스트가 전부** `ApplicationContext` 로딩 실패로 죽었다 — Flyway가 SQL 안의 `${...}`(TS 템플릿 리터럴, 예: `` `${e.message}` ``)를 자기 자신의 플레이스홀더 치환 문법으로 오인해 파싱이 깨진 것("No value provided for placeholder: ${allowed}"). 이 앱은 Flyway 플레이스홀더 기능을 한 번도 쓴 적이 없어(전 마이그레이션이 순수 시드 SQL) `spring.flyway.placeholder-replacement: false`로 전역 비활성화해 해결 — 다른 43개 마이그레이션에 영향 없음을 회귀 테스트로 확인.
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. 신규 `SandboxExecutorTypeScriptTest.kt`(정상/실패-메시지/네트워크차단/SIGTERM-컨테이너-안-남음 4개, SIGTERM 테스트는 Node가 실제로 SIGTERM을 무시하고 `--kill-after`의 SIGKILL로만 죽는지 직접 docker로 먼저 재현 후 작성) 4/4 통과, 기존 `SandboxExecutorTest` 5/5 무변경 통과 — `build.*` 패키지 전체 22/22. `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.build.*" --tests "com.sysdrill.backend.CoreDomainRepositoryTest" --tests "com.sysdrill.backend.scenario.*"`(Flyway 설정 변경의 사이드이펙트 스모크 체크 포함) 38/38 통과. 프론트 `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 클린(`.next/types/types-backup/`의 stale 캐시로 한 번 막혔다가 `.next` 삭제로 해결 — 이번 변경과 무관한 사전 존재 캐시 문제).
+
+**실 검증**: 격리 백엔드에서 `POST /build-challenges/rate-limiter-ts/submissions`로 락 없는 naive 구현 제출 → 5/6(stage 3만 FAILED, "concurrent access let 200 requests through, expected <= 50") 확인 → 정답 구현 제출 → 6/6 전부 PASSED 확인. 실 브라우저로 `/bridge`에서 언어 토글 클릭 시 에디터가 TS 문법 하이라이팅 + TS 스텁으로 전환되는 것, 제출 → 폴링 → 결과 렌더링(0/6, "실패했습니다: not implemented" 6개)까지 전체 흐름이 실제로 도는 것 확인. 콘솔 에러 없음.
+
+**하지 않은 것**: 나머지 5개 챌린지(queue/circuit-breaker/distributed-lock/retry-backoff/event-bus) 무변경 — Python 전용, 프론트 페이지 자체가 없는 채로 그대로 둠. `BuildChallenge`/`BuildStage` 스키마 변경 없음(새 시드 행만 추가). 새 ADR 안 씀 — `LanguageRuntime` 맵은 이미 있는 정적 설정 맵 패턴을 따르는 되돌리기 쉬운 구현.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
