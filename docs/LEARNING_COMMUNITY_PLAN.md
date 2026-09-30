@@ -346,7 +346,7 @@ DrillScore = Σ  (공식 도메인 d의 최고 세션 점수) × 난이도가중
 | ~~**4. 공개 프로필 · 마켓플레이스 통합**~~ ✅ | C3 + C4 | 없음 | **완료 (2026-09-30)** — 시나리오 완료 수·평균 점수 집계, Community 탭 실체화 |
 | ~~**5. 점수 · 티어 · 랭킹**~~ ✅ | C6 | `users.ranking_opt_out` 컬럼 | **완료 (2026-09-30)** — [ADR-0042](adr/0042-drill-score-rewards-breadth-and-difficulty-not-repetition.md). `GET /community/rankings`. 대응 속도(MTTR) 보드는 게이밍에 강한 정의가 필요해 보류 |
 | ~~**6. 풀이 공유**~~ ✅ | C2 (완료자만 열람) | `sessions.visibility` 컬럼 | **완료 (2026-09-30)** — [ADR-0041](adr/0041-shared-writeups-are-visible-only-to-users-who-completed-that-scenario.md). 잠긴 목록은 200 + `locked` + 편 수. 신고·숨김 운영은 슬라이스 7과 함께 |
-| **7. 토론** | C5 | `scenario_discussions` | 신고·숨김 운영이 함께 필요 |
+| ~~**7. 토론**~~ ✅ | C5 | `scenario_discussions`, `scenario_discussion_reports` | **완료 (2026-10-01)** — [ADR-0040](adr/0040-in-app-discussion-threads-replace-the-github-issues-link.md). 읽기에 완료 조건 없음, 인용된 풀이만 ADR-0041 적용. 신고 → `PLATFORM_ADMIN` 숨김 |
 
 슬라이스 1~3만 해도 두 탭이 "빈 껍데기"를 벗어납니다. 1·3·4·5는 새 콘텐츠 작성이 거의 없어 빠르게 나올 수 있고, 2가 실제 작업량의 대부분(개념 25개 × 7필드)입니다.
 
