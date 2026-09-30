@@ -1,33 +1,38 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  ApiError,
-  ScenarioSummary,
-  listMarketplaceScenarios,
-  listMyMarketplaceScenarios,
-  publishMarketplaceScenario,
-} from "@/lib/api";
+import { Plus, Terminal } from "lucide-react";
+import { ApiError, ScenarioSummary, listScenarios } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
+import { DOMAIN_TITLES } from "@/lib/designGuidance";
+import { DomainIcon } from "@/lib/domainIcons";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Input, Textarea } from "@/components/ui/Input";
+import { Input } from "@/components/ui/Input";
 import { LoadingState } from "@/components/ui/LoadingState";
 
-/** SysDrill_UIUX_Design_Plan.docx §5.2 — 전체/System Design/Build/Incident 탭.
- * "System Design"과 "Incident"는 한 세션의 서로 다른 단계일 뿐 실제로 분리된
- * 데이터가 없어 같은 scenarios 목록을 보여준다(가짜 필터를 만들지 않는다).
- * "Build"만 Bridge Mode의 단일 rate-limiter 챌린지를 카드 1개로 보여준다. */
+/** Every scenario has design stages, so "System Design" is the whole pool;
+ * "Incident" narrows to the ones whose published version actually has an
+ * INCIDENT step (stepTypes from GET /scenarios — community scenarios have
+ * none). "Build" is the single Bridge Mode rate-limiter challenge. */
 type DrillType = "all" | "design" | "build" | "incident";
+type Source = "all" | "official" | "community";
 
 const TYPE_TABS: { type: DrillType; label: string }[] = [
   { type: "all", label: "전체" },
   { type: "design", label: "System Design" },
   { type: "build", label: "Build" },
   { type: "incident", label: "Incident" },
+];
+
+const SOURCE_FILTERS: { source: Source; label: string }[] = [
+  { source: "all", label: "전체" },
+  { source: "official", label: "공식" },
+  { source: "community", label: "커뮤니티" },
 ];
 
 export default function MarketplacePage() {
@@ -38,94 +43,74 @@ export default function MarketplacePage() {
   );
 }
 
+function hasIncident(scenario: ScenarioSummary): boolean {
+  return (scenario.stepTypes ?? []).includes("INCIDENT");
+}
+
+/**
+ * docs/CODECRAFTERS_BENCHMARK.md §3.5 — the Drills catalog. Sourced from
+ * GET /scenarios (every public scenario, official and community) rather than
+ * the marketplace list, which only ever held community ones — official Drills
+ * used to be missing from this tab entirely. Publishing moved to /drills/new.
+ */
 function MarketplaceContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
-  const [mine, setMine] = useState<ScenarioSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [activeType, setActiveType] = useState<DrillType>("all");
+  const [source, setSource] = useState<Source>("all");
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [difficultyFilter, setDifficultyFilter] = useState("");
   const [domainFilter, setDomainFilter] = useState("");
-
-  const [title, setTitle] = useState("");
-  const [domain, setDomain] = useState("");
-  const [difficulty, setDifficulty] = useState("");
-  const [initialPrompt, setInitialPrompt] = useState("");
-  const [followupPrompt, setFollowupPrompt] = useState("");
-  const [publishing, setPublishing] = useState(false);
-
-  const load = useCallback(async () => {
-    const [all, own] = await Promise.all([listMarketplaceScenarios(), listMyMarketplaceScenarios()]);
-    setScenarios(all);
-    setMine(own);
-  }, []);
 
   useEffect(() => {
     if (!getStoredToken()) {
       router.replace("/login");
       return;
     }
-
-    load()
-      .catch((err) => setError(err instanceof ApiError ? err.message : "마켓플레이스를 불러오지 못했습니다."))
+    listScenarios()
+      .then(setScenarios)
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Drill 목록을 불러오지 못했습니다."))
       .finally(() => setLoading(false));
-  }, [router, load]);
+  }, [router]);
 
-  async function handlePublish(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim() || !domain.trim() || !initialPrompt.trim() || !followupPrompt.trim()) return;
-    setPublishing(true);
-    setError(null);
-    try {
-      await publishMarketplaceScenario({
-        title: title.trim(),
-        difficulty: difficulty.trim() || undefined,
-        domain: domain.trim(),
-        initialPrompt: initialPrompt.trim(),
-        followupPrompt: followupPrompt.trim(),
-      });
-      setTitle("");
-      setDomain("");
-      setDifficulty("");
-      setInitialPrompt("");
-      setFollowupPrompt("");
-      await load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "시나리오를 등록하지 못했습니다.");
-    } finally {
-      setPublishing(false);
-    }
-  }
-
-  // dashboard/page.tsx의 "선행 추천" advisory 힌트(TIER_ORDER: EASY→MEDIUM→HARD)는 여기
-  // 적용하지 않는다 — 그 3단계 전순서는 공식 7개 시나리오(V43 마이그레이션)에만 의미가
-  // 있고, 마켓플레이스 시나리오는 발행자가 자유 텍스트로 입력하는 difficulty라 순서
-  // 비교 자체가 성립하지 않는다(의도된 스코프 제외, 버그 아님).
   const difficulties = useMemo(
     () => Array.from(new Set(scenarios.map((s) => s.difficulty).filter((d): d is string => !!d))),
     [scenarios],
   );
   const domains = useMemo(() => Array.from(new Set(scenarios.map((s) => s.domain))), [scenarios]);
 
-  const filteredScenarios = scenarios.filter((s) => {
+  const filtered = scenarios.filter((s) => {
+    if (activeType === "incident" && !hasIncident(s)) return false;
+    if (source === "official" && s.creatorNickname) return false;
+    if (source === "community" && !s.creatorNickname) return false;
     if (query.trim() && !s.title.toLowerCase().includes(query.trim().toLowerCase())) return false;
     if (difficultyFilter && s.difficulty !== difficultyFilter) return false;
     if (domainFilter && s.domain !== domainFilter) return false;
     return true;
   });
+  // Official first (they have the curated difficulty ladder), then by popularity.
+  const ordered = filtered
+    .slice()
+    .sort((a, b) => Number(!!a.creatorNickname) - Number(!!b.creatorNickname) || (b.completedCount ?? 0) - (a.completedCount ?? 0));
 
   if (loading) return <LoadingState className="p-8" />;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Drill 탐색</h1>
-        <p className="mt-1 text-sm text-foreground-muted">실제 서비스에서 발생할 수 있는 다양한 상황을 경험하세요.</p>
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Drill 탐색</h1>
+          <p className="mt-1 text-sm text-foreground-muted">실제 서비스에서 발생할 수 있는 다양한 상황을 경험하세요.</p>
+        </div>
+        <Button href="/drills/new" variant="secondary" size="sm" className="gap-1">
+          <Plus className="h-3.5 w-3.5" aria-hidden />
+          시나리오 등록
+        </Button>
       </div>
 
       {error && <p className="text-sm text-danger">{error}</p>}
@@ -135,6 +120,7 @@ function MarketplaceContent() {
           <button
             key={tab.type}
             onClick={() => setActiveType(tab.type)}
+            aria-pressed={activeType === tab.type}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
               activeType === tab.type ? "bg-accent text-accent-foreground" : "border border-border text-foreground-muted hover:text-foreground"
             }`}
@@ -144,111 +130,119 @@ function MarketplaceContent() {
         ))}
       </div>
 
-      {activeType !== "build" && (
-        <div className="flex flex-wrap gap-2">
-          <Input
-            className="flex-1"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="시나리오 검색..."
-          />
-          <select
-            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground"
-            value={difficultyFilter}
-            onChange={(e) => setDifficultyFilter(e.target.value)}
-          >
-            <option value="">난이도 전체</option>
-            {difficulties.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-          <select
-            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground"
-            value={domainFilter}
-            onChange={(e) => setDomainFilter(e.target.value)}
-          >
-            <option value="">카테고리 전체</option>
-            {domains.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
       {activeType === "build" ? (
-        <Card>
-          <div className="flex items-center gap-2">
-            <Badge variant="success">Build</Badge>
-          </div>
-          <p className="mt-2 font-medium">Rate Limiter 구현</p>
-          <p className="mt-1 text-xs text-foreground-muted">
-            Token Bucket 알고리즘으로 Rate Limiter를 구현하고 6개 stage 테스트를 통과하세요.
-          </p>
-          <Button href="/bridge" size="sm" className="mt-3">
-            시작하기 →
-          </Button>
-        </Card>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Link href="/bridge" className="group flex flex-col gap-3 rounded-xl border border-border bg-surface p-5 transition-colors hover:border-accent/40">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold group-hover:text-accent">Rate Limiter 구현</p>
+                <p className="mt-1 text-sm text-foreground-muted">
+                  fixed window부터 동시성·분산 스토어·fail-open/closed·운영 metric까지 단계별 테스트를 통과하세요.
+                </p>
+              </div>
+              <Terminal className="h-5 w-5 shrink-0 text-foreground-muted" aria-hidden strokeWidth={1.75} />
+            </div>
+            <div className="mt-auto flex items-center gap-3 text-xs text-foreground-muted">
+              <Badge variant="success">Build</Badge>
+              <span>6단계 · Python / TypeScript</span>
+            </div>
+          </Link>
+        </div>
       ) : (
-        <Card as="section">
-          <h2 className="mb-3 text-sm font-semibold text-foreground-muted">전체 시나리오 ({filteredScenarios.length}개)</h2>
-          {filteredScenarios.length === 0 && <EmptyState message="조건에 맞는 시나리오가 없습니다." />}
-          <ul className="flex flex-col gap-2">
-            {filteredScenarios.map((scenario) => (
-              <li key={scenario.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
-                <span className="flex items-center gap-2">
-                  {scenario.title}
-                  <Badge variant="accent">Design</Badge>
-                  <Badge variant="danger">Incident</Badge>
-                  {scenario.difficulty && <Badge>{scenario.difficulty}</Badge>}
-                  {scenario.creatorNickname && <span className="text-xs text-foreground-muted">by {scenario.creatorNickname}</span>}
-                  {/* docs/LEARNING_COMMUNITY_PLAN.md §6.3 — 별점 대신 실측 난이도 신호 */}
-                  {typeof scenario.completedCount === "number" && scenario.completedCount > 0 && (
-                    <span className="text-xs text-foreground-muted">
-                      완료 {scenario.completedCount}명
-                      {typeof scenario.averageScore === "number" && ` · 평균 ${scenario.averageScore}점`}
-                    </span>
-                  )}
-                </span>
-                {/* docs/CODECRAFTERS_BENCHMARK.md §3.1 — sessions start only from the overview page's CTA. */}
-                <Button size="sm" variant="secondary" href={`/drills/${scenario.id}`}>
-                  자세히 보기
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      <Card as="section">
-        <h2 className="mb-3 text-sm font-semibold text-foreground-muted">내가 등록한 시나리오 ({mine.length}개)</h2>
-        {mine.length === 0 && <EmptyState message="아직 등록한 시나리오가 없습니다." />}
-        <ul className="flex flex-col gap-2">
-          {mine.map((scenario) => (
-            <li key={scenario.id} className="flex items-center gap-2 text-sm">
-              {scenario.title}
-              {scenario.difficulty && <Badge>{scenario.difficulty}</Badge>}
-            </li>
-          ))}
-        </ul>
-
-        <form onSubmit={handlePublish} className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
-          <p className="text-xs text-foreground-muted">새 시나리오 등록 (설계 + 꼬리설계 2단계, 장애 대응 단계는 없습니다)</p>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="제목" />
-          <div className="flex gap-2">
-            <Input className="flex-1" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="도메인 라벨 (예: community-rate-limit)" />
-            <Input className="w-32" value={difficulty} onChange={(e) => setDifficulty(e.target.value)} placeholder="난이도" />
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input className="min-w-48 flex-1" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Drill 검색..." />
+            <select
+              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground"
+              value={difficultyFilter}
+              onChange={(e) => setDifficultyFilter(e.target.value)}
+              aria-label="난이도"
+            >
+              <option value="">난이도 전체</option>
+              {difficulties.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+            <select
+              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground"
+              value={domainFilter}
+              onChange={(e) => setDomainFilter(e.target.value)}
+              aria-label="도메인"
+            >
+              <option value="">도메인 전체</option>
+              {domains.map((d) => (
+                <option key={d} value={d}>
+                  {DOMAIN_TITLES[d] ?? d}
+                </option>
+              ))}
+            </select>
+            <div className="flex rounded-lg border border-border p-0.5 text-xs">
+              {SOURCE_FILTERS.map((f) => (
+                <button
+                  key={f.source}
+                  onClick={() => setSource(f.source)}
+                  aria-pressed={source === f.source}
+                  className={`rounded-md px-2.5 py-1.5 ${source === f.source ? "bg-surface-elevated text-foreground" : "text-foreground-muted"}`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <Textarea value={initialPrompt} onChange={(e) => setInitialPrompt(e.target.value)} placeholder="초기 설계 프롬프트" rows={3} />
-          <Textarea value={followupPrompt} onChange={(e) => setFollowupPrompt(e.target.value)} placeholder="꼬리설계 프롬프트" rows={3} />
-          <Button type="submit" disabled={publishing} className="self-start">
-            {publishing ? "등록하는 중..." : "등록하기"}
-          </Button>
-        </form>
-      </Card>
+
+          <p className="text-xs text-foreground-muted">{ordered.length}개 Drill</p>
+
+          {ordered.length === 0 ? (
+            <EmptyState message="조건에 맞는 Drill이 없습니다." />
+          ) : (
+            <ul className="grid gap-4 md:grid-cols-2">
+              {ordered.map((scenario) => (
+                <li key={scenario.id}>
+                  <DrillCard scenario={scenario} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
     </div>
+  );
+}
+
+function DrillCard({ scenario }: { scenario: ScenarioSummary }) {
+  const stepCount = scenario.stepTypes?.length ?? 0;
+  const completed = scenario.completedCount ?? 0;
+  const domainTitle = DOMAIN_TITLES[scenario.domain];
+  return (
+    <Link
+      href={`/drills/${scenario.id}`}
+      className="group flex h-full flex-col gap-3 rounded-xl border border-border bg-surface p-5 transition-colors hover:border-accent/40"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-semibold group-hover:text-accent">{scenario.title}</p>
+          <p className="mt-1 truncate text-xs text-foreground-muted">
+            {scenario.creatorNickname ? `by ${scenario.creatorNickname}` : domainTitle && domainTitle !== scenario.title ? domainTitle : "공식 Drill"}
+          </p>
+        </div>
+        <DomainIcon domain={scenario.domain} className="h-5 w-5 shrink-0 text-foreground-muted" />
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Badge variant="accent">Design</Badge>
+        {hasIncident(scenario) && <Badge variant="danger">Incident</Badge>}
+      </div>
+      <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-3 text-xs text-foreground-muted">
+        <span>
+          {stepCount > 0 ? `${stepCount}단계` : ""}
+          {stepCount > 0 && " · "}
+          {completed > 0
+            ? `완료 ${completed}명${typeof scenario.averageScore === "number" ? ` · 평균 ${scenario.averageScore}점` : ""}`
+            : "아직 완료자 없음"}
+        </span>
+        <DifficultyBadge difficulty={scenario.difficulty} />
+      </div>
+    </Link>
   );
 }

@@ -94,10 +94,12 @@ export interface ScenarioSummary {
   difficulty: string | null;
   organizationId: string | null;
   creatorNickname?: string | null;
-  /** docs/LEARNING_COMMUNITY_PLAN.md §6.3 — 마켓플레이스 목록에서만 채워진다. */
+  /** docs/LEARNING_COMMUNITY_PLAN.md §6.3 — 공개 목록(listScenarios)과 마켓플레이스 목록에서 채워진다. */
   completedCount?: number | null;
   /** 실제로 푼 사람들의 평균 점수 — 별점보다 객관적인 난이도 신호. */
   averageScore?: number | null;
+  /** docs/CODECRAFTERS_BENCHMARK.md §3.5 — published version's step types in order; filled by listScenarios(). */
+  stepTypes?: string[] | null;
 }
 
 export interface ScenarioStepSummary {

@@ -14,11 +14,13 @@ import {
 import { getStoredToken } from "@/lib/localSession";
 import { DESIGN_GUIDANCE_BY_DOMAIN, DOMAIN_TITLES } from "@/lib/designGuidance";
 import { completedTiers, needsPrereq } from "@/lib/drillPrereq";
+import { DomainIcon } from "@/lib/domainIcons";
 import { StageList, type Stage } from "@/components/StageList";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
 import { LoadingState } from "@/components/ui/LoadingState";
 
 /** Stage copy per backend step type. Titles only describe the *kind* of
@@ -149,11 +151,14 @@ export default function DrillOverviewPage() {
         >
           ← {scenario.creatorNickname ? "Drills" : "Home"}
         </Link>
-        <h1 className="text-3xl font-semibold leading-tight md:text-4xl">{scenario.title}</h1>
+        <div className="flex items-center gap-3">
+          <DomainIcon domain={scenario.domain} className="h-8 w-8 shrink-0 text-accent" />
+          <h1 className="break-keep text-3xl font-semibold leading-tight md:text-4xl">{scenario.title}</h1>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="accent">Design</Badge>
           {hasIncident && <Badge variant="danger">Incident</Badge>}
-          {scenario.difficulty && <Badge>{scenario.difficulty}</Badge>}
+          <DifficultyBadge difficulty={scenario.difficulty} />
           <span className="text-xs text-foreground-muted">
             {domainLabel}{stages.length - 1}단계
             {scenario.creatorNickname && ` · by ${scenario.creatorNickname}`}
