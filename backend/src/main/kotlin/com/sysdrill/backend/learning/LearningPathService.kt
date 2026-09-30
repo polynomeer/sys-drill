@@ -1,11 +1,13 @@
 package com.sysdrill.backend.learning
 
 import com.sysdrill.backend.common.readIntMap
+import com.sysdrill.backend.content.ContentItemRepository
 import com.sysdrill.backend.evaluation.EvaluationRepository
 import com.sysdrill.backend.evaluation.EvaluationRiskFlagRepository
 import com.sysdrill.backend.evaluation.RuleEvaluator
 import com.sysdrill.backend.identity.SkillProfileRepository
 import com.sysdrill.backend.identity.weakestCategory
+import com.sysdrill.backend.scenario.ScenarioRepository
 import com.sysdrill.backend.session.Session
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.session.SessionService
@@ -38,6 +40,8 @@ class LearningPathService(
     private val submissionRepository: SubmissionRepository,
     private val evaluationRepository: EvaluationRepository,
     private val riskFlagRepository: EvaluationRiskFlagRepository,
+    private val scenarioRepository: ScenarioRepository,
+    private val contentItemRepository: ContentItemRepository,
     private val objectMapper: ObjectMapper,
     @Value("\${sysdrill.learning.path.max-steps:3}") private val maxSteps: Int,
 ) {
@@ -57,10 +61,11 @@ class LearningPathService(
 
         val concepts = conceptRepository.findAllById(targetKeys).associateBy { it.riskKey }
         val history = loadHistory(userId)
+        val titles = domainTitles()
 
         val steps = targetKeys.mapNotNull { riskKey ->
             val concept = concepts[riskKey] ?: return@mapNotNull null
-            val (status, evidence) = statusOf(concept, history)
+            val (status, evidence) = statusOf(concept, history, titles)
             LearningPathStep(
                 riskKey = riskKey,
                 label = concept.label,
@@ -128,19 +133,40 @@ class LearningPathService(
      * 최근 1회만 보는 것은 의도다. 누적 카운트로 판정하면 한 번 지적받은 개념은
      * 영원히 "미해결"로 남아, 실제로 고친 사용자에게 경로가 갱신되지 않는다.
      */
-    private fun statusOf(concept: LearningConcept, history: DomainHistory): Pair<LearningStepStatus, String> {
+    private fun statusOf(
+        concept: LearningConcept,
+        history: DomainHistory,
+        titles: Map<String, String>,
+    ): Pair<LearningStepStatus, String> {
+        fun title(domain: String) = titles[domain] ?: domain
+
         val runs = concept.relatedDomains.flatMap { history.byDomain[it].orEmpty() }
         if (runs.isEmpty()) {
-            val domains = concept.relatedDomains.joinToString(" · ").ifBlank { "관련 시나리오" }
+            val domains = concept.relatedDomains.joinToString(" · ") { title(it) }.ifBlank { "관련 시나리오" }
             return LearningStepStatus.NOT_STARTED to "$domains 완료 이력이 없습니다."
         }
         val latest = runs.maxBy { it.session.startedAt }
-        val domain = runCatching { sessionService.getScenarioDomain(latest.session) }.getOrNull() ?: "최근 세션"
+        val domain = runCatching { sessionService.getScenarioDomain(latest.session) }.getOrNull()
+        val where = domain?.let { "가장 최근 ${title(it)} 세션" } ?: "가장 최근 완료 세션"
         return if (concept.riskKey in latest.flaggedRiskKeys) {
-            LearningStepStatus.IN_PROGRESS to "가장 최근 $domain 세션에서 다시 지적받았습니다."
+            LearningStepStatus.IN_PROGRESS to "$where 에서 다시 지적받았습니다."
         } else {
-            LearningStepStatus.ADDRESSED to "가장 최근 $domain 세션에서는 지적되지 않았습니다."
+            LearningStepStatus.ADDRESSED to "$where 에서는 지적되지 않았습니다."
         }
+    }
+
+    /**
+     * 도메인 슬러그를 사람이 읽는 시나리오 제목으로. 근거 문구에 `coupon` 같은
+     * 슬러그가 그대로 나가면 바로 아래 "관련 시나리오: 선착순 쿠폰" 과 표기가
+     * 어긋나 같은 것을 가리키는지 알 수 없게 된다.
+     */
+    private fun domainTitles(): Map<String, String> {
+        val official = scenarioRepository.findByOrganizationIdIsNull().filter { it.creatorUserId == null }
+        val titleByContentId = contentItemRepository.findAllById(official.map { it.contentId })
+            .associate { it.id to it.title }
+        return official.mapNotNull { scenario ->
+            titleByContentId[scenario.contentId]?.let { scenario.domain to it }
+        }.toMap()
     }
 
     private fun emptyPath() = LearningPath(
