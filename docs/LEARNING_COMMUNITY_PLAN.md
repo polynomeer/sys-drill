@@ -344,7 +344,7 @@ DrillScore = Σ  (공식 도메인 d의 최고 세션 점수) × 난이도가중
 | ~~**2. 개념 라이브러리**~~ ✅ | L1 — 25개 개념 DB 이관 + 계층 화면 + 내 약점 배지 | `learning_concepts` | **완료 (2026-09-30)** — [ADR-0039](adr/0039-learning-concepts-live-in-the-database-not-frontend-constants.md). `riskLabels.ts` 제거로 이중 관리도 해소 |
 | ~~**3. 개인 학습 경로**~~ ✅ | L2 + L3 — 경로 생성, 상태 파생, 훈련 진입 | 없음 | **완료 (2026-09-30)** — `GET /learning/path`. 상태는 최근 완료 세션의 지적 여부로 판정 |
 | ~~**4. 공개 프로필 · 마켓플레이스 통합**~~ ✅ | C3 + C4 | 없음 | **완료 (2026-09-30)** — 시나리오 완료 수·평균 점수 집계, Community 탭 실체화 |
-| **5. 점수 · 티어 · 랭킹** | C6 | 없음 | 인증 로직 재사용. 새 테이블 없이 읽기 시점 계산 |
+| ~~**5. 점수 · 티어 · 랭킹**~~ ✅ | C6 | `users.ranking_opt_out` 컬럼 | **완료 (2026-09-30)** — [ADR-0042](adr/0042-drill-score-rewards-breadth-and-difficulty-not-repetition.md). `GET /community/rankings`. 대응 속도(MTTR) 보드는 게이밍에 강한 정의가 필요해 보류 |
 | **6. 풀이 공유** | C2 (완료자만 열람) | `sessions.visibility` 컬럼 | 모더레이션 부담 시작 |
 | **7. 토론** | C5 | `scenario_discussions` | 신고·숨김 운영이 함께 필요 |
 
