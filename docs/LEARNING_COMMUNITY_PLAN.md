@@ -165,8 +165,8 @@ riskKey → 카테고리 **매핑 자체는 코드에 남깁니다** — 그것�
 
 | Method / Path | 응답 |
 |---|---|
-| `GET /learning/concepts` | 카테고리 6개 + 그 아래 개념 요약 목록. 인증 시 내 약점 카운트 포함 |
-| `GET /learning/concepts/{riskKey}` | 개념 상세 전체 필드 + 관련 시나리오/과제 + 내 과거 지적 이력 |
+| `GET /learning/concepts` ✅ | 카테고리 6개 + 개념 요약. 내 약점 카운트 포함, 약점 많은 카테고리 우선 정렬. **인증 필요** — 개인화가 이 화면의 핵심이라 비로그인 뷰는 반쪽이 된다 |
+| `GET /learning/concepts/{riskKey}` ✅ | 개념 상세 + 관련 도메인/액션/과제 + 내 지적 횟수 |
 | `GET /learning/path` | 개인 학습 경로 (읽기 시점 계산, 저장 없음) |
 
 ```jsonc
@@ -339,7 +339,7 @@ DrillScore = Σ  (공식 도메인 d의 최고 세션 점수) × 난이도가중
 | 슬라이스 | 내용 | 새 테이블 | 비고 |
 |---|---|---|---|
 | ~~**1. 벤치마크**~~ ✅ | C1 — 리포트·포스트모템에 분포 비교 추가 | 없음 | **완료 (2026-09-30)** — `GET /sessions/{id}/benchmark`. 기존 데이터 집계만 |
-| **2. 개념 라이브러리** | L1 — 25개 개념 DB 이관 + 계층 화면 + 내 약점 배지 | `learning_concepts` | [ADR-0039](adr/0039-learning-concepts-live-in-the-database-not-frontend-constants.md). 콘텐츠 작성이 작업량의 대부분 |
+| ~~**2. 개념 라이브러리**~~ ✅ | L1 — 25개 개념 DB 이관 + 계층 화면 + 내 약점 배지 | `learning_concepts` | **완료 (2026-09-30)** — [ADR-0039](adr/0039-learning-concepts-live-in-the-database-not-frontend-constants.md). `riskLabels.ts` 제거로 이중 관리도 해소 |
 | **3. 개인 학습 경로** | L2 + L3 — 경로 생성, 상태 파생, 훈련 진입 | 없음 | 슬라이스 2 의존 |
 | **4. 공개 프로필 · 마켓플레이스 통합** | C3 + C4 | 없음 | 기존 엔드포인트 재배치 |
 | **5. 점수 · 티어 · 랭킹** | C6 | 없음 | 인증 로직 재사용. 새 테이블 없이 읽기 시점 계산 |
