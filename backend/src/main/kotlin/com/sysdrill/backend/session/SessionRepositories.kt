@@ -69,6 +69,8 @@ interface SessionRepository : JpaRepository<Session, UUID> {
      * 세션 단위로 묶는 것이 중요하다: DrillScore 는 "도메인별 **최고 세션** 점수"를
      * 쓰므로, (사용자, 버전) 으로 바로 평균내면 같은 시나리오를 두 번 푼 사용자의
      * 두 세션이 뭉개져 최고점을 고를 수 없다.
+     *
+     * ADR-0043 — 채용 평가 세션은 제외한다(점수·랭킹에 반영하지 않음).
      */
     @Query(
         "select s.userId as userId, s.id as sessionId, s.scenarioVersionId as scenarioVersionId, " +
@@ -76,6 +78,7 @@ interface SessionRepository : JpaRepository<Session, UUID> {
             "from Session s, com.sysdrill.backend.submission.Submission sub, com.sysdrill.backend.evaluation.Evaluation e " +
             "where sub.sessionId = s.id and e.submissionId = sub.id and e.isActive = true " +
             "and s.status = com.sysdrill.backend.session.SessionStatus.COMPLETED " +
+            "and not exists (select 1 from com.sysdrill.backend.organization.OrganizationAssessment a where a.resultSessionId = s.id) " +
             "group by s.userId, s.id, s.scenarioVersionId"
     )
     fun completedSessionScores(): List<CompletedSessionScore>
@@ -86,6 +89,8 @@ interface SessionRepository : JpaRepository<Session, UUID> {
      * [ScenarioVersionStats.getAverageScore] 는 완료 세션들의 **단계 점수** 평균이다
      * (세션 평균을 다시 평균낸 값이 아니다). 세션마다 단계 수가 같아 실질적 차이는
      * 작고, 목적이 순위가 아니라 난이도 신호이므로 한 번의 집계 쿼리로 끝낸다.
+     *
+     * ADR-0043 — 채용 평가 세션은 제외한다(시간 제한·이해관계가 다른 조건이다).
      */
     @Query(
         "select s.scenarioVersionId as scenarioVersionId, " +
@@ -94,6 +99,8 @@ interface SessionRepository : JpaRepository<Session, UUID> {
             "where sub.sessionId = s.id and e.submissionId = sub.id and e.isActive = true " +
             "and s.status = com.sysdrill.backend.session.SessionStatus.COMPLETED " +
             "and s.scenarioVersionId in :versionIds " +
+            "and not exists (select 1 from com.sysdrill.backend.organization.OrganizationAssessment a where a.resultSessionId = s.id) " +
+
             "group by s.scenarioVersionId"
     )
     fun statsByScenarioVersionIds(versionIds: Collection<UUID>): List<ScenarioVersionStats>

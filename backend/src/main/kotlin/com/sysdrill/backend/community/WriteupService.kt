@@ -1,5 +1,6 @@
 package com.sysdrill.backend.community
 
+import com.sysdrill.backend.organization.AssessmentSessions
 import com.sysdrill.backend.common.web.BadRequestException
 import com.sysdrill.backend.common.web.ConflictException
 import com.sysdrill.backend.common.web.ForbiddenException
@@ -41,6 +42,7 @@ import tools.jackson.databind.ObjectMapper
 class WriteupService(
     private val sessionRepository: SessionRepository,
     private val sessionAccessGuard: SessionAccessGuard,
+    private val assessmentSessions: AssessmentSessions,
     private val scenarioRepository: ScenarioRepository,
     private val scenarioVersionRepository: ScenarioVersionRepository,
     private val contentItemRepository: ContentItemRepository,
@@ -61,6 +63,9 @@ class WriteupService(
         if (visibility == PUBLIC && session.status != SessionStatus.COMPLETED) {
             throw ConflictException("끝까지 마친 세션만 공개할 수 있습니다 (현재 ${session.status})")
         }
+        if (visibility == PUBLIC && !isShareable(session)) {
+            throw ConflictException("조직 시나리오 세션과 채용 평가 세션은 공개할 수 없습니다")
+        }
 
         session.visibility = visibility
         session.sharedAnonymously = if (visibility == PUBLIC) request.anonymous else false
@@ -78,8 +83,11 @@ class WriteupService(
         val scenario = scenarioRepository.findById(scenarioId)
             .orElseThrow { NotFoundException("Scenario not found: $scenarioId") }
         val versionIds = versionIdsOf(scenarioId)
-        val shared = sessionRepository
+        // Filtered again on read so rows made public before ADR-0043 can't surface.
+        val published = sessionRepository
             .findByScenarioVersionIdInAndVisibilityOrderBySharedAtDesc(versionIds, PUBLIC)
+        val assessmentIds = assessmentSessions.among(published.mapNotNull { it.id })
+        val shared = if (isPublicScenario(scenario)) published.filterNot { it.id in assessmentIds } else emptyList()
 
         // 잠겨 있으면 편 수만 알려주고 목록은 비운다 — 닉네임과 점수도 본문의 일부다.
         if (!hasCompleted(viewerId, versionIds)) {
@@ -119,6 +127,9 @@ class WriteupService(
         // 비공개 세션은 "없는 것"으로 답한다 — 소유자 검사와 같은 이유로, 존재
         // 여부 자체가 새면 안 된다([SessionAccessGuard]).
         if (session.visibility != PUBLIC && session.userId != viewerId) {
+            throw NotFoundException("Writeup not found: $sessionId")
+        }
+        if (session.userId != viewerId && !isShareable(session)) {
             throw NotFoundException("Writeup not found: $sessionId")
         }
 
@@ -171,6 +182,20 @@ class WriteupService(
     private fun hasCompleted(userId: UUID, versionIds: Collection<UUID>): Boolean =
         versionIds.isNotEmpty() &&
             sessionRepository.existsByUserIdAndScenarioVersionIdInAndStatus(userId, versionIds, SessionStatus.COMPLETED)
+
+    /**
+     * ADR-0043 / docs/LEARNING_COMMUNITY_PLAN.md §7 — only sessions on public
+     * scenarios that aren't hiring-assessment results can be shared. Organization
+     * and private scenarios are the organization's content; an assessment answer
+     * is the employer's evaluation artifact.
+     */
+    private fun isShareable(session: Session): Boolean {
+        val scenario = scenarioOf(session) ?: return false
+        return isPublicScenario(scenario) && !assessmentSessions.isAssessment(session.id!!)
+    }
+
+    private fun isPublicScenario(scenario: Scenario): Boolean =
+        scenario.organizationId == null && scenario.visibility == "PUBLIC"
 
     private fun versionIdsOf(scenarioId: UUID): List<UUID> =
         scenarioVersionRepository.findByScenarioIdIn(listOf(scenarioId)).mapNotNull { it.id }

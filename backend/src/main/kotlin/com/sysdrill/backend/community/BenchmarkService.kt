@@ -1,5 +1,6 @@
 package com.sysdrill.backend.community
 
+import com.sysdrill.backend.organization.AssessmentSessions
 import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.evaluation.EvaluationRepository
 import com.sysdrill.backend.postmortem.mttdMttr
@@ -29,6 +30,7 @@ import org.springframework.stereotype.Service
  */
 @Service
 class BenchmarkService(
+    private val assessmentSessions: AssessmentSessions,
     private val sessionRepository: SessionRepository,
     private val submissionRepository: SubmissionRepository,
     private val evaluationRepository: EvaluationRepository,
@@ -46,7 +48,11 @@ class BenchmarkService(
             session.scenarioVersionId,
             SessionStatus.COMPLETED,
         )
-        val peerIds = peers.mapNotNull { it.id }
+        // ADR-0043 — other people's hiring-assessment runs aren't part of the
+        // population (different stakes, time limits). The requested session itself
+        // always stays in, so an assessment's own report still gets its figures.
+        val assessmentIds = assessmentSessions.among(peers.mapNotNull { it.id })
+        val peerIds = peers.mapNotNull { it.id }.filter { it == sessionId || it !in assessmentIds }
 
         val scoreBySessionId = averageScoreBySessionId(peerIds)
         val mttdBySessionId = mutableMapOf<UUID, Long>()

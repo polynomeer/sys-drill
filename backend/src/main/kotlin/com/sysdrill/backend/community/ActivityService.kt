@@ -3,7 +3,7 @@ package com.sysdrill.backend.community
 import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.content.ContentItemRepository
 import com.sysdrill.backend.identity.UserRepository
-import com.sysdrill.backend.organization.OrganizationAssessmentRepository
+import com.sysdrill.backend.organization.AssessmentSessions
 import com.sysdrill.backend.scenario.ScenarioRepository
 import com.sysdrill.backend.scenario.ScenarioVersionRepository
 import com.sysdrill.backend.session.Session
@@ -22,8 +22,8 @@ import java.util.UUID
  * - users with `rankingOptOut` are left out of both, the same switch that
  *   hides them from rankings;
  * - public scenarios only (no organization or private scenarios);
- * - hiring-assessment sessions (`organization_assessments.result_session_id`)
- *   are never shown, even though they run on public scenarios.
+ * - hiring-assessment sessions are never shown (ADR-0043), even though they
+ *   run on public scenarios.
  */
 @Service
 class ActivityService(
@@ -32,7 +32,7 @@ class ActivityService(
     private val scenarioVersionRepository: ScenarioVersionRepository,
     private val contentItemRepository: ContentItemRepository,
     private val userRepository: UserRepository,
-    private val assessmentRepository: OrganizationAssessmentRepository,
+    private val assessmentSessions: AssessmentSessions,
 ) {
 
     fun recentCompletions(scenarioId: UUID, limit: Int = 5): List<RecentCompletionResponse> {
@@ -78,10 +78,7 @@ class ActivityService(
     }
 
     private fun withoutAssessments(sessions: List<Session>): List<Session> {
-        if (sessions.isEmpty()) return sessions
-        val assessmentSessionIds = assessmentRepository.findByResultSessionIdIn(sessions.mapNotNull { it.id })
-            .mapNotNull { it.resultSessionId }
-            .toSet()
+        val assessmentSessionIds = assessmentSessions.among(sessions.mapNotNull { it.id })
         return sessions.filterNot { it.id in assessmentSessionIds }
     }
 }

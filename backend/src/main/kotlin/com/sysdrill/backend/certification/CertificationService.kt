@@ -1,5 +1,6 @@
 package com.sysdrill.backend.certification
 
+import com.sysdrill.backend.organization.AssessmentSessions
 import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.content.ContentItemRepository
 import com.sysdrill.backend.evaluation.EvaluationRepository
@@ -26,6 +27,7 @@ import org.springframework.stereotype.Service
 @Service
 class CertificationService(
     private val userRepository: UserRepository,
+    private val assessmentSessions: AssessmentSessions,
     private val scenarioRepository: ScenarioRepository,
     private val scenarioVersionRepository: ScenarioVersionRepository,
     private val contentItemRepository: ContentItemRepository,
@@ -43,7 +45,10 @@ class CertificationService(
         val titleByScenarioId = contentItemRepository.findAllById(officialScenarios.map { it.contentId }).associateBy { it.id }
             .let { byContent -> officialScenarios.associate { it.id to (byContent[it.contentId]?.title ?: it.domain) } }
 
-        val completedSessions = sessionRepository.findByUserIdOrderByStartedAtDesc(userId).filter { it.status == SessionStatus.COMPLETED }
+        val allCompleted = sessionRepository.findByUserIdOrderByStartedAtDesc(userId).filter { it.status == SessionStatus.COMPLETED }
+        // ADR-0043 — an assessment taken for an employer doesn't count toward the public certification.
+        val assessmentIds = assessmentSessions.among(allCompleted.mapNotNull { it.id })
+        val completedSessions = allCompleted.filterNot { it.id in assessmentIds }
         val versionsById = scenarioVersionRepository.findAllById(completedSessions.map { it.scenarioVersionId }.distinct()).associateBy { it.id }
 
         val submissions = submissionRepository.findBySessionIdIn(completedSessions.mapNotNull { it.id })

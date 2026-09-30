@@ -28,4 +28,6 @@ interface OrganizationAssessmentRepository : JpaRepository<OrganizationAssessmen
 
     /** Which of these sessions are hiring-assessment results — kept out of public activity (community/ActivityService). */
     fun findByResultSessionIdIn(sessionIds: Collection<UUID>): List<OrganizationAssessment>
+
+    fun existsByResultSessionId(sessionId: UUID): Boolean
 }

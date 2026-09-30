@@ -1,5 +1,6 @@
 package com.sysdrill.backend.community
 
+import com.sysdrill.backend.organization.AssessmentSessions
 import com.sysdrill.backend.common.web.BadRequestException
 import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.content.ContentItemRepository
@@ -38,6 +39,7 @@ class DiscussionService(
     private val discussionRepository: ScenarioDiscussionRepository,
     private val reportRepository: ScenarioDiscussionReportRepository,
     private val writeupService: WriteupService,
+    private val assessmentSessions: AssessmentSessions,
 ) {
 
     fun thread(scenarioId: UUID, viewerId: UUID): DiscussionThread {
@@ -180,7 +182,9 @@ class DiscussionService(
         if (!completedByMe) {
             return ids.associateWith { QuotedWriteup(it, locked = true, authorNickname = null) }
         }
-        val sessions = sessionRepository.findAllById(ids).filter { it.visibility == "PUBLIC" }
+        // ADR-0043 — an assessment session never shows up as a quotable writeup, even if it was public before.
+        val assessmentIds = assessmentSessions.among(ids)
+        val sessions = sessionRepository.findAllById(ids).filter { it.visibility == "PUBLIC" && it.id !in assessmentIds }
         val nicknames = nicknamesOf(sessions.filterNot { it.sharedAnonymously }.map { it.userId })
         return sessions.mapNotNull { session ->
             val id = session.id ?: return@mapNotNull null
