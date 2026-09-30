@@ -40,6 +40,13 @@ class User(
     @Column(name = "platform_role", nullable = false)
     var platformRole: PlatformRole = PlatformRole.USER,
 
+    /**
+     * ADR-0042 — 랭킹 보드에서 빠진다. 기본은 참여(false): 보드가 비어 있으면
+     * 의미가 없고, 노출되는 것은 닉네임·티어·점수뿐이다.
+     */
+    @Column(name = "ranking_opt_out", nullable = false)
+    var rankingOptOut: Boolean = false,
+
     @Column(name = "email_verified", nullable = false)
     var emailVerified: Boolean = false,
 

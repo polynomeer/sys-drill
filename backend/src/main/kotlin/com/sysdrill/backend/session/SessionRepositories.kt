@@ -20,6 +20,15 @@ interface ScenarioVersionStats {
     fun getAverageScore(): Double?
 }
 
+/** ADR-0042 — 완료 세션 하나의 (사용자, 시나리오 버전, 세션 평균 점수). */
+interface CompletedSessionScore {
+    fun getUserId(): UUID
+    fun getSessionId(): UUID
+    fun getScenarioVersionId(): UUID
+    fun getAverageScore(): Double?
+    fun getCompletedAt(): Instant?
+}
+
 interface SessionRepository : JpaRepository<Session, UUID> {
 
     /**
@@ -53,6 +62,23 @@ interface SessionRepository : JpaRepository<Session, UUID> {
 
     /** docs/COMMERCIALIZATION.md — admin dashboard's daily activity count. */
     fun countByStatusAndCompletedAtAfter(status: SessionStatus, after: Instant): Long
+
+    /**
+     * ADR-0042 — 모든 사용자의 완료 세션을 (세션 평균 점수와 함께) 한 번에.
+     *
+     * 세션 단위로 묶는 것이 중요하다: DrillScore 는 "도메인별 **최고 세션** 점수"를
+     * 쓰므로, (사용자, 버전) 으로 바로 평균내면 같은 시나리오를 두 번 푼 사용자의
+     * 두 세션이 뭉개져 최고점을 고를 수 없다.
+     */
+    @Query(
+        "select s.userId as userId, s.id as sessionId, s.scenarioVersionId as scenarioVersionId, " +
+            "avg(e.totalScore) as averageScore, max(s.completedAt) as completedAt " +
+            "from Session s, com.sysdrill.backend.submission.Submission sub, com.sysdrill.backend.evaluation.Evaluation e " +
+            "where sub.sessionId = s.id and e.submissionId = sub.id and e.isActive = true " +
+            "and s.status = com.sysdrill.backend.session.SessionStatus.COMPLETED " +
+            "group by s.userId, s.id, s.scenarioVersionId"
+    )
+    fun completedSessionScores(): List<CompletedSessionScore>
 
     /**
      * docs/LEARNING_COMMUNITY_PLAN.md §6.3 — 시나리오별 "몇 명이 풀었고 평균 몇 점인가".

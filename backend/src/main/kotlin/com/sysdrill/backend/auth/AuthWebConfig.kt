@@ -44,6 +44,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
  * `/architecture-analysis` (Phase 6, docs/adr/0034) requires auth on every
  * sub-path — fully personal, no public sub-path the way `/scenarios` or
  * assessment preview have one.
+ * `/community` (docs/adr/0042) requires auth on every sub-path, including
+ * the ranking boards themselves. The public certification page is something a
+ * user chose to share; a ranking board puts their nickname somewhere they
+ * never posted it, so it stays behind a login.
  * `/postmortem-summary` (Phase 3-C, docs/DRILLS_SIMULATION_VISION.md §6) is
  * registered the same way as `/skill-profile` right above it — a flat,
  * token-derived-identity endpoint with no path parameter to guard.
@@ -76,6 +80,7 @@ class AuthWebConfig(
                 "/marketplace/scenarios", "/marketplace/scenarios/**",
                 "/certifications/me",
                 "/architecture-analysis", "/architecture-analysis/**",
+                "/community/**",
             )
             .excludePathPatterns("/sessions/*/simulation/realinfra/coupon/**", "/organizations/assessments/*")
     }
