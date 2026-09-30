@@ -13,10 +13,15 @@ const val AUTHENTICATED_USER_ID_ATTRIBUTE = "authenticatedUserId"
  * (starting with just `POST /sessions`, per the "점진적" scope this step
  * chose — see PLAN.md 31단계 for migrating the rest). Rejects with 401
  * before the controller method ever runs if the `Authorization: Bearer
- * <token>` header is missing or the token doesn't verify.
+ * <token>` header is missing, the token doesn't verify, or (see
+ * [UserExistenceCache], docs/COMMERCIALIZATION.md) the user it names no
+ * longer exists.
  */
 @Component
-class AuthInterceptor(private val jwtService: JwtService) : HandlerInterceptor {
+class AuthInterceptor(
+    private val jwtService: JwtService,
+    private val userExistenceCache: UserExistenceCache,
+) : HandlerInterceptor {
 
     override fun preHandle(request: HttpServletRequest, response: HttpServletResponse, handler: Any): Boolean {
         // CORS preflight requests never carry Authorization (browsers strip it),
@@ -28,7 +33,7 @@ class AuthInterceptor(private val jwtService: JwtService) : HandlerInterceptor {
         val token = header?.removePrefix("Bearer ")?.takeIf { header.startsWith("Bearer ") }
         val userId = token?.let { jwtService.verify(it) }
 
-        if (userId == null) {
+        if (userId == null || !userExistenceCache.exists(userId)) {
             response.status = HttpServletResponse.SC_UNAUTHORIZED
             response.contentType = "application/json"
             response.writer.write("""{"status":401,"message":"missing or invalid Authorization token"}""")

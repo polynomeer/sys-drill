@@ -34,6 +34,10 @@ sysdrill:
     # accepted); a real deployment must override this via env var.
     jwt-secret: ${SYSDRILL_AUTH_JWT_SECRET:dev-only-insecure-secret-change-me}
     token-ttl-days: ${SYSDRILL_AUTH_TOKEN_TTL_DAYS:30}
+    # docs/COMMERCIALIZATION.md — how long UserExistenceCache trusts a
+    # positive/negative "does this user still exist" lookup before re-checking
+    # the DB. Bounds how quickly a deleted user's stale token starts failing.
+    user-exists-cache-ttl-seconds: ${SYSDRILL_AUTH_USER_EXISTS_CACHE_TTL_SECONDS:60}
     # PLAN.md step 35 — comma-separated emails that become PLATFORM_ADMIN on
     # signup. Empty by default (no platform admins) — set for local/demo use.
     platform-admin-emails: ${SYSDRILL_AUTH_PLATFORM_ADMIN_EMAILS:}

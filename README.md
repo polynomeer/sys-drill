@@ -176,7 +176,7 @@ sequenceDiagram
 
 ## 엔지니어링 하이라이트
 
-의사결정 39건을 [ADR](docs/adr/README.md)로 기록했습니다. 아래 항목을 문제 → 선택 → 근거 → 코드 위치 순으로 풀어 쓴 문서가 [docs/TECHNICAL_HIGHLIGHTS.md](docs/TECHNICAL_HIGHLIGHTS.md)입니다.
+의사결정 42건을 [ADR](docs/adr/README.md)로 기록했습니다. 아래 항목을 문제 → 선택 → 근거 → 코드 위치 순으로 풀어 쓴 문서가 [docs/TECHNICAL_HIGHLIGHTS.md](docs/TECHNICAL_HIGHLIGHTS.md)입니다.
 
 - **Docker 네트워크 격리 샌드박스 채점** ([ADR-0007](docs/adr/0007-docker-sandboxed-build-execution.md)) — 사용자 코드를 `--network none`, CPU/메모리 제한, 타임아웃 하에서 실행. 채점 스크립트 자체는 파일시스템이 아니라 DB에 버전 관리 ([ADR-0006](docs/adr/0006-config-as-data.md)).
 - **트랜잭션 커밋 후에만 큐에 push** ([ADR-0004](docs/adr/0004-async-jobs-enqueued-only-after-commit.md)) — 워커가 아직 커밋되지 않은 Submission을 읽고 조용히 job을 버리던 경쟁 조건을 `@TransactionalEventListener(AFTER_COMMIT)`로 차단. 두 파이프라인에서 같은 버그가 독립적으로 재발한 뒤 규칙이 됨.
@@ -194,7 +194,7 @@ sequenceDiagram
 | 테스트 | 테스트 클래스 60개 · 테스트 297개 (단위 + 실제 compose 스택 대상 통합 + real-infra 파일럿 범위 단언) |
 | 프론트엔드 | 페이지 30개 · TypeScript/TSX 54 파일 |
 | 콘텐츠 | 시나리오 도메인 7개 (쿠폰·알림·상품조회·결제·예약·배치정산·오토스케일링) · Build 과제 7개 (Rate Limiter는 Python·TypeScript 2종 · Queue · Circuit Breaker · Distributed Lock · Retry/Backoff · Event Bus) |
-| 문서 | PRD · 아키텍처 · 로드맵 · ADR 39건 · UX 전략 · 상용화 계획 |
+| 문서 | PRD · 아키텍처 · 로드맵 · ADR 42건 · UX 전략 · 상용화 계획 |
 
 ## Quick Start
 
@@ -244,7 +244,7 @@ cd backend && ./gradlew test        # compose 스택이 떠 있어야 합니다
 | [docs/PRD.md](docs/PRD.md) | 제품 정의, 타깃, 4개 모드, 평가 루브릭, MVP 범위, 비즈니스 모델 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 설계 원칙, 도메인 모델, 세션 상태 머신, 시뮬레이션/평가 파이프라인 |
 | [docs/TECHNICAL_HIGHLIGHTS.md](docs/TECHNICAL_HIGHLIGHTS.md) | 어려웠던 문제 7가지와 삽질 기록 — 문제 → 선택 → 근거 → 코드 위치 |
-| [docs/adr/](docs/adr/README.md) | 아키텍처 결정 기록 39건 — "왜 이렇게 했는가" |
+| [docs/adr/](docs/adr/README.md) | 아키텍처 결정 기록 42건 — "왜 이렇게 했는가" |
 | [docs/LEARNING_COMMUNITY_PLAN.md](docs/LEARNING_COMMUNITY_PLAN.md) | Learning·Community 확장 기획서 (설계안, 미구현) |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) · [docs/TESTING.md](docs/TESTING.md) | 로컬 실행, 저장소 규칙, Build 과제 추가 방법 · 세 층 테스트 전략과 플레이키니스 대응 |
 | [frontend/README.md](frontend/README.md) | 프론트엔드 구조, api.ts 단일 진입점, 캔버스 ↔ Mermaid ↔ 토폴로지 관계 |
