@@ -1443,25 +1443,38 @@ Phase 4/기술부채/ADR-0037/플레이키니스까지 모든 후보가 소진�
 
 [docs/CODECRAFTERS_BENCHMARK.md](docs/CODECRAFTERS_BENCHMARK.md) §5 P1 4개 항목을 3개 라운드로 묶었다. 순서는 의존성 기준 — B4의 아이콘·난이도 배지를 B5·B6이 재사용한다.
 
-### Round B4 — Drills 카탈로그 재구성 + 아이콘·난이도 배지 (§3.5, §3.9)
+### Round B4 — Drills 카탈로그 재구성 + 아이콘·난이도 배지 (§3.5, §3.9) ✅ 완료 (2026-09-30)
 
-- [ ] 백엔드 `GET /scenarios` 목록에 완료 통계(`completedCount`/`averageScore`)와 단계 유형 목록(`stepTypes`) 추가 — 시나리오당 조회 없이 배치 집계. 카드가 "Design + Incident"인지 "Design만"인지 추측하지 않도록
-- [ ] Drills(`/marketplace`)가 공식 시나리오까지 보여주도록 데이터 소스를 `GET /scenarios`로 교체(Round B1에서 발견한 공백). 공식/커뮤니티 구분 필터 추가, System Design·Incident 탭 중복 해소(Incident 탭 = 장애 대응 단계가 있는 Drill)
-- [ ] 목록 행 → 2열 카드 그리드: 제목·도메인 아이콘·단계 수·`DifficultyBadge`·완료 통계, 카드 전체가 개요 페이지 링크
-- [ ] "시나리오 등록" 폼을 `/drills/new`로 분리(목록 밀도 완화), 목록에는 "내가 등록한 시나리오" 링크만
-- [ ] `lucide-react` 도입(정확 버전 고정) — 헤더 🔔/☰, `WargameLive` 액션 카테고리, 커리큘럼 ✅/⬜️ 이모지 교체. 도메인별 단색 아이콘 매핑(`lib/domainIcons.tsx`)
-- [ ] `components/ui/DifficultyBadge.tsx` — 대문자 라벨 + 3칸 신호 막대, 액센트 단색. 난이도가 success/warning/danger 상태색을 쓰지 않게
+- [x] 백엔드 `GET /scenarios` 목록에 완료 통계(`completedCount`/`averageScore`)와 단계 유형 목록(`stepTypes`) 추가 — 시나리오당 조회 없이 배치 집계. 카드가 "Design + Incident"인지 "Design만"인지 추측하지 않도록
+- [x] Drills(`/marketplace`)가 공식 시나리오까지 보여주도록 데이터 소스를 `GET /scenarios`로 교체(Round B1에서 발견한 공백). 공식/커뮤니티 구분 필터 추가, System Design·Incident 탭 중복 해소(Incident 탭 = 장애 대응 단계가 있는 Drill)
+- [x] 목록 행 → 2열 카드 그리드: 제목·도메인 아이콘·단계 수·`DifficultyBadge`·완료 통계, 카드 전체가 개요 페이지 링크
+- [x] "시나리오 등록" 폼을 `/drills/new`로 분리(목록 밀도 완화), 목록에는 "내가 등록한 시나리오" 링크만
+- [x] `lucide-react` 도입(정확 버전 고정) — 헤더 🔔/☰, `WargameLive` 액션 카테고리, 커리큘럼 ✅/⬜️ 이모지 교체. 도메인별 단색 아이콘 매핑(`lib/domainIcons.tsx`)
+- [x] `components/ui/DifficultyBadge.tsx` — 대문자 라벨 + 3칸 신호 막대, 액센트 단색. 난이도가 success/warning/danger 상태색을 쓰지 않게
 
 **완료 기준**: 백엔드 통합 테스트(목록에 stats·stepTypes), `tsc`/`lint`/`build` 클린, 실제 브라우저로 Drills에 공식 7개 + 커뮤니티 시나리오 카드 확인, 필터·탭·검색 동작, `/drills/new` 등록 후 목록 반영, 375px 레이아웃.
 
-### Round B5 — Design 작업 화면 2분할 레이아웃 (§3.3)
+**완료 기준 충족**: scenario 패키지 통합 테스트 9개 통과(신규: 목록의 stepTypes 순서·completedCount 존재). `tsc` 클린, 변경 파일 `eslint` 에러 0(기존 경고만), `npm run build` 클린(`/drills/new` 포함). 격리 백엔드(8087)+프론트(3005)에서 Drills에 공식 7개 카드 확인 → `/drills/new`에서 커뮤니티 시나리오 등록 → 목록 8개, "커뮤니티" 필터 1개(2단계·Design만), 같은 필터에서 Incident 탭 0개 확인. 375px 가로 넘침 없음.
 
-- [ ] 백엔드 `SessionResponse`에 세션 버전의 단계 유형 목록(`steps`) 추가 — 지금 `StepNav`는 4개 라벨을 하드코딩해서 장애 대응 단계가 없는 커뮤니티 시나리오에서도 같은 진행 표시를 보여준다
-- [ ] `design/[sessionId]` 편집 상태를 데스크톱(≥1024px) 2분할로: 좌측 고정 패널 = `StageList`(세션 단계 + 현재 위치) · 문제 · 조건 변경 알림 · 답안 체크리스트 · 힌트, 우측 = 답안 에디터 + 다이어그램 캔버스/텍스트 + 제출. 모바일은 기존처럼 세로로 쌓임
-- [ ] `StepNav`(취소선 방식)를 `StageList`로 대체, 답안 textarea를 공용 `Textarea` 스타일·자동 높이로
-- [ ] 대기 상태 카드에서 raw enum(`SUBMITTED`/`EVALUATING`) 대신 "AI가 루브릭 7개 항목으로 채점 중" + 진행 애니메이션
+**진행 중 발견한 결정 사항**:
+- `GET /scenarios` 목록이 시나리오마다 `contentItemRepository.findById`를 따로 부르던 N+1도 같이 `findAllById` 한 번으로 바꿨다(통계·단계 집계를 배치로 붙이는 김에).
+- 헤더의 알림 벨은 여전히 아무 동작이 없다 — 이모지만 아이콘으로 바꾸고 툴팁을 "알림 (준비 중)"으로 정직하게 고쳤다. 기능을 만들거나 걷어내는 건 이 라운드 범위가 아니다.
+- 커뮤니티 시나리오의 난이도는 자유 텍스트라 `DifficultyBadge`가 신호 막대 없이 라벨만 보여준다.
+
+### Round B5 — Design 작업 화면 2분할 레이아웃 (§3.3) ✅ 완료 (2026-09-30)
+
+- [x] 백엔드 `SessionResponse`에 세션 버전의 단계 유형 목록(`steps`) 추가 — 지금 `StepNav`는 4개 라벨을 하드코딩해서 장애 대응 단계가 없는 커뮤니티 시나리오에서도 같은 진행 표시를 보여준다
+- [x] `design/[sessionId]` 편집 상태를 데스크톱(≥1024px) 2분할로: 좌측 고정 패널 = `StageList`(세션 단계 + 현재 위치) · 문제 · 조건 변경 알림 · 답안 체크리스트 · 힌트, 우측 = 답안 에디터 + 다이어그램 캔버스/텍스트 + 제출. 모바일은 기존처럼 세로로 쌓임
+- [x] `StepNav`(취소선 방식)를 `StageList`로 대체, 답안 textarea를 공용 `Textarea` 스타일·자동 높이로
+- [x] 대기 상태 카드에서 raw enum(`SUBMITTED`/`EVALUATING`) 대신 "AI가 루브릭 7개 항목으로 채점 중" + 진행 애니메이션
 
 **완료 기준**: 백엔드 테스트(세션 응답 steps), `tsc`/`lint`/`build` 클린, 실제 브라우저로 초기 설계 → 제출 → 피드백 → 꼬리설계 → 장애 대응 진입까지 레이아웃 회귀 없음, 1440px·375px 확인.
+
+**완료 기준 충족**: `SessionControllerIntegrationTest`(12)·`OrganizationAssessmentIntegrationTest`(5)·`BridgeModeIntegrationTest`(4) 통과. `tsc`/`eslint`/`build` 클린. 격리 환경에서 선착순 쿠폰 세션으로 초기 설계 제출 → 채점 대기 카드 → 피드백(우측)·단계 목록(좌측 고정) → 꼬리설계(1단계 완료 표시·조건 변경 알림) → 제출 → 장애 대응 진입까지 확인. 1024px에서 워게임은 세로로 쌓이고, 1440px에서 분할, 375px 가로 넘침 없음.
+
+**진행 중 발견한 결정 사항**:
+- 워게임은 지표 대시보드(4열 지표·차트)가 폭을 많이 써서 lg(1024px)에서 나누면 좁다 — 설계 단계는 lg, 워게임은 xl(1280px)에서 분할한다. 좌측 패널의 sticky도 분할될 때만 건다(쌓인 레이아웃에서 sticky면 작업 영역을 덮는다).
+- **검증용 백엔드는 실제 LLM 키 없이 띄운다** — 처음엔 `backend/.env.local`을 복사해 실제 Anthropic 키로 채점될 뻔했다. 제출 검증 전에 키를 빼고 오프라인 폴백 평가기(고정 60점)로 돌렸다. 레이아웃 검증에 실제 API 비용을 쓸 이유가 없다.
 
 ### Round B6 — Build 단계별 진행 + 테스트 로그 패널 (§3.2, §3.3)
 
