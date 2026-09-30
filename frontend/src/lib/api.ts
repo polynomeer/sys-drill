@@ -711,6 +711,33 @@ export function getBuildSubmission(submissionId: string): Promise<BuildSubmissio
   return apiFetch<BuildSubmissionResponse>(`/build-submissions/${submissionId}`);
 }
 
+/** docs/CODECRAFTERS_BENCHMARK.md §3.8 — completions only; ranking-hidden users and assessment sessions are excluded server-side. */
+export interface RecentCompletion {
+  nickname: string;
+  completedAt: string;
+}
+
+export interface ActivityEntry {
+  scenarioTitle: string;
+  domain: string;
+  completedAt: string;
+}
+
+export interface UserActivity {
+  nickname: string;
+  /** The user hid themselves from rankings — the empty timeline is intentional. */
+  hidden: boolean;
+  entries: ActivityEntry[];
+}
+
+export function getRecentCompletions(scenarioId: string): Promise<RecentCompletion[]> {
+  return apiFetch<RecentCompletion[]>(`/community/scenarios/${scenarioId}/recent-completions`);
+}
+
+export function getUserActivity(userId: string): Promise<UserActivity> {
+  return apiFetch<UserActivity>(`/community/users/${userId}/activity`);
+}
+
 /** Stage roadmap + instructions, available before any submission exists. */
 export function getBuildChallenge(slug: string): Promise<BuildChallenge> {
   return apiFetch<BuildChallenge>(`/build-challenges/${slug}`);

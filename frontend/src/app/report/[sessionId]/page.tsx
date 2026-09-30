@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { BenchmarkRow } from "@/components/BenchmarkRow";
+import { CompletionCard } from "@/components/CompletionCard";
 import { ShareWriteupCard } from "@/components/ShareWriteupCard";
 import { formatDuration } from "@/lib/metrics";
 import { Gauge } from "@/components/ui/Gauge";
@@ -145,6 +146,8 @@ export default function ReportPage() {
 
       {report && (
         <>
+          <CompletionCard sessionId={sessionId} averageScore={report.averageScore} />
+
           <Card className="flex flex-wrap items-center gap-6">
             {headlineScore !== null && (
               <Gauge label="평균 점수" value={headlineScore / 100} status={scoreStatus(headlineScore)} size={120} />

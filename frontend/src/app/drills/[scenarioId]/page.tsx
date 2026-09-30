@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   ApiError,
+  RecentCompletion,
   ScenarioDetail,
   SessionSummary,
+  getRecentCompletions,
   getScenario,
   getUserSessions,
   startSession,
@@ -55,6 +57,7 @@ export default function DrillOverviewPage() {
 
   const [scenario, setScenario] = useState<ScenarioDetail | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [recent, setRecent] = useState<RecentCompletion[]>([]);
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +72,8 @@ export default function DrillOverviewPage() {
 
     // Sessions only feed the advisory prerequisite hint — logged out, there are none to check.
     const sessionsRequest = hasToken ? getUserSessions() : Promise.resolve([] as SessionSummary[]);
+    // Recent completers are members-only (the endpoint needs a token) and purely decorative.
+    if (hasToken) getRecentCompletions(scenarioId).then(setRecent).catch(() => setRecent([]));
 
     Promise.all([getScenario(scenarioId), sessionsRequest])
       .then(([detail, sessionList]) => {
@@ -265,6 +270,20 @@ export default function DrillOverviewPage() {
               <p className="mt-2 text-sm text-foreground-muted">아직 완료한 사람이 없습니다. 첫 번째가 되어보세요.</p>
             )}
           </Card>
+          {recent.length > 0 && (
+            <Card>
+              <p className="text-xs font-semibold uppercase tracking-wide text-foreground-muted">최근 완료</p>
+              <ul className="mt-2 flex flex-col gap-1.5 text-sm">
+                {recent.map((r) => (
+                  <li key={`${r.nickname}-${r.completedAt}`} className="flex items-center justify-between gap-2">
+                    <span className="truncate">{r.nickname}</span>
+                    <span className="shrink-0 text-xs text-foreground-muted">{new Date(r.completedAt).toLocaleDateString("ko-KR")}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11px] text-foreground-muted">완료한 사람만 표시 · 랭킹 숨김 사용자 제외</p>
+            </Card>
+          )}
         </aside>
       </div>
     </div>
