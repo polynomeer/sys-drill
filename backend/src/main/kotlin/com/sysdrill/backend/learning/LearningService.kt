@@ -35,6 +35,7 @@ class LearningService(
                             label = it.label,
                             summary = it.summary,
                             myWeaknessCount = weaknesses[it.riskKey] ?: 0,
+                            relatedDomains = it.relatedDomains,
                         )
                     },
                     myWeaknessCount = concepts.sumOf { weaknesses[it.riskKey] ?: 0 },

@@ -10,6 +10,8 @@ data class LearningConceptSummary(
      * 학습 화면이 "누구에게나 같은 목록"에서 "내 약점이 표시된 목록"이 되는 지점이다.
      */
     val myWeaknessCount: Int,
+    /** docs/CODECRAFTERS_BENCHMARK.md §3.7 — the domain track page lists concepts by domain without fetching every detail. */
+    val relatedDomains: List<String> = emptyList(),
 )
 
 data class LearningCategory(
