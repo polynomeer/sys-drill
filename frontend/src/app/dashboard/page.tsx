@@ -12,9 +12,9 @@ import {
   getUserSessions,
   listScenarios,
 } from "@/lib/api";
-import { getStoredNickname, getStoredToken } from "@/lib/localSession";
+import { dismissStartHere, getStoredNickname, getStoredToken, isStartHereDismissed } from "@/lib/localSession";
 import { useConceptLabels } from "@/lib/useConceptLabels";
-import { completedTiers, needsPrereq } from "@/lib/drillPrereq";
+import { completedTiers, needsPrereq, pickFirstDrill } from "@/lib/drillPrereq";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -57,6 +57,7 @@ export default function DashboardPage() {
   const [skillProfile, setSkillProfile] = useState<SkillProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [startHereDismissed, setStartHereDismissed] = useState(true);
 
   useEffect(() => {
     if (!getStoredToken()) {
@@ -67,6 +68,7 @@ export default function DashboardPage() {
     // React state) on mount, not a cascading render loop.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setNickname(getStoredNickname());
+    setStartHereDismissed(isStartHereDismissed());
 
     Promise.all([listScenarios(), getUserSessions(), getSkillProfile()])
       .then(([scenarioList, sessionList, profile]) => {
@@ -88,9 +90,14 @@ export default function DashboardPage() {
   const recommendedScenario = skillProfile?.recommendedDomain
     ? scenarios.find((s) => s.domain === skillProfile.recommendedDomain)
     : undefined;
-  const orderedScenarios = recommendedScenario
-    ? [recommendedScenario, ...scenarios.filter((s) => s.id !== recommendedScenario.id)]
-    : scenarios;
+  // docs/CODECRAFTERS_BENCHMARK.md §3.4 — until the user finishes any Drill,
+  // pin the easiest official one as "첫 Drill" (after a personal recommendation, if any).
+  const isNewcomer = !loading && !sessions.some((s) => s.status === "COMPLETED");
+  const firstDrill = isNewcomer ? pickFirstDrill(scenarios) : undefined;
+  const pinned = [recommendedScenario, firstDrill].filter(
+    (s, i, arr): s is ScenarioSummary => !!s && arr.findIndex((o) => o?.id === s.id) === i,
+  );
+  const orderedScenarios = [...pinned, ...scenarios.filter((s) => !pinned.some((p) => p.id === s.id))];
 
   const completed = completedTiers(sessions);
 
@@ -99,6 +106,31 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-10 p-8">
+      {firstDrill && !startHereDismissed && (
+        <div className="mx-auto flex w-full max-w-5xl items-start justify-between gap-4 rounded-xl border border-accent/40 bg-accent/5 p-4">
+          <div>
+            <p className="font-medium">처음이세요? 여기서 시작하세요</p>
+            <p className="mt-1 text-sm text-foreground-muted">
+              가장 쉬운 <span className="text-foreground">{firstDrill.title}</span>부터 한 바퀴 돌아보면 설계 → 꼬리설계 → 장애
+              대응 → 리포트 흐름을 모두 경험할 수 있습니다.
+            </p>
+            <Button href={`/drills/${firstDrill.id}`} size="sm" className="mt-3">
+              첫 Drill 살펴보기 →
+            </Button>
+          </div>
+          <button
+            onClick={() => {
+              dismissStartHere();
+              setStartHereDismissed(true);
+            }}
+            className="shrink-0 text-sm text-foreground-muted hover:text-foreground"
+            aria-label="안내 닫기"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Hero — SysDrill_UIUX_Design_Plan.docx §5.1 */}
       <section className="mx-auto flex w-full max-w-5xl flex-col items-start justify-between gap-6 rounded-xl border border-border bg-surface p-8 md:flex-row md:items-center">
         <div className="flex flex-col gap-3">
@@ -235,7 +267,7 @@ export default function DashboardPage() {
             <Card
               as="li"
               key={scenario.id}
-              className={`flex items-center justify-between ${scenario.id === recommendedScenario?.id ? "border-accent/50 bg-accent/5" : ""}`}
+              className={`flex items-center justify-between ${pinned.some((p) => p.id === scenario.id) ? "border-accent/50 bg-accent/5" : ""}`}
             >
               <div>
                 <p className="font-medium">
@@ -243,6 +275,11 @@ export default function DashboardPage() {
                   {scenario.id === recommendedScenario?.id && (
                     <Badge variant="accent" className="ml-2 align-middle">
                       추천
+                    </Badge>
+                  )}
+                  {scenario.id === firstDrill?.id && (
+                    <Badge variant="success" className="ml-2 align-middle">
+                      첫 Drill
                     </Badge>
                   )}
                 </p>

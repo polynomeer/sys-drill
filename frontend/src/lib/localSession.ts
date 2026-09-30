@@ -93,3 +93,16 @@ export function saveBuildSubmissionId(slug: string, submissionId: string): void 
 export function loadBuildSubmissionId(slug: string): string | null {
   return window.localStorage.getItem(buildSubmissionKey(slug));
 }
+
+// docs/CODECRAFTERS_BENCHMARK.md §3.4 — the Home "처음이세요?" banner stays
+// dismissed per browser; a per-viewer convenience, not account state.
+const START_HERE_DISMISSED_KEY = "sysdrill:start-here-dismissed";
+
+export function isStartHereDismissed(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(START_HERE_DISMISSED_KEY) === "1";
+}
+
+export function dismissStartHere(): void {
+  window.localStorage.setItem(START_HERE_DISMISSED_KEY, "1");
+}

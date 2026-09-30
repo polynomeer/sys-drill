@@ -15,3 +15,18 @@ export function needsPrereq(difficulty: string | null | undefined, completed: Se
   if (tierIndex <= 0) return false; // 알 수 없는 값이거나 이미 최하위 티어면 힌트 없음
   return !TIER_ORDER.slice(0, tierIndex).some((lowerTier) => completed.has(lowerTier));
 }
+
+/** docs/CODECRAFTERS_BENCHMARK.md §3.4 — the pinned "첫 Drill": the first
+ * official scenario (no org, no marketplace creator) in the lowest tier.
+ * Chosen from data, not a hard-coded id, so re-tiering scenarios in a
+ * migration (as V43 did) moves the pin with it. */
+export function pickFirstDrill<T extends { difficulty: string | null; organizationId: string | null; creatorNickname?: string | null }>(
+  scenarios: T[],
+): T | undefined {
+  const official = scenarios.filter((s) => !s.organizationId && !s.creatorNickname);
+  for (const tier of TIER_ORDER) {
+    const match = official.find((s) => s.difficulty === tier);
+    if (match) return match;
+  }
+  return undefined;
+}
