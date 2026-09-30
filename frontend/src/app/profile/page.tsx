@@ -19,7 +19,7 @@ import {
 } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
-import { riskLabel } from "@/lib/riskLabels";
+import { useConceptLabels } from "@/lib/useConceptLabels";
 import { categoryLabel } from "@/lib/skillCategoryLabels";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -66,6 +66,7 @@ function formatSeconds(seconds: number | null): string {
  * 각각 부분적으로 이미 쓰던 것)로 채운다 — 새 백엔드 작업 없음.
  */
 export default function ProfilePage() {
+  const riskLabel = useConceptLabels();
   const router = useRouter();
   const [skillProfile, setSkillProfile] = useState<SkillProfile | null>(null);
   const [certification, setCertification] = useState<CertificationStatus | null>(null);

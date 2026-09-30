@@ -1,31 +1,97 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { LearningCategory, getLearningConcepts } from "@/lib/api";
+import { getStoredToken } from "@/lib/localSession";
 import { Card } from "@/components/ui/Card";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { DESIGN_GUIDANCE_BY_DOMAIN, DOMAIN_TITLES, INCIDENT_GUIDANCE } from "@/lib/designGuidance";
-import { RISK_KEYS, riskDescription, riskLabel } from "@/lib/riskLabels";
 
 /**
- * SysDrill_UIUX_Design_Plan.docx §4/§10 — Learning은 P2(콘텐츠·네트워크
- * 효과 확장)라 실시간 CMS는 이번 스코프 밖이지만, 정적 콘텐츠는 사실 이미
- * 이 프로젝트 안에 있었다: Design Workspace가 세션 중에 보여주는 도메인별
- * 가이드(designGuidance.ts, 원래 design/[sessionId]/page.tsx 로컬 상수였던
- * 것을 공용 모듈로 추출)와, RuleEvaluator의 riskKey별 설명이 그것이다.
- * 새 콘텐츠를 지어내는 대신 이미 검증된 두 소스를 재사용한다.
+ * docs/LEARNING_COMMUNITY_PLAN.md §5.2 (슬라이스 2).
+ *
+ * 이전에는 프론트 상수(riskLabels.ts)를 그대로 나열해 누가 보든 같은 화면이었다.
+ * 이제 개념은 DB에서 오고(ADR-0039), 내가 지적받은 횟수가 함께 내려와 약점이
+ * 많은 역량이 위로 올라온다 — 같은 목록이 사람마다 다른 순서로 보인다.
  */
 export default function LearningPage() {
-  const domains = Object.keys(DESIGN_GUIDANCE_BY_DOMAIN);
+  const router = useRouter();
+  const [categories, setCategories] = useState<LearningCategory[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!getStoredToken()) {
+      router.replace("/onboarding");
+      return;
+    }
+    getLearningConcepts()
+      .then(setCategories)
+      .catch(() => setError("개념 목록을 불러오지 못했습니다."));
+  }, [router]);
+
+  const totalWeakness = (categories ?? []).reduce((sum, c) => sum + c.myWeaknessCount, 0);
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
+    <div className="mx-auto flex max-w-4xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">Learning</h1>
         <p className="mt-1 text-sm text-foreground-muted">
-          도메인별 설계 가이드와 핵심 개념 레퍼런스입니다 — 훈련 중에도 이 문구들을 그대로 만나게 됩니다.
+          채점 기준과 같은 어휘로 쓰인 개념 레퍼런스입니다 — 훈련 중 “놓친 점”에서 만나는 그 개념들입니다.
         </p>
       </div>
 
-      <section className="flex flex-col gap-4">
+      {error && <p className="text-sm text-danger">{error}</p>}
+      {!categories && !error && <LoadingState />}
+
+      {categories && (
+        <>
+          {totalWeakness > 0 && (
+            <Card>
+              <p className="text-sm">
+                지금까지 평가에서 <strong>{totalWeakness}회</strong> 지적받았습니다. 약점이 많은 역량부터 정렬했습니다.
+              </p>
+            </Card>
+          )}
+
+          <section className="flex flex-col gap-5">
+            {categories.map((category) => (
+              <div key={category.category} className="flex flex-col gap-2">
+                <div className="flex items-baseline gap-2">
+                  <h2 className="text-sm font-semibold">{category.label}</h2>
+                  {category.myWeaknessCount > 0 && (
+                    <span className="rounded-full bg-danger/15 px-2 py-0.5 text-xs text-danger">
+                      내 약점 {category.myWeaknessCount}회
+                    </span>
+                  )}
+                  <span className="text-xs text-foreground-muted">개념 {category.concepts.length}개</span>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {category.concepts.map((concept) => (
+                    <Link key={concept.riskKey} href={`/learning/${concept.riskKey}`} className="block">
+                      <Card className="h-full transition-colors hover:border-accent">
+                        <div className="mb-1 flex items-baseline justify-between gap-2">
+                          <h3 className="font-medium">{concept.label}</h3>
+                          {concept.myWeaknessCount > 0 && (
+                            <span className="shrink-0 text-xs text-danger">{concept.myWeaknessCount}회 놓침</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-foreground-muted">{concept.summary}</p>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+        </>
+      )}
+
+      <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-foreground-muted">도메인별 설계 가이드</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {domains.map((domain) => (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {Object.keys(DESIGN_GUIDANCE_BY_DOMAIN).map((domain) => (
             <Card key={domain} as="section">
               <h3 className="mb-2 font-medium">{DOMAIN_TITLES[domain] ?? domain}</h3>
               <ul className="list-inside list-disc space-y-1 text-sm text-foreground-muted">
@@ -43,21 +109,6 @@ export default function LearningPage() {
               ))}
             </ul>
           </Card>
-        </div>
-      </section>
-
-      <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-semibold text-foreground-muted">개념 레퍼런스</h2>
-        <p className="text-xs text-foreground-muted">
-          AI 피드백의 “놓친 점”에서 지적받을 수 있는 패턴들입니다 — 채점 기준과 같은 어휘를 씁니다.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {RISK_KEYS.map((key) => (
-            <Card key={key}>
-              <h3 className="mb-1 font-medium">{riskLabel(key)}</h3>
-              <p className="text-sm text-foreground-muted">{riskDescription(key)}</p>
-            </Card>
-          ))}
         </div>
       </section>
     </div>

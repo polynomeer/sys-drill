@@ -14,7 +14,7 @@ import {
   startSession,
 } from "@/lib/api";
 import { getStoredNickname, getStoredToken } from "@/lib/localSession";
-import { riskLabel } from "@/lib/riskLabels";
+import { useConceptLabels } from "@/lib/useConceptLabels";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -53,6 +53,7 @@ const MODE_CARDS = [
 ];
 
 export default function DashboardPage() {
+  const riskLabel = useConceptLabels();
   const router = useRouter();
   const [nickname, setNickname] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);

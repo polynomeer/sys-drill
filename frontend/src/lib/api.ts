@@ -578,6 +578,46 @@ export interface Benchmark {
   mttrSeconds: BenchmarkMetric;
 }
 
+/** docs/LEARNING_COMMUNITY_PLAN.md §5.2 — 개념 라이브러리 (ADR-0039: 콘텐츠는 DB가 단일 출처). */
+export interface LearningConceptSummary {
+  riskKey: string;
+  label: string;
+  summary: string;
+  /** 내가 이 개념을 지적받은 횟수. 0이면 배지 없음. */
+  myWeaknessCount: number;
+}
+
+export interface LearningCategory {
+  category: string;
+  label: string;
+  concepts: LearningConceptSummary[];
+  myWeaknessCount: number;
+}
+
+export interface LearningConceptDetail {
+  riskKey: string;
+  category: string;
+  categoryLabel: string;
+  label: string;
+  summary: string;
+  whyItMatters: string;
+  symptoms: string[];
+  patterns: string[];
+  tradeoffs: string;
+  relatedDomains: string[];
+  relatedActions: string[];
+  relatedChallenges: string[];
+  myWeaknessCount: number;
+}
+
+export function getLearningConcepts(): Promise<LearningCategory[]> {
+  return apiFetch<LearningCategory[]>("/learning/concepts");
+}
+
+export function getLearningConcept(riskKey: string): Promise<LearningConceptDetail> {
+  return apiFetch<LearningConceptDetail>(`/learning/concepts/${riskKey}`);
+}
+
 export function getBenchmark(sessionId: string): Promise<Benchmark> {
   return apiFetch<Benchmark>(`/sessions/${sessionId}/benchmark`);
 }
