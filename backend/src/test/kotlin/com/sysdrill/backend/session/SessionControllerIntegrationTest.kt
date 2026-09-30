@@ -61,6 +61,10 @@ class SessionControllerIntegrationTest(
             .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
             .andExpect(jsonPath("$.currentPhase").value("INITIAL"))
             .andExpect(jsonPath("$.currentStepPrompt").value(org.hamcrest.Matchers.containsString("선착순")))
+            // docs/CODECRAFTERS_BENCHMARK.md §3.3 — the workspace stage list reads the real step shape.
+            .andExpect(jsonPath("$.stepTypes.length()").value(3))
+            .andExpect(jsonPath("$.stepTypes[0]").value("INITIAL"))
+            .andExpect(jsonPath("$.stepTypes[2]").value("INCIDENT"))
     }
 
     /**

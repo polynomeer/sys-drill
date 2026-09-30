@@ -37,9 +37,18 @@ data class SessionResponse(
     val completedAt: Instant?,
     /** PLAN.md step 36 — the frontend keeps no local userId (removed in step 31), so it needs the server to say whether the caller is the owner or a Game Day spectator. */
     val isOwner: Boolean,
+    /** docs/CODECRAFTERS_BENCHMARK.md §3.3 — this session's version step types in order (INITIAL, FOLLOWUP[, INCIDENT]), so the workspace stage list reflects the real stage count instead of a hard-coded one. Types only — later steps' prompts stay hidden. */
+    val stepTypes: List<String> = emptyList(),
 ) {
     companion object {
-        fun from(session: Session, currentStepPrompt: String?, domain: String, phaseDeadlineAt: Instant?, callerId: UUID) = SessionResponse(
+        fun from(
+            session: Session,
+            currentStepPrompt: String?,
+            domain: String,
+            phaseDeadlineAt: Instant?,
+            callerId: UUID,
+            stepTypes: List<String> = emptyList(),
+        ) = SessionResponse(
             id = session.id!!,
             status = session.status,
             currentPhase = session.currentPhase,
@@ -52,6 +61,7 @@ data class SessionResponse(
             startedAt = session.startedAt,
             completedAt = session.completedAt,
             isOwner = session.userId == callerId,
+            stepTypes = stepTypes,
         )
     }
 }

@@ -133,6 +133,10 @@ class SessionService(
             .domain
     }
 
+    /** Step types of the session's own scenario version, in order — what the workspace stage list renders. */
+    fun getStepTypes(session: Session): List<String> =
+        scenarioStepRepository.findByScenarioVersionIdOrderByStepOrder(session.scenarioVersionId).map { it.stepType }
+
     /** The "prompt" text of whichever ScenarioStep the session is currently on — what the frontend shows as the brief. */
     fun getCurrentStepPrompt(session: Session): String? {
         val phase = sessionPhaseRepository.findTopBySessionIdOrderByPhaseOrderDesc(session.id!!) ?: return null

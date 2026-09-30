@@ -107,5 +107,6 @@ class SessionController(
             sessionService.getScenarioDomain(session),
             sessionService.getPhaseDeadline(session),
             callerId,
+            sessionService.getStepTypes(session),
         )
 }
