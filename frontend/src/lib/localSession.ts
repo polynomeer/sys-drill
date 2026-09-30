@@ -106,3 +106,26 @@ export function isStartHereDismissed(): boolean {
 export function dismissStartHere(): void {
   window.localStorage.setItem(START_HERE_DISMISSED_KEY, "1");
 }
+
+// docs/CODECRAFTERS_BENCHMARK.md §3.6 — concepts read to the end open fully
+// expanded next time. Per-browser convenience, not learning-progress data.
+const READ_CONCEPTS_KEY = "sysdrill:read-concepts";
+
+export function isConceptRead(riskKey: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return (JSON.parse(window.localStorage.getItem(READ_CONCEPTS_KEY) ?? "[]") as string[]).includes(riskKey);
+  } catch {
+    return false;
+  }
+}
+
+export function markConceptRead(riskKey: string): void {
+  try {
+    const read = new Set(JSON.parse(window.localStorage.getItem(READ_CONCEPTS_KEY) ?? "[]") as string[]);
+    read.add(riskKey);
+    window.localStorage.setItem(READ_CONCEPTS_KEY, JSON.stringify([...read]));
+  } catch {
+    // storage unavailable (private mode, quota) — the page just won't remember
+  }
+}
