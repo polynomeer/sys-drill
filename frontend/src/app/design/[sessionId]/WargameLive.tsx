@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Check, Database, Settings, TrafficCone, TrendingUp, type LucideIcon } from "lucide-react";
 import {
   ApiError,
   ChatMessage,
@@ -28,11 +29,11 @@ type ActionDef = { type: SimulationActionType; label: string; effect: string; ca
 /** SysDrill_UIUX_Design_Plan.docx §7 대응 액션 카테고리 — 새 백엔드 액션 타입을
  * 발명하지 않고(PLAN.md UI/UX 리뉴얼 Round 3 스코프 아웃 참고) 기존 21종을
  * 문서의 개념 카테고리로 재분류·재스타일링만 한다. */
-const CATEGORY_META: Record<ActionCategory, { label: string; icon: string }> = {
-  scale: { label: "스케일", icon: "📈" },
-  cache: { label: "캐시", icon: "🗄️" },
-  traffic: { label: "트래픽", icon: "🚦" },
-  config: { label: "설정", icon: "⚙️" },
+const CATEGORY_META: Record<ActionCategory, { label: string; icon: LucideIcon }> = {
+  scale: { label: "스케일", icon: TrendingUp },
+  cache: { label: "캐시", icon: Database },
+  traffic: { label: "트래픽", icon: TrafficCone },
+  config: { label: "설정", icon: Settings },
 };
 
 const ACTIONS_BY_DOMAIN: Record<string, ActionDef[]> = {
@@ -445,24 +446,28 @@ export function WargameLive({
           <Card as="section">
             <h2 className="mb-3 text-sm font-semibold text-foreground-muted">대응 액션</h2>
             <div className="flex flex-col gap-2">
-              {ACTIONS.map((action) => (
-                <button
-                  key={action.type}
-                  onClick={() => handleApply(action.type)}
-                  disabled={applying !== null || appliedActions.has(action.type)}
-                  title={action.effect}
-                  className="rounded-lg border border-border px-3 py-2 text-left text-sm disabled:opacity-50"
-                >
-                  <span className="font-medium">
-                    {appliedActions.has(action.type) ? "✓ " : ""}
-                    <span aria-hidden>{CATEGORY_META[action.category].icon}</span> {action.label}
-                    <Badge variant="neutral" className="ml-2 align-middle">
-                      {CATEGORY_META[action.category].label}
-                    </Badge>
-                  </span>
-                  <span className="mt-0.5 block text-xs text-foreground-muted">{action.effect}</span>
-                </button>
-              ))}
+              {ACTIONS.map((action) => {
+                const CategoryIcon = CATEGORY_META[action.category].icon;
+                return (
+                  <button
+                    key={action.type}
+                    onClick={() => handleApply(action.type)}
+                    disabled={applying !== null || appliedActions.has(action.type)}
+                    title={action.effect}
+                    className="rounded-lg border border-border px-3 py-2 text-left text-sm disabled:opacity-50"
+                  >
+                    <span className="flex items-center gap-1.5 font-medium">
+                      {appliedActions.has(action.type) && <Check className="h-3.5 w-3.5 text-success" aria-label="적용됨" />}
+                      <CategoryIcon className="h-3.5 w-3.5 text-foreground-muted" aria-hidden strokeWidth={1.75} />
+                      {action.label}
+                      <Badge variant="neutral" className="ml-2 align-middle">
+                        {CATEGORY_META[action.category].label}
+                      </Badge>
+                    </span>
+                    <span className="mt-0.5 block text-xs text-foreground-muted">{action.effect}</span>
+                  </button>
+                );
+              })}
             </div>
           </Card>
         )}

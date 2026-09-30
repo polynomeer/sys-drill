@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { Bell, Menu } from "lucide-react";
 import { clearStoredUser, getStoredNickname, getStoredToken } from "@/lib/localSession";
 
 /** SysDrill_UIUX_Design_Plan.docx §4 — Home/Drills/Learning/Community IA.
@@ -118,8 +119,8 @@ export function AppHeader() {
             </form>
 
             <div className="hidden items-center gap-3 md:flex">
-              <span aria-hidden className="text-foreground-muted" title="알림">
-                🔔
+              <span className="text-foreground-muted" title="알림 (준비 중)">
+                <Bell className="h-4 w-4" aria-hidden strokeWidth={1.75} />
               </span>
               <div ref={profileRef} className="relative">
                 <button
@@ -148,11 +149,11 @@ export function AppHeader() {
 
             <button
               onClick={() => setMenuOpen((open) => !open)}
-              className="rounded-lg border border-border px-2 py-1 text-sm md:hidden"
+              className="rounded-lg border border-border p-1.5 md:hidden"
               aria-label="메뉴 열기"
               aria-expanded={menuOpen}
             >
-              ☰
+              <Menu className="h-4 w-4" aria-hidden />
             </button>
           </>
         )}

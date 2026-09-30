@@ -1,5 +1,6 @@
 "use client";
 
+import { Circle, CircleCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -141,8 +142,14 @@ export default function OrganizationCurriculumPage() {
         <ol className="flex flex-col gap-2">
           {curriculum.steps.map((step) => (
             <li key={step.scenarioId} className="flex items-center justify-between text-sm">
-              <span>
-                {step.order}. {step.completed ? "✅" : "⬜️"} {step.title}
+              <span className="flex items-center gap-1.5">
+                {step.order}.
+                {step.completed ? (
+                  <CircleCheck className="h-4 w-4 text-success" aria-label="완료" />
+                ) : (
+                  <Circle className="h-4 w-4 text-foreground-muted" aria-label="미완료" />
+                )}
+                {step.title}
                 <span className="ml-2 text-xs text-foreground-muted">({step.domain})</span>
               </span>
               <Button
