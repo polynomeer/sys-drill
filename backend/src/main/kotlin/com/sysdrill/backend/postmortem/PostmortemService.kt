@@ -20,6 +20,24 @@ import tools.jackson.databind.ObjectMapper
 import java.time.Duration
 import java.util.UUID
 
+/**
+ * MTTD = incident start → first action; MTTR = incident start → last action.
+ * Null if no incident/no actions yet.
+ *
+ * 최상위 함수인 이유: docs/LEARNING_COMMUNITY_PLAN.md §6.1 의 커뮤니티 벤치마크가
+ * 여러 사용자의 세션에 대해 **같은 정의**로 MTTD/MTTR 을 계산해야 한다. 정의가
+ * 두 벌이 되면 "내 MTTR"과 "커뮤니티 중앙값"이 서로 다른 것을 재게 되므로
+ * (reporting.averageScore 를 리포트와 게이지가 공유하는 것과 같은 이유) 공식은
+ * 한 곳에만 둔다.
+ */
+fun mttdMttr(timeline: List<TimelineStep>): Pair<Long?, Long?> {
+    val incidentStart = timeline.firstOrNull() ?: return null to null
+    val actions = timeline.drop(1)
+    val mttd = actions.firstOrNull()?.let { Duration.between(incidentStart.appliedAt, it.appliedAt).seconds }
+    val mttr = actions.lastOrNull()?.let { Duration.between(incidentStart.appliedAt, it.appliedAt).seconds }
+    return mttd to mttr
+}
+
 @Service
 class PostmortemService(
     private val sessionRepository: SessionRepository,
@@ -31,15 +49,6 @@ class PostmortemService(
     private val coachResultParser: PostmortemCoachResultParser,
     private val objectMapper: ObjectMapper,
 ) {
-
-    /** MTTD = incident start → first action; MTTR = incident start → last action. Null if no incident/no actions yet. */
-    private fun mttdMttr(timeline: List<TimelineStep>): Pair<Long?, Long?> {
-        val incidentStart = timeline.firstOrNull() ?: return null to null
-        val actions = timeline.drop(1)
-        val mttd = actions.firstOrNull()?.let { Duration.between(incidentStart.appliedAt, it.appliedAt).seconds }
-        val mttr = actions.lastOrNull()?.let { Duration.between(incidentStart.appliedAt, it.appliedAt).seconds }
-        return mttd to mttr
-    }
 
     /**
      * [PostmortemResponse.mttdSeconds]/[PostmortemResponse.mttrSeconds]/[PostmortemResponse.actionsTimeline]/

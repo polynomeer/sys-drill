@@ -46,6 +46,14 @@ interface SessionRepository : JpaRepository<Session, UUID> {
 
     /** docs/COMMERCIALIZATION.md — admin dashboard's daily activity count. */
     fun countByStatusAndCompletedAtAfter(status: SessionStatus, after: Instant): Long
+
+    /**
+     * docs/LEARNING_COMMUNITY_PLAN.md §6.1 (벤치마크) — every finished run of one
+     * scenario *version*, across users. Pinned to the version, not the scenario:
+     * a new version can change the incident or the rubric, so mixing versions
+     * would compare runs that never faced the same problem.
+     */
+    fun findByScenarioVersionIdAndStatus(scenarioVersionId: UUID, status: SessionStatus): List<Session>
 }
 
 interface SessionPhaseRepository : JpaRepository<SessionPhase, UUID> {

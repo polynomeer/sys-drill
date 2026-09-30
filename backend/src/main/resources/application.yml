@@ -71,6 +71,12 @@ sysdrill:
   organization:
     # PLAN.md step 32 — how long an email-bound invitation stays redeemable.
     invitation-ttl-days: ${SYSDRILL_ORG_INVITATION_TTL_DAYS:7}
+  community:
+    benchmark:
+      # docs/LEARNING_COMMUNITY_PLAN.md §6.1 — 이 표본 수에 못 미치면 분포와
+      # 순위를 감춘다. 3명이 푼 시나리오의 "상위 33%"는 정보가 아니라 노이즈다.
+      # 설정값인 이유는 실제 참여자 수를 보고 조정할 항목이기 때문.
+      min-sample-size: ${COMMUNITY_BENCHMARK_MIN_SAMPLE_SIZE:5}
   certification:
     # Phase 5 (docs/adr/0032) — a config value, not a hardcoded constant, so
     # the bar can move without a migration since certification is computed
