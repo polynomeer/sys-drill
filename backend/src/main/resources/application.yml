@@ -8,6 +8,13 @@ spring:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:sysdrill}
     username: ${DB_USER:sysdrill}
     password: ${DB_PASSWORD:sysdrill}
+    hikari:
+      # docs/COMMERCIALIZATION.md — was an unset (implicit HikariCP default,
+      # also 10) before; made explicit because EvaluationWorker/BuildRunnerWorker
+      # threads (sysdrill.evaluation/build.worker-concurrency above) borrow
+      # from this same pool alongside HTTP request threads. Raise this if you
+      # raise either worker-concurrency past what headroom this leaves.
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -71,6 +78,11 @@ sysdrill:
   organization:
     # PLAN.md step 32 — how long an email-bound invitation stays redeemable.
     invitation-ttl-days: ${SYSDRILL_ORG_INVITATION_TTL_DAYS:7}
+  learning:
+    path:
+      # docs/LEARNING_COMMUNITY_PLAN.md §5.3 — 학습 경로에 한 번에 보여줄 단계 수.
+      # 너무 길면 경로가 아니라 또 하나의 목록이 된다.
+      max-steps: ${LEARNING_PATH_MAX_STEPS:3}
   community:
     benchmark:
       # docs/LEARNING_COMMUNITY_PLAN.md §6.1 — 이 표본 수에 못 미치면 분포와
@@ -90,6 +102,12 @@ sysdrill:
     # (normal usage is a handful of submissions/day); exists to catch runaway
     # abuse, not to throttle real training sessions.
     daily-limit-per-user: ${EVALUATION_DAILY_LIMIT_PER_USER:50}
+    # docs/COMMERCIALIZATION.md — how many EvaluationWorker threads poll the
+    # queue concurrently. This is I/O-bound (an LLM HTTP round-trip per job,
+    # no local CPU/memory reservation like BuildRunnerWorker's containers
+    # below), so the default can be generous. Raising this shares the same
+    # HikariCP pool as everything else (see spring.datasource.hikari below).
+    worker-concurrency: ${EVALUATION_WORKER_CONCURRENCY:4}
   llm:
     anthropic:
       # Namespaced under LLM_* (not ANTHROPIC_*) so this never collides with
@@ -114,6 +132,14 @@ sysdrill:
     # npm install/네트워크 없이도 --network none 샌드박스와 호환된다.
     sandbox-image-typescript: ${BUILD_SANDBOX_IMAGE_TS:node:22-slim}
     timeout-seconds: ${BUILD_TIMEOUT_SECONDS:10}
+    # docs/COMMERCIALIZATION.md — how many BuildRunnerWorker threads run
+    # concurrently. Unlike evaluation's worker-concurrency above, this is a
+    # direct resource dial, not just a throughput one: each thread blocks on
+    # its own `docker run` (--cpus 0.5 --memory 128m), so this many threads
+    # means up to that many containers running at once. Default of 2 reserves
+    # at most ~1 CPU / 256MB for sandboxes -- raise only alongside host
+    # capacity.
+    worker-concurrency: ${BUILD_WORKER_CONCURRENCY:2}
   session:
     # PLAN.md step 28 — per-phase time limit when a session opts into
     # interview-timer mode (docs/PRD.md §12's "Advanced/Interview" tier).

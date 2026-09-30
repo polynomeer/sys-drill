@@ -33,6 +33,19 @@ data class SkillProfileResponse(
  * /users/{userId}/skill-profile`) — the caller's identity now comes from
  * their token, not a URL they could substitute anyone else's id into.
  */
+/**
+ * 가장 약한 역량 카테고리 — riskKey 별 지적 횟수를 카테고리로 접어 합산한 뒤 최대.
+ *
+ * 최상위 함수인 이유: docs/LEARNING_COMMUNITY_PLAN.md §5.3 의 개인 학습 경로가
+ * **같은 기준**으로 시작점을 골라야 한다. 프로필 화면은 "가장 약한 영역: 동시성·정합성"
+ * 이라고 하는데 학습 경로가 다른 역량을 추천하면 둘 다 신뢰를 잃는다.
+ */
+fun weakestCategory(weaknesses: Map<String, Int>): String? =
+    weaknesses.entries
+        .groupBy { RuleEvaluator.categoryByRiskKey[it.key] ?: "OTHER" }
+        .mapValues { (_, entries) -> entries.sumOf { it.value } }
+        .maxByOrNull { it.value }?.key
+
 @RestController
 class SkillProfileController(
     private val repository: SkillProfileRepository,
@@ -52,10 +65,7 @@ class SkillProfileController(
         // riskKey happened to be the single most frequent even though another
         // domain's several medium-frequency riskKeys added up to a bigger
         // underlying weakness.
-        val categoryTotals = weaknesses.entries
-            .groupBy { RuleEvaluator.categoryByRiskKey[it.key] ?: "OTHER" }
-            .mapValues { (_, entries) -> entries.sumOf { it.value } }
-        val recommendedCategory = categoryTotals.maxByOrNull { it.value }?.key
+        val recommendedCategory = weakestCategory(weaknesses)
         val recommendedDomain = weaknesses.entries
             .filter { RuleEvaluator.categoryByRiskKey[it.key] == recommendedCategory }
             .maxByOrNull { it.value }?.key

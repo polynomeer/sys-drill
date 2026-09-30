@@ -12,4 +12,7 @@ interface EvaluationRepository : JpaRepository<Evaluation, UUID> {
 
 interface EvaluationRiskFlagRepository : JpaRepository<EvaluationRiskFlag, UUID> {
     fun findByEvaluationId(evaluationId: UUID): List<EvaluationRiskFlag>
+
+    /** docs/LEARNING_COMMUNITY_PLAN.md §5.3 — 학습 경로가 여러 세션의 지적 이력을 한 번에 본다. */
+    fun findByEvaluationIdIn(evaluationIds: Collection<UUID>): List<EvaluationRiskFlag>
 }

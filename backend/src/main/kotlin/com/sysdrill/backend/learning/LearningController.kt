@@ -17,12 +17,19 @@ import org.springframework.web.bind.annotation.RestController
  */
 @RestController
 @RequestMapping("/learning")
-class LearningController(private val learningService: LearningService) {
+class LearningController(
+    private val learningService: LearningService,
+    private val learningPathService: LearningPathService,
+) {
 
     /** 역량 카테고리 6개와 그 아래 개념 요약. 내 약점이 많은 카테고리가 먼저 온다. */
     @GetMapping("/concepts")
     fun concepts(@AuthenticatedUserId userId: UUID): List<LearningCategory> =
         learningService.categories(userId)
+
+    /** docs/LEARNING_COMMUNITY_PLAN.md §5.3 — 내 약점에서 파생한 학습 경로. 저장하지 않는다. */
+    @GetMapping("/path")
+    fun path(@AuthenticatedUserId userId: UUID): LearningPath = learningPathService.forUser(userId)
 
     @GetMapping("/concepts/{riskKey}")
     fun concept(@PathVariable riskKey: String, @AuthenticatedUserId userId: UUID): LearningConceptDetail =

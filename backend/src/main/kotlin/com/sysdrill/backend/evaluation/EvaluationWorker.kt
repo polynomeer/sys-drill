@@ -17,13 +17,20 @@ import tools.jackson.databind.ObjectMapper
 import java.time.Duration
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Consumes [EvaluationJob]s from [EvaluationQueue] on a single background
- * thread. This is a logically separate module today (docs/ARCHITECTURE.md §2
- * calls for the boundary to exist even before it runs as its own process) —
- * splitting it into a standalone deployable is a later infra step, not a
- * PLAN.md step 3 concern.
+ * Consumes [EvaluationJob]s from [EvaluationQueue] on [workerConcurrency]
+ * background threads (docs/COMMERCIALIZATION.md — a local traffic benchmark
+ * showed the old single-thread version backing this queue up to 4,500+
+ * items under sustained load). Safe to run concurrently: retry state lives
+ * in the job payload, not on this class, and duplicate/concurrent delivery
+ * of the same job is already handled below via
+ * idx_evaluations_one_active_per_submission (V28, ADR-0026) rather than by
+ * assuming only one thread is ever processing at a time. This is a logically
+ * separate module today (docs/ARCHITECTURE.md §2 calls for the boundary to
+ * exist even before it runs as its own process) — splitting it into a
+ * standalone deployable is a later infra step, not a PLAN.md step 3 concern.
  *
  * On failure: retries up to [maxAttempts] by re-enqueueing with an
  * incremented attempt count, then gives up by sending the job to the dead
@@ -42,15 +49,19 @@ class EvaluationWorker(
     private val objectMapper: ObjectMapper,
     @Qualifier("transactionTemplate") private val transactionTemplate: TransactionTemplate,
     @Value("\${sysdrill.evaluation.max-attempts}") private val maxAttempts: Int,
+    @Value("\${sysdrill.evaluation.worker-concurrency}") private val workerConcurrency: Int,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val running = AtomicBoolean(false)
-    private val executor = Executors.newSingleThreadExecutor { r -> Thread(r, "evaluation-worker") }
+    private val threadCounter = AtomicInteger(0)
+    private val executor = Executors.newFixedThreadPool(workerConcurrency) { r ->
+        Thread(r, "evaluation-worker-${threadCounter.incrementAndGet()}")
+    }
 
     @EventListener(ApplicationReadyEvent::class)
     fun start() {
         if (!running.compareAndSet(false, true)) return
-        executor.submit { runLoop() }
+        repeat(workerConcurrency) { executor.submit { runLoop() } }
     }
 
     @PreDestroy

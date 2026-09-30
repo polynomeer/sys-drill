@@ -2,6 +2,7 @@ package com.sysdrill.backend.build
 
 import jakarta.annotation.PreDestroy
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Component
@@ -10,13 +11,19 @@ import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Consumes submission ids from [BuildJobQueue] on a single background thread
- * (same shape as EvaluationWorker). Unlike EvaluationWorker, every DB write
- * here is a standalone repository call — no bulk @Modifying update is mixed
- * in, so none of that pitfall's flush dance is needed; Spring Data wraps each
- * repository call in its own short transaction.
+ * Consumes submission ids from [BuildJobQueue] on [workerConcurrency]
+ * background threads (same shape as EvaluationWorker; docs/COMMERCIALIZATION.md).
+ * Unlike EvaluationWorker, every DB write here is a standalone repository
+ * call — no bulk @Modifying update is mixed in, so none of that pitfall's
+ * flush dance is needed; Spring Data wraps each repository call in its own
+ * short transaction. Each thread blocks synchronously on its own `docker
+ * run` inside [SandboxExecutor], so [workerConcurrency] is also, directly,
+ * the number of sandbox containers that can be running at once — size it
+ * against host CPU/memory (each container reserves `--cpus 0.5 --memory
+ * 128m`), not just against desired throughput.
  */
 @Component
 class BuildRunnerWorker(
@@ -26,15 +33,19 @@ class BuildRunnerWorker(
     private val buildStageRepository: BuildStageRepository,
     private val buildStageResultRepository: BuildStageResultRepository,
     private val sandboxExecutor: SandboxExecutor,
+    @Value("\${sysdrill.build.worker-concurrency}") private val workerConcurrency: Int,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val running = AtomicBoolean(false)
-    private val executor = Executors.newSingleThreadExecutor { r -> Thread(r, "build-runner-worker") }
+    private val threadCounter = AtomicInteger(0)
+    private val executor = Executors.newFixedThreadPool(workerConcurrency) { r ->
+        Thread(r, "build-runner-worker-${threadCounter.incrementAndGet()}")
+    }
 
     @EventListener(ApplicationReadyEvent::class)
     fun start() {
         if (!running.compareAndSet(false, true)) return
-        executor.submit { runLoop() }
+        repeat(workerConcurrency) { executor.submit { runLoop() } }
     }
 
     @PreDestroy

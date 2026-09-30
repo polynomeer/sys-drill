@@ -35,3 +35,36 @@ data class LearningConceptDetail(
     val relatedChallenges: List<String>,
     val myWeaknessCount: Int,
 )
+
+/** 학습 경로의 한 단계 상태 — 전부 기존 이력에서 파생한다(ADR-0011). */
+enum class LearningStepStatus {
+    /** 관련 도메인 세션 이력이 없다. */
+    NOT_STARTED,
+
+    /** 해봤지만 가장 최근 완료 세션에서 여전히 이 개념을 지적받았다. */
+    IN_PROGRESS,
+
+    /** 가장 최근 완료 세션에서 이 개념 지적이 없었다. */
+    ADDRESSED,
+}
+
+data class LearningPathStep(
+    val riskKey: String,
+    val label: String,
+    val summary: String,
+    val status: LearningStepStatus,
+    /** 누적 지적 횟수. */
+    val weaknessCount: Int,
+    /** 왜 이 상태인지 — 추천에 근거를 붙이는 것이 이 화면의 요점이다. */
+    val evidence: String,
+    val relatedDomains: List<String>,
+    val relatedChallenges: List<String>,
+)
+
+data class LearningPath(
+    val recommendedCategory: String?,
+    val categoryLabel: String?,
+    /** 왜 이 역량을 골랐는지. 이력이 없으면 시작 안내 문구가 들어간다. */
+    val rationale: String,
+    val steps: List<LearningPathStep>,
+)
