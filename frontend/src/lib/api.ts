@@ -1099,3 +1099,55 @@ export function listWriteups(scenarioId: string): Promise<WriteupList> {
 export function getWriteup(sessionId: string): Promise<WriteupDetail> {
   return apiFetch<WriteupDetail>(`/writeups/${sessionId}`);
 }
+
+/** ADR-0040 — 시나리오 버전 단위 토론 스레드. 전송은 폴링(ADR-0026 연장). */
+export interface QuotedWriteup {
+  sessionId: string;
+  /** ADR-0041 — 이 시나리오를 완료하지 않았으면 인용이 잠긴다. */
+  locked: boolean;
+  authorNickname?: string | null;
+}
+
+export interface DiscussionMessage {
+  id: string;
+  authorUserId: string;
+  authorNickname: string;
+  body: string;
+  createdAt?: string | null;
+  mine: boolean;
+  quoted?: QuotedWriteup | null;
+  reportedByMe: boolean;
+}
+
+export interface DiscussionThread {
+  scenarioId: string;
+  scenarioVersionId: string;
+  scenarioTitle: string;
+  /** 스레드가 비어 있을 때 화면이 초라해지지 않도록 함께 오는 집계 신호. */
+  completedCount: number;
+  averageScore?: number | null;
+  completedByMe: boolean;
+  messages: DiscussionMessage[];
+}
+
+export function getDiscussion(scenarioId: string): Promise<DiscussionThread> {
+  return apiFetch<DiscussionThread>(`/scenarios/${scenarioId}/discussion`);
+}
+
+export function postDiscussion(
+  scenarioId: string,
+  body: string,
+  quotedSessionId?: string,
+): Promise<DiscussionMessage> {
+  return apiFetch<DiscussionMessage>(`/scenarios/${scenarioId}/discussion`, {
+    method: "POST",
+    body: JSON.stringify(quotedSessionId ? { body, quotedSessionId } : { body }),
+  });
+}
+
+export function reportDiscussion(discussionId: string, reason?: string): Promise<void> {
+  return apiFetch<void>(`/discussions/${discussionId}/reports`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason ?? null }),
+  });
+}

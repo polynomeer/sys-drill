@@ -8,6 +8,7 @@ import {
   ScenarioSummary,
   getMyCertification,
   listMarketplaceScenarios,
+  listScenarios,
 } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { Button } from "@/components/ui/Button";
@@ -16,15 +17,13 @@ import { Badge } from "@/components/ui/Badge";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { RankingPanel } from "@/components/RankingPanel";
 
-const REPO_URL = "https://github.com/polynomeer/sys-drill";
-
 /**
- * docs/LEARNING_COMMUNITY_PLAN.md §6.3 / §6.4 / §6.6 (슬라이스 4~5).
+ * docs/LEARNING_COMMUNITY_PLAN.md §6.3~§6.6 (슬라이스 4~7).
  *
  * 이전에는 GitHub Issues 링크 한 장이었다. 지금은 네 가지를 보여준다 —
  * 내 Drill Score 와 랭킹(ADR-0042), 공유 가능한 내 인증 프로필, 다른 사람이
- * 만든 공개 시나리오(실측 난이도 신호 포함), 그리고 아직 인앱으로 오지 않은
- * 토론(슬라이스 7).
+ * 만든 공개 시나리오(실측 난이도 신호 포함), 그리고 시나리오별 토론 스레드
+ * (ADR-0040). 마지막 항목이 GitHub Issues 링크를 대체한 자리다.
  *
  * 벤치마크(§6.1)는 이 화면이 아니라 세션 리포트·포스트모템에 붙는다 —
  * 비교는 내 결과 옆에서만 의미가 있기 때문이다.
@@ -33,6 +32,7 @@ export default function CommunityPage() {
   const router = useRouter();
   const [certification, setCertification] = useState<CertificationStatus | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioSummary[] | null>(null);
+  const [officialScenarios, setOfficialScenarios] = useState<ScenarioSummary[] | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -42,6 +42,8 @@ export default function CommunityPage() {
     }
     getMyCertification().then(setCertification).catch(() => setCertification(null));
     listMarketplaceScenarios().then(setScenarios).catch(() => setScenarios([]));
+    // 토론 스레드는 공식 시나리오 단위다 — 마켓플레이스 목록과 출처가 다르다.
+    listScenarios().then(setOfficialScenarios).catch(() => setOfficialScenarios([]));
   }, [router]);
 
   // certification 은 SSR 시점에 null 이라 window 에 닿지 않지만, 순서가 바뀌어도
@@ -147,11 +149,29 @@ export default function CommunityPage() {
       <Card as="section">
         <h2 className="mb-2 text-sm font-semibold">토론</h2>
         <p className="mb-3 text-sm text-foreground-muted">
-          시나리오별 인앱 토론은 준비 중입니다. 그전까지는 GitHub Issues에서 질문과 설계 회고를 나눕니다.
+          질문은 시나리오 안에서 합니다 — 내 답안과 받은 지적이 함께 있는 곳이라야 &ldquo;왜 이 설계가
+          감점인가&rdquo;를 제대로 물을 수 있기 때문입니다.
         </p>
-        <Button href={`${REPO_URL}/issues`} target="_blank" size="sm" variant="secondary">
-          Issues 열기 →
-        </Button>
+        {officialScenarios === null ? (
+          <LoadingState />
+        ) : (
+          <ul className="divide-y divide-border">
+            {officialScenarios.slice(0, 6).map((scenario) => (
+              <li key={scenario.id} className="py-2">
+                <Link
+                  href={`/discussions/${scenario.id}`}
+                  className="flex flex-wrap items-center justify-between gap-2 text-sm hover:underline"
+                >
+                  <span className="flex flex-wrap items-center gap-2">
+                    {scenario.title}
+                    {scenario.difficulty && <Badge>{scenario.difficulty}</Badge>}
+                  </span>
+                  <span className="text-xs text-foreground-muted">스레드 열기 →</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
     </div>
   );
