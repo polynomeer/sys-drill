@@ -906,3 +906,60 @@ export interface AdminDashboardStats {
 export function getAdminDashboardStats(): Promise<AdminDashboardStats> {
   return apiFetch<AdminDashboardStats>("/admin/dashboard/stats");
 }
+
+/** ADR-0042 — Drill Score·티어·랭킹. 점수는 서버에서 매번 계산되며 저장되지 않는다. */
+export interface DomainBest {
+  domain: string;
+  title: string;
+  difficulty: string;
+  bestScore: number;
+  weight: number;
+  points: number;
+}
+
+export interface MyRanking {
+  score: number;
+  tier: string;
+  tierLabel: string;
+  topPercent?: number | null;
+  rank?: number | null;
+  participantCount: number;
+  pointsToNextTier?: number | null;
+  nextTierLabel?: string | null;
+  /** 점수의 계산 근거 — 화면은 이걸 반드시 함께 보여준다. */
+  breakdown: DomainBest[];
+  optedOut: boolean;
+}
+
+export interface RankingEntry {
+  rank: number;
+  nickname: string;
+  score: number;
+  tier: string;
+  tierLabel: string;
+  isMe: boolean;
+}
+
+export interface RankingBoard {
+  board: "OVERALL" | "DOMAIN" | "RECENT";
+  domain?: string | null;
+  entries: RankingEntry[];
+  participantCount: number;
+}
+
+export function getMyRanking(): Promise<MyRanking> {
+  return apiFetch<MyRanking>("/community/rankings/me");
+}
+
+export function getRankingBoard(board: "overall" | "domain" | "recent", domain?: string): Promise<RankingBoard> {
+  const query = new URLSearchParams({ board });
+  if (domain) query.set("domain", domain);
+  return apiFetch<RankingBoard>(`/community/rankings?${query.toString()}`);
+}
+
+export function setRankingVisibility(optOut: boolean): Promise<MyRanking> {
+  return apiFetch<MyRanking>("/community/rankings/visibility", {
+    method: "PUT",
+    body: JSON.stringify({ optOut }),
+  });
+}

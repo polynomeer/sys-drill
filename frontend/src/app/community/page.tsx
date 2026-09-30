@@ -14,15 +14,17 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { RankingPanel } from "@/components/RankingPanel";
 
 const REPO_URL = "https://github.com/polynomeer/sys-drill";
 
 /**
- * docs/LEARNING_COMMUNITY_PLAN.md §6.3 / §6.4 (슬라이스 4).
+ * docs/LEARNING_COMMUNITY_PLAN.md §6.3 / §6.4 / §6.6 (슬라이스 4~5).
  *
- * 이전에는 GitHub Issues 링크 한 장이었다. 지금은 세 가지를 보여준다 —
- * 공유 가능한 내 인증 프로필, 다른 사람이 만든 공개 시나리오(실측 난이도
- * 신호 포함), 그리고 아직 인앱으로 오지 않은 토론(슬라이스 7).
+ * 이전에는 GitHub Issues 링크 한 장이었다. 지금은 네 가지를 보여준다 —
+ * 내 Drill Score 와 랭킹(ADR-0042), 공유 가능한 내 인증 프로필, 다른 사람이
+ * 만든 공개 시나리오(실측 난이도 신호 포함), 그리고 아직 인앱으로 오지 않은
+ * 토론(슬라이스 7).
  *
  * 벤치마크(§6.1)는 이 화면이 아니라 세션 리포트·포스트모템에 붙는다 —
  * 비교는 내 결과 옆에서만 의미가 있기 때문이다.
@@ -71,9 +73,11 @@ export default function CommunityPage() {
       <div>
         <h1 className="text-2xl font-semibold">Community</h1>
         <p className="mt-1 text-sm text-foreground-muted">
-          내 인증을 공유하고, 다른 사람이 만든 시나리오를 찾고, 토론에 참여하세요.
+          내 점수와 순위를 확인하고, 인증을 공유하고, 다른 사람이 만든 시나리오를 찾아보세요.
         </p>
       </div>
+
+      <RankingPanel />
 
       <Card as="section">
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">

@@ -120,11 +120,15 @@ class RankingService(
         val tier = DrillTier.of(mine.total)
         val next = DrillTier.entries.firstOrNull { it.minScore > mine.total }
 
-        // 노출을 거부했어도 내 점수·티어는 본다 — 감추는 것은 남에게 보이는 쪽뿐이다.
-        val rank = if (optedOut || totals.isEmpty()) null else totals.indexOf(mine.total).takeIf { it >= 0 }?.plus(1)
-        val topPercent = if (optedOut || totals.isEmpty()) null else {
+        // 아직 공식 시나리오를 하나도 끝내지 않았으면 순위가 없다. 0점을 보드에
+        // 끼워 넣으면 "상위 100%" 같은, 틀리지는 않지만 아무 의미도 없는 말이 된다.
+        // 노출을 거부한 경우에도 순위만 감춘다 — 점수와 티어는 그대로 본다.
+        val ranked = !optedOut && scores.containsKey(userId) && totals.isNotEmpty()
+        // 동점자는 같은 순위(경쟁 순위) — 내림차순 목록에서 내 점수가 처음 나오는 자리.
+        val rank = if (ranked) totals.indexOf(mine.total).takeIf { it >= 0 }?.plus(1) else null
+        val topPercent = if (ranked) {
             (totals.count { it > mine.total } * 100.0 / totals.size).roundToInt()
-        }
+        } else null
 
         return MyRankingResponse(
             score = mine.total,

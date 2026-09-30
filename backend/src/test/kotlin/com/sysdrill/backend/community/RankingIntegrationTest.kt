@@ -85,6 +85,10 @@ class RankingIntegrationTest(
             .andExpect(jsonPath("$.tier").value("TRAINEE"))
             .andExpect(jsonPath("$.tierLabel").value("훈련생"))
             .andExpect(jsonPath("$.breakdown").isEmpty)
+            // 완료한 시나리오가 없으면 순위도 없다 — 0점을 보드에 끼워 넣으면
+            // "상위 100%" 라는, 틀리지는 않지만 아무 의미도 없는 말이 나온다.
+            .andExpect(jsonPath("$.rank").doesNotExist())
+            .andExpect(jsonPath("$.topPercent").doesNotExist())
             // 다음 목표는 항상 보여준다 — 0점이어도 "100점 남았다"를 알 수 있어야 한다.
             .andExpect(jsonPath("$.pointsToNextTier").value(100))
             .andExpect(jsonPath("$.nextTierLabel").value("운영자"))
@@ -147,6 +151,18 @@ class RankingIntegrationTest(
             .andExpect(jsonPath("$.topPercent").doesNotExist())
 
         assertThat(rankedNicknames(userId)).doesNotContain(nickname)
+    }
+
+    @Test
+    fun `완료한 사람은 순위와 백분위를 받는다`() {
+        val userId = newUser()
+        completeSession(userId)
+
+        mockMvc.perform(get("/community/rankings/me").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.rank").isNumber)
+            .andExpect(jsonPath("$.topPercent").isNumber)
+            .andExpect(jsonPath("$.participantCount").isNumber)
     }
 
     @Test
