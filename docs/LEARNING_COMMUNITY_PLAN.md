@@ -305,7 +305,7 @@ DrillScore = Σ  (공식 도메인 d의 최고 세션 점수) × 난이도가중
 
 | Method / Path | 설명 |
 |---|---|
-| `GET /community/benchmarks/{scenarioVersionId}` | MTTD/MTTR/점수 분포 (n < 5면 분포 없이 응답) |
+| `GET /sessions/{sessionId}/benchmark` ✅ | MTTD/MTTR/점수 분포 (표본 부족 시 분포·순위 생략). **세션 단위로 구현** — 비교는 내 결과 옆에서만 의미가 있고, 소유자 검사를 재사용해 조직 전용 시나리오의 집계가 새지 않는다. 시나리오 단위 공개 엔드포인트는 마켓플레이스 슬라이스에서 |
 | `GET /community/writeups` | 공개된 풀이 목록 (시나리오·점수대 필터) |
 | `GET /community/writeups/{sessionId}` | 공개 풀이 상세 |
 | `PUT /sessions/{id}/visibility` | 내 세션 공개/비공개 전환 |
@@ -338,7 +338,7 @@ DrillScore = Σ  (공식 도메인 d의 최고 세션 점수) × 난이도가중
 
 | 슬라이스 | 내용 | 새 테이블 | 비고 |
 |---|---|---|---|
-| **1. 벤치마크** | C1 — 리포트·포스트모템에 분포 비교 추가 | 없음 | 기존 데이터 집계만. 가치 대비 가장 쌈 |
+| ~~**1. 벤치마크**~~ ✅ | C1 — 리포트·포스트모템에 분포 비교 추가 | 없음 | **완료 (2026-09-30)** — `GET /sessions/{id}/benchmark`. 기존 데이터 집계만 |
 | **2. 개념 라이브러리** | L1 — 25개 개념 DB 이관 + 계층 화면 + 내 약점 배지 | `learning_concepts` | [ADR-0039](adr/0039-learning-concepts-live-in-the-database-not-frontend-constants.md). 콘텐츠 작성이 작업량의 대부분 |
 | **3. 개인 학습 경로** | L2 + L3 — 경로 생성, 상태 파생, 훈련 진입 | 없음 | 슬라이스 2 의존 |
 | **4. 공개 프로필 · 마켓플레이스 통합** | C3 + C4 | 없음 | 기존 엔드포인트 재배치 |
