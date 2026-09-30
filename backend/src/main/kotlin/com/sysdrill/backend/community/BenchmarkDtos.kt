@@ -12,6 +12,13 @@ import java.util.UUID
 data class BenchmarkMetric(
     /** 이 세션의 값. 인시던트에 도달하지 않은 세션의 MTTD/MTTR 처럼 해당 없으면 null. */
     val mine: Long?,
+    /**
+     * **이 지표의** 표본 수. [BenchmarkResponse.sampleSize] 와 다를 수 있다 —
+     * 완료 세션 15개 중 실제로 인시던트까지 간 세션이 3개뿐이면 점수 표본은 15,
+     * MTTR 표본은 3이다. 이 값 없이 전체 표본 수만 보여주면 "15명이 풀었다"고
+     * 해놓고 "표본 부족"이라 말하는 앞뒤 안 맞는 화면이 된다.
+     */
+    val sampleSize: Int,
     val distribution: MetricDistribution?,
     /**
      * "상위 N%" — 나보다 잘한 표본의 비율(반올림). 지표마다 '잘함'의 방향이 달라

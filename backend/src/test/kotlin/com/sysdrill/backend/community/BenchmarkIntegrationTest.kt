@@ -94,6 +94,9 @@ class BenchmarkSuppressedIntegrationTest(
             .andExpect(jsonPath("$.score.distribution").doesNotExist())
             .andExpect(jsonPath("$.score.topPercent").doesNotExist())
             .andExpect(jsonPath("$.mttrSeconds.distribution").doesNotExist())
+            // 분포를 감출 때도 "몇 명 중"은 알려준다 — 그래야 화면이 전체 완료 수와
+            // 어긋나는 말을 하지 않는다.
+            .andExpect(jsonPath("$.score.sampleSize").isNumber)
     }
 }
 
@@ -119,6 +122,9 @@ class BenchmarkOpenIntegrationTest(
             .andExpect(jsonPath("$.score.topPercent").isNumber)
             // 방향은 지표의 성질이라 데이터와 무관하게 고정이다.
             .andExpect(jsonPath("$.score.higherIsBetter").value(true))
+            // 지표별 표본은 전체 완료 세션 수와 다를 수 있다(인시던트까지 간 세션만 MTTR 보유).
+            .andExpect(jsonPath("$.score.sampleSize").isNumber)
+            .andExpect(jsonPath("$.mttrSeconds.sampleSize").isNumber)
             .andExpect(jsonPath("$.mttdSeconds.higherIsBetter").value(false))
             .andExpect(jsonPath("$.mttrSeconds.higherIsBetter").value(false))
     }

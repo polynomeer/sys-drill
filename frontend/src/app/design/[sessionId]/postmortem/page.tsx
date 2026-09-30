@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ApiError, Postmortem, getPostmortem, savePostmortem } from "@/lib/api";
+import { ApiError, Benchmark, Postmortem, getBenchmark, getPostmortem, savePostmortem } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { formatDuration, formatMs, formatPercent } from "@/lib/metrics";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { BenchmarkRow } from "@/components/BenchmarkRow";
 import { LoadingState } from "@/components/ui/LoadingState";
 
 const toLines = (value: string): string[] =>
@@ -27,6 +28,7 @@ export default function PostmortemPage() {
   const sessionId = params.sessionId;
 
   const [postmortem, setPostmortem] = useState<Postmortem | null>(null);
+  const [benchmark, setBenchmark] = useState<Benchmark | null>(null);
   const [rootCause, setRootCause] = useState("");
   const [mitigationText, setMitigationText] = useState("");
   const [rootFixText, setRootFixText] = useState("");
@@ -41,6 +43,8 @@ export default function PostmortemPage() {
   const load = useCallback(async () => {
     const data = await getPostmortem(sessionId);
     setPostmortem(data);
+    // 벤치마크는 부가 정보다 — 실패해도 포스트모템 화면 자체는 떠야 한다.
+    getBenchmark(sessionId).then(setBenchmark).catch(() => setBenchmark(null));
     setRootCause(data.rootCause ?? "");
     setMitigationText(toText(data.mitigationActions));
     setRootFixText(toText(data.rootFixActions));
@@ -107,6 +111,25 @@ export default function PostmortemPage() {
           리포트로
         </Link>
       </div>
+
+      {benchmark && postmortem.actionsTimeline.length > 0 && (
+        <Card as="section">
+          <div className="mb-1 flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold text-foreground-muted">커뮤니티 비교</h2>
+            <span className="text-xs text-foreground-muted">
+              같은 시나리오 완료 {benchmark.sampleSize}명
+            </span>
+          </div>
+          <p className="mb-2 text-xs text-foreground-muted">
+            같은 시나리오 버전을 완료한 세션만 비교합니다 — 버전이 다르면 인시던트가 달라집니다.
+          </p>
+          <div className="divide-y divide-border">
+            <BenchmarkRow label="MTTD (최초 대응까지)" metric={benchmark.mttdSeconds} format={formatDuration} />
+            <BenchmarkRow label="MTTR (마지막 조치까지)" metric={benchmark.mttrSeconds} format={formatDuration} />
+            <BenchmarkRow label="세션 평균 점수" metric={benchmark.score} format={(v) => `${v}점`} />
+          </div>
+        </Card>
+      )}
 
       <Card as="section">
         <h2 className="mb-3 text-sm font-semibold text-foreground-muted">인시던트 요약 (자동 계산)</h2>

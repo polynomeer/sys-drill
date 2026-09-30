@@ -556,6 +556,32 @@ export function saveSystemTopology(sessionId: string, graph: string): Promise<Sy
   });
 }
 
+/** docs/LEARNING_COMMUNITY_PLAN.md §6.1 — 한 지표의 "나 vs 커뮤니티". */
+export interface BenchmarkMetric {
+  mine: number | null;
+  /** 이 지표의 표본 수 — 전체 완료 세션 수(Benchmark.sampleSize)와 다를 수 있다. */
+  sampleSize: number;
+  /** 표본이 minSampleSize 미만이면 null — 분포를 감춘다. */
+  distribution: { p50: number; p90: number } | null;
+  /** "상위 N%". distribution 과 함께 null 이 된다. */
+  topPercent: number | null;
+  /** 점수는 높을수록, MTTD/MTTR 은 낮을수록 좋다. */
+  higherIsBetter: boolean;
+}
+
+export interface Benchmark {
+  scenarioVersionId: string;
+  sampleSize: number;
+  minSampleSize: number;
+  score: BenchmarkMetric;
+  mttdSeconds: BenchmarkMetric;
+  mttrSeconds: BenchmarkMetric;
+}
+
+export function getBenchmark(sessionId: string): Promise<Benchmark> {
+  return apiFetch<Benchmark>(`/sessions/${sessionId}/benchmark`);
+}
+
 export function getReport(sessionId: string): Promise<Report> {
   return apiFetch<Report>(`/sessions/${sessionId}/report`);
 }

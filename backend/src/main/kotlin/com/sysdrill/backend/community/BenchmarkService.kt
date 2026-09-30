@@ -86,7 +86,13 @@ class BenchmarkService(
      */
     private fun metric(mine: Long?, all: Collection<Long>, higherIsBetter: Boolean): BenchmarkMetric {
         if (all.size < minSampleSize) {
-            return BenchmarkMetric(mine = mine, distribution = null, topPercent = null, higherIsBetter = higherIsBetter)
+            return BenchmarkMetric(
+                mine = mine,
+                sampleSize = all.size,
+                distribution = null,
+                topPercent = null,
+                higherIsBetter = higherIsBetter,
+            )
         }
         val sorted = all.sorted()
         // p50/p90 은 지표와 무관하게 **오름차순 백분위**다. 낮을수록 좋은 MTTR 에서
@@ -98,7 +104,13 @@ class BenchmarkService(
             val better = if (higherIsBetter) sorted.count { v -> v > it } else sorted.count { v -> v < it }
             (better * 100.0 / sorted.size).roundToInt()
         }
-        return BenchmarkMetric(mine = mine, distribution = distribution, topPercent = topPercent, higherIsBetter = higherIsBetter)
+        return BenchmarkMetric(
+            mine = mine,
+            sampleSize = sorted.size,
+            distribution = distribution,
+            topPercent = topPercent,
+            higherIsBetter = higherIsBetter,
+        )
     }
 
     companion object {

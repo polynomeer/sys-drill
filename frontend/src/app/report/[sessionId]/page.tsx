@@ -6,9 +6,11 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ApiError,
   EvaluationFeedback,
+  Benchmark,
   Report,
   ScenarioSummary,
   getFeedback,
+  getBenchmark,
   getReport,
   getSkillProfile,
   listScenarios,
@@ -20,6 +22,8 @@ import { FeedbackDetail } from "@/components/FeedbackDetail";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { BenchmarkRow } from "@/components/BenchmarkRow";
+import { formatDuration } from "@/lib/metrics";
 import { Gauge } from "@/components/ui/Gauge";
 import { LoadingState } from "@/components/ui/LoadingState";
 
@@ -41,6 +45,7 @@ export default function ReportPage() {
   const sessionId = params.sessionId;
 
   const [report, setReport] = useState<Report | null>(null);
+  const [benchmark, setBenchmark] = useState<Benchmark | null>(null);
   const [feedbackBySubmission, setFeedbackBySubmission] = useState<Record<string, EvaluationFeedback>>({});
   const [recommended, setRecommended] = useState<ScenarioSummary | null>(null);
   const [startingRecommended, setStartingRecommended] = useState(false);
@@ -52,6 +57,9 @@ export default function ReportPage() {
       router.replace("/onboarding");
       return;
     }
+
+    // 벤치마크는 부가 정보다 — 실패해도 리포트 본문은 떠야 한다.
+    getBenchmark(sessionId).then(setBenchmark).catch(() => setBenchmark(null));
 
     getReport(sessionId)
       .then(async (r) => {
@@ -145,6 +153,20 @@ export default function ReportPage() {
               <p className="text-sm">{report.summary ?? "-"}</p>
             </div>
           </Card>
+
+          {benchmark && (
+            <Card as="section">
+              <div className="mb-1 flex items-baseline justify-between">
+                <h2 className="text-sm font-semibold text-foreground-muted">커뮤니티 비교</h2>
+                <span className="text-xs text-foreground-muted">같은 시나리오 완료 {benchmark.sampleSize}명</span>
+              </div>
+              <div className="divide-y divide-border">
+                <BenchmarkRow label="세션 평균 점수" metric={benchmark.score} format={(v) => `${v}점`} />
+                <BenchmarkRow label="MTTD (최초 대응까지)" metric={benchmark.mttdSeconds} format={formatDuration} />
+                <BenchmarkRow label="MTTR (마지막 조치까지)" metric={benchmark.mttrSeconds} format={formatDuration} />
+              </div>
+            </Card>
+          )}
 
           {report.buildSummary && (
             <Card as="section">
