@@ -66,4 +66,9 @@ data class SessionVisibilityResponse(
     val visibility: String,
     val anonymous: Boolean,
     val sharedAt: Instant?,
+    /** 공개 토글 옆에 "이 시나리오의 다른 풀이 보기"를 놓기 위해 함께 준다. */
+    val scenarioId: UUID?,
+    val scenarioTitle: String?,
+    /** 완료 전에는 공개 자체가 불가능하므로(409), 화면이 미리 안내할 수 있게 알려준다. */
+    val completed: Boolean,
 )

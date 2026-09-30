@@ -199,12 +199,18 @@ class WriteupService(
         return userRepository.findAllById(ids).mapNotNull { user -> user.id?.let { it to user.nickname } }.toMap()
     }
 
-    private fun Session.toVisibilityResponse() = SessionVisibilityResponse(
-        sessionId = id!!,
-        visibility = visibility,
-        anonymous = sharedAnonymously,
-        sharedAt = sharedAt,
-    )
+    private fun Session.toVisibilityResponse(): SessionVisibilityResponse {
+        val scenario = scenarioOf(this)
+        return SessionVisibilityResponse(
+            sessionId = id!!,
+            visibility = visibility,
+            anonymous = sharedAnonymously,
+            sharedAt = sharedAt,
+            scenarioId = scenario?.id,
+            scenarioTitle = scenario?.let { titleOf(it) },
+            completed = status == SessionStatus.COMPLETED,
+        )
+    }
 
     companion object {
         private const val PUBLIC = "PUBLIC"

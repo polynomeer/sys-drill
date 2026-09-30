@@ -965,3 +965,81 @@ export function setRankingVisibility(optOut: boolean): Promise<MyRanking> {
     body: JSON.stringify({ optOut }),
   });
 }
+
+/** ADR-0041 — 풀이 공유. 기본은 비공개이고, 열람은 그 시나리오를 완료한 사람에게만 열린다. */
+export interface SessionVisibility {
+  sessionId: string;
+  visibility: "PRIVATE" | "PUBLIC";
+  anonymous: boolean;
+  sharedAt?: string | null;
+  scenarioId?: string | null;
+  scenarioTitle?: string | null;
+  completed: boolean;
+}
+
+export interface WriteupSummary {
+  sessionId: string;
+  /** 익명 공개면 null. */
+  authorNickname?: string | null;
+  anonymous: boolean;
+  averageScore?: number | null;
+  completedAt?: string | null;
+  sharedAt?: string | null;
+  mine: boolean;
+}
+
+export interface WriteupPhase {
+  phase: string;
+  answer?: string | null;
+  score?: number | null;
+  topRisks: string[];
+}
+
+export interface WriteupDetail {
+  sessionId: string;
+  scenarioId: string;
+  scenarioTitle: string;
+  domain: string;
+  authorNickname?: string | null;
+  anonymous: boolean;
+  averageScore?: number | null;
+  completedAt?: string | null;
+  mine: boolean;
+  phases: WriteupPhase[];
+  rootCause?: string | null;
+  preventionItems: string[];
+  mttdSeconds?: number | null;
+  mttrSeconds?: number | null;
+}
+
+/** locked 는 오류가 아니라 정상 상태다 — 미완료자에게 "먼저 직접 풀어보세요"를 띄운다. */
+export interface WriteupList {
+  scenarioId: string;
+  scenarioTitle: string;
+  locked: boolean;
+  count: number;
+  writeups: WriteupSummary[];
+}
+
+export function getSessionVisibility(sessionId: string): Promise<SessionVisibility> {
+  return apiFetch<SessionVisibility>(`/sessions/${sessionId}/visibility`);
+}
+
+export function setSessionVisibility(
+  sessionId: string,
+  visibility: "PRIVATE" | "PUBLIC",
+  anonymous = false,
+): Promise<SessionVisibility> {
+  return apiFetch<SessionVisibility>(`/sessions/${sessionId}/visibility`, {
+    method: "PUT",
+    body: JSON.stringify({ visibility, anonymous }),
+  });
+}
+
+export function listWriteups(scenarioId: string): Promise<WriteupList> {
+  return apiFetch<WriteupList>(`/scenarios/${scenarioId}/writeups`);
+}
+
+export function getWriteup(sessionId: string): Promise<WriteupDetail> {
+  return apiFetch<WriteupDetail>(`/writeups/${sessionId}`);
+}

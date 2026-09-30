@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { BenchmarkRow } from "@/components/BenchmarkRow";
+import { ShareWriteupCard } from "@/components/ShareWriteupCard";
 import { formatDuration } from "@/lib/metrics";
 import { Gauge } from "@/components/ui/Gauge";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -216,6 +217,8 @@ export default function ReportPage() {
               </ul>
             </Card>
           )}
+
+          <ShareWriteupCard sessionId={sessionId} />
 
           {recommended && (
             <Card className="flex items-center justify-between">
