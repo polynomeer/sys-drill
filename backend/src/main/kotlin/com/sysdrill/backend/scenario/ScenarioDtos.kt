@@ -11,11 +11,13 @@ data class ScenarioSummaryResponse(
     val organizationId: UUID?,
     val creatorNickname: String? = null,
     /**
-     * docs/LEARNING_COMMUNITY_PLAN.md §6.3 — 난이도·인기 신호. 마켓플레이스 목록에서만
-     * 채워지고 나머지 경로에서는 null 이다(집계 비용을 목록마다 치르지 않기 위해).
+     * docs/LEARNING_COMMUNITY_PLAN.md §6.3 — 난이도·인기 신호. 공개 목록(GET /scenarios)과
+     * 마켓플레이스 목록에서 채워지고, 조직 시나리오 목록 등 나머지 경로에서는 null 이다.
      */
     val completedCount: Long? = null,
     val averageScore: Int? = null,
+    /** docs/CODECRAFTERS_BENCHMARK.md §3.5 — the published version's step types in order (e.g. INITIAL, FOLLOWUP, INCIDENT), so catalog cards know whether a Drill has an incident stage without guessing. Filled by GET /scenarios only. */
+    val stepTypes: List<String>? = null,
 )
 
 data class ScenarioDetailResponse(

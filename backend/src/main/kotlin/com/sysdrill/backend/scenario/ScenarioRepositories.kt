@@ -23,4 +23,5 @@ interface ScenarioVersionRepository : JpaRepository<ScenarioVersion, UUID> {
 interface ScenarioStepRepository : JpaRepository<ScenarioStep, UUID> {
     fun findByScenarioVersionIdAndStepOrder(scenarioVersionId: UUID, stepOrder: Int): ScenarioStep?
     fun findByScenarioVersionIdOrderByStepOrder(scenarioVersionId: UUID): List<ScenarioStep>
+    fun findByScenarioVersionIdIn(scenarioVersionIds: Collection<UUID>): List<ScenarioStep>
 }

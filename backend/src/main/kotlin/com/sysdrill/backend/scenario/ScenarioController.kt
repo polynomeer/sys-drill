@@ -26,11 +26,34 @@ class ScenarioController(
     @GetMapping
     fun list(): List<ScenarioSummaryResponse> {
         val scenarios = scenarioRepository.findByOrganizationIdIsNullAndVisibility("PUBLIC")
+        val scenarioIds = scenarios.mapNotNull { it.id }
+        val contentById = contentItemRepository.findAllById(scenarios.map { it.contentId }).associateBy { it.id }
         val nicknameByCreatorId = userRepository.findAllById(scenarios.mapNotNull { it.creatorUserId }).associate { it.id to it.nickname }
+        // docs/CODECRAFTERS_BENCHMARK.md §3.5 — the Drills catalog cards need stats and stage shape
+        // for every public scenario; batched (a fixed number of queries, not one per scenario).
+        val statsByScenarioId = scenarioStatsService.byScenarioId(scenarioIds)
+        val stepTypesByScenarioId = publishedStepTypes(scenarioIds)
         return scenarios.map { scenario ->
-            val content = contentItemRepository.findById(scenario.contentId).orElse(null)
-            ScenarioResponses.toSummary(scenario, content, scenario.creatorUserId?.let { nicknameByCreatorId[it] })
+            val stats = statsByScenarioId[scenario.id]
+            ScenarioResponses.toSummary(scenario, contentById[scenario.contentId], scenario.creatorUserId?.let { nicknameByCreatorId[it] }).copy(
+                completedCount = stats?.completedCount ?: 0,
+                averageScore = stats?.averageScore,
+                stepTypes = stepTypesByScenarioId[scenario.id].orEmpty(),
+            )
         }
+    }
+
+    /** Latest PUBLISHED version per scenario — the same one SessionService.start picks — and its step types in order. */
+    private fun publishedStepTypes(scenarioIds: Collection<UUID>): Map<UUID, List<String>> {
+        if (scenarioIds.isEmpty()) return emptyMap()
+        val latestVersionByScenarioId = scenarioVersionRepository.findByScenarioIdIn(scenarioIds)
+            .filter { it.status == "PUBLISHED" }
+            .groupBy { it.scenarioId }
+            .mapValues { (_, versions) -> versions.maxBy { it.versionNo } }
+        val scenarioIdByVersionId = latestVersionByScenarioId.entries.associate { (scenarioId, version) -> version.id!! to scenarioId }
+        return scenarioStepRepository.findByScenarioVersionIdIn(scenarioIdByVersionId.keys)
+            .groupBy { scenarioIdByVersionId.getValue(it.scenarioVersionId) }
+            .mapValues { (_, steps) -> steps.sortedBy { it.stepOrder }.map { it.stepType } }
     }
 
     @GetMapping("/{id}")

@@ -44,4 +44,14 @@ class ScenarioControllerIntegrationTest(@Autowired val mockMvc: MockMvc) {
             .andExpect(jsonPath("$.steps[1].prompt").doesNotExist())
             .andExpect(jsonPath("$.followupPrompt").doesNotExist())
     }
+
+    @Test
+    fun `list carries each scenario's step types and completion stats`() {
+        mockMvc.perform(get("/scenarios"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[?(@.id == '$COUPON_SCENARIO_ID')].stepTypes[0]").value("INITIAL"))
+            .andExpect(jsonPath("$[?(@.id == '$COUPON_SCENARIO_ID')].stepTypes[2]").value("INCIDENT"))
+            // Stats are cumulative across the whole suite, so only assert presence, not a value.
+            .andExpect(jsonPath("$[?(@.id == '$COUPON_SCENARIO_ID')].completedCount").exists())
+    }
 }
