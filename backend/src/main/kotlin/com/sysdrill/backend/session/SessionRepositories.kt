@@ -105,6 +105,19 @@ interface SessionRepository : JpaRepository<Session, UUID> {
      * would compare runs that never faced the same problem.
      */
     fun findByScenarioVersionIdAndStatus(scenarioVersionId: UUID, status: SessionStatus): List<Session>
+
+    /** 슬라이스 6 (docs/adr/0041) — 한 시나리오의 모든 버전에서 공개된 풀이, 최신 공개순. */
+    fun findByScenarioVersionIdInAndVisibilityOrderBySharedAtDesc(
+        scenarioVersionIds: Collection<UUID>,
+        visibility: String,
+    ): List<Session>
+
+    /** 슬라이스 6 (docs/adr/0041) — 열람 자격 검사. 버전은 가리지 않는다(WriteupService 주석 참고). */
+    fun existsByUserIdAndScenarioVersionIdInAndStatus(
+        userId: UUID,
+        scenarioVersionIds: Collection<UUID>,
+        status: SessionStatus,
+    ): Boolean
 }
 
 interface SessionPhaseRepository : JpaRepository<SessionPhase, UUID> {

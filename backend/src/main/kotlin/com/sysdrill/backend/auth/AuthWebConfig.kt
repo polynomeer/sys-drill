@@ -48,6 +48,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
  * the ranking boards themselves. The public certification page is something a
  * user chose to share; a ranking board puts their nickname somewhere they
  * never posted it, so it stays behind a login.
+ * The writeup paths under `/scenarios` (docs/adr/0041) are the one
+ * authenticated carve-in under the otherwise public `/scenarios` prefix: the
+ * viewing rule is "has this caller completed that scenario", which cannot be
+ * decided at all without a caller identity. The single `*` matches only the
+ * scenario id segment, so plain `/scenarios/{id}` stays public reference data.
  * `/postmortem-summary` (Phase 3-C, docs/DRILLS_SIMULATION_VISION.md §6) is
  * registered the same way as `/skill-profile` right above it — a flat,
  * token-derived-identity endpoint with no path parameter to guard.
@@ -81,6 +86,8 @@ class AuthWebConfig(
                 "/certifications/me",
                 "/architecture-analysis", "/architecture-analysis/**",
                 "/community/**",
+                "/scenarios/*/writeups",
+                "/writeups/**",
             )
             .excludePathPatterns("/sessions/*/simulation/realinfra/coupon/**", "/organizations/assessments/*")
     }

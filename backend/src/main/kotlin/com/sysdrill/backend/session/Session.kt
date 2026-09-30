@@ -49,6 +49,21 @@ class Session(
     @Column(name = "completed_at")
     var completedAt: Instant? = null,
 
+    /**
+     * 슬라이스 6 (docs/adr/0041) — `PRIVATE` 또는 `PUBLIC`. 기본은 비공개이고,
+     * 완료한 세션에 한해 본인이 명시적으로 공개할 수 있다.
+     */
+    @Column(nullable = false)
+    var visibility: String = "PRIVATE",
+
+    /** 공개 시 닉네임 대신 "익명"으로 표시한다. */
+    @Column(name = "shared_anonymously", nullable = false)
+    var sharedAnonymously: Boolean = false,
+
+    /** 공개한 시각. 공개를 철회하면 다시 null. */
+    @Column(name = "shared_at")
+    var sharedAt: Instant? = null,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant? = null,
