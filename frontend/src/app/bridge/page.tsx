@@ -6,21 +6,31 @@ import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
 import { oneDark } from "@codemirror/theme-one-dark";
+import { Lock } from "lucide-react";
 import {
   ApiError,
+  BuildChallenge,
   BuildSubmissionResponse,
   ScenarioSummary,
+  getBuildChallenge,
   getBuildSubmission,
   listScenarios,
   startSession,
   submitBuildChallenge,
 } from "@/lib/api";
-import { getStoredToken, loadBuildDraft, saveBuildDraft, saveBuildSubmissionId } from "@/lib/localSession";
+import {
+  getStoredToken,
+  loadBuildDraft,
+  loadBuildSubmissionId,
+  saveBuildDraft,
+  saveBuildSubmissionId,
+} from "@/lib/localSession";
 import { BridgeProgress } from "@/components/BridgeProgress";
-import { Badge } from "@/components/ui/Badge";
+import { StageList, type Stage } from "@/components/StageList";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { TestLogPanel } from "./TestLogPanel";
 
 type Language = "python" | "typescript";
 
@@ -131,19 +141,44 @@ const STUB_TEMPLATES: Record<Language, string> = {
   typescript: TYPESCRIPT_STUB_TEMPLATE,
 };
 
-type ViewState = "loading" | "editing" | "submitting" | "waiting" | "result" | "error";
+type PageState = "loading" | "ready" | "error";
+type RunState = "idle" | "submitting" | "grading";
 
 function findBridgeScenario(scenarios: ScenarioSummary[]): ScenarioSummary | null {
   return scenarios.find((s) => s.domain === "coupon") ?? scenarios.find((s) => s.title.includes("쿠폰")) ?? scenarios[0] ?? null;
 }
 
+/** The first stage (by order) the latest graded submission didn't pass — where the learner is now.
+ * With no graded submission yet, that's stage 1; with everything passed, it's past the last stage. */
+function currentStageOf(submission: BuildSubmissionResponse | null, totalStages: number): number {
+  if (!submission || submission.status !== "COMPLETED") return 1;
+  const firstUnpassed = submission.stages
+    .slice()
+    .sort((a, b) => a.stageOrder - b.stageOrder)
+    .find((s) => s.status !== "PASSED");
+  return firstUnpassed ? firstUnpassed.stageOrder : totalStages + 1;
+}
+
+/**
+ * docs/CODECRAFTERS_BENCHMARK.md §3.2·§3.3 (PLAN.md Round B6) — Build as a
+ * stage-by-stage drill. Grading still runs all stages every time (the worker
+ * doesn't stop at the first failure); the page judges progress against the
+ * *current* stage: its instructions are shown, earlier ones are done, later
+ * ones stay locked until it passes. The editor stays open after grading so
+ * the fix → resubmit loop never leaves the page.
+ */
 export default function BridgePage() {
   const router = useRouter();
-  const [view, setView] = useState<ViewState>("loading");
+  const [pageState, setPageState] = useState<PageState>("loading");
+  const [runState, setRunState] = useState<RunState>("idle");
   const [language, setLanguage] = useState<Language>("python");
   const [sourceCode, setSourceCode] = useState("");
+  const [challenge, setChallenge] = useState<BuildChallenge | null>(null);
   const [scenario, setScenario] = useState<ScenarioSummary | null>(null);
   const [submission, setSubmission] = useState<BuildSubmissionResponse | null>(null);
+  // The last *fully graded* submission — progress is judged against it, so the stage
+  // list doesn't jump back to Stage 1 while a resubmission is still being graded.
+  const [lastGraded, setLastGraded] = useState<BuildSubmissionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -157,54 +192,86 @@ export default function BridgePage() {
     }
   }, []);
 
+  const startPolling = useCallback(
+    (submissionId: string) => {
+      stopPolling();
+      pollTimer.current = setInterval(async () => {
+        try {
+          const updated = await getBuildSubmission(submissionId);
+          setSubmission(updated);
+          if (updated.status === "COMPLETED") setLastGraded(updated);
+          if (updated.status === "COMPLETED" || updated.status === "ERROR") {
+            stopPolling();
+            setRunState("idle");
+          }
+        } catch {
+          // transient failure — keep polling, the next tick may succeed
+        }
+      }, POLL_INTERVAL_MS);
+    },
+    [stopPolling],
+  );
+
+  /** Challenge roadmap + the learner's last submission for this language (restored from localStorage). */
+  const loadLanguage = useCallback(
+    async (lang: Language) => {
+      stopPolling();
+      setRunState("idle");
+      setSubmission(null);
+      setLastGraded(null);
+      const nextSlug = SLUGS[lang];
+      setSourceCode(loadBuildDraft(nextSlug) || STUB_TEMPLATES[lang]);
+      const [nextChallenge, last] = await Promise.all([
+        getBuildChallenge(nextSlug),
+        (async () => {
+          const lastId = loadBuildSubmissionId(nextSlug);
+          if (!lastId) return null;
+          try {
+            return await getBuildSubmission(lastId);
+          } catch {
+            return null; // e.g. a submission id from another account or a reset database
+          }
+        })(),
+      ]);
+      setChallenge(nextChallenge);
+      setSubmission(last);
+      if (last?.status === "COMPLETED") setLastGraded(last);
+      if (last && (last.status === "QUEUED" || last.status === "RUNNING")) {
+        setRunState("grading");
+        startPolling(last.id);
+      }
+    },
+    [startPolling, stopPolling],
+  );
+
   useEffect(() => {
     if (!getStoredToken()) {
       router.replace("/onboarding");
       return;
     }
-
-    // Data fetch + localStorage read on mount, not a cascading render loop.
+    // Data fetch + localStorage read on mount (loadLanguage sets the draft synchronously), not a cascading render loop.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSourceCode(loadBuildDraft(slug) || STUB_TEMPLATES[language]);
-
-    listScenarios()
-      .then((scenarios) => {
+    Promise.all([listScenarios(), loadLanguage("python")])
+      .then(([scenarios]) => {
         setScenario(findBridgeScenario(scenarios));
-        setView("editing");
+        setPageState("ready");
       })
       .catch((err) => {
-        setError(err instanceof ApiError ? err.message : "시나리오를 불러오지 못했습니다.");
-        setView("error");
+        setError(err instanceof ApiError ? err.message : "챌린지를 불러오지 못했습니다.");
+        setPageState("error");
       });
-
     return () => stopPolling();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
+  }, [router, loadLanguage, stopPolling]);
 
   function handleLanguageChange(next: Language) {
     setLanguage(next);
-    setSourceCode(loadBuildDraft(SLUGS[next]) || STUB_TEMPLATES[next]);
+    setError(null);
+    loadLanguage(next).catch((err) => setError(err instanceof ApiError ? err.message : "챌린지를 불러오지 못했습니다."));
   }
 
   function handleSourceChange(value: string) {
     setSourceCode(value);
     saveBuildDraft(slug, value);
-  }
-
-  function startPolling(submissionId: string) {
-    stopPolling();
-    pollTimer.current = setInterval(async () => {
-      try {
-        const updated = await getBuildSubmission(submissionId);
-        setSubmission(updated);
-        if (updated.status === "COMPLETED" || updated.status === "ERROR") {
-          stopPolling();
-          setView("result");
-        }
-      } catch {
-        // transient failure — keep polling, the next tick may succeed
-      }
-    }, POLL_INTERVAL_MS);
   }
 
   async function handleSubmit() {
@@ -216,17 +283,17 @@ export default function BridgePage() {
       setError("코드를 입력해주세요.");
       return;
     }
-    setView("submitting");
+    setRunState("submitting");
     setError(null);
     try {
       const created = await submitBuildChallenge(slug, sourceCode);
       saveBuildSubmissionId(slug, created.id);
       setSubmission(created);
-      setView("waiting");
+      setRunState("grading");
       startPolling(created.id);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "제출에 실패했습니다.");
-      setView("editing");
+      setRunState("idle");
     }
   }
 
@@ -243,94 +310,121 @@ export default function BridgePage() {
     }
   }
 
+  const totalStages = challenge?.stages.length ?? 0;
+  const graded = lastGraded;
+  const currentStage = currentStageOf(graded, totalStages);
+  const allPassed = totalStages > 0 && currentStage > totalStages;
+  const current = challenge?.stages.find((s) => s.stageOrder === currentStage);
+  const stages: Stage[] = (challenge?.stages ?? []).map((s) => ({
+    key: String(s.stageOrder),
+    title: s.title,
+    description: s.stageOrder <= currentStage ? (s.spec ?? undefined) : "이전 단계를 통과하면 열립니다",
+    status: s.stageOrder < currentStage ? "done" : s.stageOrder === currentStage ? "current" : "upcoming",
+  }));
+  const busy = runState !== "idle";
+
   return (
-    <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Build your own Rate Limiter</h1>
+    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Build your own Rate Limiter</h1>
+          <p className="mt-1 text-sm text-foreground-muted">
+            단계를 하나씩 통과하세요. 제출이 끝나면 언제든 {scenario ? `"${scenario.title}"` : "연결된"} 설계 → 꼬리설계 →
+            Wargame으로 넘어갈 수 있습니다.
+          </p>
+        </div>
         <BridgeProgress current="build" />
       </div>
 
-      <p className="text-sm text-foreground-muted">
-        Rate Limiter를 구현해 제출하면, 완료 즉시 이어서 {scenario ? `"${scenario.title}"` : "연결된"} 시스템 설계 →
-        꼬리설계 → Wargame으로 넘어갑니다. 실제로 6개 stage를 모두 통과하지 못해도 제출이 완료되기만 하면 다음 단계로 진행할
-        수 있습니다.
-      </p>
+      {pageState === "loading" && <LoadingState />}
+      {pageState === "error" && <p className="text-sm text-danger">{error}</p>}
 
-      {(view === "editing" || view === "submitting") && (
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-foreground-muted">언어</span>
-          {(["python", "typescript"] as const).map((lang) => (
-            <Button
-              key={lang}
-              variant={language === lang ? "primary" : "secondary"}
-              onClick={() => handleLanguageChange(lang)}
-              disabled={view === "submitting"}
-            >
-              {lang === "python" ? "Python" : "TypeScript"}
-            </Button>
-          ))}
-        </div>
-      )}
+      {pageState === "ready" && challenge && (
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start lg:gap-8">
+          <aside className="flex flex-col gap-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
+            <Card as="section">
+              <div className="mb-3 flex items-center justify-between text-xs text-foreground-muted">
+                <span className="font-semibold uppercase tracking-wide">단계</span>
+                <span>
+                  {Math.min(currentStage - 1, totalStages)} / {totalStages} 단계 완료
+                </span>
+              </div>
+              <StageList stages={stages} />
+            </Card>
 
-      {view === "loading" && <LoadingState />}
-      {error && <p className="text-sm text-danger">{error}</p>}
+            {allPassed ? (
+              <Card as="section" className="border-success/40">
+                <p className="font-medium text-success">모든 단계를 통과했습니다</p>
+                <p className="mt-1 text-sm text-foreground-muted">
+                  직접 만든 Rate Limiter가 설계 단계에서 어떤 선택으로 이어지는지 확인해보세요.
+                </p>
+              </Card>
+            ) : (
+              current && (
+                <Card as="section" className="border-accent/40">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-accent">Stage {current.stageOrder}</p>
+                  <h2 className="mt-1 font-semibold">{current.title}</h2>
+                  <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-foreground">
+                    {current.instructions ?? current.spec}
+                  </p>
+                  {current.instructions && current.spec && (
+                    <p className="mt-3 border-t border-border pt-3 text-xs text-foreground-muted">학습 포인트 — {current.spec}</p>
+                  )}
+                </Card>
+              )
+            )}
 
-      {(view === "editing" || view === "submitting") && (
-        <>
-          <CodeMirror
-            value={sourceCode}
-            onChange={handleSourceChange}
-            height="360px"
-            theme={oneDark}
-            extensions={language === "python" ? PYTHON_EXTENSIONS : TS_EXTENSIONS}
-            className="overflow-hidden rounded-lg border border-border text-sm"
-            basicSetup={{ tabSize: 4 }}
-          />
-          <Button onClick={handleSubmit} disabled={view === "submitting"} className="self-start">
-            {view === "submitting" ? "제출하는 중..." : "제출하기"}
-          </Button>
-        </>
-      )}
+            {!allPassed && currentStage < totalStages && (
+              <p className="flex items-center gap-1.5 text-xs text-foreground-muted">
+                <Lock className="h-3.5 w-3.5" aria-hidden /> 다음 단계 지시문은 Stage {currentStage}를 통과하면 열립니다.
+              </p>
+            )}
+          </aside>
 
-      {view === "waiting" && (
-        <Card className="flex flex-col items-center gap-3 p-8">
-          <p className="text-sm text-foreground-muted">샌드박스에서 stage를 채점하는 중입니다 ({submission?.status ?? "..."})...</p>
-        </Card>
-      )}
-
-      {view === "result" && submission && (
-        <>
-          <Card as="section">
-            <p className="text-sm text-foreground-muted">점수</p>
-            <p className="text-3xl font-semibold">
-              {submission.score ?? 0} / {submission.totalStages}
-            </p>
-          </Card>
-
-          <Card as="section">
-            <h2 className="mb-3 text-sm font-semibold text-foreground-muted">Stage별 결과</h2>
-            <ul className="flex flex-col gap-3">
-              {submission.stages.map((stage) => (
-                <li
-                  key={stage.stageOrder}
-                  className="border-t border-border pt-3 first:border-t-0 first:pt-0 "
+          <main className="flex min-w-0 flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-foreground-muted">언어</span>
+              {(["python", "typescript"] as const).map((lang) => (
+                <Button
+                  key={lang}
+                  size="sm"
+                  variant={language === lang ? "primary" : "secondary"}
+                  onClick={() => handleLanguageChange(lang)}
+                  disabled={busy}
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">
-                      {stage.stageOrder}. {stage.title}
-                    </span>
-                    <Badge variant={stage.status === "PASSED" ? "success" : "danger"}>{stage.status ?? "-"}</Badge>
-                  </div>
-                  {stage.feedback && <p className="mt-1 text-xs text-foreground-muted">{stage.feedback}</p>}
-                </li>
+                  {lang === "python" ? "Python" : "TypeScript"}
+                </Button>
               ))}
-            </ul>
-          </Card>
+              <span className="ml-auto font-mono text-xs text-foreground-muted">{challenge.sourceFileName}</span>
+            </div>
 
-          <Button onClick={handleContinueToDesign} disabled={startingSession || !scenario} className="self-start">
-            {startingSession ? "이동하는 중..." : `다음: ${scenario?.title ?? "설계"}로 이동`}
-          </Button>
-        </>
+            <CodeMirror
+              value={sourceCode}
+              onChange={handleSourceChange}
+              height="420px"
+              theme={oneDark}
+              extensions={language === "python" ? PYTHON_EXTENSIONS : TS_EXTENSIONS}
+              className="overflow-hidden rounded-lg border border-border text-sm"
+              basicSetup={{ tabSize: 4 }}
+              editable={!busy}
+            />
+
+            {error && <p className="text-sm text-danger">{error}</p>}
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button onClick={handleSubmit} disabled={busy}>
+                {runState === "submitting" ? "제출하는 중..." : runState === "grading" ? "채점 중..." : graded ? "다시 제출하기" : "제출하기"}
+              </Button>
+              {graded && (
+                <Button variant="secondary" onClick={handleContinueToDesign} disabled={startingSession || !scenario || busy}>
+                  {startingSession ? "이동하는 중..." : `다음: ${scenario?.title ?? "설계"}로 이동 →`}
+                </Button>
+              )}
+            </div>
+
+            {submission && <TestLogPanel submission={submission} currentStage={Math.min(currentStage, totalStages)} grading={runState === "grading"} />}
+          </main>
+        </div>
       )}
     </div>
   );

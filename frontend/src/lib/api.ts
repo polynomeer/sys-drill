@@ -346,6 +346,26 @@ export interface BuildStageResultResponse {
   title: string;
   status: BuildStageStatus | null;
   feedback: string | null;
+  /** docs/CODECRAFTERS_BENCHMARK.md §3.3 — raw sandbox output for the test log (null before the stage ran, or for pre-V49 results). */
+  output?: string | null;
+  durationMs?: number | null;
+}
+
+export interface BuildStageInfo {
+  stageOrder: number;
+  title: string;
+  /** One-line learning point. */
+  spec: string | null;
+  /** Goal · what the test checks · hint. Null for challenges without authored instructions — show `spec` instead. */
+  instructions: string | null;
+}
+
+export interface BuildChallenge {
+  slug: string;
+  title: string;
+  language: string;
+  sourceFileName: string;
+  stages: BuildStageInfo[];
 }
 
 export interface BuildSubmissionResponse {
@@ -687,6 +707,11 @@ export function submitBuildChallenge(slug: string, sourceCode: string): Promise<
 
 export function getBuildSubmission(submissionId: string): Promise<BuildSubmissionResponse> {
   return apiFetch<BuildSubmissionResponse>(`/build-submissions/${submissionId}`);
+}
+
+/** Stage roadmap + instructions, available before any submission exists. */
+export function getBuildChallenge(slug: string): Promise<BuildChallenge> {
+  return apiFetch<BuildChallenge>(`/build-challenges/${slug}`);
 }
 
 export function createOrganization(name: string): Promise<OrganizationDetail> {
