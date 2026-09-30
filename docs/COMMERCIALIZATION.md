@@ -8,9 +8,70 @@
 
 전부 한 번에 할 필요는 없다. 실제로 순서가 있다:
 
+0. **지금 당장(실사용자가 이미 겪을 수 있는 문제)**: 인증 토큰-DB 정합성 미검증, 전역 예외 처리 catch-all 부재, 프론트 에러 바운더리 부재 — 아래 "완성도 재진단" 1~3번. 기능은 다 있어도 이 세 가지가 없으면 사용자는 원인 모를 흰 화면/500만 본다.
 1. **베타 오픈에 필요한 최소 세트**: 이메일 발송(조직 초대·평가 초대가 실제로 도달해야 함), 최소한의 에러 추적(Sentry 등), 약관/개인정보처리방침 페이지(회원가입이 이미 개인정보를 받고 있음).
 2. **결제를 받기 시작하는 순간 필수가 되는 것**: 결제 연동, LLM 비용 상한, rate limiting, CI/CD, 프로덕션 배포 파이프라인, 사업자 등록.
-3. **트래픽/조직 고객이 늘면 필요해지는 것**: 관측성 고도화, 관리자 대시보드, 백업/복구 자동화, 보안 감사.
+3. **트래픽/조직 고객이 늘면 필요해지는 것**: 관측성 고도화, 관리자 대시보드, 백업/복구 자동화, 보안 감사, 워커 동시성 확장(아래 4번).
+
+---
+
+## 완성도 재진단: 안정성 · 확장성 · 보안 · UX (2026-09-30)
+
+> 위 "코드로 구현 가능한 것" 섹션은 **기능이 존재하는가**를 기준으로 2026-09-09에 "완료"로 표시됐다. 이번 갱신은 다른 축이다 — **그 기능이 실제로 끊김 없이 동작하는가**를 코드를 직접 읽고 로컬 벤치마크·실사용 중 발견한 문제로 검증했다. 아래 항목은 전부 이 저장소에서 지금 확인한 사실에 근거하며, 파일·라인을 명시한다.
+
+### 안정성 / 에러 처리
+
+**1. 인증 토큰이 매 요청마다 DB 존재 여부를 검증하지 않는다 — 오늘 실사용자가 겪은 버그의 근본 원인**
+- 현재 상태: `AuthInterceptor.preHandle`([AuthInterceptor.kt:21-40](../backend/src/main/kotlin/com/sysdrill/backend/auth/AuthInterceptor.kt))은 `jwtService.verify()`로 서명·만료만 검증하고, 추출한 `userId`가 실제 `users` 테이블에 있는지는 전혀 확인하지 않는다. DB가 리셋되거나(로컬 개발에서 흔함) 유저가 삭제되어도 발급된 지 30일 이내 토큰은 계속 "인증됨"으로 통과하다가, 그 요청이 실제로 `users`를 참조하는 INSERT/UPDATE에 도달했을 때 처음으로 FK 제약 위반이 터진다.
+- 실측 재현: `POST /build-challenges/rate-limiter/submissions` 호출 시 `DataIntegrityViolationException`(`build_submissions_user_id_fkey`) → 클라이언트는 원인 불명의 `500 Internal Server Error`만 받음.
+- 조치:
+  - (빠른 완화) `GlobalExceptionHandler`에 사용자 FK 위반을 401로 매핑하는 핸들러 추가.
+  - (근본 수정) `AuthInterceptor` 또는 `AuthenticatedUserIdArgumentResolver`에서 유저 존재 여부를 확인 — 매 요청 DB 왕복은 과하므로 Redis에 짧은 TTL(예: 60초)로 캐시.
+  - 아래 7번(로그아웃/토큰 폐기)과 함께 설계하면 "유저 삭제 시 세션 즉시 무효화"까지 한 번에 해결됨.
+
+**2. 전역 예외 처리기에 catch-all이 없다**
+- 현재 상태: `GlobalExceptionHandler`([GlobalExceptionHandler.kt](../backend/src/main/kotlin/com/sysdrill/backend/common/web/GlobalExceptionHandler.kt))는 앱이 정의한 6개 커스텀 예외(`NotFoundException` 등)만 처리한다. 그 외 모든 예외(DB 제약 위반, NPE, 외부 API 타임아웃 등)는 Spring Boot 기본 `/error` 핸들러로 떨어져 `{"status":500,"error":"Internal Server Error"}`처럼 원인을 전혀 알 수 없는 응답만 나간다(1번에서 실제로 관찰).
+- 조치: `@ExceptionHandler(Exception::class)` catch-all을 추가해 (a) 서버 로그에 요청 컨텍스트를 구조화해서 남기고 (b) 클라이언트에는 안전한 일반 메시지("일시적인 오류입니다, 잠시 후 다시 시도해주세요")를 반환.
+
+**3. 입력 검증(`@Valid`)이 컨트롤러의 절반에만 적용돼 있다**
+- 현재 상태: `@RestController` 21개 중 `@Valid`를 쓰는 파일은 11개뿐.
+- 조치: 나머지 컨트롤러의 요청 DTO에 Bean Validation 애노테이션 적용 여부를 감사하고 빠진 곳을 채운다.
+
+### 확장성 / 성능
+
+**4. 핵심 백그라운드 워커 3개가 전부 단일 스레드 — 이번 세션 로컬 벤치마크로 실측**
+- 현재 상태: `EvaluationWorker`([EvaluationWorker.kt:48](../backend/src/main/kotlin/com/sysdrill/backend/evaluation/EvaluationWorker.kt)), `BuildRunnerWorker`([BuildRunnerWorker.kt:32](../backend/src/main/kotlin/com/sysdrill/backend/build/BuildRunnerWorker.kt)), `RealInfraSessionSweepWorker`([RealInfraSessionSweepWorker.kt:42](../backend/src/main/kotlin/com/sysdrill/backend/simulation/realinfra/RealInfraSessionSweepWorker.kt)) 전부 `Executors.newSingleThreadExecutor()`.
+- 실측: `scripts/benchmark-traffic.sh`로 200 req/s 부하를 걸자 `sysdrill:evaluation:jobs` 큐가 최대 **4,592건**까지 적체됐고, 부하 종료 후 60초를 더 관찰해도 거의 배출되지 않았다(4592→4588). 단일 스레드 + LLM API 왕복 지연이 겹치면 처리량이 사실상 초당 1건 미만으로 수렴한다는 뜻 — 사용자가 몰리는 순간 채점 대기 시간이 무한정 늘어난다.
+- 조치: 워커별 동시성을 환경변수로 설정 가능하게 만들고(`newFixedThreadPool(n)`으로 전환). 단, 무작정 늘리면 안 되는 이유가 있다 — evaluation은 사용자별 일일 한도(`LlmUsageGuard`)와, build는 도커 샌드박스 동시 실행 시 호스트 리소스(컨테이너당 `--cpus 0.5`/`--memory 128m`) 총량과 부딪힌다. 동시성 상한은 호스트 스펙 기준으로 별도 산정 필요.
+- 부수 발견: 이 벤치마크 도중 로컬 `.env.local`의 실 Anthropic API 키가 워커를 통해 실제로 호출되는 사고가 있었다(비용 영향은 확인 결과 없었음 — 벤치마크 중 완료된 평가 0건). 벤치마크/테스트 실행 시 `LLM_ANTHROPIC_API_KEY`가 절대 활성화되지 않도록 하는 가드(예: 특정 프로파일에서 강제 무시)를 추가하는 게 안전하다.
+
+**5. API 레이트리밋 범위가 인증 3개 엔드포인트로 한정돼 있다**
+- 현재 상태: `RateLimitInterceptor`는 `/auth/signup`·`/auth/login`·`/auth/password-reset/request`에만 걸려 있다. LLM을 호출하는 `POST /sessions/{id}/submissions`는 일일 카운터(`LlmUsageGuard`, 기본 50/day)만 있고 초 단위 버스트 제한이 없다 — 자동화 스크립트가 짧은 시간에 몰아서 소진 가능. 빌드 챌린지 제출(도커 샌드박스 실행)처럼 자원을 쓰는 다른 엔드포인트는 레이트리밋이 아예 없다.
+- 조치: LLM 호출·샌드박스 실행처럼 비용/자원이 드는 엔드포인트 전반으로 레이트리밋 확대.
+
+### 보안
+
+**6. JWT 시크릿 기본값이 프로덕션에서도 조용히 통과된다**
+- 현재 상태: `jwt-secret: ${SYSDRILL_AUTH_JWT_SECRET:dev-only-insecure-secret-change-me}`([application.yml:35](../backend/src/main/resources/application.yml)) — 환경변수 설정을 빠뜨려도 앱은 경고 없이 알려진 문자열을 시크릿으로 써서 정상 기동된다.
+- 조치: 프로덕션 프로파일에서 이 기본값이 감지되면 기동을 실패시키는(fail-fast) 검증 추가.
+
+**7. 토큰 폐기(로그아웃) 메커니즘이 서버에 없다, TTL은 30일**
+- 현재 상태: `POST /auth/logout` 같은 서버 엔드포인트 자체가 존재하지 않는다(레포 전체 검색 0건) — "로그아웃"은 프론트에서 `localStorage`의 토큰을 지우는 것뿐이다. 토큰이 탈취되면 기본 만료(`token-ttl-days: 30`)까지 막을 방법이 없다.
+- 조치: 최소한 Redis 기반 토큰 블랙리스트(또는 opaque 세션 ID 방식으로 전환)로 로그아웃/강제 만료를 구현. 1번의 "유저 삭제 시 세션 무효화"와 같은 메커니즘을 공유할 수 있다.
+
+**8. 표준 보안 헤더가 설정돼 있지 않다**
+- 현재 상태: CSP/HSTS/`X-Frame-Options`/`X-Content-Type-Options` 등 레포 전체에서 0건. (CORS는 기존에 확인한 대로 이미 안전하게 explicit origin으로 설정돼 있어 별도 문제 없음 — 헤더 항목만 빠져 있다.)
+- 조치: 커스텀 `Filter` 또는 `HeaderWriterFilter`로 표준 보안 헤더 추가.
+
+### UX / 제품 완성도
+
+**9. 프론트엔드에 에러 바운더리가 하나도 없다**
+- 현재 상태: `frontend/src/app/` 전체에서 `error.tsx`/`global-error.tsx` 0건(디렉터리 목록으로 확인) — 렌더링 중 예외가 발생하면 Next.js 기본 에러 화면이 그대로 노출된다.
+- 조치: 최소한 루트 `app/error.tsx` + `app/global-error.tsx` 추가, 이미 연동된 프론트 Sentry(`@sentry/nextjs`)와 묶어서 에러 리포팅까지 일원화.
+
+**10. 세션 만료/유저 없음 상태에 대한 사용자 안내가 없다**
+- 현재 상태: 1번과 짝을 이루는 프론트 쪽 문제 — 서버가 401이든 500이든 반환해도 `frontend/src/lib/api.ts`의 공통 fetch 래퍼는 `ApiError`를 그대로 throw할 뿐, 화면엔 각 페이지의 범용 에러 메시지만 보인다. "세션이 만료됐어요, 다시 로그인해주세요" 안내와 자동 `/login` 리다이렉트가 없다.
+- 조치: `api.ts`의 공통 래퍼에서 401 응답을 감지하면 토큰 제거 + `/login` 리다이렉트하는 전역 처리 추가.
 
 ---
 
