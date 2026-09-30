@@ -91,7 +91,9 @@ class BuildRunnerWorker(
 
         var passedCount = 0
         for (stage in stages) {
+            val startedAt = System.nanoTime()
             val result = sandboxExecutor.run(challenge.languages, challenge.sourceFileName, submission.sourceCode, stage.testScript)
+            val durationMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis().toInt()
             val status = if (result.passed) BuildStageStatus.PASSED else BuildStageStatus.FAILED
             if (result.passed) passedCount++
 
@@ -101,6 +103,8 @@ class BuildRunnerWorker(
                     stageId = stage.id!!,
                     status = status,
                     feedback = buildFeedback(stage, result),
+                    output = result.output.takeLast(MAX_STORED_OUTPUT_CHARS),
+                    durationMs = durationMs,
                 )
             )
         }
@@ -127,5 +131,8 @@ class BuildRunnerWorker(
 
     private companion object {
         val POLL_TIMEOUT: Duration = Duration.ofSeconds(2)
+
+        /** The sandbox already caps capture at 64k; the log panel needs far less. Keep the tail — the failure marker and traceback are at the end. */
+        const val MAX_STORED_OUTPUT_CHARS = 8_000
     }
 }

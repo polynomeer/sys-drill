@@ -13,13 +13,29 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
-/** docs/ARCHITECTURE.md's Build Mode API (PLAN.md step 9) — CLI-driven, no frontend UI yet (see PLAN.md notes). */
+/** docs/ARCHITECTURE.md's Build Mode API (PLAN.md step 9) — used by both the CLI (submit.sh) and the /bridge editor. */
 @RestController
 class BuildController(
     private val buildSubmissionService: BuildSubmissionService,
+    private val buildChallengeRepository: BuildChallengeRepository,
     private val buildStageRepository: BuildStageRepository,
     private val buildStageResultRepository: BuildStageResultRepository,
 ) {
+
+    /** docs/CODECRAFTERS_BENCHMARK.md §3.2 — the frontend shows the current stage's instructions before the first submit. */
+    @GetMapping("/build-challenges/{slug}")
+    fun getChallenge(@PathVariable slug: String): BuildChallengeResponse {
+        val challenge = buildChallengeRepository.findBySlug(slug) ?: throw NotFoundException("Build challenge not found: $slug")
+        return BuildChallengeResponse(
+            slug = challenge.slug,
+            title = challenge.title,
+            language = challenge.languages,
+            sourceFileName = challenge.sourceFileName,
+            stages = buildStageRepository.findByChallengeIdOrderByStageOrderAsc(challenge.id!!).map {
+                BuildStageInfoResponse(stageOrder = it.stageOrder, title = it.title, spec = it.spec, instructions = it.instructions)
+            },
+        )
+    }
 
     @PostMapping("/build-challenges/{slug}/submissions")
     fun submit(
@@ -57,6 +73,8 @@ class BuildController(
                     title = stage.title,
                     status = result?.status,
                     feedback = result?.feedback,
+                    output = result?.output,
+                    durationMs = result?.durationMs,
                 )
             },
             createdAt = submission.createdAt,

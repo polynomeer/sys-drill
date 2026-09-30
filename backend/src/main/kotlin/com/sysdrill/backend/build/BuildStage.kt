@@ -29,6 +29,10 @@ class BuildStage(
     @Column(columnDefinition = "text")
     var spec: String? = null,
 
+    /** V49 — stage instructions (goal · what the test checks · hint) shown before submitting; null falls back to [spec]. */
+    @Column(columnDefinition = "text")
+    var instructions: String? = null,
+
     @Column(name = "test_script", nullable = false, columnDefinition = "text")
     var testScript: String,
 

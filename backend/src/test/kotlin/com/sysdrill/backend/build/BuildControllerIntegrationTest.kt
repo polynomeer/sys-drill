@@ -79,6 +79,26 @@ class BuildControllerIntegrationTest(
         assertThat(JsonPath.read<Int>(response, "$.score")).isEqualTo(0)
         assertThat(JsonPath.read<List<String>>(response, "$.stages[*].status")).allMatch { it == "FAILED" }
         assertThat(JsonPath.read<String>(response, "$.stages[0].feedback")).contains("not implemented")
+        // V49 — the raw sandbox output and timing are kept for the /bridge test log panel.
+        assertThat(JsonPath.read<String>(response, "$.stages[0].output")).contains("RESULT:FAIL")
+        assertThat(JsonPath.read<Int>(response, "$.stages[0].durationMs")).isGreaterThanOrEqualTo(0)
+    }
+
+    @Test
+    fun `the challenge endpoint lists every stage with instructions before any submission`() {
+        for (slug in listOf("rate-limiter", "rate-limiter-ts")) {
+            val response = mockMvc.perform(get("/build-challenges/$slug").header("Authorization", bearerHeader(userId)))
+                .andExpect(status().isOk).andReturn().response.contentAsString
+            assertThat(JsonPath.read<List<Int>>(response, "$.stages[*].stageOrder")).containsExactly(1, 2, 3, 4, 5, 6)
+            assertThat(JsonPath.read<List<String?>>(response, "$.stages[*].instructions")).allMatch { !it.isNullOrBlank() }
+            assertThat(JsonPath.read<String>(response, "$.stages[0].instructions")).contains("목표")
+        }
+    }
+
+    @Test
+    fun `the challenge endpoint 404s for an unknown slug`() {
+        mockMvc.perform(get("/build-challenges/does-not-exist").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isNotFound)
     }
 
     @Test

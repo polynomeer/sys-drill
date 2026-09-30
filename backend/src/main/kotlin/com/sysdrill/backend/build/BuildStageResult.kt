@@ -34,6 +34,13 @@ class BuildStageResult(
     @Column(columnDefinition = "text")
     var feedback: String? = null,
 
+    /** V49 — raw sandbox output (stdout+stderr), tail-capped by [BuildRunnerWorker], for the test log panel. */
+    @Column(columnDefinition = "text")
+    var output: String? = null,
+
+    @Column(name = "duration_ms")
+    var durationMs: Int? = null,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant? = null,
