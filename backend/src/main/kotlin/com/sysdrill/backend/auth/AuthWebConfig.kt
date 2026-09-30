@@ -68,6 +68,7 @@ class AuthWebConfig(
                 "/submissions/**",
                 "/build-challenges/**", "/build-submissions/**",
                 "/skill-profile",
+                "/learning/**",
                 "/postmortem-summary",
                 "/organizations", "/organizations/**",
                 "/admin/prompt-templates", "/admin/prompt-templates/**",
