@@ -1393,6 +1393,36 @@ Phase 4/기술부채/ADR-0037/플레이키니스까지 모든 후보가 소진�
 
 ---
 
+## CodeCrafters 벤치마킹 P0 — 학습 루프 입구 (docs/CODECRAFTERS_BENCHMARK.md 기반, 2026-09-30~)
+
+[docs/CODECRAFTERS_BENCHMARK.md](docs/CODECRAFTERS_BENCHMARK.md) §5 우선순위표의 P0 3개 항목을 라운드로 옮긴 것. P1(Build 단계별 잠금 해제·테스트 로그·2분할 작업 화면·카드 그리드/아이콘)은 P0 완료 후 별도 라운드로 추가한다.
+
+### Round B1 — Drill 개요 페이지 + `StageList` (§3.1, §3.2)
+
+- [ ] 백엔드 `GET /scenarios/{id}` 응답에 `steps`(단계 순서·유형 목록)와 `initialPrompt` 추가 — 개요 페이지가 "몇 단계인지"를 추측하지 않고 실제 `scenario_steps`에서 받도록. FOLLOWUP/INCIDENT 프롬프트는 노출하지 않는다(세션 중 "조건 변경"이 미리 새지 않게 — CodeCrafters도 스테이지 제목만 공개)
+- [ ] 공용 `components/StageList.tsx` — 상태 점(완료/현재/예정) + 단계 제목 + 설명 한 줄
+- [ ] 신규 `/drills/[scenarioId]` — 헤더(제목·난이도·도메인·타입 배지·단일 CTA "시작하기"/"이어하기"), FAQ 아코디언(무엇을 설계하나/무엇을 배우나/선수 지식), 단계 로드맵, 우측 레일(완료자 수·평균 점수 — 기존 마켓플레이스 통계 재사용, 없으면 "아직 완료한 사람이 없습니다")
+- [ ] Home·Drills 목록의 "시작" 버튼을 개요 페이지 링크로 교체 — 세션 생성은 개요 페이지 CTA에서만. 면접형 타이머 옵션도 개요 페이지로 이동
+
+**완료 기준**: 백엔드 통합 테스트(상세 응답에 steps 포함, 후속 프롬프트 미노출), `tsc`/`lint`/`build` 클린, 실제 브라우저로 Drills → 개요 → 시작 → `/design/{id}` 진입 확인.
+
+### Round B2 — 랜딩 교체 + "여기서 시작" + 첫 Drill 고정 (§3.4)
+
+- [ ] `/`의 백엔드 헬스체크 JSON 제거 → 제품 랜딩(헤드라인, 3모드 소개, 워게임 데모 GIF, CTA). 로그인 상태면 `/dashboard`로
+- [ ] Home 상단에 닫을 수 있는 "처음이세요? 여기서 시작" 배너(첫 Drill 개요로 연결, 닫은 상태는 localStorage)
+- [ ] "첫 Drill" 고정 — 공식 시나리오 중 난이도 EASY인 것을 데이터로 골라(UUID 하드코딩 없음) 배지 표시, 완료 세션이 하나도 없는 사용자에게만 노출
+
+**완료 기준**: `tsc`/`lint`/`build` 클린, 비로그인 `/` 렌더와 로그인 사용자 리다이렉트, 신규 가입자 Home에서 배너·첫 Drill 확인.
+
+### Round B3 — 숨은 페이지 발견 가능성 (§3.9)
+
+- [ ] 헤더 아바타 메뉴(데스크톱)와 모바일 메뉴에 "인증"(`/certifications`), "조직"(`/organizations`), "아키텍처 분석"(`/architecture-analysis`) 추가
+- [ ] 헤더 내비게이션에 현재 경로 강조 표시(지금은 어느 탭에 있는지 알 수 없음)
+
+**완료 기준**: `tsc`/`lint`/`build` 클린, 데스크톱·모바일(375px)에서 세 링크 도달 확인.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
