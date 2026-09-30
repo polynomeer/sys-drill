@@ -152,6 +152,8 @@ export interface SessionResponse {
   startedAt: string;
   completedAt: string | null;
   isOwner: boolean;
+  /** docs/CODECRAFTERS_BENCHMARK.md §3.3 — this session's step types in order (INITIAL, FOLLOWUP[, INCIDENT]). */
+  stepTypes?: string[];
 }
 
 export interface ChatMessage {

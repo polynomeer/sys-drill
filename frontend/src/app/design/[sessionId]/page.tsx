@@ -27,10 +27,13 @@ import { PhaseTimer } from "@/components/PhaseTimer";
 import { DiagramPreview } from "./DiagramPreview";
 import { DiagramCanvas } from "./DiagramCanvas";
 import { FeedbackDetail } from "@/components/FeedbackDetail";
+import { StageList, type Stage } from "@/components/StageList";
+import { REPORT_STAGE, stageFromStepType } from "@/lib/stageCopy";
 import { DESIGN_GUIDANCE_BY_DOMAIN, INCIDENT_GUIDANCE } from "@/lib/designGuidance";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Textarea } from "@/components/ui/Input";
 import { LoadingState } from "@/components/ui/LoadingState";
 
 const POLL_INTERVAL_MS = 1500;
@@ -46,35 +49,6 @@ function upsertCanvasBlock(answer: string, mermaidText: string): string {
   const block = `${CANVAS_BLOCK_START}\n\`\`\`mermaid\n${mermaidText}\n\`\`\`\n${CANVAS_BLOCK_END}`;
   if (CANVAS_BLOCK_RE.test(answer)) return answer.replace(CANVAS_BLOCK_RE, block);
   return `${answer}${answer.trim() ? "\n\n" : ""}${block}`;
-}
-
-const STEP_LABELS = ["요구사항 분석", "초기 설계", "확장 시나리오", "피드백"] as const;
-
-/** Purely presentational grouping over the existing 3-phase session model
- * (INITIAL/FOLLOWUP/INCIDENT) — see PLAN.md UI/UX 리뉴얼 Round 2. No new
- * backend phase is introduced; "요구사항 분석"/"초기 설계" are just two
- * labels for the same INITIAL answer-writing step. */
-function StepNav({ activeIndex }: { activeIndex: number }) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5 text-xs">
-      {STEP_LABELS.map((label, i) => (
-        <div key={label} className="flex items-center gap-1.5">
-          <span
-            className={
-              i === activeIndex
-                ? "rounded bg-accent px-2 py-0.5 font-medium text-accent-foreground"
-                : i < activeIndex
-                  ? "text-foreground-muted line-through"
-                  : "text-foreground-muted"
-            }
-          >
-            {label}
-          </span>
-          {i < STEP_LABELS.length - 1 && <span className="text-foreground-muted">&rarr;</span>}
-        </div>
-      ))}
-    </div>
-  );
 }
 
 type ViewState =
@@ -287,11 +261,34 @@ export default function DesignWorkspacePage() {
   const isIncident = session?.currentPhase === "INCIDENT";
   const domain = session?.domain ?? "coupon";
   const guidance = isIncident ? INCIDENT_GUIDANCE : (DESIGN_GUIDANCE_BY_DOMAIN[domain] ?? DESIGN_GUIDANCE_BY_DOMAIN.coupon);
-  const stepActiveIndex = view === "result" || view === "completed" ? 3 : isFollowup ? 2 : 1;
+  const isEditing = view === "editing" || view === "submitting";
+
+  // docs/CODECRAFTERS_BENCHMARK.md §3.3 — the stage list comes from the session's
+  // real step types (community scenarios have no INCIDENT step), not fixed labels.
+  const stepTypes = session?.stepTypes ?? [];
+  const currentIndex = session?.currentPhase ? stepTypes.indexOf(session.currentPhase) : -1;
+  const sessionDone = view === "completed" || session?.status === "COMPLETED";
+  const stages: Stage[] = [
+    ...stepTypes.map((type, i) => ({
+      ...stageFromStepType(type, `${i}-${type}`),
+      status: sessionDone || i < currentIndex ? ("done" as const) : i === currentIndex ? ("current" as const) : ("upcoming" as const),
+    })),
+    { ...REPORT_STAGE, status: sessionDone ? ("current" as const) : ("upcoming" as const) },
+  ];
+  // Incident's live dashboard needs the width, so it only splits at xl; design splits at lg.
+  const splitClass = isIncident
+    ? "xl:grid xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start"
+    : "lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start";
+  // Sticky only where the panes sit side by side — stacked, a sticky pane would slide over the work area.
+  // Capped to the viewport so a long checklist can still scroll into view.
+  const stickyClass = isIncident
+    ? "xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto"
+    : "lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto";
+  const showSplit = session && view !== "loading" && view !== "error" && view !== "spectating";
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
-      <div className="flex items-center justify-between">
+    <div className={`mx-auto flex min-h-screen w-full flex-col gap-6 p-6 md:p-8 ${showSplit ? "max-w-7xl" : "max-w-3xl"}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">
           {isIncident ? "Wargame Live" : "System Design Workspace"}
         </h1>
@@ -303,30 +300,13 @@ export default function DesignWorkspacePage() {
         </div>
       </div>
 
-      {!isIncident && view !== "loading" && view !== "error" && view !== "spectating" && <StepNav activeIndex={stepActiveIndex} />}
-
       {view === "loading" && <LoadingState />}
 
       {view === "error" && <p className="text-sm text-danger">{error ?? "오류가 발생했습니다."}</p>}
 
-      {isFollowup && (view === "editing" || view === "submitting") && (
-        <Alert>조건이 변경되었습니다 — 아래 새 조건을 반영해 설계를 다시 검토하세요 (꼬리설계).</Alert>
-      )}
-
-      {session?.currentStepPrompt && (view === "editing" || view === "submitting") && (
-        <Card as="section">
-          <h2 className="mb-2 text-sm font-semibold text-foreground-muted">문제</h2>
-          <p className="whitespace-pre-wrap text-sm">{session.currentStepPrompt}</p>
-        </Card>
-      )}
-
-      {isIncident && (view === "editing" || view === "submitting") && (
-        <WargameLive sessionId={sessionId} domain={domain} isOwner initialTraits={canvasTraits} />
-      )}
-
       {view === "spectating" && session && (
         <div className="flex flex-col gap-4">
-          <p className="rounded border border-border bg-surface p-3 text-sm text-foreground-muted   dark:text-foreground-muted">
+          <p className="rounded border border-border bg-surface p-3 text-sm text-foreground-muted">
             관전 중입니다 — {session.status === "COMPLETED" ? "이 세션은 종료되었습니다." : "오너가 진행 중인 세션을 실시간으로 보고 있습니다."}
           </p>
           {session.currentPhase === "INCIDENT" ? (
@@ -337,127 +317,167 @@ export default function DesignWorkspacePage() {
         </div>
       )}
 
-      {(view === "editing" || view === "submitting") && (
-        <>
-          <Card as="section" className="text-sm">
-            <h2 className="mb-2 font-semibold text-foreground-muted">
-              {isIncident ? "회고에 포함하면 좋은 항목" : "답안에 포함하면 좋은 항목"}
-            </h2>
-            <ul className="list-inside list-disc space-y-1 text-foreground-muted">
-              {guidance.map((section) => (
-                <li key={section}>{section}</li>
-              ))}
-            </ul>
-          </Card>
+      {showSplit && (
+        <div className={`flex flex-col gap-6 ${splitClass} lg:gap-8`}>
+          {/* Left pane — where am I, what's the task, what to cover. Sticky so it stays beside a long answer. */}
+          <aside className={`flex flex-col gap-4 ${stickyClass}`}>
+            {stages.length > 1 && (
+              <Card as="section">
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground-muted">단계</h2>
+                <StageList stages={stages} />
+              </Card>
+            )}
 
-          <textarea
-            className="min-h-[200px] rounded border border-border p-3 font-mono text-sm  "
-            value={answer}
-            onChange={(e) => handleAnswerChange(e.target.value)}
-            placeholder={
-              isIncident
-                ? "대응 회고를 작성하세요. 입력 내용은 자동으로 이 브라우저에 저장됩니다."
-                : "설계를 자유롭게 작성하세요. 입력 내용은 자동으로 이 브라우저에 저장됩니다."
-            }
-          />
+            {isFollowup && isEditing && (
+              <Alert>조건이 변경되었습니다 — 아래 새 조건을 반영해 설계를 다시 검토하세요 (꼬리설계).</Alert>
+            )}
 
-          <div className="flex flex-col gap-2">
-            <Button variant="secondary" size="sm" onClick={handleRequestHint} disabled={hintLoading} className="self-start">
-              {hintLoading ? "힌트 불러오는 중..." : "힌트 받기"}
-            </Button>
-            {hintError && <p className="text-sm text-danger">{hintError}</p>}
-            {hints && (
+            {session?.currentStepPrompt && isEditing && (
+              <Card as="section" className="border-accent/40">
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent">문제</h2>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed">{session.currentStepPrompt}</p>
+              </Card>
+            )}
+
+            {isEditing && (
               <Card as="section" className="text-sm">
-                <h2 className="mb-2 font-semibold text-foreground-muted">멘토 힌트</h2>
-                {hints.length === 0 ? (
-                  <p className="text-foreground-muted">지금은 특별히 짚어줄 부분이 없습니다.</p>
-                ) : (
-                  <ul className="list-inside list-disc space-y-1 text-foreground-muted">
-                    {hints.map((hint, i) => (
-                      <li key={i}>{hint}</li>
-                    ))}
-                  </ul>
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground-muted">
+                  {isIncident ? "회고에 포함하면 좋은 항목" : "답안에 포함하면 좋은 항목"}
+                </h2>
+                <ul className="list-inside list-disc space-y-1 text-foreground-muted">
+                  {guidance.map((section) => (
+                    <li key={section}>{section}</li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+
+            {isEditing && (
+              <div className="flex flex-col gap-2">
+                <Button variant="secondary" size="sm" onClick={handleRequestHint} disabled={hintLoading} className="self-start">
+                  {hintLoading ? "힌트 불러오는 중..." : "힌트 받기"}
+                </Button>
+                {hintError && <p className="text-sm text-danger">{hintError}</p>}
+                {hints && (
+                  <Card as="section" className="text-sm">
+                    <h2 className="mb-2 font-semibold text-foreground-muted">멘토 힌트</h2>
+                    {hints.length === 0 ? (
+                      <p className="text-foreground-muted">지금은 특별히 짚어줄 부분이 없습니다.</p>
+                    ) : (
+                      <ul className="list-inside list-disc space-y-1 text-foreground-muted">
+                        {hints.map((hint, i) => (
+                          <li key={i}>{hint}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </Card>
+                )}
+              </div>
+            )}
+          </aside>
+
+          {/* Right pane — the work itself. */}
+          <main className="flex min-w-0 flex-col gap-6">
+            {isIncident && isEditing && (
+              <WargameLive sessionId={sessionId} domain={domain} isOwner initialTraits={canvasTraits} />
+            )}
+
+            {isEditing && (
+              <>
+                <Textarea
+                  label={isIncident ? "대응 회고" : "설계 답안"}
+                  className="min-h-[280px] font-mono text-sm [field-sizing:content]"
+                  value={answer}
+                  onChange={(e) => handleAnswerChange(e.target.value)}
+                  placeholder={
+                    isIncident
+                      ? "대응 회고를 작성하세요. 입력 내용은 자동으로 이 브라우저에 저장됩니다."
+                      : "설계를 자유롭게 작성하세요. 입력 내용은 자동으로 이 브라우저에 저장됩니다."
+                  }
+                />
+
+                {!isIncident && (
+                  <section className="flex flex-col gap-2">
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="mr-1 text-sm text-foreground-muted">다이어그램</span>
+                      <button
+                        type="button"
+                        onClick={() => setDiagramMode("canvas")}
+                        className={`rounded-lg px-2 py-1 font-medium ${diagramMode === "canvas" ? "bg-accent text-accent-foreground" : "border border-border text-foreground-muted"}`}
+                      >
+                        캔버스
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDiagramMode("text")}
+                        className={`rounded-lg px-2 py-1 font-medium ${diagramMode === "text" ? "bg-accent text-accent-foreground" : "border border-border text-foreground-muted"}`}
+                      >
+                        텍스트 (Mermaid)
+                      </button>
+                    </div>
+                    {diagramMode === "canvas" ? (
+                      <DiagramCanvas
+                        sessionId={sessionId}
+                        domain={domain}
+                        onMermaidChange={handleCanvasMermaidChange}
+                        onTraitsChange={handleCanvasTraitsChange}
+                      />
+                    ) : (
+                      <DiagramPreview answer={answer} onAppend={(text) => handleAnswerChange(answer + text)} />
+                    )}
+                  </section>
+                )}
+
+                {error && <p className="text-sm text-danger">{error}</p>}
+
+                <Button onClick={() => handleSubmit()} disabled={view === "submitting"} className="self-start">
+                  {view === "submitting" ? "제출하는 중..." : "제출하기"}
+                </Button>
+              </>
+            )}
+
+            {(view === "waiting" || view === "advancing") && (
+              <Card className="flex flex-col items-center gap-3 p-8 text-center">
+                <span className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-accent" aria-hidden />
+                <p className="font-medium">{view === "advancing" ? "다음 단계를 준비하는 중..." : "AI가 답안을 채점하고 있습니다"}</p>
+                {view === "waiting" && (
+                  <p className="text-sm text-foreground-muted">
+                    루브릭 7개 항목으로 평가하고 잘한 점·놓친 점·꼬리질문을 정리합니다. 보통 수십 초 걸립니다.
+                  </p>
                 )}
               </Card>
             )}
-          </div>
 
-          {!isIncident && (
-            <section className="flex flex-col gap-2">
-              <div className="flex items-center gap-1.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setDiagramMode("canvas")}
-                  className={`rounded-lg px-2 py-1 font-medium ${diagramMode === "canvas" ? "bg-accent text-accent-foreground" : "border border-border text-foreground-muted"}`}
-                >
-                  캔버스
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDiagramMode("text")}
-                  className={`rounded-lg px-2 py-1 font-medium ${diagramMode === "text" ? "bg-accent text-accent-foreground" : "border border-border text-foreground-muted"}`}
-                >
-                  텍스트 (Mermaid)
-                </button>
-              </div>
-              {diagramMode === "canvas" ? (
-                <DiagramCanvas
-                  sessionId={sessionId}
-                  domain={domain}
-                  onMermaidChange={handleCanvasMermaidChange}
-                  onTraitsChange={handleCanvasTraitsChange}
-                />
-              ) : (
-                <DiagramPreview answer={answer} onAppend={(text) => handleAnswerChange(answer + text)} />
-              )}
-            </section>
-          )}
+            {view === "failed" && <Alert variant="danger">평가에 실패했습니다. 잠시 후 다시 시도해주세요.</Alert>}
 
-          {error && <p className="text-sm text-danger">{error}</p>}
+            {view === "completed" && (
+              <>
+                <Card className="flex flex-col items-start gap-3 p-6">
+                  <p className="text-sm text-foreground-muted">이 세션은 이미 종료되었습니다.</p>
+                  <div className="flex gap-2">
+                    <Button href={`/report/${sessionId}`}>리포트 보기</Button>
+                    {isIncident && (
+                      <Button variant="secondary" onClick={() => setSandboxOpen((open) => !open)}>
+                        {sandboxOpen ? "샌드박스 닫기" : "샌드박스에서 계속 실험하기"}
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+                {isIncident && sandboxOpen && <WargameLive sessionId={sessionId} domain={domain} isOwner initialTraits={{}} />}
+              </>
+            )}
 
-          <Button onClick={() => handleSubmit()} disabled={view === "submitting"} className="self-start">
-            {view === "submitting" ? "제출하는 중..." : "제출하기"}
-          </Button>
-        </>
-      )}
-
-      {(view === "waiting" || view === "advancing") && (
-        <Card className="flex flex-col items-center gap-3 p-8">
-          <p className="text-sm text-foreground-muted">
-            {view === "advancing"
-              ? "다음 단계로 이동하는 중..."
-              : `제출한 답안을 평가하는 중입니다 (${session?.status ?? "..."})...`}
-          </p>
-        </Card>
-      )}
-
-      {view === "failed" && <Alert variant="danger">평가에 실패했습니다. 잠시 후 다시 시도해주세요.</Alert>}
-
-      {view === "completed" && (
-        <>
-          <Card className="flex flex-col items-start gap-3 p-6">
-            <p className="text-sm text-foreground-muted">이 세션은 이미 종료되었습니다.</p>
-            <div className="flex gap-2">
-              <Button href={`/report/${sessionId}`}>리포트 보기</Button>
-              {isIncident && (
-                <Button variant="secondary" onClick={() => setSandboxOpen((open) => !open)}>
-                  {sandboxOpen ? "샌드박스 닫기" : "샌드박스에서 계속 실험하기"}
+            {view === "result" && feedback && (
+              <>
+                <FeedbackDetail feedback={feedback} />
+                {error && <p className="text-sm text-danger">{error}</p>}
+                <Button onClick={handleAdvance} className="self-start">
+                  다음 단계로
                 </Button>
-              )}
-            </div>
-          </Card>
-          {isIncident && sandboxOpen && <WargameLive sessionId={sessionId} domain={domain} isOwner initialTraits={{}} />}
-        </>
-      )}
-
-      {view === "result" && feedback && (
-        <>
-          <FeedbackDetail feedback={feedback} />
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <Button onClick={handleAdvance} className="self-start">
-            다음 단계로
-          </Button>
-        </>
+              </>
+            )}
+          </main>
+        </div>
       )}
     </div>
   );
