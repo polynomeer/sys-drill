@@ -60,3 +60,4 @@ Short records of decisions that are hard to reverse, would surprise a future rea
 | [0040](0040-in-app-discussion-threads-replace-the-github-issues-link.md) | 토론은 시나리오 단위 인앱 스레드로, GitHub Issues 링크를 대체 |
 | [0041](0041-shared-writeups-are-visible-only-to-users-who-completed-that-scenario.md) | 공개 풀이는 그 시나리오를 완료한 사용자에게만 보인다 |
 | [0042](0042-drill-score-and-ranking-reward-breadth-and-difficulty-not-repetition.md) | 점수·랭킹은 반복이 아니라 넓이와 난이도를 보상한다 |
+| [0043](0043-assessment-sessions-stay-out-of-community-and-public-aggregates.md) | 채용 평가 세션은 커뮤니티·공개 집계에서 제외한다 |
