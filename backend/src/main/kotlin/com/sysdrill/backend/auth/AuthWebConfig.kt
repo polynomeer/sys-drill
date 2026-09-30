@@ -53,6 +53,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
  * viewing rule is "has this caller completed that scenario", which cannot be
  * decided at all without a caller identity. The single `*` matches only the
  * scenario id segment, so plain `/scenarios/{id}` stays public reference data.
+ * The discussion paths (docs/adr/0040) are gated the same way and for a
+ * narrower reason: reading a thread needs no completion, but it does need an
+ * identity, since each message carries whether the caller wrote it and whether
+ * the caller already reported it. Moderation lives under the existing
+ * `/admin` prefix and additionally requires PLATFORM_ADMIN in the controller.
  * `/postmortem-summary` (Phase 3-C, docs/DRILLS_SIMULATION_VISION.md §6) is
  * registered the same way as `/skill-profile` right above it — a flat,
  * token-derived-identity endpoint with no path parameter to guard.
@@ -82,12 +87,15 @@ class AuthWebConfig(
                 "/organizations", "/organizations/**",
                 "/admin/prompt-templates", "/admin/prompt-templates/**",
                 "/admin/dashboard/**",
+                "/admin/discussions/**",
                 "/marketplace/scenarios", "/marketplace/scenarios/**",
                 "/certifications/me",
                 "/architecture-analysis", "/architecture-analysis/**",
                 "/community/**",
                 "/scenarios/*/writeups",
+                "/scenarios/*/discussion",
                 "/writeups/**",
+                "/discussions/**",
             )
             .excludePathPatterns("/sessions/*/simulation/realinfra/coupon/**", "/organizations/assessments/*")
     }
