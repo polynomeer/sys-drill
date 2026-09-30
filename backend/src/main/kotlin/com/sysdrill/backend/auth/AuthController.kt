@@ -57,6 +57,8 @@ class AuthController(
                 nickname = request.nickname,
                 experienceYears = request.experienceYears,
                 primaryStack = request.primaryStack,
+                preferredLanguage = request.preferredLanguage,
+                trainingGoal = request.trainingGoal,
                 platformRole = if (request.email.lowercase() in platformAdminEmailSet) PlatformRole.PLATFORM_ADMIN else PlatformRole.USER,
                 termsAcceptedAt = Instant.now(),
             )

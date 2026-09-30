@@ -92,6 +92,7 @@ class AuthWebConfig(
                 "/certifications/me",
                 "/architecture-analysis", "/architecture-analysis/**",
                 "/community/**",
+                "/me/**",
                 "/scenarios/*/writeups",
                 "/scenarios/*/discussion",
                 "/writeups/**",

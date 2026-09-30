@@ -35,6 +35,16 @@ class User(
     @Column(name = "primary_stack")
     var primaryStack: String? = null,
 
+    /** V51 — optional onboarding answer; see [PreferredLanguage]. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "preferred_language")
+    var preferredLanguage: PreferredLanguage? = null,
+
+    /** V51 — optional onboarding answer; see [TrainingGoal]. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "training_goal")
+    var trainingGoal: TrainingGoal? = null,
+
     /** PLAN.md step 35 — platform-wide RBAC, distinct from a per-organization [com.sysdrill.backend.organization.OrganizationRole]. */
     @Enumerated(EnumType.STRING)
     @Column(name = "platform_role", nullable = false)

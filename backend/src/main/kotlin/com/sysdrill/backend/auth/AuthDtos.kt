@@ -1,5 +1,7 @@
 package com.sysdrill.backend.auth
 
+import com.sysdrill.backend.identity.PreferredLanguage
+import com.sysdrill.backend.identity.TrainingGoal
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserResponse
 import jakarta.validation.constraints.AssertTrue
@@ -13,6 +15,9 @@ data class SignupRequest(
     @field:NotBlank val nickname: String,
     val experienceYears: Int? = null,
     val primaryStack: String? = null,
+    /** docs/CODECRAFTERS_BENCHMARK.md §3.4 — optional; unknown values fail JSON binding with a 400. */
+    val preferredLanguage: PreferredLanguage? = null,
+    val trainingGoal: TrainingGoal? = null,
     // docs/COMMERCIALIZATION.md — the /terms, /privacy page content is still a
     // placeholder pending legal review, but the consent record (this flag ->
     // User.termsAcceptedAt) is real from day one.
