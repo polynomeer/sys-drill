@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
+import { javascript } from "@codemirror/lang-javascript";
 import { oneDark } from "@codemirror/theme-one-dark";
 import {
   ApiError,
@@ -21,14 +22,20 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
 
-const CHALLENGE_SLUG = "rate-limiter";
+type Language = "python" | "typescript";
+
+const SLUGS: Record<Language, string> = {
+  python: "rate-limiter",
+  typescript: "rate-limiter-ts",
+};
 const POLL_INTERVAL_MS = 1000;
 
 // Module-scope so the array identity is stable across renders — CodeMirror
 // reconfigures its extensions whenever this reference changes.
-const CODE_EXTENSIONS = [python()];
+const PYTHON_EXTENSIONS = [python()];
+const TS_EXTENSIONS = [javascript({ typescript: true })];
 
-const STUB_TEMPLATE = `# Build your own Rate Limiter — challenges/rate-limiter/rate_limiter.py 와 동일한 스텁입니다.
+const PYTHON_STUB_TEMPLATE = `# Build your own Rate Limiter — challenges/rate-limiter/rate_limiter.py 와 동일한 스텁입니다.
 # 로컬에서 git으로 받아 CLI(submit.sh)로 제출할 수도 있습니다 (README.md 참고).
 # 6개 stage를 모두 통과하지 않아도 Bridge로 넘어갈 수 있습니다 — 제출이 완료(COMPLETED)되기만 하면 됩니다.
 
@@ -63,6 +70,67 @@ class RateLimiter:
         raise NotImplementedError  # TODO(stage 6)
 `;
 
+const TYPESCRIPT_STUB_TEMPLATE = `// Build your own Rate Limiter — challenges/rate-limiter-ts/rate_limiter.ts 와 동일한 스텁입니다.
+// 로컬에서 git으로 받아 CLI(submit.sh)로 제출할 수도 있습니다 (README.md 참고).
+// 6개 stage를 모두 통과하지 않아도 Bridge로 넘어갈 수 있습니다 — 제출이 완료(COMPLETED)되기만 하면 됩니다.
+//
+// 샌드박스는 node --experimental-strip-types로 실행됩니다(타입만 벗겨낼 뿐 완전한
+// 트랜스파일이 아님) — 생성자 파라미터 프로퍼티 같은 일부 TS 문법은 지원하지 않습니다.
+
+export class InMemoryStore {
+  private data: Map<string, number> = new Map();
+
+  async incr(key: string): Promise<number> {
+    const current = this.data.get(key) ?? 0;
+    await new Promise((resolve) => setImmediate(resolve));
+    const next = current + 1;
+    this.data.set(key, next);
+    return next;
+  }
+
+  async expire(key: string, seconds: number): Promise<void> {
+    await new Promise((resolve) => setImmediate(resolve));
+    setTimeout(() => this.data.delete(key), seconds * 1000).unref();
+  }
+}
+
+export class FaultyStore {
+  async incr(_key: string): Promise<number> {
+    throw new Error("store unavailable");
+  }
+
+  async expire(_key: string, _seconds: number): Promise<void> {
+    throw new Error("store unavailable");
+  }
+}
+
+export type FailMode = "open" | "closed";
+
+export class RateLimiter {
+  private capacity: number;
+  private windowSeconds: number;
+  private store: InMemoryStore | FaultyStore;
+  private failMode: FailMode;
+
+  constructor(capacity: number, windowSeconds: number = 1.0, store?: InMemoryStore | FaultyStore, failMode: FailMode = "open") {
+    throw new Error("not implemented"); // TODO(stage 1)
+  }
+
+  async allow(key: string): Promise<boolean> {
+    throw new Error("not implemented"); // TODO(stage 1-6)
+  }
+
+  get metrics(): { allowed: number; rejected: number; rejectRate: number } {
+    throw new Error("not implemented"); // TODO(stage 6)
+  }
+}
+`;
+
+const STUB_TEMPLATES: Record<Language, string> = {
+  python: PYTHON_STUB_TEMPLATE,
+  typescript: TYPESCRIPT_STUB_TEMPLATE,
+};
+
 type ViewState = "loading" | "editing" | "submitting" | "waiting" | "result" | "error";
 
 function findBridgeScenario(scenarios: ScenarioSummary[]): ScenarioSummary | null {
@@ -72,12 +140,15 @@ function findBridgeScenario(scenarios: ScenarioSummary[]): ScenarioSummary | nul
 export default function BridgePage() {
   const router = useRouter();
   const [view, setView] = useState<ViewState>("loading");
+  const [language, setLanguage] = useState<Language>("python");
   const [sourceCode, setSourceCode] = useState("");
   const [scenario, setScenario] = useState<ScenarioSummary | null>(null);
   const [submission, setSubmission] = useState<BuildSubmissionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const slug = SLUGS[language];
 
   const stopPolling = useCallback(() => {
     if (pollTimer.current) {
@@ -94,7 +165,7 @@ export default function BridgePage() {
 
     // Data fetch + localStorage read on mount, not a cascading render loop.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSourceCode(loadBuildDraft(CHALLENGE_SLUG) || STUB_TEMPLATE);
+    setSourceCode(loadBuildDraft(slug) || STUB_TEMPLATES[language]);
 
     listScenarios()
       .then((scenarios) => {
@@ -110,9 +181,14 @@ export default function BridgePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
+  function handleLanguageChange(next: Language) {
+    setLanguage(next);
+    setSourceCode(loadBuildDraft(SLUGS[next]) || STUB_TEMPLATES[next]);
+  }
+
   function handleSourceChange(value: string) {
     setSourceCode(value);
-    saveBuildDraft(CHALLENGE_SLUG, value);
+    saveBuildDraft(slug, value);
   }
 
   function startPolling(submissionId: string) {
@@ -143,8 +219,8 @@ export default function BridgePage() {
     setView("submitting");
     setError(null);
     try {
-      const created = await submitBuildChallenge(CHALLENGE_SLUG, sourceCode);
-      saveBuildSubmissionId(CHALLENGE_SLUG, created.id);
+      const created = await submitBuildChallenge(slug, sourceCode);
+      saveBuildSubmissionId(slug, created.id);
       setSubmission(created);
       setView("waiting");
       startPolling(created.id);
@@ -180,6 +256,22 @@ export default function BridgePage() {
         수 있습니다.
       </p>
 
+      {(view === "editing" || view === "submitting") && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-foreground-muted">언어</span>
+          {(["python", "typescript"] as const).map((lang) => (
+            <Button
+              key={lang}
+              variant={language === lang ? "primary" : "secondary"}
+              onClick={() => handleLanguageChange(lang)}
+              disabled={view === "submitting"}
+            >
+              {lang === "python" ? "Python" : "TypeScript"}
+            </Button>
+          ))}
+        </div>
+      )}
+
       {view === "loading" && <LoadingState />}
       {error && <p className="text-sm text-danger">{error}</p>}
 
@@ -190,7 +282,7 @@ export default function BridgePage() {
             onChange={handleSourceChange}
             height="360px"
             theme={oneDark}
-            extensions={CODE_EXTENSIONS}
+            extensions={language === "python" ? PYTHON_EXTENSIONS : TS_EXTENSIONS}
             className="overflow-hidden rounded-lg border border-border text-sm"
             basicSetup={{ tabSize: 4 }}
           />

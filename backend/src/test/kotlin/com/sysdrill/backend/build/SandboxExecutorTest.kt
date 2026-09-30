@@ -13,6 +13,7 @@ class SandboxExecutorTest(@Autowired val sandboxExecutor: SandboxExecutor) {
     @Test
     fun `a correct implementation passes its stage test`() {
         val result = sandboxExecutor.run(
+            "python",
             "rate_limiter.py",
             PASSING_SOURCE,
             """
@@ -28,6 +29,7 @@ class SandboxExecutorTest(@Autowired val sandboxExecutor: SandboxExecutor) {
     @Test
     fun `an incorrect implementation fails with the assertion message`() {
         val result = sandboxExecutor.run(
+            "python",
             "rate_limiter.py",
             "def add(a, b):\n    return a - b\n",
             """
@@ -46,6 +48,7 @@ class SandboxExecutorTest(@Autowired val sandboxExecutor: SandboxExecutor) {
     @Test
     fun `the sandbox has no outbound network access`() {
         val result = sandboxExecutor.run(
+            "python",
             "rate_limiter.py",
             "x = 1\n",
             """
@@ -74,6 +77,7 @@ class SandboxExecutorTest(@Autowired val sandboxExecutor: SandboxExecutor) {
         val before = sandboxContainerNames()
 
         val result = sandboxExecutor.run(
+            "python",
             "rate_limiter.py",
             PASSING_SOURCE,
             """
@@ -100,6 +104,7 @@ class SandboxExecutorTest(@Autowired val sandboxExecutor: SandboxExecutor) {
     @Test
     fun `a chatty submission is not misjudged as a timeout`() {
         val result = sandboxExecutor.run(
+            "python",
             "rate_limiter.py",
             PASSING_SOURCE,
             """

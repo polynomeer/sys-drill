@@ -31,24 +31,45 @@ data class SandboxResult(val passed: Boolean, val output: String)
  */
 @Component
 class SandboxExecutor(
-    @Value("\${sysdrill.build.sandbox-image}") private val image: String,
+    @Value("\${sysdrill.build.sandbox-image}") private val pythonImage: String,
+    @Value("\${sysdrill.build.sandbox-image-typescript}") private val typescriptImage: String,
     @Value("\${sysdrill.build.timeout-seconds}") private val timeoutSeconds: Long,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun run(sourceFileName: String, sourceCode: String, testScript: String): SandboxResult {
+    /**
+     * `BuildChallenge.languages` → 어떤 이미지·어떤 파일명으로 테스트 스크립트를
+     * 써야 하는지·어떤 명령으로 실행할지. TOPOLOGY_FIELDS([com.sysdrill.backend.simulation.SystemTopologyService])와
+     * 같은 작은 정적 설정 맵 패턴 — 언어 하나 늘 때마다 항목 하나만 추가하면 된다.
+     */
+    private val languageRuntimes: Map<String, LanguageRuntime> by lazy {
+        mapOf(
+            "python" to LanguageRuntime(pythonImage, "run_test.py", listOf("python3", "run_test.py")),
+            // --experimental-strip-types는 타입만 벗겨낼 뿐 완전한 트랜스파일이 아니다 —
+            // 생성자 파라미터 프로퍼티 등 일부 TS 문법은 지원하지 않는다(challenges/rate-limiter-ts/README.md 참고).
+            "typescript" to LanguageRuntime(
+                typescriptImage,
+                "run_test.ts",
+                listOf("node", "--experimental-strip-types", "run_test.ts"),
+            ),
+        )
+    }
+
+    fun run(language: String, sourceFileName: String, sourceCode: String, testScript: String): SandboxResult {
+        val runtime = languageRuntimes[language]
+            ?: throw IllegalArgumentException("Unknown build challenge language: $language")
         val workDir = Files.createTempDirectory("sysdrill-build-")
         return try {
             workDir.resolve(sourceFileName).writeText(sourceCode)
-            workDir.resolve("run_test.py").writeText(testScript)
-            execute(workDir)
+            workDir.resolve(runtime.testFileName).writeText(testScript)
+            execute(workDir, runtime)
         } finally {
             runCatching { workDir.toFile().deleteRecursively() }
                 .onFailure { log.warn("Failed to clean up sandbox workdir {}: {}", workDir, it.message) }
         }
     }
 
-    private fun execute(workDir: Path): SandboxResult {
+    private fun execute(workDir: Path, runtime: LanguageRuntime): SandboxResult {
         val containerName = "$CONTAINER_PREFIX${UUID.randomUUID()}"
         val process = ProcessBuilder(
             "docker", "run", "--rm",
@@ -60,12 +81,12 @@ class SandboxExecutor(
             "--pids-limit", "64",
             "-v", "$workDir:/work:ro",
             "-w", "/work",
-            image,
+            runtime.image,
             // 여기서 도는 것은 신뢰할 수 없는 제출 코드다. `timeout` 은 기본적으로
             // SIGTERM 만 보내므로, 그것을 무시하는 세 줄이면 이 제한을 그냥 통과한다.
             // --kill-after 가 그 뒤에 SIGKILL 을 보낸다.
             "timeout", "--kill-after=${KILL_AFTER_SECONDS}s", timeoutSeconds.toString(),
-            "python3", "run_test.py",
+            *runtime.runCommand.toTypedArray(),
         ).redirectErrorStream(true).start()
 
         // 실행과 나란히 비운다. 다 끝난 뒤에 읽으면 늦다 — 위 KDoc 참고.
@@ -115,6 +136,8 @@ class SandboxExecutor(
             if (!remove.waitFor(REMOVE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) remove.destroyForcibly()
         }.onFailure { log.warn("Failed to remove sandbox container {}: {}", containerName, it.message) }
     }
+
+    private data class LanguageRuntime(val image: String, val testFileName: String, val runCommand: List<String>)
 
     companion object {
         /** 호스트에서 사람이 봤을 때 출처가 드러나야 한다. */

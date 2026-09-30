@@ -14,6 +14,13 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+    # V44(TypeScript rate-limiter 테스트 스크립트)가 JS 템플릿 리터럴
+    # `${...}` 를 시드 SQL 안에 그대로 담고 있는데, Flyway는 기본적으로
+    # `${...}` 를 자기 자신의 플레이스홀더 치환 문법으로 해석해 파싱이 깨진다
+    # ("No value provided for placeholder"). 이 앱은 Flyway 플레이스홀더
+    # 기능을 한 번도 쓴 적이 없어(모든 마이그레이션이 순수 시드 SQL) 그냥 꺼도
+    # 안전하다.
+    placeholder-replacement: false
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -92,6 +99,10 @@ sysdrill:
   build:
     queue-key: ${BUILD_QUEUE_KEY:sysdrill:build:jobs}
     sandbox-image: ${BUILD_SANDBOX_IMAGE:python:3.12-slim}
+    # rate-limiter 챌린지에 TypeScript 지원 추가 — node의 네이티브 타입 스트리핑
+    # (`node --experimental-strip-types`)만으로 컴파일 없이 .ts를 바로 실행 가능해
+    # npm install/네트워크 없이도 --network none 샌드박스와 호환된다.
+    sandbox-image-typescript: ${BUILD_SANDBOX_IMAGE_TS:node:22-slim}
     timeout-seconds: ${BUILD_TIMEOUT_SECONDS:10}
   session:
     # PLAN.md step 28 — per-phase time limit when a session opts into

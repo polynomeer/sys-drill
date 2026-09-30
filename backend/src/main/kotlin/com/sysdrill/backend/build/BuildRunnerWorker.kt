@@ -80,7 +80,7 @@ class BuildRunnerWorker(
 
         var passedCount = 0
         for (stage in stages) {
-            val result = sandboxExecutor.run(challenge.sourceFileName, submission.sourceCode, stage.testScript)
+            val result = sandboxExecutor.run(challenge.languages, challenge.sourceFileName, submission.sourceCode, stage.testScript)
             val status = if (result.passed) BuildStageStatus.PASSED else BuildStageStatus.FAILED
             if (result.passed) passedCount++
 
