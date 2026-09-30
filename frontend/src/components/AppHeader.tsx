@@ -18,6 +18,22 @@ const NAV_LINKS = [
   { href: "/community", label: "Community" },
 ];
 
+/** docs/CODECRAFTERS_BENCHMARK.md §3.9 — pages that existed but had no
+ * entry point anywhere in the app. They live in the account menu rather
+ * than the top nav: each is a secondary destination, not a daily loop. */
+const ACCOUNT_LINKS = [
+  { href: "/profile", label: "프로필" },
+  { href: "/certifications", label: "인증" },
+  { href: "/organizations", label: "조직" },
+  { href: "/architecture-analysis", label: "아키텍처 분석" },
+];
+
+function isActive(pathname: string, href: string): boolean {
+  // Drill overview pages belong to the Drills tab.
+  if (href === "/marketplace") return pathname.startsWith("/marketplace") || pathname.startsWith("/drills");
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function AppHeader() {
   const pathname = usePathname();
   const router = useRouter();
@@ -77,11 +93,19 @@ export function AppHeader() {
           <>
             {/* Desktop nav — hidden below md, each link keeps to one line regardless of container width. */}
             <nav className="hidden items-center gap-5 text-sm text-foreground-muted md:flex">
-              {NAV_LINKS.map((link) => (
-                <Link key={link.href} href={link.href} className="whitespace-nowrap hover:text-foreground">
-                  {link.label}
-                </Link>
-              ))}
+              {NAV_LINKS.map((link) => {
+                const active = isActive(pathname, link.href);
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    aria-current={active ? "page" : undefined}
+                    className={`whitespace-nowrap hover:text-foreground ${active ? "font-medium text-foreground" : ""}`}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
             </nav>
 
             <form onSubmit={handleSearchSubmit} className="hidden min-w-0 flex-1 md:block">
@@ -109,9 +133,11 @@ export function AppHeader() {
                 {profileOpen && (
                   <div className="absolute right-0 top-10 z-10 flex w-40 flex-col gap-1 rounded-lg border border-border bg-surface p-2 text-sm shadow-lg">
                     {nickname && <span className="px-2 py-1 text-foreground-muted">{nickname}</span>}
-                    <Link href="/profile" className="rounded px-2 py-1 hover:bg-surface-elevated">
-                      프로필
-                    </Link>
+                    {ACCOUNT_LINKS.map((link) => (
+                      <Link key={link.href} href={link.href} className="rounded px-2 py-1 hover:bg-surface-elevated">
+                        {link.label}
+                      </Link>
+                    ))}
                     <button onClick={handleLogout} className="rounded px-2 py-1 text-left hover:bg-surface-elevated">
                       로그아웃
                     </button>
@@ -134,15 +160,26 @@ export function AppHeader() {
 
       {loggedIn && menuOpen && (
         <nav className="flex flex-col gap-1 border-t border-border px-6 py-3 text-sm md:hidden">
-          {NAV_LINKS.map((link) => (
+          {NAV_LINKS.map((link) => {
+            const active = isActive(pathname, link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={active ? "page" : undefined}
+                className={`py-1.5 ${active ? "font-medium text-foreground" : "text-foreground-muted"}`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+          <div className="my-1 border-t border-border" />
+          {nickname && <span className="py-1.5 text-foreground-muted">{nickname}</span>}
+          {ACCOUNT_LINKS.map((link) => (
             <Link key={link.href} href={link.href} className="py-1.5 text-foreground-muted">
               {link.label}
             </Link>
           ))}
-          {nickname && <span className="py-1.5 text-foreground-muted">{nickname}</span>}
-          <Link href="/profile" className="py-1.5 text-foreground-muted">
-            프로필
-          </Link>
           <button onClick={handleLogout} className="py-1.5 text-left underline">
             로그아웃
           </button>
