@@ -1439,6 +1439,44 @@ Phase 4/기술부채/ADR-0037/플레이키니스까지 모든 후보가 소진�
 
 ---
 
+## CodeCrafters 벤치마킹 P1 — 카탈로그 · 작업 화면 · Build 단계 (2026-09-30~)
+
+[docs/CODECRAFTERS_BENCHMARK.md](docs/CODECRAFTERS_BENCHMARK.md) §5 P1 4개 항목을 3개 라운드로 묶었다. 순서는 의존성 기준 — B4의 아이콘·난이도 배지를 B5·B6이 재사용한다.
+
+### Round B4 — Drills 카탈로그 재구성 + 아이콘·난이도 배지 (§3.5, §3.9)
+
+- [ ] 백엔드 `GET /scenarios` 목록에 완료 통계(`completedCount`/`averageScore`)와 단계 유형 목록(`stepTypes`) 추가 — 시나리오당 조회 없이 배치 집계. 카드가 "Design + Incident"인지 "Design만"인지 추측하지 않도록
+- [ ] Drills(`/marketplace`)가 공식 시나리오까지 보여주도록 데이터 소스를 `GET /scenarios`로 교체(Round B1에서 발견한 공백). 공식/커뮤니티 구분 필터 추가, System Design·Incident 탭 중복 해소(Incident 탭 = 장애 대응 단계가 있는 Drill)
+- [ ] 목록 행 → 2열 카드 그리드: 제목·도메인 아이콘·단계 수·`DifficultyBadge`·완료 통계, 카드 전체가 개요 페이지 링크
+- [ ] "시나리오 등록" 폼을 `/drills/new`로 분리(목록 밀도 완화), 목록에는 "내가 등록한 시나리오" 링크만
+- [ ] `lucide-react` 도입(정확 버전 고정) — 헤더 🔔/☰, `WargameLive` 액션 카테고리, 커리큘럼 ✅/⬜️ 이모지 교체. 도메인별 단색 아이콘 매핑(`lib/domainIcons.tsx`)
+- [ ] `components/ui/DifficultyBadge.tsx` — 대문자 라벨 + 3칸 신호 막대, 액센트 단색. 난이도가 success/warning/danger 상태색을 쓰지 않게
+
+**완료 기준**: 백엔드 통합 테스트(목록에 stats·stepTypes), `tsc`/`lint`/`build` 클린, 실제 브라우저로 Drills에 공식 7개 + 커뮤니티 시나리오 카드 확인, 필터·탭·검색 동작, `/drills/new` 등록 후 목록 반영, 375px 레이아웃.
+
+### Round B5 — Design 작업 화면 2분할 레이아웃 (§3.3)
+
+- [ ] 백엔드 `SessionResponse`에 세션 버전의 단계 유형 목록(`steps`) 추가 — 지금 `StepNav`는 4개 라벨을 하드코딩해서 장애 대응 단계가 없는 커뮤니티 시나리오에서도 같은 진행 표시를 보여준다
+- [ ] `design/[sessionId]` 편집 상태를 데스크톱(≥1024px) 2분할로: 좌측 고정 패널 = `StageList`(세션 단계 + 현재 위치) · 문제 · 조건 변경 알림 · 답안 체크리스트 · 힌트, 우측 = 답안 에디터 + 다이어그램 캔버스/텍스트 + 제출. 모바일은 기존처럼 세로로 쌓임
+- [ ] `StepNav`(취소선 방식)를 `StageList`로 대체, 답안 textarea를 공용 `Textarea` 스타일·자동 높이로
+- [ ] 대기 상태 카드에서 raw enum(`SUBMITTED`/`EVALUATING`) 대신 "AI가 루브릭 7개 항목으로 채점 중" + 진행 애니메이션
+
+**완료 기준**: 백엔드 테스트(세션 응답 steps), `tsc`/`lint`/`build` 클린, 실제 브라우저로 초기 설계 → 제출 → 피드백 → 꼬리설계 → 장애 대응 진입까지 레이아웃 회귀 없음, 1440px·375px 확인.
+
+### Round B6 — Build 단계별 진행 + 테스트 로그 패널 (§3.2, §3.3)
+
+착수 전 조사로 확인한 현재 구조: 제출마다 6개 스테이지를 **전부** 순서대로 실행하고(첫 실패에서 멈추지 않음), 스테이지 메타데이터는 `build_stages.title`/`spec`(한 줄 학습 포인트)뿐이며 지시문 컬럼이 없다. 샌드박스 출력은 실패 사유 한 줄만 `feedback`으로 뽑고 **원본은 버린다**. 제출 전에 스테이지 목록을 주는 엔드포인트도 없다.
+
+- [ ] 마이그레이션: `build_stages.instructions`(스테이지 지시문 — 목표·테스트가 확인하는 것·힌트) 추가 + rate-limiter/rate-limiter-ts 6개 스테이지 지시문 시드(ADR-0002 — 콘텐츠는 마이그레이션으로), `build_stage_results.output`(샌드박스 출력, 상한 있음)·`duration_ms` 추가
+- [ ] `BuildRunnerWorker`가 스테이지별 출력·소요 시간을 저장, 결과 DTO에 `output`/`durationMs` 추가
+- [ ] 신규 `GET /build-challenges/{slug}` — 제출 전에 스테이지 목록(순서·제목·학습 포인트·지시문)을 받는다
+- [ ] `/bridge`를 2분할로: 좌측 = `StageList`(통과 ● / 현재 ◐ / 잠김 ○) + 현재 스테이지 지시문(잠긴 스테이지 지시문은 이전 스테이지 통과 전 비공개), 우측 = 에디터 + 하단 테스트 로그 패널(`[stage-N]` 접두어, 통과/실패 색, 실패 마지막 줄에 다음 행동). 채점은 지금처럼 전체를 돌리되 **UI는 "현재 스테이지까지"를 기준으로** 합격을 보여주고 이후 스테이지 결과는 접는다
+- [ ] 채점 중에도 이미 도착한 스테이지 결과를 로그에 순차 표시(지금은 대기 카드가 가림), 결과 화면에서 "코드 수정 후 다시 제출" 경로 추가
+
+**완료 기준**: 백엔드 테스트(스테이지 목록 엔드포인트, 결과에 output/duration 저장), 격리 테스트 스위트 build 패키지 통과, `tsc`/`lint`/`build` 클린, 실제 브라우저로 스텁 제출 → 1단계 실패 로그 확인 → 1단계만 구현해 재제출 → 1단계 통과·2단계가 현재로 이동·2단계 지시문 공개 확인.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
