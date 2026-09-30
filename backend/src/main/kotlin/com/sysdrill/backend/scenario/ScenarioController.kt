@@ -15,6 +15,8 @@ import tools.jackson.databind.ObjectMapper
 @RequestMapping("/scenarios")
 class ScenarioController(
     private val scenarioRepository: ScenarioRepository,
+    private val scenarioVersionRepository: ScenarioVersionRepository,
+    private val scenarioStepRepository: ScenarioStepRepository,
     private val contentItemRepository: ContentItemRepository,
     private val userRepository: UserRepository,
     private val objectMapper: ObjectMapper,
@@ -36,6 +38,14 @@ class ScenarioController(
         if (scenario.organizationId != null || scenario.visibility == "PRIVATE") throw NotFoundException("Scenario not found: $id")
         val content = contentItemRepository.findById(scenario.contentId).orElse(null)
         val creatorNickname = scenario.creatorUserId?.let { userRepository.findById(it).orElse(null)?.nickname }
-        return ScenarioResponses.toDetail(scenario, content, objectMapper, creatorNickname)
+        // Same version SessionService.start would pick, so the roadmap matches what the session will actually run.
+        val version = scenarioVersionRepository.findFirstByScenarioIdAndStatusOrderByVersionNoDesc(id, "PUBLISHED")
+        val steps = version?.let { scenarioStepRepository.findByScenarioVersionIdOrderByStepOrder(it.id!!) }.orEmpty()
+        val initialPrompt = steps.firstOrNull { it.stepType == "INITIAL" }?.content
+            ?.let { objectMapper.readValue(it, Map::class.java)["prompt"] as? String }
+        return ScenarioResponses.toDetail(scenario, content, objectMapper, creatorNickname).copy(
+            steps = steps.map { ScenarioStepSummaryResponse(order = it.stepOrder, type = it.stepType) },
+            initialPrompt = initialPrompt,
+        )
     }
 }

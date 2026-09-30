@@ -29,4 +29,19 @@ class ScenarioControllerIntegrationTest(@Autowired val mockMvc: MockMvc) {
             .andExpect(jsonPath("$.domain").value("coupon"))
             .andExpect(jsonPath("$.baseRequirements.nonFunctional.totalCoupons").value(10000))
     }
+
+    @Test
+    fun `detail lists the published version's steps in order and only the initial prompt`() {
+        mockMvc.perform(get("/scenarios/$COUPON_SCENARIO_ID"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.steps.length()").value(3))
+            .andExpect(jsonPath("$.steps[0].order").value(1))
+            .andExpect(jsonPath("$.steps[0].type").value("INITIAL"))
+            .andExpect(jsonPath("$.steps[1].type").value("FOLLOWUP"))
+            .andExpect(jsonPath("$.steps[2].type").value("INCIDENT"))
+            .andExpect(jsonPath("$.initialPrompt").value(org.hamcrest.Matchers.containsString("선착순")))
+            // FOLLOWUP/INCIDENT prompts must not leak into the overview — they're the session's mid-drill twist.
+            .andExpect(jsonPath("$.steps[1].prompt").doesNotExist())
+            .andExpect(jsonPath("$.followupPrompt").doesNotExist())
+    }
 }

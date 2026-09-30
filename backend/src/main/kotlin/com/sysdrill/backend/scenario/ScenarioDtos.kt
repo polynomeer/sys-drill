@@ -26,6 +26,15 @@ data class ScenarioDetailResponse(
     val baseRequirements: Any?,
     val organizationId: UUID?,
     val creatorNickname: String? = null,
+    /** docs/CODECRAFTERS_BENCHMARK.md §3.1 — the Drill overview page's stage roadmap. Filled only by the public GET /scenarios/{id}; null from the create/publish responses. */
+    val steps: List<ScenarioStepSummaryResponse>? = null,
+    /** The INITIAL step's prompt only — FOLLOWUP/INCIDENT prompts stay hidden until the session reaches them, so the overview doesn't spoil the mid-session "conditions changed" twist. */
+    val initialPrompt: String? = null,
+)
+
+data class ScenarioStepSummaryResponse(
+    val order: Int,
+    val type: String,
 )
 
 /**
