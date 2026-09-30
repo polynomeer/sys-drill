@@ -1371,6 +1371,28 @@ Phase 4/기술부채/ADR-0037/플레이키니스까지 모든 후보가 소진�
 
 ---
 
+## 완성도 재진단 1라운드 — 인증-DB 정합성 · 전역 예외 처리 · 프론트 에러 바운더리 ✅ 완료 (2026-09-30)
+
+`docs/COMMERCIALIZATION.md`에 추가한 "완성도 재진단" 섹션의 우선순위 "0. 지금 당장" 3개 항목. 발단은 사용자가 실제로 겪은 버그 — `POST /build-challenges/rate-limiter/submissions`가 500을 반환. 조사해보니 `AuthInterceptor`가 JWT 서명·만료만 검증하고 유저가 실제 `users` 테이블에 있는지 확인하지 않아, (로컬 개발 중 DB가 리셋되는 등으로) 유저가 사라진 뒤에도 기존 토큰이 계속 통과하다가 `build_submissions_user_id_fkey` FK 위반으로 처음 실패하고 있었다. 이게 클라이언트엔 원인불명 500으로만 노출된 건 `GlobalExceptionHandler`에 catch-all이 없어서였고, 프론트도 이런 401/500을 특별 취급하지 않아 사용자에게 "다시 로그인하라"는 안내조차 없었다 — 세 가지가 한 사고의 서로 다른 단면이라 한 라운드로 묶어 처리했다.
+
+- [x] 신규 `UserExistenceCache.kt` — `LlmUsageGuard`와 같은 Redis idiom(짧은 TTL, 양성/음성 모두 캐시). `AuthInterceptor`가 `jwtService.verify()` 통과 후 이걸로 유저 존재 여부를 추가 확인, 없으면 기존과 같은 401 응답. `application.yml`에 `sysdrill.auth.user-exists-cache-ttl-seconds`(기본 60초) 추가
+- [x] `GlobalExceptionHandler`가 `ResponseEntityExceptionHandler`를 상속하도록 변경 + `@ExceptionHandler(Exception::class)` catch-all 추가(SLF4J 로깅 포함)
+- [x] 신규 `frontend/src/app/error.tsx`/`global-error.tsx` — Next 16(콜백 prop이 `reset`이 아니라 `retry`)
+- [x] `frontend/src/lib/api.ts`의 `apiFetch` — 401 응답 시(`/auth/*` 제외) 토큰 제거 + `/login?reason=expired`로 리다이렉트
+- [x] `frontend/src/app/login/page.tsx` — `reason=expired` 쿼리로 "세션이 만료되었습니다" 배너
+
+**진행 중 발견하고 고친 버그**: `GlobalExceptionHandler`에 `@ExceptionHandler(Exception::class)`를 (상속 없이) 그냥 얹은 첫 시도가 `PasswordResetAndVerificationIntegrationTest`를 깨뜨렸다 — `@Valid` 검증 실패(`MethodArgumentNotValidException`)까지 이 광범위한 핸들러가 가로채 400을 500으로 바꿔버린 것. `GlobalExceptionHandler`가 `ResponseEntityExceptionHandler`를 상속하고 `handleExceptionInternal`만 오버라이드하는 방식으로 바꿔, Spring이 이미 올바르게 분류하는 표준 MVC 예외(`HttpMessageNotReadableException`, `MethodArgumentNotValidException` 등)는 원래 상태 코드를 유지하면서 응답 바디만 `ApiError` 형태로 통일 — 진짜 예상 못 한 예외만 내 `Exception::class` catch-all이 500으로 받는다.
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. 신규 `AuthInterceptorUserExistenceTest`(존재하지 않는 유저 토큰/발급 후 삭제된 유저 토큰 → 401, 정상 유저 → 통과 3개), 신규 `GlobalExceptionHandlerTest`(깨진 JSON body → 구조화된 400) 통과. `./scripts/run-tests-isolated.sh`(전체 스위트, `PasswordResetAndVerificationIntegrationTest` 포함) 전부 통과 — BUILD SUCCESSFUL. 프론트 `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 클린.
+
+**실 검증**: 격리 백엔드(8086)+격리 프론트(node_modules 별도 설치한 복사본, 3002 — 이번엔 공유 디렉터리의 라이브 인스턴스(포트 3000/8081, 실사용 중인 것으로 확인)를 건드리지 않기 위해 완전히 분리)에서 실제 회원가입 → `POST /build-submissions/{id}` 정상 통과(404, 401 아님) 확인 → DB에서 유저 직접 삭제 → 같은 토큰으로 재요청 시 401 확인(캐시가 아직 따뜻하면 최대 60초까지 이전처럼 통과하는 것도 직접 확인 — 설계된 대로의 유한 지연, 버그 아님). 실 브라우저로 가입 → DB에서 유저 삭제 → `/profile` 방문 시 `/login?reason=expired`로 리다이렉트 + 배너 확인, `localStorage` 토큰 제거 확인. `error.tsx`는 임시 throw 라우트(검증용 복사본에만 추가, 실제 저장소엔 없음)로 렌더 확인 후 제거.
+
+**하지 않은 것**: 완성도 재진단의 나머지 7개 항목(`@Valid` 커버리지, 워커 동시성, 레이트리밋 확대, JWT 시크릿 fail-fast, 로그아웃/토큰 폐기, 보안 헤더)은 별도 라운드. 기존 20여 개 페이지의 "토큰 없음 → `/login`\|`/onboarding`" 사전 체크 불일치는 정리하지 않음 — 이번 401 처리는 "요청 도중 토큰이 무효화됨" 케이스만 다룸. 새 ADR 안 씀 — 둘 다 기존 패턴(Redis 캐시, `RestControllerAdvice`)을 그대로 확장한 되돌리기 쉬운 구현.
+
+**참고**: 백엔드 커밋(`UserExistenceCache`/`AuthInterceptor`/`GlobalExceptionHandler`/신규 테스트 2개)은 같은 저장소에서 동시에 작업 중이던 별도 세션의 커밋(`05a8656`, Community 기능)에 함께 실렸다 — 내용은 이 라운드에서 작성·검증한 그대로이나, 커밋 단위 분리 원칙과는 별개로 두 세션이 같은 워킹 디렉터리를 공유해 생긴 일이라 별도로 재커밋하지 않았다. 프론트 변경은 `24801b6`로 정상적으로 별도 커밋됨.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
