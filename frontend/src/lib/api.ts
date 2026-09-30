@@ -630,6 +630,8 @@ export interface LearningConceptSummary {
   summary: string;
   /** 내가 이 개념을 지적받은 횟수. 0이면 배지 없음. */
   myWeaknessCount: number;
+  /** docs/CODECRAFTERS_BENCHMARK.md §3.7 — lets the domain track page group concepts without fetching each detail. */
+  relatedDomains?: string[];
 }
 
 export interface LearningCategory {

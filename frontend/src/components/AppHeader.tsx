@@ -30,8 +30,8 @@ const ACCOUNT_LINKS = [
 ];
 
 function isActive(pathname: string, href: string): boolean {
-  // Drill overview pages belong to the Drills tab.
-  if (href === "/marketplace") return pathname.startsWith("/marketplace") || pathname.startsWith("/drills");
+  // Drill overview and domain track pages belong to the Drills tab.
+  if (href === "/marketplace") return ["/marketplace", "/drills", "/tracks"].some((p) => pathname.startsWith(p));
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

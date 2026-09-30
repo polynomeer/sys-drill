@@ -7,10 +7,11 @@ import { Plus, Terminal } from "lucide-react";
 import { ApiError, ScenarioSummary, listScenarios } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
-import { DomainIcon } from "@/lib/domainIcons";
 import { Badge } from "@/components/ui/Badge";
+import { DrillCard, hasIncident } from "@/components/DrillCard";
+import { DomainIcon } from "@/lib/domainIcons";
+import { TRACK_DOMAINS } from "@/lib/tracks";
 import { Button } from "@/components/ui/Button";
-import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -41,10 +42,6 @@ export default function MarketplacePage() {
       <MarketplaceContent />
     </Suspense>
   );
-}
-
-function hasIncident(scenario: ScenarioSummary): boolean {
-  return (scenario.stepTypes ?? []).includes("INCIDENT");
 }
 
 /**
@@ -207,42 +204,29 @@ function MarketplaceContent() {
           )}
         </>
       )}
-    </div>
-  );
-}
 
-function DrillCard({ scenario }: { scenario: ScenarioSummary }) {
-  const stepCount = scenario.stepTypes?.length ?? 0;
-  const completed = scenario.completedCount ?? 0;
-  const domainTitle = DOMAIN_TITLES[scenario.domain];
-  return (
-    <Link
-      href={`/drills/${scenario.id}`}
-      className="group flex h-full flex-col gap-3 rounded-xl border border-border bg-surface p-5 transition-colors hover:border-accent/40"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-semibold group-hover:text-accent">{scenario.title}</p>
-          <p className="mt-1 truncate text-xs text-foreground-muted">
-            {scenario.creatorNickname ? `by ${scenario.creatorNickname}` : domainTitle && domainTitle !== scenario.title ? domainTitle : "공식 Drill"}
-          </p>
+      {/* docs/CODECRAFTERS_BENCHMARK.md §3.7 — where CodeCrafters lists language tracks. */}
+      <section className="flex flex-col gap-3 border-t border-border pt-6">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-muted">도메인 트랙</h2>
+          <Link href="/tracks" className="text-xs text-foreground-muted underline hover:text-foreground">
+            전체 보기
+          </Link>
         </div>
-        <DomainIcon domain={scenario.domain} className="h-5 w-5 shrink-0 text-foreground-muted" />
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Badge variant="accent">Design</Badge>
-        {hasIncident(scenario) && <Badge variant="danger">Incident</Badge>}
-      </div>
-      <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-3 text-xs text-foreground-muted">
-        <span>
-          {stepCount > 0 ? `${stepCount}단계` : ""}
-          {stepCount > 0 && " · "}
-          {completed > 0
-            ? `완료 ${completed}명${typeof scenario.averageScore === "number" ? ` · 평균 ${scenario.averageScore}점` : ""}`
-            : "아직 완료자 없음"}
-        </span>
-        <DifficultyBadge difficulty={scenario.difficulty} />
-      </div>
-    </Link>
+        <ul className="flex flex-wrap gap-2">
+          {TRACK_DOMAINS.map((d) => (
+            <li key={d}>
+              <Link
+                href={`/tracks/${d}`}
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-foreground-muted transition-colors hover:border-accent/40 hover:text-foreground"
+              >
+                <DomainIcon domain={d} className="h-3.5 w-3.5" />
+                {DOMAIN_TITLES[d]}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
   );
 }

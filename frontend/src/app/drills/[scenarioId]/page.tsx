@@ -145,6 +145,11 @@ export default function DrillOverviewPage() {
             {domainLabel}{stages.length - 1}단계
             {scenario.creatorNickname && ` · by ${scenario.creatorNickname}`}
           </span>
+          {DOMAIN_TITLES[scenario.domain] && (
+            <Link href={`/tracks/${scenario.domain}`} className="text-xs text-accent hover:underline">
+              {DOMAIN_TITLES[scenario.domain]} 트랙 →
+            </Link>
+          )}
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <Button onClick={handleStart} disabled={starting} className="self-start px-6 py-2.5 text-base">

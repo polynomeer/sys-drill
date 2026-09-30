@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, CertificationStatus, getMyCertification } from "@/lib/api";
@@ -66,10 +67,10 @@ export default function CertificationsPage() {
         <ul className="flex flex-col gap-2">
           {status.domains.map((d) => (
             <li key={d.domain} className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2">
+              <Link href={`/tracks/${d.domain}`} className="flex items-center gap-2 hover:text-accent">
                 {d.title}
-                <span className="text-xs text-foreground-muted">({d.domain})</span>
-              </span>
+                <span className="text-xs text-foreground-muted">트랙 →</span>
+              </Link>
               <span className="flex items-center gap-2">
                 <span className="text-xs text-foreground-muted">{d.bestScore !== null ? `최고 ${d.bestScore}점` : "미완료"}</span>
                 <Badge variant={d.passed ? "success" : "neutral"}>{d.passed ? "완료" : "미완료"}</Badge>
