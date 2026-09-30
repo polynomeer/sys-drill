@@ -45,12 +45,29 @@ compose() {
 
 BACKEND_PID=""
 QUEUE_POLL_PID=""
+ENV_LOCAL="$REPO_ROOT/backend/.env.local"
+ENV_LOCAL_MOVED=""
 cleanup() {
   log "정리 중..."
   [ -n "$QUEUE_POLL_PID" ] && kill "$QUEUE_POLL_PID" >/dev/null 2>&1 || true
   [ -n "$BACKEND_PID" ] && kill "$BACKEND_PID" >/dev/null 2>&1 || true
+  if [ -n "$ENV_LOCAL_MOVED" ]; then
+    mv "$ENV_LOCAL.benchmark-disabled" "$ENV_LOCAL"
+    log ".env.local 복원 완료"
+  fi
 }
 trap cleanup EXIT
+
+# 2026-09-30 사고 재발 방지: bootRun은 backend/.env.local을 환경변수로 로드하는데
+# (build.gradle.kts), 여기 실 LLM_ANTHROPIC_API_KEY가 있으면 벤치마크의 가짜
+# 트래픽이 실제 Anthropic API를 호출해버린다(과거 실제로 발생 — PLAN.md 참고).
+# 셸에서 LLM_ANTHROPIC_API_KEY=를 넘겨도 이 dotenv 로더가 무조건 덮어써서 안 먹히므로,
+# 파일 자체를 벤치마크 동안 치워 로더가 아예 못 찾게 한다(가장 확실한 방법).
+if [ -f "$ENV_LOCAL" ]; then
+  mv "$ENV_LOCAL" "$ENV_LOCAL.benchmark-disabled"
+  ENV_LOCAL_MOVED=1
+  warn "backend/.env.local을 벤치마크 동안 임시로 치웠습니다(실 API 키 오발동 방지) — 종료 시 자동 복원됩니다."
+fi
 
 if ! docker info >/dev/null 2>&1; then
   err "Docker 데몬에 연결할 수 없습니다. Docker Desktop을 먼저 실행해주세요."
