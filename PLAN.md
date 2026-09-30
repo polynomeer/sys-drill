@@ -1393,6 +1393,26 @@ Phase 4/기술부채/ADR-0037/플레이키니스까지 모든 후보가 소진�
 
 ---
 
+## 완성도 재진단 2라운드 — 워커 동시성 개선 ✅ 완료 (2026-09-30)
+
+`docs/COMMERCIALIZATION.md` "완성도 재진단" 4번 항목. 1라운드에서 기록한 로컬 트래픽 벤치마크 실측(200 req/s 부하 시 `sysdrill:evaluation:jobs` 큐 최대 4,592건 적체, 부하 종료 후에도 거의 미배출)의 원인이었던 `EvaluationWorker`/`BuildRunnerWorker`의 단일 스레드 구조를 고쳤다.
+
+착수 전 세 워커(`EvaluationWorker`/`BuildRunnerWorker`/`RealInfraSessionSweepWorker`)를 전부 직접 읽고 동시성 안전성부터 확인했다 — `EvaluationWorker`는 재시도 attempt가 워커 상태가 아니라 잡 페이로드에 실려 있고 중복 처리는 이미 `idx_evaluations_one_active_per_submission`(V28, ADR-0026)로 방어돼 있어 스레드를 늘려도 안전. `BuildRunnerWorker`는 잡마다 독립 DB 행이라 안전하지만 스레드 수가 동시 도커 컨테이너 수와 1:1이라 자원 예산으로 직결. `RealInfraSessionSweepWorker`는 잡 하나씩 poll하는 구조가 아니라 한 틱마다 만료 세션 전부를 순차 처리하는 배치 스윕이라 제외.
+
+- [x] `EvaluationWorker.kt`/`BuildRunnerWorker.kt` — `Executors.newSingleThreadExecutor()` → `newFixedThreadPool(workerConcurrency)`, `start()`가 `runLoop()`를 `workerConcurrency`번 제출. 스레드 이름에 번호 부여(`evaluation-worker-N`/`build-runner-worker-N`)
+- [x] `application.yml` — `sysdrill.evaluation.worker-concurrency`(기본 4, I/O-bound라 넉넉히), `sysdrill.build.worker-concurrency`(기본 2, 컨테이너당 0.5 CPU/128m이라 보수적으로), `spring.datasource.hikari.maximum-pool-size`(기본 10 — 기존 암묵 기본값을 명시화, 워커 동시성을 더 올리려면 같이 봐야 함을 문서화)
+- [x] `scripts/benchmark-traffic.sh` 안전장치 추가 — bootRun의 dotenv 로더(`build.gradle.kts`)가 셸 환경변수보다 `.env.local`을 무조건 우선 적용한다는 걸 재확인하고(1라운드 사고의 정확한 재발 조건), `LLM_ANTHROPIC_API_KEY=`를 셸에서 넘기는 기존 계획은 안 먹힌다는 걸 확인해 대신 벤치마크 동안 `.env.local` 파일 자체를 통째로 치웠다가 `trap cleanup EXIT`로 항상 복원하는 방식으로 변경
+
+**진행 중 발견하고 고친 버그**: 처음 작성한 동시성 테스트 2개가 `Thread.getAllStackTraces()`로 "정확히 N개" 글로벌 스레드 수를 단언했는데, 전체 스위트를 돌리면 Spring이 `@DynamicPropertySource`로 서로 다르게 설정된 여러 `ApplicationContext`를 캐시에 동시에 살려두고 각자 자기 `EvaluationWorker` 스레드 풀을 띄워둔다는 걸 몰랐다 — 실행마다 5개, 15개 등 제각각으로 나와 실패(플레이키가 아니라 애초에 근거가 틀린 단언). 글로벌 스레드 카운트 대신 "여러 제출을 동시에 넣어도 전부 정상 처리되는가"라는 블랙박스 정확성 테스트로 교체.
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.evaluation.*" --tests "com.sysdrill.backend.build.*"` 통과(도중 이 저장소를 동시에 쓰는 다른 세션의 Gradle 빌드와 `build/` 산출물 디렉터리가 겹쳐 두 번 트랜지언트하게 실패 — 재시도로 해결, 내 코드 문제 아님). 전체 스위트(`run-tests-isolated.sh` 무필터)도 통과.
+
+**실 검증(가장 설득력 있는 확인)**: `scripts/benchmark-traffic.sh`(이번에 안전장치 추가된 버전)로 200 req/s·30초 재현 → **큐 적체 최대치 0**(전체 관찰 구간 동안 단 한 번도 0을 벗어나지 않음) — 1라운드의 4,592건 적체와 극명히 대비. 백엔드 로그에 `evaluation-worker-2/3/4` 스레드가 실제로 동시에 일하는 것도 직접 확인. 부수적으로, 이번 실행에서 k6 쪽 에러율이 높게 나왔는데(다른 세션이 동시에 호스트를 쓰고 있어 `load average 91` — 원 벤치마크보다 훨씬 바쁜 호스트, 그래서 절대 수치는 1:1 비교 불가) 원인을 로그로 직접 추적해보니 큐 문제가 아니라 **HikariCP 풀(10) 자체가 k6의 순간 버스트에 포화**(`active=10, waiting=200+`, 30초 타임아웃)된 것 — 1라운드에서 추가한 catch-all 핸들러 덕분에 이게 뭉뚱그려진 500이 아니라 구체적인 `DataAccessResourceFailureException`으로 명확히 로그에 남았다. 이번 라운드가 만든 문제는 아니고(HikariCP 기본값 10은 변경 전부터 동일), 별도로 다룰 가치가 있는 발견이라 다음 라운드 후보로 남긴다.
+
+**하지 않은 것**: `RealInfraSessionSweepWorker` 무변경(Context 참고). `SandboxExecutor`에 별도 `Semaphore` 도입 안 함. HikariCP 풀 크기 자체를 올리는 건 이번 라운드 스코프 밖(이번엔 기존 암묵 기본값을 명시화만 함) — 위에서 발견한 풀 포화는 별도 라운드 후보. 새 ADR 안 씀 — 기존 `@Value` 설정 패턴을 그대로 확장한 되돌리기 쉬운 구현.
+
+---
+
 ## CodeCrafters 벤치마킹 P0 — 학습 루프 입구 (docs/CODECRAFTERS_BENCHMARK.md 기반, 2026-09-30~)
 
 [docs/CODECRAFTERS_BENCHMARK.md](docs/CODECRAFTERS_BENCHMARK.md) §5 우선순위표의 P0 3개 항목을 라운드로 옮긴 것. P1(Build 단계별 잠금 해제·테스트 로그·2분할 작업 화면·카드 그리드/아이콘)은 P0 완료 후 별도 라운드로 추가한다.
