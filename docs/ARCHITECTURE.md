@@ -1,6 +1,6 @@
 # SysDrill 시스템 아키텍처 설계서
 
-> 제품 요구사항은 [PRD.md](PRD.md), 결정의 근거는 [ADR 38건](adr/README.md), 단계별 구현 기록은 [PLAN.md](../PLAN.md)을 참고하세요.
+> 제품 요구사항은 [PRD.md](PRD.md), 결정의 근거는 [ADR 39건](adr/README.md), 단계별 구현 기록은 [PLAN.md](../PLAN.md)을 참고하세요.
 >
 > **이 문서는 2026-09-29 기준 실제 구현 상태를 기술합니다.** 초기 기획 시점의 설계안 중 실제로 다르게 구현된 것은 현재 구현을 기준으로 서술하고 차이를 명시했으며, 아직 만들지 않은 것은 **(미구현)** 으로 표시했습니다.
 
@@ -551,7 +551,7 @@ CI는 동일한 compose 스택 위에서 백엔드 전체 테스트(실제 인�
 |---|---|
 | [PRD.md](PRD.md) | 제품 정의, 타깃, 4개 모드, 평가 루브릭, MVP 범위 |
 | [TECHNICAL_HIGHLIGHTS.md](TECHNICAL_HIGHLIGHTS.md) | 어려웠던 문제 7가지 — 문제 → 선택 → 근거 → 코드 위치 |
-| [adr/](adr/README.md) | 아키텍처 결정 기록 38건 ("Start here" 5건 추천) |
+| [adr/](adr/README.md) | 아키텍처 결정 기록 39건 ("Start here" 5건 추천) |
 | [DEVELOPMENT.md](DEVELOPMENT.md) · [TESTING.md](TESTING.md) | 로컬 실행·저장소 규칙 · 3층 테스트 전략 |
 | [ROADMAP.md](ROADMAP.md) · [DRILLS_SIMULATION_VISION.md](DRILLS_SIMULATION_VISION.md) | Phase 1~6 · 캔버스↔시뮬레이션 비전과 격차 |
 | [FUTURE_EXPLORATIONS.md](FUTURE_EXPLORATIONS.md) | 검토했으나 채택하지 않은 방향 |

@@ -1,6 +1,6 @@
 # 테스트 전략
 
-백엔드 테스트 클래스 58개, `@Test` 295개 (2026-09-21 기준). 실행 방법은 [§3](#3-실행), 왜 이렇게 나눴는지는 [§1](#1-세-층)부터.
+백엔드 테스트 클래스 60개, 테스트 297개 (2026-09-30, 최신 CI 기준). 실행 방법은 [§3](#3-실행), 왜 이렇게 나눴는지는 [§1](#1-세-층)부터.
 
 ## 1. 세 층
 
@@ -67,7 +67,7 @@ cd backend && ./gradlew test
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)은 `push`/`pull_request`마다:
 
-- **backend** — `docker compose up -d` → Postgres 준비 대기 → `./gradlew test -PexcludeTags=realinfra-load` → JUnit XML 아티팩트 업로드 (293개 중 286개, 아래 참고)
+- **backend** — `docker compose up -d` → Postgres 준비 대기 → `./gradlew test -PexcludeTags=realinfra-load` → JUnit XML 아티팩트 업로드 (297개 중 290개, 아래 참고)
 - **frontend** — `npm ci` → `eslint` → `tsc --noEmit` → `next build` → `npm audit --audit-level=high`
 
 CI 러너는 전용이라 격리 스크립트가 필요 없습니다 — 격리 스크립트는 순전히 개발자 머신에서 이미 떠 있는 스택과 공존하기 위한 것입니다.

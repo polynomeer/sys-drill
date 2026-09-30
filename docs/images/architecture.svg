@@ -102,7 +102,7 @@
 
   <rect class="box" x="292" y="344" width="224" height="56" rx="5"/>
   <g transform="translate(304,360)"><use href="#ic-cube"/></g>
-  <text x="330" y="367" class="h">build</text><text x="330" y="384" class="sub">과제 6종 채점</text>
+  <text x="330" y="367" class="h">build</text><text x="330" y="384" class="sub">과제 7종 채점</text>
 
   <rect class="box" x="528" y="344" width="224" height="56" rx="5"/>
   <g transform="translate(540,360)"><use href="#ic-gear"/></g>
@@ -192,7 +192,7 @@
 
   <rect class="box" x="56" y="756" width="280" height="46" rx="5"/>
   <g transform="translate(68,769)"><use href="#ic-db"/></g>
-  <text x="94" y="783" class="h">PostgreSQL 16</text><text x="214" y="783" class="sub">테이블 29 · Flyway 43</text>
+  <text x="94" y="783" class="h">PostgreSQL 16</text><text x="214" y="783" class="sub">테이블 29 · Flyway 44</text>
 
   <rect class="box" x="350" y="756" width="280" height="46" rx="5"/>
   <g transform="translate(362,769)"><use href="#ic-bolt"/></g>

@@ -4,7 +4,7 @@ Short records of decisions that are hard to reverse, would surprise a future rea
 
 ## Start here
 
-38건을 다 읽을 필요는 없습니다. 이 프로젝트의 성격을 가장 잘 보여주는 순서로 다섯 개를 고르면:
+39건을 다 읽을 필요는 없습니다. 이 프로젝트의 성격을 가장 잘 보여주는 순서로 다섯 개를 고르면:
 
 1. [0004](0004-async-jobs-enqueued-only-after-commit.md) — 커밋 후에만 큐에 push. 같은 버그를 두 파이프라인에서 독립적으로 만난 뒤 규칙이 됨
 2. [0027](0027-evaluation-idempotency-guarded-by-db-constraint-not-just-in-app-dedup-check.md) — 멱등성은 앱의 dedup 체크가 아니라 DB 부분 유니크 인덱스가 보장
@@ -56,3 +56,4 @@ Short records of decisions that are hard to reverse, would surprise a future rea
 | [0036](0036-diagram-canvas-is-an-input-method-that-still-serializes-to-mermaid-text.md) | The System Design diagram canvas (React Flow) is a drawing input method that serializes to the same Mermaid text 0035 chose, not a second source of truth — sync is one-directional (canvas → text) |
 | [0037](0037-architecture-canvas-becomes-the-simulation-topology-source-of-truth.md) | The Architecture Canvas becomes the simulation's topology source of truth (per-node config in a new `SystemTopology` entity), superseding 0036's "not a second source of truth" |
 | [0038](0038-custom-scenarios-get-an-incident-step-by-constraining-domain-to-the-known-set.md) | A custom scenario can add an Incident/Wargame step, but only by picking a domain from the simulation engine's known 7-domain set — not by authoring a new one |
+| [0039](0039-learning-concepts-live-in-the-database-not-frontend-constants.md) | Learning 개념 콘텐츠는 DB에 두고 프론트 상수를 대체한다 |
