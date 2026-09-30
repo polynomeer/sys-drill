@@ -219,6 +219,13 @@ function MarketplaceContent() {
                   <Badge variant="danger">Incident</Badge>
                   {scenario.difficulty && <Badge>{scenario.difficulty}</Badge>}
                   {scenario.creatorNickname && <span className="text-xs text-foreground-muted">by {scenario.creatorNickname}</span>}
+                  {/* docs/LEARNING_COMMUNITY_PLAN.md §6.3 — 별점 대신 실측 난이도 신호 */}
+                  {typeof scenario.completedCount === "number" && scenario.completedCount > 0 && (
+                    <span className="text-xs text-foreground-muted">
+                      완료 {scenario.completedCount}명
+                      {typeof scenario.averageScore === "number" && ` · 평균 ${scenario.averageScore}점`}
+                    </span>
+                  )}
                 </span>
                 <Button size="sm" variant="secondary" onClick={() => handleStart(scenario.id)} disabled={startingScenarioId === scenario.id}>
                   {startingScenarioId === scenario.id ? "시작하는 중..." : "시작"}
