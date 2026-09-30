@@ -9,6 +9,7 @@ import {
   SessionSummary,
   SkillProfile,
   getSkillProfile,
+  getMyPreferences,
   getUserSessions,
   listScenarios,
 } from "@/lib/api";
@@ -58,6 +59,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startHereDismissed, setStartHereDismissed] = useState(true);
+  const [teamGoal, setTeamGoal] = useState(false);
 
   useEffect(() => {
     if (!getStoredToken()) {
@@ -69,6 +71,9 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setNickname(getStoredNickname());
     setStartHereDismissed(isStartHereDismissed());
+
+    // docs/CODECRAFTERS_BENCHMARK.md §3.4 — a TEAM goal surfaces the organization features, otherwise easy to miss.
+    getMyPreferences().then((p) => setTeamGoal(p.trainingGoal === "TEAM")).catch(() => undefined);
 
     Promise.all([listScenarios(), getUserSessions(), getSkillProfile()])
       .then(([scenarioList, sessionList, profile]) => {
@@ -128,6 +133,20 @@ export default function DashboardPage() {
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {teamGoal && (
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4">
+          <div>
+            <p className="font-medium">팀과 함께 훈련하기</p>
+            <p className="mt-1 text-sm text-foreground-muted">
+              조직을 만들면 팀원 초대, 온보딩 커리큘럼, 팀 대시보드, Game Day 관전을 쓸 수 있습니다.
+            </p>
+          </div>
+          <Button href="/organizations" variant="secondary" size="sm">
+            조직 만들기 →
+          </Button>
         </div>
       )}
 

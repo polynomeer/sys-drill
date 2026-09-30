@@ -14,6 +14,7 @@ import {
   ScenarioSummary,
   getBuildChallenge,
   getBuildSubmission,
+  getMyPreferences,
   listScenarios,
   startSession,
   submitBuildChallenge,
@@ -249,9 +250,17 @@ export default function BridgePage() {
       router.replace("/onboarding");
       return;
     }
-    // Data fetch + localStorage read on mount (loadLanguage sets the draft synchronously), not a cascading render loop.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    Promise.all([listScenarios(), loadLanguage("python")])
+    // docs/CODECRAFTERS_BENCHMARK.md §3.4 — open in the learner's preferred language (default Python).
+    const initialLanguage = getMyPreferences()
+      .then((p): Language => (p.preferredLanguage === "TYPESCRIPT" ? "typescript" : "python"))
+      .catch((): Language => "python");
+    Promise.all([
+      listScenarios(),
+      initialLanguage.then((lang) => {
+        setLanguage(lang);
+        return loadLanguage(lang);
+      }),
+    ])
       .then(([scenarios]) => {
         setScenario(findBridgeScenario(scenarios));
         setPageState("ready");

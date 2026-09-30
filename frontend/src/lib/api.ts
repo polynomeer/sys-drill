@@ -422,6 +422,8 @@ export function signup(input: {
   nickname: string;
   experienceYears?: number;
   primaryStack?: string;
+  preferredLanguage?: PreferredLanguage;
+  trainingGoal?: TrainingGoal;
   termsAccepted: boolean;
 }): Promise<AuthResponse> {
   return apiFetch<AuthResponse>("/auth/signup", { method: "POST", body: JSON.stringify(input) });
@@ -709,6 +711,24 @@ export function submitBuildChallenge(slug: string, sourceCode: string): Promise<
 
 export function getBuildSubmission(submissionId: string): Promise<BuildSubmissionResponse> {
   return apiFetch<BuildSubmissionResponse>(`/build-submissions/${submissionId}`);
+}
+
+/** docs/CODECRAFTERS_BENCHMARK.md §3.4 — optional onboarding answers; each drives exactly one UI default. */
+export type PreferredLanguage = "PYTHON" | "TYPESCRIPT";
+export type TrainingGoal = "INTERVIEW" | "SKILLS" | "TEAM";
+
+export interface UserPreferences {
+  preferredLanguage: PreferredLanguage | null;
+  trainingGoal: TrainingGoal | null;
+}
+
+export function getMyPreferences(): Promise<UserPreferences> {
+  return apiFetch<UserPreferences>("/me/preferences");
+}
+
+/** Replaces both fields — pass null to clear one. */
+export function setMyPreferences(preferences: UserPreferences): Promise<UserPreferences> {
+  return apiFetch<UserPreferences>("/me/preferences", { method: "PUT", body: JSON.stringify(preferences) });
 }
 
 /** docs/CODECRAFTERS_BENCHMARK.md §3.8 — completions only; ranking-hidden users and assessment sessions are excluded server-side. */

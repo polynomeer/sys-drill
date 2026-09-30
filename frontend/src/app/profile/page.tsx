@@ -23,6 +23,7 @@ import { useConceptLabels } from "@/lib/useConceptLabels";
 import { categoryLabel } from "@/lib/skillCategoryLabels";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { PreferencesCard } from "@/components/PreferencesCard";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -134,6 +135,8 @@ export default function ProfilePage() {
         <h1 className="text-2xl font-semibold">역량 프로필</h1>
         <p className="mt-1 text-sm text-foreground-muted">진행률, 역량, 기록, 배지를 한눈에 확인하세요.</p>
       </div>
+
+      <PreferencesCard />
 
       <Card as="section">
         <div className="mb-3 flex items-center justify-between">

@@ -3,7 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ApiError, signup } from "@/lib/api";
+import { ApiError, PreferredLanguage, TrainingGoal, signup } from "@/lib/api";
+import { GOAL_OPTIONS, LANGUAGE_OPTIONS, STACK_SUGGESTIONS } from "@/lib/preferences";
+import { PreferenceChips } from "@/components/PreferenceChips";
 import { storeUser } from "@/lib/localSession";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -15,6 +17,8 @@ export default function OnboardingPage() {
   const [nickname, setNickname] = useState("");
   const [experienceYears, setExperienceYears] = useState("");
   const [primaryStack, setPrimaryStack] = useState("");
+  const [preferredLanguage, setPreferredLanguage] = useState<PreferredLanguage | null>(null);
+  const [trainingGoal, setTrainingGoal] = useState<TrainingGoal | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +42,8 @@ export default function OnboardingPage() {
         nickname: nickname.trim(),
         experienceYears: experienceYears ? Number(experienceYears) : undefined,
         primaryStack: primaryStack.trim() || undefined,
+        preferredLanguage: preferredLanguage ?? undefined,
+        trainingGoal: trainingGoal ?? undefined,
         termsAccepted,
       });
       storeUser(user.nickname, token);
@@ -90,6 +96,20 @@ export default function OnboardingPage() {
           value={primaryStack}
           onChange={(e) => setPrimaryStack(e.target.value)}
           placeholder="Kotlin / Spring Boot"
+          list="stack-suggestions"
+        />
+        <datalist id="stack-suggestions">
+          {STACK_SUGGESTIONS.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+
+        <PreferenceChips label="훈련 목표 (선택)" options={GOAL_OPTIONS} value={trainingGoal} onChange={setTrainingGoal} />
+        <PreferenceChips
+          label="Build 과제 언어 (선택)"
+          options={LANGUAGE_OPTIONS}
+          value={preferredLanguage}
+          onChange={setPreferredLanguage}
         />
 
         <label className="flex items-start gap-2 text-sm text-foreground-muted">

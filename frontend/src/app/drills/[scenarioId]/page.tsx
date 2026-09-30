@@ -8,6 +8,7 @@ import {
   RecentCompletion,
   ScenarioDetail,
   SessionSummary,
+  getMyPreferences,
   getRecentCompletions,
   getScenario,
   getUserSessions,
@@ -74,6 +75,8 @@ export default function DrillOverviewPage() {
     const sessionsRequest = hasToken ? getUserSessions() : Promise.resolve([] as SessionSummary[]);
     // Recent completers are members-only (the endpoint needs a token) and purely decorative.
     if (hasToken) getRecentCompletions(scenarioId).then(setRecent).catch(() => setRecent([]));
+    // docs/CODECRAFTERS_BENCHMARK.md §3.4 — interview-prep learners start with the timer on (still just a default).
+    if (hasToken) getMyPreferences().then((p) => setInterviewMode(p.trainingGoal === "INTERVIEW")).catch(() => undefined);
 
     Promise.all([getScenario(scenarioId), sessionsRequest])
       .then(([detail, sessionList]) => {
