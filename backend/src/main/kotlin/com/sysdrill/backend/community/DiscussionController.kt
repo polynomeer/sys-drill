@@ -45,7 +45,9 @@ class DiscussionController(
         @AuthenticatedUserId userId: UUID,
     ): ResponseEntity<Void> {
         discussionService.report(discussionId, userId, request)
-        return ResponseEntity.status(HttpStatus.ACCEPTED).build()
+        // 202 가 아니라 204 — 신고는 큐에 넣는 게 아니라 그 자리에서 기록된다.
+        // 프런트의 apiFetch 도 "본문 없음"을 204 로만 인정한다(202 면 JSON 파싱에서 터진다).
+        return ResponseEntity.noContent().build()
     }
 }
 

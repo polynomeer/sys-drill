@@ -202,7 +202,7 @@ class DiscussionIntegrationTest(
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("Authorization", bearerHeader(reporter))
                     .content("""{"reason":"스포일러"}""")
-            ).andExpect(status().isAccepted)
+            ).andExpect(status().isNoContent)
         }
 
         assertThat(messageById(reporter, messageId)["reportedByMe"]).isEqualTo(true)
