@@ -12,6 +12,7 @@ import {
   getFeedback,
   getBenchmark,
   getReport,
+  getSession,
   getSkillProfile,
   listScenarios,
   startSession,
@@ -25,6 +26,7 @@ import { Card } from "@/components/ui/Card";
 import { BenchmarkRow } from "@/components/BenchmarkRow";
 import { CompletionCard } from "@/components/CompletionCard";
 import { ShareWriteupCard } from "@/components/ShareWriteupCard";
+import { DiscussionPanel } from "@/components/DiscussionPanel";
 import { formatDuration } from "@/lib/metrics";
 import { Gauge } from "@/components/ui/Gauge";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -56,6 +58,7 @@ export default function ReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const concepts = useConceptLookup();
+  const [scenarioId, setScenarioId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!getStoredToken()) {
@@ -64,6 +67,8 @@ export default function ReportPage() {
     }
 
     trackEvent("report_view");
+    // docs/COMMUNITY_EXPANSION_PLAN.md C7 — 리포트 하단의 토론. 부가 정보라 실패해도 본문은 뜬다.
+    getSession(sessionId).then((s) => setScenarioId(s.scenarioId ?? null)).catch(() => setScenarioId(null));
     // 벤치마크는 부가 정보다 — 실패해도 리포트 본문은 떠야 한다.
     getBenchmark(sessionId).then(setBenchmark).catch(() => setBenchmark(null));
 
@@ -232,6 +237,8 @@ export default function ReportPage() {
           )}
 
           <ShareWriteupCard sessionId={sessionId} />
+
+          {scenarioId && <DiscussionPanel scenarioId={scenarioId} compact />}
 
           {recommended && (
             <Card className="flex items-center justify-between">

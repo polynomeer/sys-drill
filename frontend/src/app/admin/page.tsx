@@ -2,7 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AdminDashboardStats, ApiError, SuccessMetrics, getAdminDashboardStats, getSuccessMetrics } from "@/lib/api";
+import Link from "next/link";
+import {
+  AdminDashboardStats,
+  ApiError,
+  ReportedDiscussion,
+  SuccessMetrics,
+  getAdminDashboardStats,
+  getReportedDiscussions,
+  getSuccessMetrics,
+  setDiscussionHidden,
+} from "@/lib/api";
+import { Button } from "@/components/ui/Button";
 import { getStoredToken } from "@/lib/localSession";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -55,7 +66,61 @@ export default function AdminDashboardPage() {
       )}
 
       {metrics && <SuccessMetricsPanel metrics={metrics} />}
+
+      {stats && <ReportedDiscussionsPanel />}
     </div>
+  );
+}
+
+/**
+ * docs/COMMUNITY_EXPANSION_PLAN.md C7 (PLAN.md Round E3) — 신고된 토론 검토.
+ * 1차 기획이 "토론은 모더레이션 운영을 시작시킨다"고 했는데 API만 있고 화면이 없었다.
+ * 숨김은 삭제가 아니라 되돌릴 수 있다(ADR-0040).
+ */
+function ReportedDiscussionsPanel() {
+  const [items, setItems] = useState<ReportedDiscussion[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getReportedDiscussions()
+      .then(setItems)
+      .catch(() => setError("신고 목록을 불러오지 못했습니다."));
+  }, []);
+
+  async function toggle(item: ReportedDiscussion) {
+    try {
+      const updated = await setDiscussionHidden(item.id, !item.hidden);
+      setItems((prev) => prev?.map((i) => (i.id === updated.id ? updated : i)) ?? null);
+    } catch {
+      setError("처리하지 못했습니다.");
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-lg font-semibold">신고된 토론</h2>
+      {error && <p className="text-sm text-danger">{error}</p>}
+      {items === null && !error && <LoadingState />}
+      {items?.length === 0 && <p className="text-sm text-foreground-muted">검토할 신고가 없습니다.</p>}
+      {items?.map((item) => (
+        <Card key={item.id} className={item.hidden ? "opacity-60" : ""}>
+          <div className="mb-1 flex flex-wrap items-baseline gap-2 text-xs text-foreground-muted">
+            <span className="font-medium text-foreground">{item.authorNickname}</span>
+            <span>신고 {item.reportCount}건</span>
+            {item.scenarioId && (
+              <Link href={`/discussions/${item.scenarioId}`} className="underline underline-offset-2">
+                {item.scenarioTitle ?? "스레드"}
+              </Link>
+            )}
+            {item.hidden && <span className="text-danger">숨김</span>}
+          </div>
+          <p className="whitespace-pre-wrap text-sm">{item.body}</p>
+          <Button size="sm" variant={item.hidden ? "secondary" : "danger"} className="mt-3" onClick={() => toggle(item)}>
+            {item.hidden ? "복원" : "숨기기"}
+          </Button>
+        </Card>
+      ))}
+    </section>
   );
 }
 

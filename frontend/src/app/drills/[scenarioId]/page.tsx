@@ -23,6 +23,7 @@ import { StageList, type Stage } from "@/components/StageList";
 import { REPORT_STAGE, stageFromStepType } from "@/lib/stageCopy";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
+import { DiscussionPanel } from "@/components/DiscussionPanel";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
@@ -299,6 +300,8 @@ export default function DrillOverviewPage() {
               <p className="mt-2 text-sm text-foreground-muted">아직 완료한 사람이 없습니다. 첫 번째가 되어보세요.</p>
             )}
           </Card>
+          {/* docs/COMMUNITY_EXPANSION_PLAN.md C7 — 토론을 /community 밖, Drill을 고르는 자리에서도 보이게. 토론 API는 로그인 필요. */}
+          {loggedIn && <DiscussionPanel scenarioId={scenarioId} compact />}
           {recent.length > 0 && (
             <Card>
               <p className="text-xs font-semibold uppercase tracking-wide text-foreground-muted">최근 완료</p>

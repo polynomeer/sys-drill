@@ -108,5 +108,6 @@ class SessionController(
             sessionService.getPhaseDeadline(session),
             callerId,
             sessionService.getStepTypes(session),
+            scenarioVersionRepository.findById(session.scenarioVersionId).map { it.scenarioId }.orElse(null),
         )
 }

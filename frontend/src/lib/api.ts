@@ -154,6 +154,8 @@ export interface SessionResponse {
   isOwner: boolean;
   /** docs/CODECRAFTERS_BENCHMARK.md §3.3 — this session's step types in order (INITIAL, FOLLOWUP[, INCIDENT]). */
   stepTypes?: string[];
+  /** PLAN.md Round E3 — the scenario this session's version belongs to. */
+  scenarioId?: string | null;
 }
 
 export interface ChatMessage {
@@ -1219,6 +1221,19 @@ export interface DiscussionMessage {
   mine: boolean;
   quoted?: QuotedWriteup | null;
   reportedByMe: boolean;
+  /** PLAN.md Round E3 — set on a reply (one level only). */
+  parentId?: string | null;
+  kind: DiscussionKind;
+  containsSpoiler: boolean;
+  /** Spoiler post and the viewer hasn't completed the scenario — `body` is empty. */
+  spoilerLocked: boolean;
+}
+
+export type DiscussionKind = "QUESTION" | "DESIGN" | "RESPONSE" | "INSIGHT";
+
+export interface PreviousVersionThread {
+  versionNo: number;
+  messages: DiscussionMessage[];
 }
 
 export interface DiscussionThread {
@@ -1230,6 +1245,9 @@ export interface DiscussionThread {
   averageScore?: number | null;
   completedByMe: boolean;
   messages: DiscussionMessage[];
+  currentVersionNo: number;
+  /** PLAN.md Round E3 — older versions' threads, read-only, newest first. */
+  previousVersions: PreviousVersionThread[];
 }
 
 export function getDiscussion(scenarioId: string): Promise<DiscussionThread> {
@@ -1239,11 +1257,35 @@ export function getDiscussion(scenarioId: string): Promise<DiscussionThread> {
 export function postDiscussion(
   scenarioId: string,
   body: string,
-  quotedSessionId?: string,
+  options: { quotedSessionId?: string; parentId?: string; kind?: DiscussionKind; containsSpoiler?: boolean } = {},
 ): Promise<DiscussionMessage> {
   return apiFetch<DiscussionMessage>(`/scenarios/${scenarioId}/discussion`, {
     method: "POST",
-    body: JSON.stringify(quotedSessionId ? { body, quotedSessionId } : { body }),
+    body: JSON.stringify({ body, ...options }),
+  });
+}
+
+/** PLAN.md Round E3 — PLATFORM_ADMIN moderation queue (reported posts, most reports first). */
+export interface ReportedDiscussion {
+  id: string;
+  scenarioVersionId: string;
+  scenarioId: string | null;
+  scenarioTitle: string | null;
+  authorNickname: string;
+  body: string;
+  reportCount: number;
+  hidden: boolean;
+  createdAt: string | null;
+}
+
+export function getReportedDiscussions(): Promise<ReportedDiscussion[]> {
+  return apiFetch<ReportedDiscussion[]>("/admin/discussions/reported");
+}
+
+export function setDiscussionHidden(discussionId: string, hidden: boolean): Promise<ReportedDiscussion> {
+  return apiFetch<ReportedDiscussion>(`/admin/discussions/${discussionId}/hidden`, {
+    method: "PUT",
+    body: JSON.stringify({ hidden }),
   });
 }
 

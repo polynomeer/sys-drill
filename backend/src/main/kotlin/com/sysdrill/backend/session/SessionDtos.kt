@@ -39,6 +39,8 @@ data class SessionResponse(
     val isOwner: Boolean,
     /** docs/CODECRAFTERS_BENCHMARK.md §3.3 — this session's version step types in order (INITIAL, FOLLOWUP[, INCIDENT]), so the workspace stage list reflects the real stage count instead of a hard-coded one. Types only — later steps' prompts stay hidden. */
     val stepTypes: List<String> = emptyList(),
+    /** PLAN.md Round E3 — the scenario (not just the version), so the report can show that scenario's discussion. */
+    val scenarioId: UUID? = null,
 ) {
     companion object {
         fun from(
@@ -48,6 +50,7 @@ data class SessionResponse(
             phaseDeadlineAt: Instant?,
             callerId: UUID,
             stepTypes: List<String> = emptyList(),
+            scenarioId: UUID? = null,
         ) = SessionResponse(
             id = session.id!!,
             status = session.status,
@@ -62,6 +65,7 @@ data class SessionResponse(
             completedAt = session.completedAt,
             isOwner = session.userId == callerId,
             stepTypes = stepTypes,
+            scenarioId = scenarioId,
         )
     }
 }

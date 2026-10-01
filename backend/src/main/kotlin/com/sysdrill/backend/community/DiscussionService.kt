@@ -44,15 +44,21 @@ class DiscussionService(
 
     fun thread(scenarioId: UUID, viewerId: UUID): DiscussionThread {
         val scenario = requireScenario(scenarioId)
-        val versionId = currentVersionId(scenarioId)
+        val current = currentVersion(scenarioId)
+        val versionId = current.id!!
         val stats = scenarioStatsService.byScenarioId(listOf(scenarioId))[scenarioId]
         val completedByMe = hasCompleted(viewerId, scenarioId)
 
-        val messages = discussionRepository.findByScenarioVersionIdOrderByCreatedAtAsc(versionId)
-            // 숨겨진 글은 목록에서 빠진다. 행은 남기되(오판을 되돌릴 수 있게) 읽는
-            // 쪽에는 "삭제됨" 같은 흔적도 남기지 않는다 — 흔적이 곧 신고 대상을
-            // 지목하는 신호가 되기 때문이다.
-            .filter { it.hiddenAt == null }
+        // PLAN.md Round E3 — 이전 버전 스레드를 읽기 전용으로 함께 준다. ADR-0048의 v2
+        // 전환에서 v1 글이 화면에서 통째로 사라지지 않게. 쓰기는 여전히 최신 버전에만.
+        val previousVersions = scenarioVersionRepository.findByScenarioIdIn(listOf(scenarioId))
+            .filter { it.id != versionId && it.versionNo < current.versionNo }
+            .sortedByDescending { it.versionNo }
+            .mapNotNull { version ->
+                val messages = visibleMessages(version.id!!)
+                if (messages.isEmpty()) null
+                else PreviousVersionThread(version.versionNo, toResponses(messages, viewerId, completedByMe))
+            }
 
         return DiscussionThread(
             scenarioId = scenarioId,
@@ -61,9 +67,17 @@ class DiscussionService(
             completedCount = stats?.completedCount ?: 0,
             averageScore = stats?.averageScore,
             completedByMe = completedByMe,
-            messages = toResponses(messages, viewerId, completedByMe),
+            messages = toResponses(visibleMessages(versionId), viewerId, completedByMe),
+            currentVersionNo = current.versionNo,
+            previousVersions = previousVersions,
         )
     }
+
+    // 숨겨진 글은 목록에서 빠진다. 행은 남기되(오판을 되돌릴 수 있게) 읽는
+    // 쪽에는 "삭제됨" 같은 흔적도 남기지 않는다 — 흔적이 곧 신고 대상을
+    // 지목하는 신호가 되기 때문이다.
+    private fun visibleMessages(versionId: UUID): List<ScenarioDiscussion> =
+        discussionRepository.findByScenarioVersionIdOrderByCreatedAtAsc(versionId).filter { it.hiddenAt == null }
 
     @Transactional
     fun post(scenarioId: UUID, authorId: UUID, request: PostDiscussionRequest): DiscussionMessage {
@@ -74,12 +88,25 @@ class DiscussionService(
         // ADR-0041 의 조건이 사실상 무력해진다. detail() 이 404/403 으로 막는다.
         request.quotedSessionId?.let { writeupService.detail(it, authorId) }
 
+        // PLAN.md Round E3 — 답글은 같은(최신) 버전의 보이는 최상위 글에만, 한 단계만.
+        request.parentId?.let { parentId ->
+            val parent = discussionRepository.findById(parentId)
+                .orElseThrow { NotFoundException("Discussion not found: $parentId") }
+            if (parent.scenarioVersionId != versionId || parent.hiddenAt != null) {
+                throw BadRequestException("이 글에는 답글을 달 수 없습니다")
+            }
+            if (parent.parentId != null) throw BadRequestException("답글에는 다시 답글을 달 수 없습니다")
+        }
+
         val saved = discussionRepository.save(
             ScenarioDiscussion(
                 scenarioVersionId = versionId,
                 authorUserId = authorId,
                 body = request.body.trim(),
                 quotedSessionId = request.quotedSessionId,
+                parentId = request.parentId,
+                containsSpoiler = request.containsSpoiler,
+                kind = request.kind.name,
             )
         )
         return toResponses(listOf(saved), authorId, hasCompleted(authorId, scenarioId)).single()
@@ -109,11 +136,14 @@ class DiscussionService(
         if (counts.isEmpty()) return emptyList()
         val discussions = discussionRepository.findAllById(counts.keys)
         val nicknames = nicknamesOf(discussions.map { it.authorUserId })
+        val scenarios = scenarioOfVersions(discussions.map { it.scenarioVersionId })
         return discussions
             .map { discussion ->
                 ReportedDiscussion(
                     id = discussion.id!!,
                     scenarioVersionId = discussion.scenarioVersionId,
+                    scenarioId = scenarios[discussion.scenarioVersionId]?.first,
+                    scenarioTitle = scenarios[discussion.scenarioVersionId]?.second,
                     authorNickname = nicknames[discussion.authorUserId] ?: UNKNOWN_AUTHOR,
                     body = discussion.body,
                     reportCount = counts[discussion.id] ?: 0,
@@ -131,9 +161,12 @@ class DiscussionService(
         discussion.hiddenAt = if (hidden) Instant.now() else null
         discussion.hiddenByUserId = if (hidden) adminUserId else null
         discussionRepository.save(discussion)
+        val scenario = scenarioOfVersions(listOf(discussion.scenarioVersionId))[discussion.scenarioVersionId]
         return ReportedDiscussion(
             id = discussion.id!!,
             scenarioVersionId = discussion.scenarioVersionId,
+            scenarioId = scenario?.first,
+            scenarioTitle = scenario?.second,
             authorNickname = nicknamesOf(listOf(discussion.authorUserId))[discussion.authorUserId] ?: UNKNOWN_AUTHOR,
             body = discussion.body,
             reportCount = reportRepository.countByDiscussionId(discussionId),
@@ -154,17 +187,26 @@ class DiscussionService(
             .map { it.discussionId }
             .toSet()
         val quoted = quotedWriteups(messages, completedByMe)
+        val visibleIds = messages.mapNotNull { it.id }.toSet()
 
         return messages.map { message ->
+            val mine = message.authorUserId == viewerId
+            // ADR-0041 게이트를 본문에도: 스포일러 표시 글은 미완료자에게 본문을 보내지 않는다(작성자 본인 제외).
+            val spoilerLocked = message.containsSpoiler && !completedByMe && !mine
             DiscussionMessage(
                 id = message.id!!,
                 authorUserId = message.authorUserId,
                 authorNickname = nicknames[message.authorUserId] ?: UNKNOWN_AUTHOR,
-                body = message.body,
+                body = if (spoilerLocked) "" else message.body,
                 createdAt = message.createdAt,
-                mine = message.authorUserId == viewerId,
+                mine = mine,
                 quoted = message.quotedSessionId?.let { quoted[it] },
                 reportedByMe = message.id in myReports,
+                // 부모가 숨겨졌으면(목록에 없으면) 답글을 최상위로 올린다 — 숨김의 흔적을 남기지 않는다.
+                parentId = message.parentId?.takeIf { it in visibleIds },
+                kind = message.kind,
+                containsSpoiler = message.containsSpoiler,
+                spoilerLocked = spoilerLocked,
             )
         }
     }
@@ -209,9 +251,21 @@ class DiscussionService(
      * 글을 쓰는 곳과 읽는 곳이 같은 버전이어야 하므로, 세션이 쓰는 것과 같은
      * "가장 최신 PUBLISHED 버전"을 쓴다.
      */
-    private fun currentVersionId(scenarioId: UUID): UUID =
-        scenarioVersionRepository.findFirstByScenarioIdAndStatusOrderByVersionNoDesc(scenarioId, "PUBLISHED")?.id
+    private fun currentVersionId(scenarioId: UUID): UUID = currentVersion(scenarioId).id!!
+
+    private fun currentVersion(scenarioId: UUID) =
+        scenarioVersionRepository.findFirstByScenarioIdAndStatusOrderByVersionNoDesc(scenarioId, "PUBLISHED")
             ?: throw NotFoundException("No published version for scenario $scenarioId")
+
+    /** versionId → (scenarioId, 제목). 관리자 검토 목록이 원래 스레드로 링크할 수 있게. */
+    private fun scenarioOfVersions(versionIds: Collection<UUID>): Map<UUID, Pair<UUID, String>> {
+        val versions = scenarioVersionRepository.findAllById(versionIds.distinct())
+        val scenarios = scenarioRepository.findAllById(versions.map { it.scenarioId }.distinct()).associateBy { it.id!! }
+        return versions.mapNotNull { version ->
+            val scenario = scenarios[version.scenarioId] ?: return@mapNotNull null
+            version.id!! to (scenario.id!! to titleOf(scenario))
+        }.toMap()
+    }
 
     private fun titleOf(scenario: Scenario): String =
         contentItemRepository.findById(scenario.contentId).map { it.title }.orElse(null) ?: scenario.domain

@@ -42,10 +42,25 @@ class ScenarioDiscussion(
     @Column(name = "hidden_by_user_id")
     var hiddenByUserId: UUID? = null,
 
+    /** PLAN.md Round E3 — 답글이면 부모 글. 한 단계만 허용한다(답글의 답글 없음). */
+    @Column(name = "parent_id")
+    var parentId: UUID? = null,
+
+    /** PLAN.md Round E3 — 작성자가 풀이 내용을 담았다고 표시. 미완료자에게는 본문이 잠긴다. */
+    @Column(name = "contains_spoiler", nullable = false)
+    var containsSpoiler: Boolean = false,
+
+    /** PLAN.md Round E3 — 필터용 글 종류 ([DiscussionKind]). */
+    @Column(nullable = false)
+    var kind: String = DiscussionKind.QUESTION.name,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant? = null,
 )
+
+/** docs/COMMUNITY_EXPANSION_PLAN.md C7 — 질문 · 설계 · 대응 · 인사이트. 필터용이고 입력 템플릿은 없다. */
+enum class DiscussionKind { QUESTION, DESIGN, RESPONSE, INSIGHT }
 
 @Entity
 @Table(name = "scenario_discussion_reports")
