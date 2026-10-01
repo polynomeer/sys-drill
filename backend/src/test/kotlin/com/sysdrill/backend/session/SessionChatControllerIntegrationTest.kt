@@ -13,6 +13,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
@@ -91,6 +92,28 @@ class SessionChatControllerIntegrationTest(
             .andExpect(jsonPath("$[0].authorNickname").value("chat-owner"))
             .andExpect(jsonPath("$[1].body").value("관전자 훈수"))
             .andExpect(jsonPath("$[1].authorNickname").value("chat-spectator"))
+    }
+
+    /** PLAN.md Round E7 — the spectator's Service Map reads the owner's canvas; only the owner may change it. */
+    @Test
+    fun `a spectator can read the session's topology but not save it`() {
+        val admin = createUser("topo-admin")
+        val owner = createUser("topo-owner")
+        val spectator = createUser("topo-spectator")
+        val orgId = createOrg(admin.id!!)
+        for (u in listOf(owner, spectator)) {
+            val token = invite(orgId, admin.id!!, u.email)
+            mockMvc.perform(post("/organizations/invitations/$token/accept").header("Authorization", bearerHeader(u.id!!)))
+        }
+        val sessionId = startCustomScenarioSession(orgId, admin.id!!, owner.id!!)
+
+        mockMvc.perform(get("/sessions/$sessionId/topology").header("Authorization", bearerHeader(spectator.id!!)))
+            .andExpect(status().isOk)
+        mockMvc.perform(
+            put("/sessions/$sessionId/topology").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(spectator.id!!))
+                .content("""{"graph":"{\"nodes\":[],\"edges\":[]}"}""")
+        ).andExpect(status().isNotFound)
     }
 
     @Test

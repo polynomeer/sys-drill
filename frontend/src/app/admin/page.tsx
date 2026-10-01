@@ -141,6 +141,7 @@ const EVENT_LABELS: Record<string, string> = {
   architecture_analysis_view: "아키텍처 분석 방문",
   report_view: "리포트 조회",
   feedback_concept_click: "피드백 → 개념 클릭",
+  observe_tab_map: "인시던트 Service Map 탭",
   observe_tab_metrics: "인시던트 Metrics 탭",
   observe_tab_logs: "인시던트 Logs 탭",
   observe_tab_changes: "인시던트 Changes 탭",

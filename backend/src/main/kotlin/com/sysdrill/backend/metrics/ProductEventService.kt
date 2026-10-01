@@ -47,6 +47,7 @@ class ProductEventService(private val jdbc: JdbcTemplate) {
             "report_view",
             "feedback_concept_click",
             // docs/OBSERVABILITY_UI_PLAN.md §9 — are the investigation tabs actually used during an incident
+            "observe_tab_map",
             "observe_tab_metrics",
             "observe_tab_logs",
             "observe_tab_changes",

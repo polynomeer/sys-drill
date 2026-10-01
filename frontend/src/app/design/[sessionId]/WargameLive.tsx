@@ -26,13 +26,15 @@ import { Input } from "@/components/ui/Input";
 import { LogEntry, LogLevel, LogViewer } from "./LogViewer";
 import { MissionControlBar } from "./MissionControlBar";
 import { GoldenSignals, RecentChanges, SeriesCharts } from "./ObserveViews";
+import { ServiceMap } from "./ServiceMap";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
 import { trackEvent } from "@/lib/events";
 
 /** docs/OBSERVABILITY_UI_PLAN.md O1 — one investigation space instead of a stack of panels. */
-type ObserveTab = "overview" | "metrics" | "logs" | "changes";
+type ObserveTab = "overview" | "map" | "metrics" | "logs" | "changes";
 const OBSERVE_TABS: { key: ObserveTab; label: string }[] = [
   { key: "overview", label: "Overview" },
+  { key: "map", label: "Service Map" },
   { key: "metrics", label: "Metrics" },
   { key: "logs", label: "Logs" },
   { key: "changes", label: "Changes" },
@@ -511,6 +513,7 @@ export function WargameLive({
           {incidentStartedAt && <RecentChanges steps={steps} incidentStartedAt={incidentStartedAt} limit={5} />}
         </div>
       )}
+      {tab === "map" && <ServiceMap sessionId={sessionId} domain={domain} latest={latestPoint} />}
       {tab === "metrics" && (
         <div className="flex flex-col gap-4">
           <MetricsPanel state={shownState} domain={domain} />

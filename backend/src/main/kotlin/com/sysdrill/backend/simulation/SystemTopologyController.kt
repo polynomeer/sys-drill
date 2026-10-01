@@ -18,9 +18,14 @@ class SystemTopologyController(
     private val sessionAccessGuard: SessionAccessGuard,
 ) {
 
+    /**
+     * PLAN.md Round E7 — a Game Day spectator may read it too: the incident's Service Map
+     * (docs/OBSERVABILITY_UI_PLAN.md O3) is drawn on this graph, and spectators already see
+     * the same session's metrics, timeline and series. Writing stays owner-only.
+     */
     @GetMapping
     fun get(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): SystemTopologyResponse {
-        sessionAccessGuard.requireOwner(sessionId, userId)
+        sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
         return systemTopologyService.get(sessionId)
     }
 
