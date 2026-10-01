@@ -39,6 +39,8 @@ class BuildRunnerWorker(
     private val log = LoggerFactory.getLogger(javaClass)
     private val running = AtomicBoolean(false)
     private val threadCounter = AtomicInteger(0)
+    /** 연속 실패 횟수 — 백오프를 늘리는 데만 쓴다. 스레드마다 따로 센다. */
+    private val consecutiveErrors = ThreadLocal.withInitial { 0 }
     private val executor = Executors.newFixedThreadPool(workerConcurrency) { r ->
         Thread(r, "build-runner-worker-${threadCounter.incrementAndGet()}")
     }
@@ -75,30 +77,42 @@ class BuildRunnerWorker(
             try {
                 val submissionId = buildJobQueue.poll(POLL_TIMEOUT) ?: continue
                 processSubmission(submissionId)
+                consecutiveErrors.set(0)
             } catch (ex: InterruptedException) {
                 Thread.currentThread().interrupt()
             } catch (ex: Exception) {
-                if (running.get()) {
-                    log.error("Build runner loop error", ex)
-                    backOffAfterError()
-                }
+                if (!running.get()) continue
+                log.error("Build runner loop error", ex)
+                backOffAfterError()
             }
         }
     }
 
+
     /**
-     * 예외 뒤에는 반드시 쉬었다 간다.
+     * 예외 뒤에는 쉬었다 가되, 연속 실패가 이어지면 **점점 더 오래** 쉰다
+     * (1초에서 두 배씩, [MAX_ERROR_BACKOFF] 상한). 한 번이라도 정상 처리되면
+     * 다시 1초로 돌아간다.
      *
-     * 큐가 비어 있을 때는 [BuildJobQueue.poll] 자체가 [POLL_TIMEOUT] 만큼 막아 주지만,
-     * Redis 가 내려가면 poll 이 **즉시** 던진다. 그러면 이 catch 가 곧바로 다음 루프로
-     * 이어져 CPU 가 허용하는 속도로 같은 스택 트레이스를 찍는 핫 루프가 된다 —
-     * 2026-10-01 전체 테스트 실행에서 이 한 가지 원인으로 build 테스트의
-     * test-results XML 이 클래스당 수백 MB(합계 15GB)까지 불었고, 그 CPU 경합이
-     * 같은 실행의 샌드박스 타임아웃에도 기여했다.
+     * 큐가 비어 있을 때는 poll 자체가 [POLL_TIMEOUT] 만큼 막아 주지만, Redis 가
+     * 내려가거나 컨텍스트가 닫혀 커넥션 팩토리가 멈추면 poll 이 **즉시** 던진다.
+     * 대기가 없으면 CPU 가 허용하는 속도로 같은 스택 트레이스를 찍는 핫 루프가
+     * 되는데, 2026-10-01 전체 테스트 실행에서 이 한 가지 원인으로 test-results 가
+     * 15GB 까지 불었고 그 CPU 경합이 샌드박스 타임아웃에도 기여했다.
+     *
+     * 복구 불가로 보이는 예외에서 루프를 아예 끝내 보기도 했는데, 그건 더 나빴다 —
+     * 살아 있는 컨텍스트의 워커까지 영구히 죽여서 이후 세션이 평가되지 않았고
+     * community 테스트 14개가 깨졌다. 워커를 멈추는 것은 [stop] 하나로만 한다.
      */
     private fun backOffAfterError() {
+        val attempt = consecutiveErrors.get() + 1
+        consecutiveErrors.set(attempt)
+        val millis = minOf(
+            ERROR_BACKOFF.toMillis() shl minOf(attempt - 1, 16),
+            MAX_ERROR_BACKOFF.toMillis(),
+        )
         try {
-            Thread.sleep(ERROR_BACKOFF.toMillis())
+            Thread.sleep(millis)
         } catch (ex: InterruptedException) {
             Thread.currentThread().interrupt()
         }
@@ -167,8 +181,11 @@ class BuildRunnerWorker(
     private companion object {
         val POLL_TIMEOUT: Duration = Duration.ofSeconds(2)
 
-        /** 예외 직후의 대기. 유휴 시 루프 주기가 이미 [POLL_TIMEOUT] 이라 이 정도면 충분하다. */
+        /** 첫 실패 직후의 대기. 이후 연속 실패마다 두 배가 된다. */
         val ERROR_BACKOFF: Duration = Duration.ofSeconds(1)
+
+        /** 백오프 상한. 끊긴 Redis 를 계속 두드려도 분당 한 번꼴로만 로그가 남는다. */
+        val MAX_ERROR_BACKOFF: Duration = Duration.ofSeconds(60)
 
         /** The sandbox already caps capture at 64k; the log panel needs far less. Keep the tail — the failure marker and traceback are at the end. */
         const val MAX_STORED_OUTPUT_CHARS = 8_000

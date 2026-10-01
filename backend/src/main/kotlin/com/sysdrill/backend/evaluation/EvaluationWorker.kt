@@ -55,6 +55,8 @@ class EvaluationWorker(
     private val log = LoggerFactory.getLogger(javaClass)
     private val running = AtomicBoolean(false)
     private val threadCounter = AtomicInteger(0)
+    /** 연속 실패 횟수 — 백오프를 늘리는 데만 쓴다. 스레드마다 따로 센다. */
+    private val consecutiveErrors = ThreadLocal.withInitial { 0 }
     private val executor = Executors.newFixedThreadPool(workerConcurrency) { r ->
         Thread(r, "evaluation-worker-${threadCounter.incrementAndGet()}")
     }
@@ -91,6 +93,7 @@ class EvaluationWorker(
             try {
                 val job = evaluationQueue.poll(POLL_TIMEOUT) ?: continue
                 processJob(job)
+                consecutiveErrors.set(0)
             } catch (ex: InterruptedException) {
                 Thread.currentThread().interrupt()
             } catch (ex: Exception) {
@@ -99,22 +102,27 @@ class EvaluationWorker(
                 // that interrupt, Lettuce can surface this as a plain
                 // IllegalStateException instead of InterruptedException. Only
                 // treat it as a real error if we're not already shutting down.
-                if (running.get()) {
-                    log.error("Evaluation worker loop error", ex)
-                    backOffAfterError()
-                }
+                if (!running.get()) continue
+                log.error("Evaluation worker loop error", ex)
+                backOffAfterError()
             }
         }
     }
 
     /**
-     * 예외 뒤에는 반드시 쉬었다 간다 — 이유는
+     * 예외 뒤에는 쉬었다 가되, 연속 실패가 이어지면 점점 더 오래 쉰다 — 이유는
      * [com.sysdrill.backend.build.BuildRunnerWorker] 의 같은 메서드 주석 참고.
      * 두 워커가 같은 루프 모양을 공유하므로 같은 함정도 공유한다.
      */
     private fun backOffAfterError() {
+        val attempt = consecutiveErrors.get() + 1
+        consecutiveErrors.set(attempt)
+        val millis = minOf(
+            ERROR_BACKOFF.toMillis() shl minOf(attempt - 1, 16),
+            MAX_ERROR_BACKOFF.toMillis(),
+        )
         try {
-            Thread.sleep(ERROR_BACKOFF.toMillis())
+            Thread.sleep(millis)
         } catch (ex: InterruptedException) {
             Thread.currentThread().interrupt()
         }
@@ -237,7 +245,10 @@ class EvaluationWorker(
     private companion object {
         val POLL_TIMEOUT: Duration = Duration.ofSeconds(2)
 
-        /** 예외 직후의 대기. 유휴 시 루프 주기가 이미 [POLL_TIMEOUT] 이라 이 정도면 충분하다. */
+        /** 첫 실패 직후의 대기. 이후 연속 실패마다 두 배가 된다. */
         val ERROR_BACKOFF: Duration = Duration.ofSeconds(1)
+
+        /** 백오프 상한. 끊긴 Redis 를 계속 두드려도 분당 한 번꼴로만 로그가 남는다. */
+        val MAX_ERROR_BACKOFF: Duration = Duration.ofSeconds(60)
     }
 }
