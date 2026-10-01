@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
+import { NotificationBell } from "@/components/NotificationBell";
+import { Avatar } from "@/components/ui/Avatar";
 import { clearStoredUser, getStoredNickname, getStoredToken } from "@/lib/localSession";
 
 /** SysDrill_UIUX_Design_Plan.docx §4 — Home/Drills/Learning/Community IA.
@@ -119,17 +121,15 @@ export function AppHeader() {
             </form>
 
             <div className="hidden items-center gap-3 md:flex">
-              <span className="text-foreground-muted" title="알림 (준비 중)">
-                <Bell className="h-4 w-4" aria-hidden strokeWidth={1.75} />
-              </span>
+              <NotificationBell />
               <div ref={profileRef} className="relative">
                 <button
                   onClick={() => setProfileOpen((open) => !open)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/15 text-sm font-medium text-accent"
+                  className="flex h-8 w-8 items-center justify-center rounded-full"
                   aria-label="프로필 메뉴"
                   aria-expanded={profileOpen}
                 >
-                  {nickname ? nickname.slice(0, 1).toUpperCase() : "?"}
+                  <Avatar name={nickname} size={32} />
                 </button>
                 {profileOpen && (
                   <div className="absolute right-0 top-10 z-10 flex w-40 flex-col gap-1 rounded-lg border border-border bg-surface p-2 text-sm shadow-lg">

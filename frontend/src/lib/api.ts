@@ -727,6 +727,31 @@ export function getBuildSubmission(submissionId: string): Promise<BuildSubmissio
   return apiFetch<BuildSubmissionResponse>(`/build-submissions/${submissionId}`);
 }
 
+/** docs/CODECRAFTERS_BENCHMARK.md §3.9 (PLAN.md Round B16) — derived on the server from existing rows; only "last opened" is stored. */
+export type NotificationType = "EVALUATION_READY" | "BUILD_GRADED" | "ORGANIZATION_INVITATION" | "DISCUSSION_MESSAGE";
+
+export interface NotificationItem {
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  href: string;
+  at: string;
+  unseen: boolean;
+}
+
+export interface NotificationFeed {
+  unseenCount: number;
+  items: NotificationItem[];
+}
+
+export function getNotifications(): Promise<NotificationFeed> {
+  return apiFetch<NotificationFeed>("/me/notifications");
+}
+
+export function markNotificationsSeen(): Promise<void> {
+  return apiFetch<void>("/me/notifications/seen", { method: "POST" });
+}
+
 /** docs/CODECRAFTERS_BENCHMARK.md §3.4 — optional onboarding answers; each drives exactly one UI default. */
 export type PreferredLanguage = "PYTHON" | "TYPESCRIPT";
 export type TrainingGoal = "INTERVIEW" | "SKILLS" | "TEAM";
