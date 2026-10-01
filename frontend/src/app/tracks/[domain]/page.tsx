@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useCardKeyboardNav } from "@/lib/useCardKeyboardNav";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { CircleCheck, Terminal } from "lucide-react";
@@ -21,7 +22,7 @@ import { TRACK_BUILD, trackDrills } from "@/lib/tracks";
 import { DrillCard } from "@/components/DrillCard";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { LoadingState } from "@/components/ui/LoadingState";
+import { CardGridSkeleton } from "@/components/ui/Skeleton";
 
 /**
  * docs/CODECRAFTERS_BENCHMARK.md §3.7 — one domain's track: its Drills,
@@ -40,6 +41,8 @@ export default function TrackPage() {
   const [certification, setCertification] = useState<CertificationStatus | null>(null);
   const [ranking, setRanking] = useState<RankingBoard | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const cardsRef = useRef<HTMLUListElement>(null);
+  useCardKeyboardNav(cardsRef);
 
   useEffect(() => {
     if (!getStoredToken()) {
@@ -69,7 +72,12 @@ export default function TrackPage() {
     );
   }
   if (error) return <p className="p-8 text-sm text-danger">{error}</p>;
-  if (!scenarios) return <LoadingState className="p-8" />;
+  if (!scenarios)
+    return (
+      <div className="mx-auto w-full max-w-5xl p-8">
+        <CardGridSkeleton count={2} />
+      </div>
+    );
 
   const drills = trackDrills(scenarios, domain);
   const completions = drills.reduce((sum, s) => sum + (s.completedCount ?? 0), 0);
@@ -98,7 +106,7 @@ export default function TrackPage() {
             {drills.length === 0 ? (
               <EmptyState message="이 도메인에는 아직 Drill이 없습니다." />
             ) : (
-              <ul className="grid gap-4 md:grid-cols-2">
+              <ul ref={cardsRef} className="grid gap-4 md:grid-cols-2">
                 {drills.map((s) => (
                   <li key={s.id}>
                     <DrillCard scenario={s} />

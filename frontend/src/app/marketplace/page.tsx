@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useCardKeyboardNav } from "@/lib/useCardKeyboardNav";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Terminal } from "lucide-react";
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { CardGridSkeleton } from "@/components/ui/Skeleton";
 
 /** Every scenario has design stages, so "System Design" is the whole pool;
  * "Incident" narrows to the ones whose published version actually has an
@@ -63,6 +65,8 @@ function MarketplaceContent() {
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [difficultyFilter, setDifficultyFilter] = useState("");
   const [domainFilter, setDomainFilter] = useState("");
+  const cardsRef = useRef<HTMLUListElement>(null);
+  useCardKeyboardNav(cardsRef);
 
   useEffect(() => {
     if (!getStoredToken()) {
@@ -95,7 +99,12 @@ function MarketplaceContent() {
     .slice()
     .sort((a, b) => Number(!!a.creatorNickname) - Number(!!b.creatorNickname) || (b.completedCount ?? 0) - (a.completedCount ?? 0));
 
-  if (loading) return <LoadingState className="p-8" />;
+  if (loading)
+    return (
+      <div className="mx-auto w-full max-w-5xl p-8">
+        <CardGridSkeleton count={6} />
+      </div>
+    );
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-8">
@@ -189,12 +198,14 @@ function MarketplaceContent() {
             </div>
           </div>
 
-          <p className="text-xs text-foreground-muted">{ordered.length}개 Drill</p>
+          <p className="text-xs text-foreground-muted">
+            {ordered.length}개 Drill <span className="ml-2 hidden md:inline">j / k로 이동 · Enter로 열기</span>
+          </p>
 
           {ordered.length === 0 ? (
             <EmptyState message="조건에 맞는 Drill이 없습니다." />
           ) : (
-            <ul className="grid gap-4 md:grid-cols-2">
+            <ul ref={cardsRef} className="grid gap-4 md:grid-cols-2">
               {ordered.map((scenario) => (
                 <li key={scenario.id}>
                   <DrillCard scenario={scenario} />

@@ -5,6 +5,7 @@ import { CircleCheck } from "lucide-react";
 import { CertificationStatus, SessionResponse, getMyCertification, getSession } from "@/lib/api";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
 import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/ui/Toast";
 
 function formatElapsed(ms: number): string {
   const minutes = Math.max(1, Math.round(ms / 60_000));
@@ -21,7 +22,7 @@ function formatElapsed(ms: number): string {
 export function CompletionCard({ sessionId, averageScore }: { sessionId: string; averageScore: number | null }) {
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [certification, setCertification] = useState<CertificationStatus | null>(null);
-  const [copied, setCopied] = useState(false);
+  const showToast = useToast();
 
   useEffect(() => {
     getSession(sessionId).then(setSession).catch(() => setSession(null));
@@ -40,10 +41,9 @@ export function CompletionCard({ sessionId, averageScore }: { sessionId: string;
     if (!profileUrl) return;
     try {
       await navigator.clipboard.writeText(profileUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      showToast("공개 프로필 링크를 복사했습니다", "success");
     } catch {
-      setCopied(false);
+      showToast("링크를 복사하지 못했습니다", "danger");
     }
   }
 
@@ -67,7 +67,7 @@ export function CompletionCard({ sessionId, averageScore }: { sessionId: string;
         )}
         {profileUrl && (
           <Button onClick={copyProfileUrl} variant="secondary" size="sm">
-            {copied ? "복사됨" : "공개 프로필 링크 복사"}
+            공개 프로필 링크 복사
           </Button>
         )}
       </div>

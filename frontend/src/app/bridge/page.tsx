@@ -410,7 +410,8 @@ export default function BridgePage() {
   const stages: Stage[] = (challenge?.stages ?? []).map((s) => ({
     key: String(s.stageOrder),
     title: s.title,
-    description: s.stageOrder <= currentStage ? (s.spec ?? undefined) : "이전 단계를 통과하면 열립니다",
+    description: s.stageOrder <= currentStage ? (s.spec ?? undefined) : undefined,
+    lockedHint: s.stageOrder > currentStage ? "이전 단계를 통과하면 열립니다" : undefined,
     status: s.stageOrder < currentStage ? "done" : s.stageOrder === currentStage ? "current" : "upcoming",
   }));
   const busy = runState !== "idle";
@@ -512,16 +513,28 @@ export default function BridgePage() {
             {mode === "local" ? (
               <LocalSolvePanel dir={CHALLENGE_DIRS[language]} waiting={runState === "idle"} />
             ) : (
-              <CodeMirror
-                value={sourceCode}
-                onChange={handleSourceChange}
-                height="420px"
-                theme={oneDark}
-                extensions={language === "python" ? PYTHON_EXTENSIONS : TS_EXTENSIONS}
-                className="overflow-hidden rounded-lg border border-border text-sm"
-                basicSetup={{ tabSize: 4 }}
-                editable={!busy}
-              />
+              // docs/CODECRAFTERS_BENCHMARK.md §3.9 — ⌘↵ / Ctrl↵ submits. Caught in the capture phase so
+              // CodeMirror's own Mod-Enter ("insert blank line") never sees it.
+              <div
+                onKeyDownCapture={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!busy) handleSubmit();
+                  }
+                }}
+              >
+                <CodeMirror
+                  value={sourceCode}
+                  onChange={handleSourceChange}
+                  height="420px"
+                  theme={oneDark}
+                  extensions={language === "python" ? PYTHON_EXTENSIONS : TS_EXTENSIONS}
+                  className="overflow-hidden rounded-lg border border-border text-sm"
+                  basicSetup={{ tabSize: 4 }}
+                  editable={!busy}
+                />
+              </div>
             )}
 
             {error && <p className="text-sm text-danger">{error}</p>}
@@ -529,6 +542,7 @@ export default function BridgePage() {
             <div className="flex flex-wrap items-center gap-3">
               {mode === "web" && <Button onClick={handleSubmit} disabled={busy}>
                 {runState === "submitting" ? "제출하는 중..." : runState === "grading" ? "채점 중..." : graded ? "다시 제출하기" : "제출하기"}
+                <kbd className="ml-2 rounded border border-accent-foreground/30 px-1 font-mono text-[10px] opacity-80">⌘↵</kbd>
               </Button>}
               {graded && (
                 <Button variant="secondary" onClick={handleContinueToDesign} disabled={startingSession || !scenario || busy}>

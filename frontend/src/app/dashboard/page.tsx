@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { LoadingState } from "@/components/ui/LoadingState";
+import { CardGridSkeleton } from "@/components/ui/Skeleton";
 
 const STATUS_LABELS: Record<string, string> = {
   IN_PROGRESS: "진행 중",
@@ -119,9 +119,14 @@ export default function DashboardPage() {
               가장 쉬운 <span className="text-foreground">{firstDrill.title}</span>부터 한 바퀴 돌아보면 설계 → 꼬리설계 → 장애
               대응 → 리포트 흐름을 모두 경험할 수 있습니다.
             </p>
-            <Button href={`/drills/${firstDrill.id}`} size="sm" className="mt-3">
-              첫 Drill 살펴보기 →
-            </Button>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Button href={`/drills/${firstDrill.id}`} size="sm">
+                첫 Drill 살펴보기 →
+              </Button>
+              <Link href="/how-it-works" className="text-sm text-foreground-muted underline hover:text-foreground">
+                SysDrill은 어떻게 동작하나요?
+              </Link>
+            </div>
           </div>
           <button
             onClick={() => {
@@ -279,7 +284,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {loading && <LoadingState />}
+        {loading && <CardGridSkeleton count={3} className="flex flex-col gap-3" />}
 
         <ul className="flex flex-col gap-3">
           {orderedScenarios.map((scenario) => (

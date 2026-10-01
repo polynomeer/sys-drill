@@ -389,6 +389,13 @@ export default function DesignWorkspacePage() {
                   className="min-h-[280px] font-mono text-sm [field-sizing:content]"
                   value={answer}
                   onChange={(e) => handleAnswerChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    // docs/CODECRAFTERS_BENCHMARK.md §3.9 — ⌘↵ / Ctrl↵ submits.
+                    if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && view === "editing") {
+                      e.preventDefault();
+                      handleSubmit();
+                    }
+                  }}
                   placeholder={
                     isIncident
                       ? "대응 회고를 작성하세요. 입력 내용은 자동으로 이 브라우저에 저장됩니다."
@@ -430,8 +437,9 @@ export default function DesignWorkspacePage() {
 
                 {error && <p className="text-sm text-danger">{error}</p>}
 
-                <Button onClick={() => handleSubmit()} disabled={view === "submitting"} className="self-start">
+                <Button onClick={() => handleSubmit()} disabled={view === "submitting"} className="self-start gap-2">
                   {view === "submitting" ? "제출하는 중..." : "제출하기"}
+                  <kbd className="rounded border border-accent-foreground/30 px-1 font-mono text-[10px] opacity-80">⌘↵</kbd>
                 </Button>
               </>
             )}

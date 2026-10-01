@@ -1,3 +1,5 @@
+import { Tooltip } from "@/components/ui/Tooltip";
+
 const LEVELS: Record<string, { label: string; bars: number }> = {
   EASY: { label: "EASY", bars: 1 },
   MEDIUM: { label: "MEDIUM", bars: 2 },
@@ -14,8 +16,8 @@ const LEVELS: Record<string, { label: string; bars: number }> = {
 export function DifficultyBadge({ difficulty }: { difficulty: string | null | undefined }) {
   if (!difficulty) return null;
   const level = LEVELS[difficulty.toUpperCase()];
-  return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-accent">
+  const badge = (
+    <span tabIndex={level ? 0 : undefined} className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-accent">
       {level?.label ?? difficulty}
       {level && (
         <span className="flex items-end gap-[2px]" aria-hidden>
@@ -30,4 +32,6 @@ export function DifficultyBadge({ difficulty }: { difficulty: string | null | un
       )}
     </span>
   );
+  // Community difficulty is free text — no bars, nothing to explain.
+  return level ? <Tooltip content={`난이도 ${level.bars} / 3 (공식 Drill 기준)`}>{badge}</Tooltip> : badge;
 }

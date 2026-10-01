@@ -17,7 +17,8 @@ export function DrillCard({ scenario }: { scenario: ScenarioSummary }) {
   return (
     <Link
       href={`/drills/${scenario.id}`}
-      className="group flex h-full flex-col gap-3 rounded-xl border border-border bg-surface p-5 transition-colors hover:border-accent/40"
+      data-card
+      className="group flex h-full flex-col gap-3 rounded-xl border border-border bg-surface p-5 transition-colors hover:border-accent/40 focus-visible:border-accent focus-visible:outline-none"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

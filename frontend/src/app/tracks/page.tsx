@@ -9,7 +9,7 @@ import { getStoredToken } from "@/lib/localSession";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
 import { DomainIcon } from "@/lib/domainIcons";
 import { TRACK_DOMAINS, trackDrills } from "@/lib/tracks";
-import { LoadingState } from "@/components/ui/LoadingState";
+import { CardGridSkeleton } from "@/components/ui/Skeleton";
 
 /** docs/CODECRAFTERS_BENCHMARK.md §3.7 — the track index, one card per simulation domain. */
 export default function TracksPage() {
@@ -31,7 +31,12 @@ export default function TracksPage() {
   }, [router]);
 
   if (error) return <p className="p-8 text-sm text-danger">{error}</p>;
-  if (!scenarios) return <LoadingState className="p-8" />;
+  if (!scenarios)
+    return (
+      <div className="mx-auto w-full max-w-5xl p-8">
+        <CardGridSkeleton count={6} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" />
+      </div>
+    );
 
   const passed = new Set(certification?.domains.filter((d) => d.passed).map((d) => d.domain));
 

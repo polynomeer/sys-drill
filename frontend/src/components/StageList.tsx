@@ -1,9 +1,14 @@
+import { Lock } from "lucide-react";
+import { Tooltip } from "@/components/ui/Tooltip";
+
 export type StageStatus = "done" | "current" | "upcoming";
 
 export interface Stage {
   key: string;
   title: string;
   description?: string;
+  /** Shown as a lock icon + tooltip instead of the description (e.g. Build stages not yet unlocked). */
+  lockedHint?: string;
   status?: StageStatus;
 }
 
@@ -35,6 +40,11 @@ export function StageList({ stages }: { stages: Stage[] }) {
               <p className={`text-sm font-medium ${status === "upcoming" ? "text-foreground" : status === "current" ? "text-accent" : "text-foreground-muted"}`}>
                 <span className="mr-2 font-mono text-xs text-foreground-muted">{String(i + 1).padStart(2, "0")}</span>
                 {stage.title}
+                {stage.lockedHint && (
+                  <Tooltip content={stage.lockedHint} className="ml-1.5 align-middle">
+                    <Lock tabIndex={0} className="h-3 w-3 text-foreground-muted" aria-label={stage.lockedHint} />
+                  </Tooltip>
+                )}
               </p>
               {stage.description && <p className="mt-0.5 text-xs text-foreground-muted">{stage.description}</p>}
             </div>
