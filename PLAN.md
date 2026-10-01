@@ -1926,26 +1926,54 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ### 묶음 3 — 미션 하위 활동
 
-#### Round E8 — 미션 기반 + 요구사항 질의 (M1)
-- [ ] 마이그레이션 `sessions.mission_state jsonb not null default '{}'`
-- [ ] **꼬리설계 변형 고정**: FOLLOWUP 진입 시 고른 키를 `mission_state.followupVariantKey`에 저장하고 이후 프롬프트는 그 키로(기존 공백 수정, 회귀 테스트)
-- [ ] 프론트 제출에 `structuredJson` 배관, `buildUserPrompt`에 structured 섹션 덧붙이기
-- [ ] INITIAL `content.clarifications` 읽기: `GET /sessions/{id}/clarifications`(답 없이), `POST …/{qid}`(답 공개 + `mission_state` 기록), 공개 시나리오 API에 답 비노출
-- [ ] 설계 화면 "확인된 요구사항" 패널, 평가 프롬프트 `## 확인한 요구사항 / 확인하지 않은 핵심 요구사항`, 리포트 Requirements Discovery 섹션
-- [ ] 콘텐츠가 없는 시나리오에서는 아무것도 나타나지 않음(테스트는 테스트 내 시나리오 버전으로)
+#### Round E8 — 미션 기반 + 요구사항 질의 (M1) ✅ 완료 (2026-10-02)
+- [x] 마이그레이션 `sessions.mission_state jsonb not null default '{}'`
+- [x] **꼬리설계 변형 고정**: FOLLOWUP 진입 시 고른 키를 `mission_state.followupVariantKey`에 저장하고 이후 프롬프트는 그 키로(기존 공백 수정, 회귀 테스트)
+- [x] 프론트 제출에 `structuredJson` 배관, `buildUserPrompt`에 structured 섹션 덧붙이기
+- [x] INITIAL `content.clarifications` 읽기: `GET /sessions/{id}/clarifications`(답 없이), `POST …/{qid}`(답 공개 + `mission_state` 기록), 공개 시나리오 API에 답 비노출
+- [x] 설계 화면 "확인된 요구사항" 패널, 평가 프롬프트 `## 확인한 요구사항 / 확인하지 않은 핵심 요구사항`, 리포트 Requirements Discovery 섹션
+- [x] 콘텐츠가 없는 시나리오에서는 아무것도 나타나지 않음(테스트는 테스트 내 시나리오 버전으로)
 
-#### Round E9 — 규모 추정 (M2) + Capacity Lab (L6)
-- [ ] 공용 판정 함수(`|log10(추정/참값)| ≤ 0.3`)와 공용 입력 컴포넌트
-- [ ] M2: INITIAL `content.estimation`, 추정치는 INITIAL 제출 `structuredJson.estimates`, 평가 프롬프트·리포트 판정
-- [ ] L6: `learning_labs` 테이블(kind=ENGINE/CAPACITY) + CAPACITY 문제 시딩, 서버 계산 함수 목록, `POST /learning/labs/{slug}/check`, `/learning/labs` 화면
+**완료 기준 충족**: 신규 `MissionClarificationTest`(질문 전 답 비노출·개요에서 `requirementKey` 숨김 / 프롬프트 섹션이 확인한 것과 확인 안 한 핵심 요구사항을 가름 / 제출 후 질문 409·요약 1/2·변형 고정 후 약점이 바뀌어도 FOLLOWUP 프롬프트 불변) + session·scenario 패키지 전체 통과. 격리 DB에 검증용 시나리오를 넣어 개요에서 쿠폰 수량·중복 허용 숫자가 사라진 것, 질문 카드 → 답 표시, 리포트 "핵심 질문 1/3"과 묻지 않은 요구사항 목록 확인.
 
-#### Round E10 — 설계 방어 (M4) + 상태 공지 (M11)
-- [ ] FOLLOWUP 진입 전 INITIAL 평가의 `followupQuestions` 중 2개 답하기(면접형 모드 필수), FOLLOWUP 제출 `structuredJson.defense`
-- [ ] INCIDENT 답안에 `고객 공지 초안` 필드(`structuredJson.statusUpdate`), 평가 프롬프트 섹션
+**진행 중 발견한 결정 사항**:
+- **공개 개요가 정답을 흘리고 있었다** — Drill 개요가 `baseRequirements.nonFunctional`(쿠폰 수량 등)을 그대로 보여준다. 질문 항목에 `requirementKey`를 두고 개요 응답에서 그 키를 뺀다(DRILLS_EXPANSION_PLAN §5-1에 추가).
+- 꼬리설계 변형은 `advance()`가 FOLLOWUP으로 넘길 때 고정한다(이미 FOLLOWUP에 있던 세션은 기존처럼 다시 고름). 읽기 경로에서 저장하지 않으려고 고정 시점을 상태 전이에 뒀다.
+- 질문은 INITIAL 제출 전까지만 — 평가가 제출 시점의 질문 목록을 읽으므로 그 뒤에 물으면 기록이 바뀐다. 제출 후에는 모든 답과 "핵심 여부"가 열린다(리포트용).
+- mission_state·step content 읽기는 모르는 키를 무시하는 리더를 쓴다(이후 라운드 필드·`prompt`/`variants`가 섞여 있음).
 
-#### Round E11 — 인터랙티브 랩 (L5, ADR-0047)
-- [ ] ENGINE 랩 7개 시딩(문서 L5 표), `POST /learning/labs/{slug}/run`(knob 범위 검증 → 엔진), Predict → Experiment → Break 화면
-- [ ] 개념 상세 연습 레일과 랩 목록에 연결
+#### Round E9 — 규모 추정 (M2) + Capacity Lab (L6) ✅ 완료 (2026-10-02)
+- [x] 공용 판정 함수(`|log10(추정/참값)| ≤ 0.3`)와 공용 입력 컴포넌트
+- [x] M2: INITIAL `content.estimation`, 추정치는 INITIAL 제출 `structuredJson.estimates`, 평가 프롬프트·리포트 판정
+- [x] L6: `learning_labs` 테이블(kind=ENGINE/CAPACITY) + CAPACITY 문제 시딩, 서버 계산 함수 목록, `POST /learning/labs/{slug}/check`, `/learning/labs` 화면
+
+**완료 기준 충족**: 신규 `EstimateJudgeTest` 4개(2배 경계: 199 적중·200 미적중, 미입력, 수식 우선순위·괄호, 허용 외 문자 거부) + `CapacityLabIntegrationTest` 3개(손계산 — 피드 쓰기 231.48/s, 피크 읽기 69,444/s, 40TB/일, 14.6PB/년, 변형 DAU×10 → 2,314.8/s, 없는 변형 400) + `MissionClarificationTest`에 추정 테스트 추가. 격리 환경에서 Capacity Lab(적중 2/4, 확인 후에만 수식 공개, "다음 조건" 버튼)과 Drill 규모 추정 패널 → UI로 제출한 추정치가 `structured_json.estimates`로 저장·판정(50,000 vs 30,000 적중, 300 vs 2,000 과소) 확인.
+
+**진행 중 발견한 결정 사항**:
+- Capacity Lab의 정답은 저장하지 않고 문제마다 사칙연산 수식을 두어 서버가 계산한다. 수식 평가는 숫자·식별자·+−×÷·괄호만 받는 작은 파서(`CapacityFormula`) — 시드 콘텐츠로 임의 코드가 실행될 여지를 없앤다. 뒤 항목이 앞 항목을 참조할 수 있다(피크 = 평균 × 배수).
+- 단위는 십진(1TB = 10⁶MB)으로 통일하고 화면에 명시 — 2배 판정에 1000/1024 차이는 영향이 없다.
+- `learning_labs` 하나에 CAPACITY·ENGINE 두 종류를 둔다(종류별 `spec` 모양이 다름).
+
+#### Round E10 — 설계 방어 (M4) + 상태 공지 (M11) ✅ 완료 (2026-10-02)
+- [x] FOLLOWUP 진입 전 INITIAL 평가의 `followupQuestions` 중 2개 답하기(면접형 모드 필수), FOLLOWUP 제출 `structuredJson.defense`
+- [x] INCIDENT 답안에 `고객 공지 초안` 필드(`structuredJson.statusUpdate`), 평가 프롬프트 섹션
+
+**완료 기준 충족**: 신규 `MissionDefenseTest` 2개(INITIAL 평가 전엔 없음 → 평가 후 꼬리질문 2개, 방어 답·빈 답 "(답하지 않음)"·고객 공지가 프롬프트 섹션에) + mission·evaluation 패키지 통과. 격리 환경에서 payment 세션 FOLLOWUP 화면의 방어 패널 → 답 하나만 쓰고 제출 → `structured_json.defense`에 두 질문(하나는 빈 답) 저장, INCIDENT 화면 "고객 공지 초안" → `structured_json.statusUpdate` 저장 확인.
+
+**진행 중 발견한 결정 사항**:
+- 방어 위치를 "FOLLOWUP으로 넘어가기 전"에서 **FOLLOWUP 작성 화면 왼쪽**으로 바꿨다 — 답은 어차피 FOLLOWUP 제출과 함께 평가되고, 앞 화면에서 받으면 상태를 하나 더 들고 다녀야 한다(DRILLS_EXPANSION_PLAN §5-1에 기록).
+- 면접형 "필수"는 프론트에서만 막는다 — 서버가 막으면 시간 초과 자동 제출이 실패한다.
+- 오프라인 평가(키 없음)의 꼬리질문이 비어 있어 M4가 데모·테스트에 나타나지 않았다. "(오프라인 예시)" 표시가 붙은 일반 질문 2개를 넣었다.
+
+#### Round E11 — 인터랙티브 랩 (L5, ADR-0047) ✅ 완료 (2026-10-02)
+- [x] ENGINE 랩 7개 시딩(문서 L5 표), `POST /learning/labs/{slug}/run`(knob 범위 검증 → 엔진), Predict → Experiment → Break 화면
+- [x] 개념 상세 연습 레일과 랩 목록에 연결
+
+**완료 기준 충족**: 신규 `EngineLabIntegrationTest` 3개(7개 도메인 랩·손잡이 기본값이 인시던트 기본값 / coupon 수치가 `SimulationEngineTest`와 일치 — TTL 600이면 읽기 0.07, 풀 500이면 쓰기 0.18이지만 읽기 0.8547 그대로 / 이 랩에 없는 손잡이·범위 밖·타입 오류 400, CAPACITY 랩에 run 404). 격리 환경에서 coupon 랩: 풀 500 → 세 지표 모두 ↓로 예측 → 실행하면 DB 읽기 85.5% ≈(✗), 쓰기 180% → 18%(✓), 에러율 30% → 2%(✓). 개념 상세 연습 레일 첫 단계에 랩 링크.
+
+**진행 중 발견한 결정 사항**:
+- 예측 판정(변화 방향)은 화면에서 한다 — 진실은 엔진 출력이고, 저장할 정답이 없으니 서버에 판정 엔드포인트를 둘 이유가 없다(ADR-0047). 2% 안의 변화는 ≈.
+- 랩은 자기 손잡이만 바꿀 수 있고 나머지 trait은 인시던트 기본값 — 랩 화면이 Drill 인시던트와 같은 출발점에서 시작하게.
 
 ### 묶음 4 — 시간축 위의 판단
 
