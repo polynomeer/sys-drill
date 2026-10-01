@@ -19,6 +19,7 @@ class ScenarioController(
     private val scenarioStepRepository: ScenarioStepRepository,
     private val scenarioStatsService: ScenarioStatsService,
     private val contentItemRepository: ContentItemRepository,
+    private val missionService: com.sysdrill.backend.mission.MissionService,
     private val userRepository: UserRepository,
     private val objectMapper: ObjectMapper,
 ) {
@@ -68,11 +69,27 @@ class ScenarioController(
         val initialPrompt = steps.firstOrNull { it.stepType == "INITIAL" }?.content
             ?.let { objectMapper.readValue(it, Map::class.java)["prompt"] as? String }
         val stats = scenarioStatsService.byScenarioId(listOf(id))[id]
-        return ScenarioResponses.toDetail(scenario, content, objectMapper, creatorNickname).copy(
+        // docs/DRILLS_EXPANSION_PLAN.md M1 (PLAN.md Round E8) — a requirement that a clarifying question
+        // reveals must not be printed on the overview, or "질문하기" has nothing left to discover.
+        val hiddenKeys = steps.firstOrNull { it.stepType == "INITIAL" }
+            ?.let { missionService.parseInitial(it).clarifications.mapNotNull { c -> c.requirementKey }.toSet() }
+            .orEmpty()
+        val detail = ScenarioResponses.toDetail(scenario, content, objectMapper, creatorNickname)
+        return detail.copy(
+            baseRequirements = withoutKeys(detail.baseRequirements, hiddenKeys),
             steps = steps.map { ScenarioStepSummaryResponse(order = it.stepOrder, type = it.stepType) },
             initialPrompt = initialPrompt,
             completedCount = stats?.completedCount,
             averageScore = stats?.averageScore,
         )
+    }
+
+    /** Drops [keys] from `nonFunctional` (where the numbers live); everything else is left as authored. */
+    @Suppress("UNCHECKED_CAST")
+    private fun withoutKeys(baseRequirements: Any?, keys: Set<String>): Any? {
+        if (keys.isEmpty()) return baseRequirements
+        val map = baseRequirements as? Map<String, Any?> ?: return baseRequirements
+        val nonFunctional = map["nonFunctional"] as? Map<String, Any?> ?: return baseRequirements
+        return map + ("nonFunctional" to nonFunctional.filterKeys { it !in keys })
     }
 }

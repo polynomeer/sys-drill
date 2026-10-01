@@ -13,6 +13,8 @@ import {
   getBenchmark,
   getReport,
   getSession,
+  getClarifications,
+  Clarifications,
   getSkillProfile,
   listScenarios,
   startSession,
@@ -59,6 +61,7 @@ export default function ReportPage() {
   const [loading, setLoading] = useState(true);
   const concepts = useConceptLookup();
   const [scenarioId, setScenarioId] = useState<string | null>(null);
+  const [clarifications, setClarifications] = useState<Clarifications | null>(null);
 
   useEffect(() => {
     if (!getStoredToken()) {
@@ -69,6 +72,8 @@ export default function ReportPage() {
     trackEvent("report_view");
     // docs/COMMUNITY_EXPANSION_PLAN.md C7 — 리포트 하단의 토론. 부가 정보라 실패해도 본문은 뜬다.
     getSession(sessionId).then((s) => setScenarioId(s.scenarioId ?? null)).catch(() => setScenarioId(null));
+    // docs/DRILLS_EXPANSION_PLAN.md M1 — revealed only now that asking is over.
+    getClarifications(sessionId).then(setClarifications).catch(() => setClarifications(null));
     // 벤치마크는 부가 정보다 — 실패해도 리포트 본문은 떠야 한다.
     getBenchmark(sessionId).then(setBenchmark).catch(() => setBenchmark(null));
 
@@ -219,6 +224,8 @@ export default function ReportPage() {
             </ul>
           </Card>
 
+          {clarifications?.available && <RequirementsDiscovery data={clarifications} />}
+
           <MissedConcepts
             riskKeys={Object.values(feedbackBySubmission).flatMap((f) => f.riskFlags.map((flag) => flag.riskKey))}
             isConcept={concepts.isConcept}
@@ -290,6 +297,45 @@ function MissedConcepts({
           </Link>
         ))}
       </div>
+    </Card>
+  );
+}
+
+/**
+ * docs/DRILLS_EXPANSION_PLAN.md M1 (PLAN.md Round E8) — which of the deliberately hidden
+ * requirements the learner asked about. Unrelated questions aren't penalised or counted
+ * against them; the point is the critical ones that went unasked.
+ */
+function RequirementsDiscovery({ data }: { data: Clarifications }) {
+  const missed = data.questions.filter((q) => q.critical && !q.asked);
+  return (
+    <Card as="section">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-sm font-semibold text-foreground-muted">요구사항 확인</h2>
+        {data.criticalTotal !== null && (
+          <span className="font-mono text-sm">
+            핵심 질문 {data.criticalAsked} / {data.criticalTotal}
+          </span>
+        )}
+      </div>
+      {missed.length === 0 ? (
+        <p className="text-sm text-success">설계 전에 핵심 요구사항을 모두 확인했습니다.</p>
+      ) : (
+        <>
+          <p className="mb-2 text-xs text-foreground-muted">묻지 않아서 모른 채 설계한 요구사항:</p>
+          <ul className="flex flex-col gap-2 text-sm">
+            {missed.map((q) => (
+              <li key={q.id} className="rounded-lg border border-warning/40 px-3 py-2">
+                <p className="text-xs text-foreground-muted">Q. {q.question}</p>
+                <p className="mt-0.5">⚠ {q.answer}</p>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p className="mt-3 text-xs text-foreground-muted">
+        확인한 질문 {data.questions.filter((q) => q.asked).length}개 · 전체 {data.questions.length}개
+      </p>
     </Card>
   );
 }

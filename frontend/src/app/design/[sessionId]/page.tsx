@@ -21,6 +21,7 @@ import {
   saveDraft,
   saveSubmissionId,
 } from "@/lib/localSession";
+import { ClarificationPanel } from "./ClarificationPanel";
 import { WargameLive } from "./WargameLive";
 import { BridgeProgress } from "@/components/BridgeProgress";
 import { PhaseTimer } from "@/components/PhaseTimer";
@@ -338,6 +339,8 @@ export default function DesignWorkspacePage() {
                 <p className="whitespace-pre-wrap text-sm leading-relaxed">{session.currentStepPrompt}</p>
               </Card>
             )}
+
+            {isEditing && session?.currentPhase === "INITIAL" && <ClarificationPanel sessionId={sessionId} />}
 
             {isEditing && (
               <Card as="section" className="text-sm">

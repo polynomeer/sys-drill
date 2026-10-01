@@ -2,6 +2,7 @@ package com.sysdrill.backend.evaluation
 
 import com.sysdrill.backend.evaluation.llm.LlmClient
 import com.sysdrill.backend.evaluation.llm.LlmEvaluationResultParser
+import com.sysdrill.backend.mission.MissionService
 import com.sysdrill.backend.scenario.Scenario
 import com.sysdrill.backend.scenario.ScenarioRepository
 import com.sysdrill.backend.scenario.ScenarioVersionRepository
@@ -43,6 +44,7 @@ class HybridRuleAiEvaluator(
     private val scenarioVersionRepository: ScenarioVersionRepository,
     private val scenarioRepository: ScenarioRepository,
     private val objectMapper: ObjectMapper,
+    private val missionService: MissionService,
 ) {
     private val designPurpose = "design_evaluation"
 
@@ -67,7 +69,7 @@ class HybridRuleAiEvaluator(
         val customDimensions = resolveCustomDimensions(scenario.scoringProfile)
         val dimensions = customDimensions ?: Rubric.dimensions
         val ruleFindings = RuleEvaluator.evaluate(submission.rawText, scenario.domain)
-        val userPrompt = buildUserPrompt(ruleFindings, submission, dimensions)
+        val userPrompt = buildUserPrompt(ruleFindings, submission, dimensions) + missionSections(session, submission)
 
         val completion = llmClient.complete(template.templateBody, userPrompt)
         val llmResult = resultParser.parse(completion.text)
@@ -89,6 +91,17 @@ class HybridRuleAiEvaluator(
                 RuleFinding(riskKey = "LLM_TOP_RISK", severity = "HIGH", description = it)
             },
         )
+    }
+
+    /**
+     * PLAN.md Round E8 (docs/DRILLS_EXPANSION_PLAN.md §5-1) — the mission add-ons' facts, given to the
+     * LLM after the rule findings like everything else decidable. Empty for a scenario with no mission content.
+     */
+    private fun missionSections(session: Session, submission: Submission): String {
+        val sections = buildList {
+            if (submission.phase == "INITIAL") missionService.clarificationPromptSection(session)?.let(::add)
+        }
+        return if (sections.isEmpty()) "" else sections.joinToString(separator = "\n", prefix = "\n")
     }
 
     private fun resolveScenario(session: Session): Scenario {

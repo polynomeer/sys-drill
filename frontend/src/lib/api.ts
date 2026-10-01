@@ -523,11 +523,41 @@ export function submitAnswer(
   sessionId: string,
   rawText: string,
   clientRequestId: string,
+  /** PLAN.md Round E8 — mission inputs that are fixed at submit time (estimates, defense answers, …). */
+  structured?: Record<string, unknown>,
 ): Promise<SubmissionResponse> {
+  const structuredJson = structured && Object.keys(structured).length > 0 ? JSON.stringify(structured) : undefined;
   return apiFetch<SubmissionResponse>(`/sessions/${sessionId}/submissions`, {
     method: "POST",
-    body: JSON.stringify({ rawText, clientRequestId }),
+    body: JSON.stringify({ rawText, clientRequestId, structuredJson }),
   });
+}
+
+/** docs/DRILLS_EXPANSION_PLAN.md M1 — the deliberately incomplete brief's clarifying questions. */
+export interface ClarificationQuestion {
+  id: string;
+  question: string;
+  asked: boolean;
+  /** Only once asked (or after the INITIAL submit, for the report). */
+  answer: string | null;
+  /** Only after the INITIAL submit. */
+  critical: boolean | null;
+}
+
+export interface Clarifications {
+  available: boolean;
+  canAsk: boolean;
+  questions: ClarificationQuestion[];
+  criticalAsked: number | null;
+  criticalTotal: number | null;
+}
+
+export function getClarifications(sessionId: string): Promise<Clarifications> {
+  return apiFetch<Clarifications>(`/sessions/${sessionId}/clarifications`);
+}
+
+export function askClarification(sessionId: string, questionId: string): Promise<Clarifications> {
+  return apiFetch<Clarifications>(`/sessions/${sessionId}/clarifications/${questionId}`, { method: "POST" });
 }
 
 export function getFeedback(submissionId: string): Promise<EvaluationFeedback> {

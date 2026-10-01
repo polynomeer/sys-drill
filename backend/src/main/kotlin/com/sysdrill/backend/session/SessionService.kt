@@ -1,5 +1,6 @@
 package com.sysdrill.backend.session
 
+import com.sysdrill.backend.mission.MissionService
 import com.sysdrill.backend.auth.ActionRateLimiter
 import com.sysdrill.backend.build.BuildSubmissionRepository
 import com.sysdrill.backend.build.BuildSubmissionStatus
@@ -43,6 +44,7 @@ class SessionService(
     private val llmUsageGuard: LlmUsageGuard,
     private val actionRateLimiter: ActionRateLimiter,
     private val objectMapper: ObjectMapper,
+    private val missionService: MissionService,
     @Value("\${sysdrill.session.interview-timer.initial-seconds}") private val initialTimerSeconds: Long,
     @Value("\${sysdrill.session.interview-timer.followup-seconds}") private val followupTimerSeconds: Long,
     @Value("\${sysdrill.session.interview-timer.incident-seconds}") private val incidentTimerSeconds: Long,
@@ -163,12 +165,27 @@ class SessionService(
 
             @Suppress("UNCHECKED_CAST")
             val variants = map["variants"] as? List<Map<String, Any?>> ?: return null
-            selectVariant(variants, session)["prompt"] as? String
+            pinnedOrSelected(variants, session)["prompt"] as? String
         } catch (ex: Exception) {
             log.warn("Failed to parse ScenarioStep content for step ${step.id}", ex)
             null
         }
     }
+
+    /**
+     * PLAN.md Round E8 — the variant pinned when the session entered FOLLOWUP, if any.
+     * Sessions that reached FOLLOWUP before pinning existed fall back to re-selecting.
+     */
+    private fun pinnedOrSelected(variants: List<Map<String, Any?>>, session: Session): Map<String, Any?> {
+        val pinned = missionService.state(session).followupVariantKey
+        return pinned?.let { key -> variants.firstOrNull { it["key"] == key } } ?: selectVariant(variants, session)
+    }
+
+    /** Variants authored on a step's content, or null for a single-prompt step. */
+    @Suppress("UNCHECKED_CAST")
+    private fun variantsOf(step: ScenarioStep): List<Map<String, Any?>>? = runCatching {
+        (objectMapper.readValue(step.content ?: return null, Map::class.java) as Map<String, Any?>)["variants"] as? List<Map<String, Any?>>
+    }.getOrNull()
 
     /**
      * Adaptive selection (PLAN.md step 12): prefer the variant whose
@@ -267,6 +284,16 @@ class SessionService(
         val refreshed = getSession(sessionId)
         if (nextStep != null) {
             refreshed.currentPhase = nextStep.stepType
+            // PLAN.md Round E8 — pin the tail-design variant now. selectVariant reads the learner's
+            // weakness counts, which the evaluation worker keeps updating; re-picking on every read
+            // could show a different twist later in the same session (and M7/M10 need to know
+            // which variant was actually given).
+            variantsOf(nextStep)?.takeIf { it.isNotEmpty() }?.let { variants ->
+                val key = selectVariant(variants, refreshed)["key"] as? String
+                if (key != null) {
+                    refreshed.missionState = missionService.withFollowupVariant(refreshed, key)
+                }
+            }
             sessionPhaseRepository.save(
                 SessionPhase(
                     sessionId = sessionId,

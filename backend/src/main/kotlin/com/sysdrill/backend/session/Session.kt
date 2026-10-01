@@ -9,6 +9,8 @@ import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import org.hibernate.annotations.CreationTimestamp
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import org.hibernate.annotations.UpdateTimestamp
 import java.time.Instant
 import java.util.UUID
@@ -63,6 +65,14 @@ class Session(
     /** 공개한 시각. 공개를 철회하면 다시 null. */
     @Column(name = "shared_at")
     var sharedAt: Instant? = null,
+
+    /**
+     * PLAN.md Round E8 — the mission's in-progress state as JSON ([com.sysdrill.backend.mission.MissionState]):
+     * clarifying questions asked, the pinned tail-design variant, and later SLO / alert rules.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "mission_state", columnDefinition = "jsonb", nullable = false)
+    var missionState: String = "{}",
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
