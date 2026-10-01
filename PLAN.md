@@ -1803,6 +1803,27 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## 완성도 재진단 7라운드(마지막) — 표준 보안 헤더 ✅ 완료, 10개 항목 전부 완료 (2026-10-01)
+
+`docs/COMMERCIALIZATION.md` "완성도 재진단" 8번 항목이자 2026-09-30에 세운 10개 항목 중 마지막. CSP/HSTS/`X-Frame-Options`/`X-Content-Type-Options` 등이 백엔드·프론트 어디에도 없었다.
+
+착수 전 Next.js 16(이 저장소 고정 버전) 공식 번들 문서(`node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md`)를 직접 읽고 "Without Nonces" 패턴을 그대로 따르기로 했다 — nonce 기반은 모든 페이지를 동적 렌더링으로 바꿔야 하는데(정적 생성·ISR·CDN 캐싱이 전부 깨짐) 이 앱 대부분의 페이지가 정적 생성이라 스코프에 안 맞았다.
+
+- [x] `next.config.ts` — `headers()`로 전 경로에 CSP + `X-Content-Type-Options`/`X-Frame-Options`/`Strict-Transport-Security`/`Referrer-Policy`/`Permissions-Policy`. CSP의 `connect-src`는 `NEXT_PUBLIC_API_BASE_URL`을 그대로 읽어 실제 배포마다 쓰는 백엔드 origin과 항상 일치하게(하드코딩 안 함).
+- [x] 신규 `SecurityHeadersFilter.kt`(백엔드) — JSON API라 CSP 체감 효과는 적지만 `X-Content-Type-Options`/`X-Frame-Options`/`Referrer-Policy`는 동일하게 추가. Spring Security 미사용이라 `OncePerRequestFilter` 하나로 충분.
+
+**완료 기준 충족**: 백엔드 `./gradlew compileKotlin compileTestKotlin` 클린, 신규 `SecurityHeadersFilterTest` + `com.sysdrill.backend.common.web.*` 전체 통과. 프론트 `tsc`/`lint`(0 errors)/`build` 클린.
+
+**실 검증(CSP는 잘못 걸면 조용히 기능을 깨뜨리는 게 전형적 실패 모드라 가장 공들인 부분)**: 격리 인스턴스에서 `curl -I`로 양쪽 다 헤더가 실제로 박히는 것 확인(`connect-src`에 격리 백엔드 origin이 정확히 들어간 것도 확인). 실 브라우저로 가입 폼(폰트·Tailwind 렌더링) → Bridge 페이지의 CodeMirror 에디터(구문 강조 포함 정상 렌더링, 이 앱에서 가장 복잡한 동적 스타일링 컴포넌트) → 로그인 페이지 → 대시보드까지 돌며 콘솔에 "Content Security Policy"/"Refused to" 메시지가 하나도 없는 것 확인 — 남은 콘솔 에러는 전부 CSP와 무관한 기존 401/404(비로그인 상태 API 프로브)뿐이었다.
+
+**하지 않은 것**: Nonce 기반 strict CSP 안 함(위 Context). HSTS에 `preload`는 안 붙임(프리로드 목록 제출은 도메인 확정 이후 사람이 할 일). 새 ADR 안 씀 — Next 공식 문서가 제시하는 표준 패턴을 그대로 따른, 어긋나면 헤더 값만 고치면 되는 되돌리기 쉬운 설정.
+
+---
+
+**완성도 재진단 10개 항목 전부 완료** (1~7라운드, 2026-09-30~2026-10-01). `docs/COMMERCIALIZATION.md`의 "완성도 재진단" 섹션 참고 — 안정성(1,2,3) · 확장성(4,5) · 보안(6,7,8) · UX(9,10) 전부 ✅.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.

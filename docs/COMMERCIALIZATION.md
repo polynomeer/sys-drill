@@ -15,9 +15,11 @@
 
 ---
 
-## 완성도 재진단: 안정성 · 확장성 · 보안 · UX (2026-09-30)
+## 완성도 재진단: 안정성 · 확장성 · 보안 · UX (2026-09-30) ✅ 10개 항목 전부 완료 (2026-10-01)
 
 > 위 "코드로 구현 가능한 것" 섹션은 **기능이 존재하는가**를 기준으로 2026-09-09에 "완료"로 표시됐다. 이번 갱신은 다른 축이다 — **그 기능이 실제로 끊김 없이 동작하는가**를 코드를 직접 읽고 로컬 벤치마크·실사용 중 발견한 문제로 검증했다. 아래 항목은 전부 이 저장소에서 지금 확인한 사실에 근거하며, 파일·라인을 명시한다.
+>
+> **2026-10-01 갱신**: 아래 10개 항목을 1~7라운드에 걸쳐 전부 처리했다(각 항목에 ✅ 표시, 상세 과정은 `PLAN.md`의 해당 라운드 기록 참고). 정밀 조사 과정에서 당초 진단보다 범위가 넓어진 경우(5번 레이트리밋, 당초 1개 엔드포인트 → 실제 5개)와 좁아진 경우(3번 입력 검증, 당초 "컨트롤러 절반" → 실제 진짜 구멍은 1곳)가 둘 다 있었다 — 숫자만 보고 세운 당초 진단은 추정이었지, 그 자체가 근거는 아니었다는 걸 보여준다.
 
 ### 안정성 / 에러 처리
 
@@ -65,9 +67,9 @@
 - 조치: 개별 토큰 블랙리스트 대신 유저당 "이 시각 이전 토큰은 전부 무효" 타임스탬프 하나(`TokenRevocationService`, 1번의 `UserExistenceCache`와 정확히 같이 예고했던 메커니즘 공유) — 로그아웃이 자연히 모든 기기 로그아웃이 되고 구현도 단순하다. `JwtService.verify()`가 토큰 발급 시각(`iat`)도 반환하도록 확장해 `AuthInterceptor`에서 체크.
 - **실 브라우저 검증 중 발견한 부수 버그**: 로그아웃 직후 백그라운드 폴링(`NotificationBell`)이 막 폐기된 토큰으로 401을 받으면, 1라운드에서 추가한 전역 401 핸들러가 `/login?reason=expired`로 하드 리다이렉트해 로그아웃 자체의 정상 리다이렉트와 경합했다 — `markLoggingOut()` 플래그로 로그아웃 진행 중엔 그 핸들러가 끼어들지 않게 수정.
 
-**8. 표준 보안 헤더가 설정돼 있지 않다**
-- 현재 상태: CSP/HSTS/`X-Frame-Options`/`X-Content-Type-Options` 등 레포 전체에서 0건. (CORS는 기존에 확인한 대로 이미 안전하게 explicit origin으로 설정돼 있어 별도 문제 없음 — 헤더 항목만 빠져 있다.)
-- 조치: 커스텀 `Filter` 또는 `HeaderWriterFilter`로 표준 보안 헤더 추가.
+**8. 표준 보안 헤더가 설정돼 있지 않다 — ✅ 7라운드(2026-10-01)에서 추가 완료**
+- 당초 상태: CSP/HSTS/`X-Frame-Options`/`X-Content-Type-Options` 등 레포 전체에서 0건.
+- 조치: 프론트는 Next 공식 "Without Nonces" CSP 패턴을 `next.config.ts`의 `headers()`로 전 경로 적용(`connect-src`는 `NEXT_PUBLIC_API_BASE_URL`을 그대로 읽어 실제 백엔드 origin과 항상 일치) + HSTS/Referrer-Policy/Permissions-Policy. 백엔드는 JSON API라 CSP 체감 효과는 적지만 `X-Content-Type-Options`/`X-Frame-Options`/`Referrer-Policy`를 신규 `SecurityHeadersFilter`로. 실 브라우저로 로그인/Bridge(CodeMirror)/대시보드를 돌며 CSP violation 없음 확인.
 
 ### UX / 제품 완성도
 
