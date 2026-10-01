@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/learning")
 class LearningController(
+    private val learningQuizService: LearningQuizService,
     private val learningService: LearningService,
     private val learningPathService: LearningPathService,
 ) {
@@ -30,6 +31,10 @@ class LearningController(
     /** docs/LEARNING_COMMUNITY_PLAN.md §5.3 — 내 약점에서 파생한 학습 경로. 저장하지 않는다. */
     @GetMapping("/path")
     fun path(@AuthenticatedUserId userId: UUID): LearningPath = learningPathService.forUser(userId)
+
+    /** docs/CODECRAFTERS_BENCHMARK.md §3.6 — self-check question generated from concept data (see [LearningQuizService]). */
+    @GetMapping("/concepts/{riskKey}/quiz")
+    fun quiz(@PathVariable riskKey: String): ConceptQuiz = learningQuizService.quiz(riskKey)
 
     @GetMapping("/concepts/{riskKey}")
     fun concept(@PathVariable riskKey: String, @AuthenticatedUserId userId: UUID): LearningConceptDetail =
