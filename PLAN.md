@@ -1725,6 +1725,27 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## 완성도 재진단 3라운드 — 입력 검증(`@Valid`) 커버리지 ✅ 완료 (2026-10-01)
+
+`docs/COMMERCIALIZATION.md` "완성도 재진단" 3번 항목. 당초 진단은 "`@RestController` 21개 중 11개만 `@Valid` 사용"이라는 숫자만 보고 작성한 추정이었다 — 이번 라운드에서 실제로 하나씩 감사했다.
+
+**정밀 감사 결과**: 컨트롤러는 이미 30개로 늘어나 있었고, `@Valid` 없는 17개 중 **14개는 `@RequestBody` 자체가 없는** GET/path-param 전용 엔드포인트라 애초에 적용할 자리가 없었다. 실제 `@RequestBody`가 있는 3개를 하나씩 확인:
+- `UserPreferencesRequest`(nullable enum 2개) — enum 역직렬화가 이미 잘못된 값을 400으로 거부해서 추가할 제약 없음.
+- `ProductEventRequest.name` — `ProductEventService.record()`가 이미 허용 목록 화이트리스트로 빈 값/미지 값을 전부 400 처리 중이라 `@NotBlank`를 얹어도 더 막아주는 게 없음.
+- **`MentorHintRequest.rawText`** — 진짜 구멍이었다. 길이 제한 없이 그대로 LLM 프롬프트(`MentorService.getHint`)에 들어가고, 실 제출과 달리 `LlmUsageGuard`의 일일 한도 체크도 안 거친다.
+
+- [x] `MentorDtos.kt` — `rawText`에 `@field:Size(max = 20_000)` 추가(실제 답안 길이보다 훨씬 넉넉하게 — 평소 사용을 막는 게 아니라 최악의 비용/남용을 막는 용도)
+- [x] `MentorController.kt` — `@Valid` 추가
+- [x] 신규 테스트: 2만 자 초과 답안이 LLM까지 가지 않고 400으로 거부되는지 확인
+
+**하지 않은 것**: `community/` 패키지의 `RankingController`/`WriteupController`도 각각 `@RequestBody`가 있고 `@Valid`가 없지만, 이 저장소에서 동시에 작업 중인 다른 세션이 그 패키지를 활발히 수정하고 있어 충돌을 피하려 이번 라운드에서 제외했다. 다음 감사 때 확인 필요.
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.mentor.*"` 전체 통과(신규 테스트 포함).
+
+**부수 발견 — 이 세션의 반복된 느려짐의 진짜 원인**: 이번 라운드 도중 테스트가 비정상적으로 느려 조사해보니, 1~2라운드에서 발견했던 OOM 힙덤프 3건(당시엔 덤프 파일만 지우고 넘어갔었다) 각각에 연결된 Gradle 테스트 워커 JVM이 **죽지 않고 최대 23시간째 계속 떠서 CPU를 점유 중**이었다(하나는 76% CPU). 2~3라운드 내내 겪은 빌드 충돌·타임아웃의 상당 부분이 "다른 세션과의 경합"이 아니라 이 좀비 프로세스들 때문이었을 가능성이 높다 — `kill -9`로 5개(데몬 2개 + 워커 3개) 정리 후 같은 테스트가 정상 시간(3분)에 끝났다.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.

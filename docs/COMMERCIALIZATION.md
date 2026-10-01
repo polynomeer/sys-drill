@@ -33,9 +33,13 @@
 - 현재 상태: `GlobalExceptionHandler`([GlobalExceptionHandler.kt](../backend/src/main/kotlin/com/sysdrill/backend/common/web/GlobalExceptionHandler.kt))는 앱이 정의한 6개 커스텀 예외(`NotFoundException` 등)만 처리한다. 그 외 모든 예외(DB 제약 위반, NPE, 외부 API 타임아웃 등)는 Spring Boot 기본 `/error` 핸들러로 떨어져 `{"status":500,"error":"Internal Server Error"}`처럼 원인을 전혀 알 수 없는 응답만 나간다(1번에서 실제로 관찰).
 - 조치: `@ExceptionHandler(Exception::class)` catch-all을 추가해 (a) 서버 로그에 요청 컨텍스트를 구조화해서 남기고 (b) 클라이언트에는 안전한 일반 메시지("일시적인 오류입니다, 잠시 후 다시 시도해주세요")를 반환.
 
-**3. 입력 검증(`@Valid`)이 컨트롤러의 절반에만 적용돼 있다**
-- 현재 상태: `@RestController` 21개 중 `@Valid`를 쓰는 파일은 11개뿐.
-- 조치: 나머지 컨트롤러의 요청 DTO에 Bean Validation 애노테이션 적용 여부를 감사하고 빠진 곳을 채운다.
+**3. 입력 검증(`@Valid`)이 컨트롤러의 절반에만 적용돼 있다 — ✅ 3라운드(2026-10-01)에서 정밀 감사 완료**
+- 당초 상태(이번 라운드 이전): `@RestController` 21개 중 `@Valid`를 쓰는 파일은 11개뿐이라고 추정했었다.
+- **정밀 감사 결과**: 실제로 컨트롤러 수는 30개로 늘어나 있었고(다른 기능 추가로), `@Valid` 없는 17개 중 **14개는 애초에 `@RequestBody` 자체가 없는 GET/path-param 전용 엔드포인트**라 `@Valid`가 적용될 자리가 없었다 — "숫자가 절반"이라는 당초 진단은 실제 위험을 과대평가한 것이었다. `@RequestBody`가 있는 나머지 3개(`UserPreferencesController`/`MentorController`/`ProductEventController`)를 하나씩 확인한 결과:
+  - `UserPreferencesRequest`(둘 다 nullable enum) — enum 역직렬화 자체가 이미 잘못된 값을 400으로 거부해서(1라운드에서 추가한 `ResponseEntityExceptionHandler` 상속이 이 경로의 응답 형식까지 커버) 추가할 제약이 없음.
+  - `ProductEventRequest.name` — `ProductEventService.record()`가 이미 허용 목록(`ALLOWED`) 화이트리스트로 빈 값/미지 값을 전부 400 처리 중이라 `@NotBlank`를 얹어도 실질적으로 더 막아주는 게 없음.
+  - **`MentorHintRequest.rawText`** — 진짜 구멍이었다. 길이 제한 없이 그대로 LLM 프롬프트(`MentorService.getHint`)에 들어가고, 실 제출과 달리 `LlmUsageGuard`의 일일 한도 체크도 안 거친다. `@field:Size(max = 20_000)` + 컨트롤러에 `@Valid` 추가로 수정.
+- **하지 않은 것**: `community/` 패키지의 `RankingController`/`WriteupController`도 각각 `@RequestBody`(`RankingVisibilityRequest`/`SessionVisibilityRequest`)가 있고 `@Valid`가 없다 — 이 저장소에서 동시에 작업 중인 다른 세션이 그 패키지를 활발히 수정 중이라 충돌을 피하려 이번 라운드에서 제외했다. 다음 감사 때 확인 필요.
 
 ### 확장성 / 성능
 
