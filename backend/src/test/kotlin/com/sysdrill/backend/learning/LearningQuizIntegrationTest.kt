@@ -44,7 +44,9 @@ class LearningQuizIntegrationTest(
             assertThat(correct).describedAs(concept.riskKey).hasSize(1)
             assertThat(concept.patterns).contains(correct.single()["text"] as String)
 
-            options.filter { it["correct"] == false }.forEach { option ->
+            val wrong = options.filter { it["correct"] == false }
+            assertThat(wrong.map { it["fromRiskKey"] }).describedAs("${concept.riskKey}: distractors from different concepts").doesNotHaveDuplicates()
+            wrong.forEach { option ->
                 val source = byKey.getValue(option["fromRiskKey"] as String)
                 assertThat(source.riskKey).isNotEqualTo(concept.riskKey)
                 assertThat(source.patterns).contains(option["text"] as String)

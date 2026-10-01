@@ -42,7 +42,8 @@ class LearningQuizService(private val conceptRepository: LearningConceptReposito
         // Same category first (plausible distractors), then the rest; never a text this concept also lists.
         val candidates = (others.filter { it.category == concept.category }.shuffled(random) +
             others.filter { it.category != concept.category }.shuffled(random))
-            .flatMap { other -> other.patterns.filter { it !in own }.map { it to other } }
+            // One pattern per concept, so the distractors point to different concepts.
+            .mapNotNull { other -> other.patterns.filter { it !in own }.shuffled(random).firstOrNull()?.let { it to other } }
             .distinctBy { it.first }
             .take(DISTRACTORS)
 
