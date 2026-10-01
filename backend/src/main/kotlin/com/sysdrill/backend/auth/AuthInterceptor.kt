@@ -13,14 +13,16 @@ const val AUTHENTICATED_USER_ID_ATTRIBUTE = "authenticatedUserId"
  * (starting with just `POST /sessions`, per the "점진적" scope this step
  * chose — see PLAN.md 31단계 for migrating the rest). Rejects with 401
  * before the controller method ever runs if the `Authorization: Bearer
- * <token>` header is missing, the token doesn't verify, or (see
+ * <token>` header is missing, the token doesn't verify, (see
  * [UserExistenceCache], docs/COMMERCIALIZATION.md) the user it names no
- * longer exists.
+ * longer exists, or (see [TokenRevocationService]) the user logged out
+ * after this particular token was issued.
  */
 @Component
 class AuthInterceptor(
     private val jwtService: JwtService,
     private val userExistenceCache: UserExistenceCache,
+    private val tokenRevocationService: TokenRevocationService,
 ) : HandlerInterceptor {
 
     override fun preHandle(request: HttpServletRequest, response: HttpServletResponse, handler: Any): Boolean {
@@ -31,16 +33,19 @@ class AuthInterceptor(
 
         val header = request.getHeader("Authorization")
         val token = header?.removePrefix("Bearer ")?.takeIf { header.startsWith("Bearer ") }
-        val userId = token?.let { jwtService.verify(it) }
+        val verified = token?.let { jwtService.verify(it) }
 
-        if (userId == null || !userExistenceCache.exists(userId)) {
+        if (verified == null ||
+            !userExistenceCache.exists(verified.userId) ||
+            tokenRevocationService.isRevoked(verified.userId, verified.issuedAt)
+        ) {
             response.status = HttpServletResponse.SC_UNAUTHORIZED
             response.contentType = "application/json"
             response.writer.write("""{"status":401,"message":"missing or invalid Authorization token"}""")
             return false
         }
 
-        request.setAttribute(AUTHENTICATED_USER_ID_ATTRIBUTE, userId)
+        request.setAttribute(AUTHENTICATED_USER_ID_ATTRIBUTE, verified.userId)
         return true
     }
 }

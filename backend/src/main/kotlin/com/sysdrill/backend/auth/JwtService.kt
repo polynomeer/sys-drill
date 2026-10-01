@@ -33,11 +33,15 @@ class JwtService(
             .sign(algorithm)
 
     /** Null on any invalid/expired/tampered token — callers treat that as "not authenticated", not an error. */
-    fun verify(token: String): UUID? = try {
-        UUID.fromString(verifier.verify(token).subject)
+    fun verify(token: String): VerifiedToken? = try {
+        val decoded = verifier.verify(token)
+        VerifiedToken(UUID.fromString(decoded.subject), decoded.issuedAt.toInstant())
     } catch (_: JWTVerificationException) {
         null
     } catch (_: IllegalArgumentException) {
         null
     }
 }
+
+/** docs/COMMERCIALIZATION.md — [issuedAt] is what [TokenRevocationService] compares against a logout timestamp. */
+data class VerifiedToken(val userId: UUID, val issuedAt: Instant)

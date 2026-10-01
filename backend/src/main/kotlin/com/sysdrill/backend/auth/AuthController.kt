@@ -7,6 +7,7 @@ import com.sysdrill.backend.identity.PlatformRole
 import com.sysdrill.backend.identity.User
 import com.sysdrill.backend.identity.UserRepository
 import java.time.Instant
+import java.util.UUID
 import jakarta.validation.Valid
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
@@ -35,6 +36,7 @@ class AuthController(
     private val emailVerificationService: EmailVerificationService,
     private val passwordResetService: PasswordResetService,
     private val loginAttemptService: LoginAttemptService,
+    private val tokenRevocationService: TokenRevocationService,
     @Value("\${sysdrill.auth.platform-admin-emails:}") platformAdminEmails: String,
 ) {
     private val passwordEncoder = BCryptPasswordEncoder()
@@ -98,6 +100,16 @@ class AuthController(
     @GetMapping("/verify-email")
     fun verifyEmail(@RequestParam token: String): ResponseEntity<Void> {
         emailVerificationService.verify(token)
+        return ResponseEntity.noContent().build()
+    }
+
+    // docs/COMMERCIALIZATION.md — the one authenticated path under the
+    // otherwise-public /auth prefix (AuthWebConfig carves it into
+    // authInterceptor's gated patterns), since revoking requires knowing
+    // whose tokens to revoke.
+    @PostMapping("/logout")
+    fun logout(@AuthenticatedUserId userId: UUID): ResponseEntity<Void> {
+        tokenRevocationService.revokeAllTokens(userId)
         return ResponseEntity.noContent().build()
     }
 }

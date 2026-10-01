@@ -61,6 +61,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
  * `/postmortem-summary` (Phase 3-C, docs/DRILLS_SIMULATION_VISION.md §6) is
  * registered the same way as `/skill-profile` right above it — a flat,
  * token-derived-identity endpoint with no path parameter to guard.
+ * `/auth/logout` (docs/COMMERCIALIZATION.md) is the one authenticated path
+ * under the otherwise-public `/auth` prefix — revoking tokens needs to know
+ * whose tokens to revoke, see [TokenRevocationService].
  */
 @Configuration
 class AuthWebConfig(
@@ -97,6 +100,7 @@ class AuthWebConfig(
                 "/scenarios/*/discussion",
                 "/writeups/**",
                 "/discussions/**",
+                "/auth/logout",
             )
             .excludePathPatterns("/sessions/*/simulation/realinfra/coupon/**", "/organizations/assessments/*")
     }

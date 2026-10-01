@@ -49,7 +49,7 @@ class AuthControllerIntegrationTest(
         assertThat(BCryptPasswordEncoder().matches("correct horse battery", storedHash)).isTrue()
 
         val token = JsonPath.read<String>(response, "$.token")
-        assertThat(jwtService.verify(token)).isEqualTo(userId)
+        assertThat(jwtService.verify(token)?.userId).isEqualTo(userId)
     }
 
     @Test
