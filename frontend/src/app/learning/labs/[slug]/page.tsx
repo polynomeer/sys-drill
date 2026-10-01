@@ -7,6 +7,7 @@ import { type LabSummary, listLabs } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { CapacityLabView } from "./CapacityLabView";
+import { EngineLabView } from "./EngineLabView";
 
 /** docs/LEARNING_EXPANSION_PLAN.md L5·L6 — one lab; the view depends on its kind. */
 export default function LabPage() {
@@ -37,6 +38,7 @@ export default function LabPage() {
       {error && <p className="text-sm text-danger">{error}</p>}
       {!lab && !error && <LoadingState />}
       {lab?.kind === "CAPACITY" && <CapacityLabView slug={lab.slug} />}
+      {lab?.kind === "ENGINE" && <EngineLabView slug={lab.slug} />}
     </div>
   );
 }

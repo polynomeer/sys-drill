@@ -5,7 +5,7 @@ import { BlockReader } from "@/components/BlockReader";
 import { ConceptQuizCard } from "@/components/ConceptQuizCard";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { LearningConceptDetail, ScenarioSummary, getLearningConcept, listScenarios } from "@/lib/api";
+import { LabSummary, LearningConceptDetail, ScenarioSummary, getLearningConcept, listLabs, listScenarios } from "@/lib/api";
 import { getStoredToken, isConceptRead, markConceptRead } from "@/lib/localSession";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -28,6 +28,7 @@ export default function LearningConceptPage() {
 
   const [concept, setConcept] = useState<LearningConceptDetail | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
+  const [labs, setLabs] = useState<LabSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(1);
   // Stable so BlockReader's done-effect fires once, not on every render.
@@ -46,6 +47,8 @@ export default function LearningConceptPage() {
     setRevealed(isConceptRead(riskKey) ? Number.MAX_SAFE_INTEGER : 1);
     // 관련 도메인 → 실제 시작 가능한 시나리오로 잇기 위한 조회. 실패해도 본문은 보여준다.
     listScenarios().then(setScenarios).catch(() => setScenarios([]));
+    // docs/LEARNING_EXPANSION_PLAN.md L5 — the engine lab for this concept, the shortest practice step.
+    listLabs().then((all) => setLabs(all.filter((l) => l.riskKey === riskKey))).catch(() => setLabs([]));
   }, [riskKey, router]);
 
   if (error) {
@@ -61,7 +64,7 @@ export default function LearningConceptPage() {
   if (!concept) return <div className="mx-auto max-w-3xl p-8"><LoadingState /></div>;
 
   const relatedScenarios = scenarios.filter((s) => concept.relatedDomains.includes(s.domain) && !s.creatorNickname);
-  const hasTryIt = relatedScenarios.length > 0 || concept.relatedChallenges.length > 0;
+  const hasTryIt = labs.length > 0 || relatedScenarios.length > 0 || concept.relatedChallenges.length > 0;
 
   const blocks: { key: string; node: React.ReactNode }[] = [
     {
@@ -121,6 +124,15 @@ export default function LearningConceptPage() {
           <h2 className="mb-1 text-sm font-semibold">이 개념을 연습하는 방법</h2>
           <p className="mb-3 text-xs text-foreground-muted">읽는 것으로는 이 개념이 어디서 깨지는지 알 수 없습니다.</p>
           <ol className="flex flex-col gap-3">
+            {labs.length > 0 && (
+              <PracticeStep title="값을 바꿔 보기" hint="랩 — 예측하고 실행해서 현상을 직접 확인 (5분)">
+                {labs.map((lab) => (
+                  <Button key={lab.slug} href={`/learning/labs/${lab.slug}`} size="sm" variant="secondary">
+                    랩: {lab.title}
+                  </Button>
+                ))}
+              </PracticeStep>
+            )}
             {concept.relatedChallenges.length > 0 && (
               <PracticeStep title="직접 구현하기" hint="Build 챌린지 — 작은 단계부터">
                 {concept.relatedChallenges.map((slug) => (

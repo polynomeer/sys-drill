@@ -52,6 +52,15 @@ class LearningController(
     fun checkCapacity(@PathVariable slug: String, @RequestBody request: CapacityCheckRequest): CapacityCheckResult =
         learningLabService.checkCapacity(slug, request)
 
+    /** L5 (ADR-0047) — an engine lab's knobs (with the incident's defaults), watched and predicted metrics. */
+    @GetMapping("/labs/{slug}/engine")
+    fun engineLab(@PathVariable slug: String): EngineLabView = learningLabService.engine(slug)
+
+    /** L5 — run the domain's formula with these knob values, no session. Nothing is stored. */
+    @PostMapping("/labs/{slug}/engine/run")
+    fun runEngineLab(@PathVariable slug: String, @RequestBody request: EngineRunRequest) =
+        learningLabService.run(slug, request)
+
     @GetMapping("/concepts/{riskKey}")
     fun concept(@PathVariable riskKey: String, @AuthenticatedUserId userId: UUID): LearningConceptDetail =
         learningService.detail(riskKey, userId)

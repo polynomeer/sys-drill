@@ -625,6 +625,39 @@ export interface CapacityCheckResult {
   results: { key: string; label: string; unit: string; formula: string; result: EstimateResult }[];
 }
 
+export interface EngineKnob {
+  trait: string;
+  label: string;
+  type: "number" | "boolean";
+  min: number | null;
+  max: number | null;
+  step: number | null;
+  default: number | boolean;
+}
+
+export interface EngineLab {
+  slug: string;
+  title: string;
+  summary: string;
+  riskKey: string | null;
+  domain: string;
+  knobs: EngineKnob[];
+  watch: (keyof SystemState)[];
+  predict: (keyof SystemState)[];
+}
+
+export function getEngineLab(slug: string): Promise<EngineLab> {
+  return apiFetch<EngineLab>(`/learning/labs/${slug}/engine`);
+}
+
+/** ADR-0047 — the domain's own formula, no session; nothing is stored. */
+export function runEngineLab(slug: string, traits: Record<string, number | boolean>, incidentActive: boolean): Promise<SystemState> {
+  return apiFetch<SystemState>(`/learning/labs/${slug}/engine/run`, {
+    method: "POST",
+    body: JSON.stringify({ traits, incidentActive }),
+  });
+}
+
 export function listLabs(): Promise<LabSummary[]> {
   return apiFetch<LabSummary[]>("/learning/labs");
 }
