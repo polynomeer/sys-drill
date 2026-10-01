@@ -1,14 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Check, Database, Settings, TrafficCone, TrendingUp, type LucideIcon } from "lucide-react";
 import {
   ApiError,
   ChatMessage,
   SimulationActionType,
+  SimulationSeries,
   SystemState,
+  TimelineStep,
   applySimulationAction,
+  getSimulationSeries,
   getSimulationState,
   getSimulationTimeline,
   listChatMessages,
@@ -22,6 +24,19 @@ import { Card } from "@/components/ui/Card";
 import { Gauge } from "@/components/ui/Gauge";
 import { Input } from "@/components/ui/Input";
 import { LogEntry, LogLevel, LogViewer } from "./LogViewer";
+import { MissionControlBar } from "./MissionControlBar";
+import { GoldenSignals, RecentChanges, SeriesCharts } from "./ObserveViews";
+import { DOMAIN_TITLES } from "@/lib/designGuidance";
+import { trackEvent } from "@/lib/events";
+
+/** docs/OBSERVABILITY_UI_PLAN.md O1 — one investigation space instead of a stack of panels. */
+type ObserveTab = "overview" | "metrics" | "logs" | "changes";
+const OBSERVE_TABS: { key: ObserveTab; label: string }[] = [
+  { key: "overview", label: "Overview" },
+  { key: "metrics", label: "Metrics" },
+  { key: "logs", label: "Logs" },
+  { key: "changes", label: "Changes" },
+];
 
 type ActionCategory = "scale" | "cache" | "traffic" | "config";
 type ActionDef = { type: SimulationActionType; label: string; effect: string; category: ActionCategory };
@@ -197,7 +212,6 @@ const INCIDENT_EVENT_BY_DOMAIN: Record<string, string> = {
 };
 
 const POLL_INTERVAL_MS = 3000;
-const HISTORY_LIMIT = 40;
 
 // PLAN.md step 21/27 — domains with a real-infra opt-in path, and the
 // domain-specific description/event text for each one's pre-start gate.
@@ -215,8 +229,6 @@ const REAL_INFRA_START_EVENT: Record<string, string> = {
   notification: "실전 인프라 인시던트 시작: 실제 Kafka 토픽·컨슈머 그룹, 실제 프로듀서/컨슈머로 지표를 측정합니다.",
 };
 
-type HistoryPoint = { t: string; rps: number; errorRate: number };
-
 /** PLAN.md UI/UX 리뉴얼 Round 3 — EventStream/Timeline are merged into
  * one client-side log below (see LogViewer.tsx), seeded once from the
  * backend's `GET .../simulation/timeline` (previously unused) and then
@@ -227,9 +239,12 @@ export function WargameLive({
   domain,
   isOwner = true,
   initialTraits,
+  title,
 }: {
   sessionId: string;
   domain: string;
+  /** Mission Control bar heading — falls back to the domain's title. */
+  title?: string;
   /** PLAN.md step 36 — Game Day spectator: hides the incident-start gate and action panel, read-only metrics only. */
   isOwner?: boolean;
   /** ADR-0037 — the Architecture Canvas's node config, forwarded to `startIncident` as this session's starting DesignTraits. */
@@ -237,7 +252,9 @@ export function WargameLive({
 }) {
   const ACTIONS = ACTIONS_BY_DOMAIN[domain] ?? ACTIONS_BY_DOMAIN.coupon;
   const [state, setState] = useState<SystemState | null>(null);
-  const [history, setHistory] = useState<HistoryPoint[]>([]);
+  const [series, setSeries] = useState<SimulationSeries | null>(null);
+  const [steps, setSteps] = useState<TimelineStep[]>([]);
+  const [tab, setTab] = useState<ObserveTab>("overview");
   const [appliedActions, setAppliedActions] = useState<Set<SimulationActionType>>(new Set());
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -269,6 +286,8 @@ export function WargameLive({
       const current = await getSimulationState(sessionId);
       setState(current);
       setNotStarted(false);
+      // ADR-0045 — the curve comes from the server so reloads and spectators see the same series.
+      getSimulationSeries(sessionId).then(setSeries).catch(() => undefined);
       const level = current.level;
       if (lastLevelRef.current !== null && lastLevelRef.current !== level) {
         pushLog(`지표 상태 변화: ${lastLevelRef.current} → ${level}`, current);
@@ -300,11 +319,10 @@ export function WargameLive({
     return () => clearInterval(timer);
   }, [refreshState, awaitingStartChoice]);
 
-  // Feed the RPS/Error-rate charts a rolling window every time a fresh state arrives.
-  useEffect(() => {
-    if (!state) return;
-    setHistory((prev) => [...prev, { t: new Date().toLocaleTimeString(), rps: state.trafficRps, errorRate: state.errorRate * 100 }].slice(-HISTORY_LIMIT));
-  }, [state]);
+  const refreshSteps = useCallback(
+    () => getSimulationTimeline(sessionId).then(setSteps).catch(() => undefined),
+    [sessionId],
+  );
 
   // Seed the log viewer once from the incident's real timeline (previously unused endpoint) instead of starting blank.
   useEffect(() => {
@@ -312,6 +330,7 @@ export function WargameLive({
     timelineSeededRef.current = true;
     getSimulationTimeline(sessionId)
       .then((steps) => {
+        setSteps(steps);
         if (steps.length === 0) return;
         // Only seed if nothing has been live-appended yet (a returning/spectating
         // viewer with an empty panel) — otherwise this fetch, which races the
@@ -367,6 +386,8 @@ export function WargameLive({
     try {
       const updated = await applySimulationAction(sessionId, actionType);
       setState(updated);
+      refreshSteps();
+      getSimulationSeries(sessionId).then(setSeries).catch(() => undefined);
       lastLevelRef.current = updated.level;
       setAppliedActions((prev) => new Set(prev).add(actionType));
       pushLog(`조치 적용: ${ACTIONS.find((a) => a.type === actionType)?.label}`, updated);
@@ -435,11 +456,50 @@ export function WargameLive({
     return <p className="text-sm text-foreground-muted">시뮬레이션을 시작하는 중...</p>;
   }
 
+  // Rule-based: show the series' latest point — it carries the accumulated backlog
+  // the plain /state snapshot doesn't. Real-infra: /state is the freshest measurement.
+  const latestPoint = series?.points.at(-1) ?? null;
+  const shownState = series?.engineMode === "RULE_BASED" && latestPoint ? latestPoint.state : state;
+  const incidentStartedAt = series?.incidentStartedAt ?? null;
+
+  function selectTab(next: ObserveTab) {
+    setTab(next);
+    if (next !== "overview") trackEvent(`observe_tab_${next}`);
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <MetricsPanel state={state} domain={domain} />
-      <MetricsHistoryCharts history={history} />
-      {isOwner && <LogViewer entries={logs} />}
+      <MissionControlBar title={title ?? DOMAIN_TITLES[domain] ?? domain} latest={latestPoint} incidentStartedAt={incidentStartedAt} />
+
+      <div role="tablist" aria-label="Observe" className="flex gap-1 overflow-x-auto border-b border-border text-sm">
+        {OBSERVE_TABS.filter((t) => t.key !== "logs" || isOwner).map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            onClick={() => selectTab(t.key)}
+            className={`-mb-px shrink-0 border-b-2 px-3 py-2 ${tab === t.key ? "border-accent text-foreground" : "border-transparent text-foreground-muted hover:text-foreground"}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "overview" && (
+        <div className="flex flex-col gap-4">
+          {series && <GoldenSignals points={series.points} />}
+          {incidentStartedAt && <RecentChanges steps={steps} incidentStartedAt={incidentStartedAt} limit={5} />}
+        </div>
+      )}
+      {tab === "metrics" && (
+        <div className="flex flex-col gap-4">
+          <MetricsPanel state={shownState} domain={domain} />
+          {series && incidentStartedAt && <SeriesCharts points={series.points} incidentStartedAt={incidentStartedAt} />}
+        </div>
+      )}
+      {tab === "logs" && isOwner && <LogViewer entries={logs} />}
+      {tab === "changes" && incidentStartedAt && <RecentChanges steps={steps} incidentStartedAt={incidentStartedAt} />}
 
       <div className="grid gap-4 md:grid-cols-2">
         {isOwner && (
@@ -538,39 +598,6 @@ function SessionChat({ sessionId }: { sessionId: string }) {
         </Button>
       </form>
     </Card>
-  );
-}
-
-/** Real-time RPS/error-rate line charts fed by WargameLive's rolling history window — not used by the replay screen, which scrubs one snapshot at a time instead of a live-accumulating series. */
-function MetricsHistoryCharts({ history }: { history: HistoryPoint[] }) {
-  if (history.length < 2) return null;
-  return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <Card as="section">
-        <h2 className="mb-2 text-sm font-semibold text-foreground-muted">요청 수 (RPS)</h2>
-        <ResponsiveContainer width="100%" height={140}>
-          <LineChart data={history}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="t" hide />
-            <YAxis width={40} tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} stroke="var(--border)" />
-            <Tooltip contentStyle={{ background: "var(--surface-elevated)", border: "1px solid var(--border)", fontSize: 12 }} />
-            <Line type="monotone" dataKey="rps" stroke="#2f80ff" strokeWidth={2} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </Card>
-      <Card as="section">
-        <h2 className="mb-2 text-sm font-semibold text-foreground-muted">에러율 (%)</h2>
-        <ResponsiveContainer width="100%" height={140}>
-          <LineChart data={history}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="t" hide />
-            <YAxis width={40} tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} stroke="var(--border)" />
-            <Tooltip contentStyle={{ background: "var(--surface-elevated)", border: "1px solid var(--border)", fontSize: 12 }} />
-            <Line type="monotone" dataKey="errorRate" stroke="#ef4444" strokeWidth={2} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </Card>
-    </div>
   );
 }
 

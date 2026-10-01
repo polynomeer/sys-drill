@@ -8,7 +8,10 @@ export type ProductEvent =
   | "organizations_view"
   | "architecture_analysis_view"
   | "report_view"
-  | "feedback_concept_click";
+  | "feedback_concept_click"
+  | "observe_tab_metrics"
+  | "observe_tab_logs"
+  | "observe_tab_changes";
 
 /**
  * docs/CODECRAFTERS_BENCHMARK.md §6 (PLAN.md Round B17) — bump an anonymous

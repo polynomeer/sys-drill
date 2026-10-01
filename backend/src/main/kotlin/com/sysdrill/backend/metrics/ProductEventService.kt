@@ -46,6 +46,10 @@ class ProductEventService(private val jdbc: JdbcTemplate) {
             // docs/LEARNING_EXPANSION_PLAN.md §8 — 피드백에서 개념으로 넘어가는 비율
             "report_view",
             "feedback_concept_click",
+            // docs/OBSERVABILITY_UI_PLAN.md §9 — are the investigation tabs actually used during an incident
+            "observe_tab_metrics",
+            "observe_tab_logs",
+            "observe_tab_changes",
         )
     }
 }

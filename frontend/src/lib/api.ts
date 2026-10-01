@@ -578,6 +578,28 @@ export function getSimulationTimeline(sessionId: string): Promise<TimelineStep[]
   return apiFetch<TimelineStep[]>(`/sessions/${sessionId}/simulation/timeline`);
 }
 
+/** docs/OBSERVABILITY_UI_PLAN.md O1 — derived on the server from the series (ADR-0045). */
+export type HealthStatus = "HEALTHY" | "DEGRADED" | "CRITICAL" | "RECOVERING" | "RECOVERED";
+
+export interface SeriesPoint {
+  t: string;
+  state: SystemState;
+  status: HealthStatus;
+  /** Accumulated backlog — already in `state.queueLag` for notification/payment/reservation. */
+  backlog: number;
+}
+
+export interface SimulationSeries {
+  engineMode: "RULE_BASED" | "REAL_INFRA";
+  incidentStartedAt: string | null;
+  points: SeriesPoint[];
+}
+
+/** PLAN.md Round E4/E5 — a minute before the incident through now, ≤120 points, nothing stored server-side. */
+export function getSimulationSeries(sessionId: string): Promise<SimulationSeries> {
+  return apiFetch<SimulationSeries>(`/sessions/${sessionId}/simulation/series`);
+}
+
 export function getPostmortem(sessionId: string): Promise<Postmortem> {
   return apiFetch<Postmortem>(`/sessions/${sessionId}/postmortem`);
 }
