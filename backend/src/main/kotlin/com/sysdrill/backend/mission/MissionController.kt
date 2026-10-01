@@ -40,4 +40,11 @@ class MissionController(
         sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
         return missionService.estimation(sessionId)
     }
+
+    /** docs/DRILLS_EXPANSION_PLAN.md M4 (PLAN.md Round E10) — the INITIAL feedback's follow-up questions to answer with FOLLOWUP. */
+    @GetMapping("/defense")
+    fun defense(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): DefenseResponse {
+        sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
+        return missionService.defense(sessionId)
+    }
 }

@@ -2,6 +2,7 @@ package com.sysdrill.backend.mission
 
 import com.sysdrill.backend.common.web.ConflictException
 import com.sysdrill.backend.common.web.NotFoundException
+import com.sysdrill.backend.evaluation.EvaluationRepository
 import com.sysdrill.backend.scenario.ScenarioStep
 import com.sysdrill.backend.scenario.ScenarioStepRepository
 import com.sysdrill.backend.session.Session
@@ -27,6 +28,7 @@ import java.util.UUID
 class MissionService(
     private val sessionRepository: SessionRepository,
     private val submissionRepository: SubmissionRepository,
+    private val evaluationRepository: EvaluationRepository,
     private val scenarioStepRepository: ScenarioStepRepository,
     private val mapper: ObjectMapper,
 ) {
@@ -82,6 +84,10 @@ class MissionService(
             save(session, current.copy(askedClarifications = current.askedClarifications + questionId))
         }
         return ClarificationsResponse.of(questions, state(session).askedClarifications, canAsk = true)
+    }
+
+    companion object {
+        const val DEFENSE_QUESTION_COUNT = 2
     }
 
     private fun canAsk(session: Session): Boolean =
@@ -162,6 +168,63 @@ class MissionService(
         }
     }
 
+    // ---- M4: design defense ----
+
+    /**
+     * docs/DRILLS_EXPANSION_PLAN.md M4 (PLAN.md Round E10) — the INITIAL evaluation already
+     * produced follow-up questions ("DB가 SPOF 아닌가요?"); until now they were only read.
+     * The first [DEFENSE_QUESTION_COUNT] become the defense the learner answers alongside the
+     * FOLLOWUP design (sent in its `structured_json.defense`). No new LLM call.
+     */
+    fun defense(sessionId: UUID): DefenseResponse {
+        val session = requireSession(sessionId)
+        val questions = initialSubmission(session)
+            ?.let { evaluationRepository.findFirstBySubmissionIdAndIsActiveTrue(it.id!!) }
+            ?.followupQuestions
+            ?.let { runCatching { read(it, List::class.java).map { q -> q.toString() } }.getOrNull() }
+            .orEmpty()
+            .take(DEFENSE_QUESTION_COUNT)
+        return DefenseResponse(
+            available = questions.isNotEmpty(),
+            // 면접형 타이머 모드에서는 답해야 제출할 수 있다(프론트에서 막는다). 서버는 비어 있어도 받고,
+            // 평가 프롬프트에 "답하지 않음"으로 남긴다 — 시간 초과 자동 제출을 막으면 안 되기 때문.
+            required = session.interviewMode,
+            questions = questions,
+        )
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun defensePromptSection(submission: Submission): String? {
+        val entries = structuredOf(submission)["defense"] as? List<Map<String, Any?>> ?: return null
+        if (entries.isEmpty()) return null
+        return buildString {
+            appendLine("## 설계 방어 (지난 단계 피드백의 꼬리질문에 대한 사용자 답변)")
+            entries.forEach { e ->
+                val answer = (e["answer"] as? String)?.trim().orEmpty()
+                appendLine("- Q. ${e["question"]}")
+                appendLine("  A. ${answer.ifBlank { "(답하지 않음)" }}")
+            }
+            appendLine("답변이 설계 근거를 구체적으로 대는지, 약점을 인정하고 대안을 제시하는지를 트레이드오프 설명·커뮤니케이션 항목에 반영하세요.")
+        }
+    }
+
+    // ---- M11: incident status update ----
+
+    /** docs/DRILLS_EXPANSION_PLAN.md M11 — the customer-facing status update drafted with the INCIDENT answer. */
+    fun statusUpdatePromptSection(submission: Submission): String? {
+        val draft = (structuredOf(submission)["statusUpdate"] as? String)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return buildString {
+            appendLine("## 고객 공지 초안 (장애 중 고객지원팀에 전달할 상태 업데이트)")
+            appendLine(draft)
+            appendLine()
+            appendLine("커뮤니케이션 항목에서 이 공지를 평가하세요: 명료성(무엇이 영향받는지), 정확성(실제 지표·상황과 맞는지), 과장 여부(확인되지 않은 원인·복구 시점을 단정하는지), 행동 가능성(고객이 무엇을 하면 되는지).")
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun structuredOf(submission: Submission): Map<String, Any?> =
+        submission.structuredJson?.let { runCatching { read(it, Map::class.java) as Map<String, Any?> }.getOrNull() }.orEmpty()
+
     private fun judgeEstimates(fields: List<EstimationField>, estimates: Map<String, Double>): List<EstimateResult> =
         fields.map { EstimateJudge.judge(it.key, estimates[it.key], it.answer) }
 
@@ -222,6 +285,13 @@ data class ClarificationsResponse(
         }
     }
 }
+
+data class DefenseResponse(
+    val available: Boolean,
+    /** Interview-timer sessions must answer before submitting FOLLOWUP. */
+    val required: Boolean,
+    val questions: List<String>,
+)
 
 data class EstimationFieldView(val key: String, val label: String, val unit: String, val hint: String?)
 

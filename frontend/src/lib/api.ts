@@ -580,6 +580,18 @@ export interface Estimation {
   results: EstimateResult[] | null;
 }
 
+/** docs/DRILLS_EXPANSION_PLAN.md M4 — the INITIAL feedback's follow-up questions to answer with FOLLOWUP. */
+export interface Defense {
+  available: boolean;
+  /** Interview-timer sessions must answer before submitting. */
+  required: boolean;
+  questions: string[];
+}
+
+export function getDefense(sessionId: string): Promise<Defense> {
+  return apiFetch<Defense>(`/sessions/${sessionId}/defense`);
+}
+
 export function getEstimation(sessionId: string): Promise<Estimation> {
   return apiFetch<Estimation>(`/sessions/${sessionId}/estimation`);
 }

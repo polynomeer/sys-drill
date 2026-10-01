@@ -103,6 +103,8 @@ class HybridRuleAiEvaluator(
                 missionService.clarificationPromptSection(session)?.let(::add)
                 missionService.estimationPromptSection(session, submission)?.let(::add)
             }
+            if (submission.phase == "FOLLOWUP") missionService.defensePromptSection(submission)?.let(::add)
+            if (submission.phase == "INCIDENT") missionService.statusUpdatePromptSection(submission)?.let(::add)
         }
         return if (sections.isEmpty()) "" else sections.joinToString(separator = "\n", prefix = "\n")
     }

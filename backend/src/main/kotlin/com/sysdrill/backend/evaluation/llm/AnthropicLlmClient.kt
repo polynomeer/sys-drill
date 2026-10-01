@@ -110,7 +110,7 @@ class AnthropicLlmClient(
               "strengths": ["오프라인 모드: 실제 LLM 평가가 아닙니다."],
               "missedPoints": ["LLM_ANTHROPIC_API_KEY를 backend/.env.local에 설정하면 실제 평가를 받을 수 있습니다."],
               "topRisks": [],
-              "followupQuestions": [],
+              "followupQuestions": ["(오프라인 예시) 이 설계에서 단일 장애 지점(SPOF)은 어디이고, 그것이 멈추면 무엇이 깨지나요?", "(오프라인 예시) 트래픽이 10배가 되면 가장 먼저 병목이 되는 곳은 어디인가요?"],
               "recommendedChanges": []
             }
         """.trimIndent()

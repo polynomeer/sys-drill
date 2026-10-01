@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ApiError,
+  Defense,
   EvaluationFeedback,
   SessionResponse,
   SessionStatus,
@@ -23,6 +24,7 @@ import {
 } from "@/lib/localSession";
 import { ClarificationPanel } from "./ClarificationPanel";
 import { EstimationPanel } from "./EstimationPanel";
+import { DefensePanel } from "./DefensePanel";
 import { WargameLive } from "./WargameLive";
 import { BridgeProgress } from "@/components/BridgeProgress";
 import { PhaseTimer } from "@/components/PhaseTimer";
@@ -77,6 +79,9 @@ export default function DesignWorkspacePage() {
   const [answer, setAnswer] = useState("");
   // PLAN.md Round E9 — mission inputs fixed at submit time, sent as structuredJson (M2 estimates, …).
   const [estimates, setEstimates] = useState<Record<string, number | null>>({});
+  const [defense, setDefense] = useState<Defense | null>(null);
+  const [defenseAnswers, setDefenseAnswers] = useState<Record<string, string>>({});
+  const [statusUpdate, setStatusUpdate] = useState("");
   const [feedback, setFeedback] = useState<EvaluationFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [diagramMode, setDiagramMode] = useState<"canvas" | "text">("canvas");
@@ -232,16 +237,30 @@ export default function DesignWorkspacePage() {
       setError("답안을 입력해주세요.");
       return;
     }
+    // docs/DRILLS_EXPANSION_PLAN.md M4 — interview-timer mode must defend the design (a timeout auto-submit is never blocked).
+    if (!auto && session?.currentPhase === "FOLLOWUP" && defense?.available && defense.required &&
+        defense.questions.some((q) => !(defenseAnswers[q] ?? "").trim())) {
+      setError("면접형 모드에서는 설계 방어 질문에 모두 답해야 제출할 수 있습니다.");
+      return;
+    }
     const textToSubmit = answer.trim() ? answer : "(시간 초과로 자동 제출됨 — 작성한 내용 없음)";
     setView("submitting");
     setError(null);
     try {
       const clientRequestId =
         typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}`;
+      // PLAN.md Round E8~E10 — the current phase's mission inputs, fixed at submit time (structuredJson).
+      const structured: Record<string, unknown> = {};
       const filled = Object.fromEntries(Object.entries(estimates).filter(([, v]) => v !== null));
-      const structured = Object.keys(filled).length > 0 ? { estimates: filled } : undefined;
+      if (session?.currentPhase === "INITIAL" && Object.keys(filled).length > 0) structured.estimates = filled;
+      if (session?.currentPhase === "FOLLOWUP" && defense?.available) {
+        structured.defense = defense.questions.map((q) => ({ question: q, answer: defenseAnswers[q] ?? "" }));
+      }
+      if (session?.currentPhase === "INCIDENT" && statusUpdate.trim()) structured.statusUpdate = statusUpdate.trim();
       const submission = await submitAnswer(sessionId, textToSubmit, clientRequestId, structured);
       setEstimates({});
+      setDefenseAnswers({});
+      setStatusUpdate("");
       saveSubmissionId(sessionId, submission.id);
       clearDraft(sessionId);
       setView("waiting");
@@ -350,6 +369,15 @@ export default function DesignWorkspacePage() {
             {isEditing && session?.currentPhase === "INITIAL" && (
               <EstimationPanel sessionId={sessionId} values={estimates} onChange={setEstimates} />
             )}
+            {isEditing && session?.currentPhase === "FOLLOWUP" && (
+              <DefensePanel
+                sessionId={sessionId}
+                defense={defense}
+                onLoad={setDefense}
+                answers={defenseAnswers}
+                onChange={setDefenseAnswers}
+              />
+            )}
 
             {isEditing && (
               <Card as="section" className="text-sm">
@@ -414,6 +442,18 @@ export default function DesignWorkspacePage() {
                       : "설계를 자유롭게 작성하세요. 입력 내용은 자동으로 이 브라우저에 저장됩니다."
                   }
                 />
+
+                {/* docs/DRILLS_EXPANSION_PLAN.md M11 (PLAN.md Round E10) — what support tells customers, evaluated under 커뮤니케이션. */}
+                {isIncident && (
+                  <Textarea
+                    label="고객 공지 초안 (선택)"
+                    className="min-h-[96px] text-sm"
+                    value={statusUpdate}
+                    onChange={(e) => setStatusUpdate(e.target.value)}
+                    maxLength={2000}
+                    placeholder="고객지원팀이 지금 고객에게 무엇이라고 안내해야 할까요? 예: 결제 지연을 확인하고 조사 중입니다. 다음 안내는 30분 안에 드리겠습니다."
+                  />
+                )}
 
                 {!isIncident && (
                   <section className="flex flex-col gap-2">
