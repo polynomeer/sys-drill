@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, CertificationStatus, getMyCertification } from "@/lib/api";
+import { trackEvent } from "@/lib/events";
 import { getStoredToken } from "@/lib/localSession";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -17,6 +18,11 @@ export default function CertificationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // docs/CODECRAFTERS_BENCHMARK.md §6 — anonymous visit counter for a page that used to have no entry point.
+  useEffect(() => {
+    trackEvent("certifications_view");
+  }, []);
 
   useEffect(() => {
     if (!getStoredToken()) {

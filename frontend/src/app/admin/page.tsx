@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AdminDashboardStats, ApiError, getAdminDashboardStats } from "@/lib/api";
+import { AdminDashboardStats, ApiError, SuccessMetrics, getAdminDashboardStats, getSuccessMetrics } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -13,6 +13,7 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [metrics, setMetrics] = useState<SuccessMetrics | null>(null);
 
   useEffect(() => {
     if (!getStoredToken()) {
@@ -20,6 +21,8 @@ export default function AdminDashboardPage() {
       return;
     }
 
+    // Secondary panel — the page still works if this one fails.
+    getSuccessMetrics().then(setMetrics).catch(() => setMetrics(null));
     getAdminDashboardStats()
       .then(setStats)
       .catch((err) =>
@@ -50,6 +53,8 @@ export default function AdminDashboardPage() {
           <StatCard label="오늘 완료된 세션" value={stats.sessionsCompletedToday} />
         </div>
       )}
+
+      {metrics && <SuccessMetricsPanel metrics={metrics} />}
     </div>
   );
 }
@@ -62,3 +67,72 @@ function StatCard({ label, value }: { label: string; value: number }) {
     </Card>
   );
 }
+
+const EVENT_LABELS: Record<string, string> = {
+  drill_overview_view: "Drill 개요 조회",
+  drill_overview_start: "개요에서 시작",
+  certifications_view: "인증 페이지 방문",
+  organizations_view: "조직 페이지 방문",
+  architecture_analysis_view: "아키텍처 분석 방문",
+};
+
+/** docs/CODECRAFTERS_BENCHMARK.md §6 — the success metrics, aggregates only. */
+function SuccessMetricsPanel({ metrics }: { metrics: SuccessMetrics }) {
+  const pct = (v: number | null) => (v === null ? "—" : `${v}%`);
+  const distribution = Object.entries(metrics.buildProgressDistribution).sort(([a], [b]) => Number(a) - Number(b));
+  const maxCount = Math.max(1, ...distribution.map(([, n]) => n));
+  return (
+    <section className="flex flex-col gap-4">
+      <h2 className="text-lg font-semibold">성공 지표</h2>
+      <div className="grid grid-cols-2 gap-4">
+        <Card>
+          <p className="text-sm text-foreground-muted">7일 내 첫 Drill 완료율</p>
+          <p className="text-2xl font-semibold">{pct(metrics.firstDrillWithin7DaysPercent)}</p>
+          <p className="text-xs text-foreground-muted">가입 7~90일 전 사용자 {metrics.cohortSize}명 기준</p>
+        </Card>
+        <Card>
+          <p className="text-sm text-foreground-muted">Build 1단계 첫 통과까지</p>
+          <p className="text-2xl font-semibold">
+            {metrics.medianMinutesToFirstBuildPass === null ? "—" : `${metrics.medianMinutesToFirstBuildPass}분`}
+          </p>
+          <p className="text-xs text-foreground-muted">첫 제출부터, 중앙값</p>
+        </Card>
+        <Card>
+          <p className="text-sm text-foreground-muted">개요 → 시작 전환율 (30일)</p>
+          <p className="text-2xl font-semibold">{pct(metrics.overviewToStartPercent)}</p>
+        </Card>
+        <Card>
+          <p className="mb-1 text-sm text-foreground-muted">페이지 이벤트 (30일)</p>
+          <ul className="text-xs text-foreground-muted">
+            {Object.entries(metrics.events30d).map(([name, n]) => (
+              <li key={name} className="flex justify-between">
+                <span>{EVENT_LABELS[name] ?? name}</span>
+                <span className="font-mono text-foreground">{n}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </div>
+      <Card>
+        <p className="mb-2 text-sm text-foreground-muted">Build 진행 분포 — 최근 채점 기준, 순서대로 통과한 마지막 단계</p>
+        {distribution.length === 0 ? (
+          <p className="text-sm text-foreground-muted">아직 채점된 Build 제출이 없습니다.</p>
+        ) : (
+          <ul className="flex flex-col gap-1.5 text-xs">
+            {distribution.map(([stage, n]) => (
+              <li key={stage} className="flex items-center gap-2">
+                <span className="w-16 shrink-0 text-foreground-muted">{stage === "0" ? "1단계 전" : `${stage}단계`}</span>
+                <span className="h-2 rounded bg-accent/70" style={{ width: `${(n / maxCount) * 100}%` }} />
+                <span className="font-mono">{n}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+      <p className="text-xs text-foreground-muted">
+        페이지 이벤트는 날짜·이벤트 이름별 카운터만 저장합니다 — 누가 조회했는지는 기록하지 않습니다.
+      </p>
+    </section>
+  );
+}
+

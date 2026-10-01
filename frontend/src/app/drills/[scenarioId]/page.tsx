@@ -14,6 +14,7 @@ import {
   getUserSessions,
   startSession,
 } from "@/lib/api";
+import { trackEvent } from "@/lib/events";
 import { getStoredToken } from "@/lib/localSession";
 import { DESIGN_GUIDANCE_BY_DOMAIN, DOMAIN_TITLES } from "@/lib/designGuidance";
 import { completedTiers, needsPrereq } from "@/lib/drillPrereq";
@@ -26,6 +27,8 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { Avatar } from "@/components/ui/Avatar";
+import { useToast } from "@/components/ui/Toast";
 
 interface BaseRequirements {
   functional?: unknown;
@@ -64,6 +67,7 @@ export default function DrillOverviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [interviewMode, setInterviewMode] = useState(false);
+  const showToast = useToast();
 
   useEffect(() => {
     const hasToken = !!getStoredToken();
@@ -78,6 +82,7 @@ export default function DrillOverviewPage() {
     // docs/CODECRAFTERS_BENCHMARK.md §3.4 — interview-prep learners start with the timer on (still just a default).
     if (hasToken) getMyPreferences().then((p) => setInterviewMode(p.trainingGoal === "INTERVIEW")).catch(() => undefined);
 
+    trackEvent("drill_overview_view");
     Promise.all([getScenario(scenarioId), sessionsRequest])
       .then(([detail, sessionList]) => {
         setScenario(detail);
@@ -96,6 +101,7 @@ export default function DrillOverviewPage() {
     }
     setStarting(true);
     setError(null);
+    trackEvent("drill_overview_start");
     try {
       const session = await startSession(scenarioId, undefined, undefined, interviewMode);
       router.push(`/design/${session.id}`);
@@ -254,6 +260,26 @@ export default function DrillOverviewPage() {
         </div>
 
         <aside className="flex flex-col gap-4">
+          {/* docs/CODECRAFTERS_BENCHMARK.md §3.8 — this overview is public, so its URL is the invite. No referral tracking. */}
+          <Card>
+            <p className="text-xs font-semibold uppercase tracking-wide text-foreground-muted">함께 풀기</p>
+            <p className="mt-2 text-sm text-foreground-muted">이 Drill 링크를 동료에게 보내세요. 로그인하지 않아도 개요를 볼 수 있습니다.</p>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-3"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(window.location.href);
+                  showToast("Drill 링크를 복사했습니다", "success");
+                } catch {
+                  showToast("링크를 복사하지 못했습니다", "danger");
+                }
+              }}
+            >
+              링크 복사
+            </Button>
+          </Card>
           <Card>
             <p className="text-xs font-semibold uppercase tracking-wide text-foreground-muted">완료 현황</p>
             {(scenario.completedCount ?? 0) > 0 ? (
@@ -279,7 +305,10 @@ export default function DrillOverviewPage() {
               <ul className="mt-2 flex flex-col gap-1.5 text-sm">
                 {recent.map((r) => (
                   <li key={`${r.nickname}-${r.completedAt}`} className="flex items-center justify-between gap-2">
-                    <span className="truncate">{r.nickname}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <Avatar name={r.nickname} size={20} />
+                      <span className="truncate">{r.nickname}</span>
+                    </span>
                     <span className="shrink-0 text-xs text-foreground-muted">{new Date(r.completedAt).toLocaleDateString("ko-KR")}</span>
                   </li>
                 ))}

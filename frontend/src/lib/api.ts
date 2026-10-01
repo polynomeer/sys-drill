@@ -1030,6 +1030,20 @@ export interface AdminDashboardStats {
   sessionsCompletedToday: number;
 }
 
+/** docs/CODECRAFTERS_BENCHMARK.md §6 (PLAN.md Round B17) — aggregates only, PLATFORM_ADMIN-only. */
+export interface SuccessMetrics {
+  cohortSize: number;
+  firstDrillWithin7DaysPercent: number | null;
+  medianMinutesToFirstBuildPass: number | null;
+  buildProgressDistribution: Record<string, number>;
+  events30d: Record<string, number>;
+  overviewToStartPercent: number | null;
+}
+
+export function getSuccessMetrics(): Promise<SuccessMetrics> {
+  return apiFetch<SuccessMetrics>("/admin/dashboard/metrics");
+}
+
 export function getAdminDashboardStats(): Promise<AdminDashboardStats> {
   return apiFetch<AdminDashboardStats>("/admin/dashboard/stats");
 }

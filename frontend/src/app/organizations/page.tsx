@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiError, OrganizationSummary, createOrganization, listOrganizations } from "@/lib/api";
+import { trackEvent } from "@/lib/events";
 import { getStoredToken } from "@/lib/localSession";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -24,6 +25,11 @@ export default function OrganizationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
+
+  // docs/CODECRAFTERS_BENCHMARK.md §6 — anonymous visit counter for a page that used to have no entry point.
+  useEffect(() => {
+    trackEvent("organizations_view");
+  }, []);
 
   useEffect(() => {
     if (!getStoredToken()) {

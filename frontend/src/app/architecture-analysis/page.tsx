@@ -10,6 +10,7 @@ import {
   listMyArchitectureScenarios,
   startSession,
 } from "@/lib/api";
+import { trackEvent } from "@/lib/events";
 import { getStoredToken } from "@/lib/localSession";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { Button } from "@/components/ui/Button";
@@ -30,6 +31,11 @@ export default function ArchitectureAnalysisPage() {
 
   const load = useCallback(async () => {
     setMine(await listMyArchitectureScenarios());
+  }, []);
+
+  // docs/CODECRAFTERS_BENCHMARK.md §6 — anonymous visit counter for a page that used to have no entry point.
+  useEffect(() => {
+    trackEvent("architecture_analysis_view");
   }, []);
 
   useEffect(() => {
