@@ -1832,24 +1832,46 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ### 묶음 1 — 연결과 운영 마무리
 
-#### Round E1 — Drill ↔ 개념 링크 (L4)
-- [ ] 리포트 `FeedbackDetail`의 리스크 지적마다 `개념 보기 →`(`/learning/{riskKey}`), 리포트 끝 "이번에 놓친 개념" 묶음
-- [ ] 대시보드 "내 약점 TOP 3"·프로필 "보완이 필요한 영역"을 개념으로 링크
-- [ ] 개념 상세 "이 개념을 연습하는 방법" 레일(랩 자리는 L5 이후 채움): Build 챌린지 → Drill 개요 → 관련 시나리오 토론
+#### Round E1 — Drill ↔ 개념 링크 (L4) ✅ 완료 (2026-10-02)
+- [x] 리포트 `FeedbackDetail`의 리스크 지적마다 `개념 보기 →`(`/learning/{riskKey}`), 리포트 끝 "이번에 놓친 개념" 묶음
+- [x] 대시보드 "내 약점 TOP 3"·프로필 "보완이 필요한 영역"을 개념으로 링크
+- [x] 개념 상세 "이 개념을 연습하는 방법" 레일(랩 자리는 L5 이후 채움): Build 챌린지 → Drill 개요 → 관련 시나리오 토론
 
-#### Round E2 — `/bridge` 일반화 (L4-b)
-- [ ] `build_challenges.starter_code` 컬럼 + `challenges/<slug>/` 스텁 7개 시딩 마이그레이션, `GET /build-challenges/{slug}` 응답에 포함
-- [ ] 파일 ↔ DB 스텁 일치 테스트(rate-limiter의 기존 B11 테스트와 같은 방식)
-- [ ] `/bridge?challenge=<slug>` — 챌린지 선택(목록), 프론트 스텁 상수 제거, 언어 토글은 해당 챌린지가 지원하는 언어만
-- [ ] 개념의 `relatedChallenges` 버튼과 트랙 페이지 Build 링크를 해당 챌린지로
+**완료 기준 충족**: `tsc`/변경 파일 `eslint` 에러 0, `metrics.*` 테스트 통과. 격리 환경(백엔드 8091 + 프론트 3007)에서 쿠폰 세션을 완료한 계정으로 리포트의 리스크 지적 4종에 "개념 보기 →", "이번에 놓친 개념"(중복은 ×N), 대시보드 TOP 3·프로필 약점의 개념 링크, 개념 상세의 3단계 연습 레일(Build → Drill → 토론) 확인.
 
-#### Round E3 — 토론 마무리 (C7)
-- [ ] 마이그레이션: `scenario_discussions.parent_id`(1단계만), `contains_spoiler`, `kind`
-- [ ] 이전 버전 토론(읽기 전용) 응답 필드 — ADR-0048의 v2 전환(E24)보다 먼저
-- [ ] 스포일러 글은 미완료자 응답에서 본문 대신 잠금
-- [ ] `/admin` "신고된 토론" 섹션(숨김/복원)
-- [ ] `DiscussionPanel`을 Drill 개요 레일·리포트 하단에 노출, 답글 UI, 글 종류 태그 필터
-- [ ] 앱 푸터 "제품 피드백 ↗"(GitHub Issues)
+**진행 중 발견한 결정 사항**:
+- LLM이 낸 리스크는 riskKey가 `LLM_TOP_RISK`라 개념 문서가 없다 — 링크는 개념이 있는 키에만 건다(`useConceptLookup().isConcept`).
+- 리포트는 단계마다 `FeedbackDetail`을 그려 개념 목록을 3번 요청했다. 모듈 범위 promise로 한 번만 부르게 했다.
+- 성공 지표용 익명 이벤트 `report_view`·`feedback_concept_click` 추가(관리자 패널에 "피드백 → 개념 클릭").
+
+#### Round E2 — `/bridge` 일반화 (L4-b) ✅ 완료 (2026-10-02)
+- [x] `build_challenges.starter_code` 컬럼 + `challenges/<slug>/` 스텁 7개 시딩 마이그레이션, `GET /build-challenges/{slug}` 응답에 포함
+- [x] 파일 ↔ DB 스텁 일치 테스트(rate-limiter의 기존 B11 테스트와 같은 방식)
+- [x] `/bridge?challenge=<slug>` — 챌린지 선택(목록), 프론트 스텁 상수 제거, 언어 토글은 해당 챌린지가 지원하는 언어만
+- [x] 개념의 `relatedChallenges` 버튼과 트랙 페이지 Build 링크를 해당 챌린지로
+
+**완료 기준 충족**: 신규 `BuildStarterCodeTest` 2개(7개 챌린지의 DB 스텁이 `challenges/<slug>/` 파일과 바이트 단위로 같음, 목록 엔드포인트 인증 필요) + `BuildLatestSubmissionTest` 통과. 격리 환경에서 `/bridge?challenge=distributed-lock` 진입(Python만, 설계 연결은 "예약 시스템"), 챌린지 전환 → Rate Limiter → TypeScript 전환 시 URL이 `?challenge=rate-limiter-ts`로 바뀌고 TS 스텁 로드, 375px 가로 넘침 없음.
+
+**진행 중 발견한 결정 사항**:
+- 과제별 이어지는 Drill 도메인은 그 메커니즘을 다루는 워게임 액션을 근거로 정했다(`lib/buildChallenges.ts`): queue·circuit-breaker·retry-backoff → notification, distributed-lock → reservation, event-bus → payment(outbox dispatcher).
+- `?challenge=`는 `useSearchParams` 대신 마운트 시 `window.location`에서 읽는다 — 페이지에 Suspense 경계를 새로 둘 필요가 없다.
+- 트랙 페이지의 Build 섹션이 도메인당 여러 과제를 보여준다(notification은 3개).
+
+#### Round E3 — 토론 마무리 (C7) ✅ 완료 (2026-10-02)
+- [x] 마이그레이션: `scenario_discussions.parent_id`(1단계만), `contains_spoiler`, `kind`
+- [x] 이전 버전 토론(읽기 전용) 응답 필드 — ADR-0048의 v2 전환(E24)보다 먼저
+- [x] 스포일러 글은 미완료자 응답에서 본문 대신 잠금
+- [x] `/admin` "신고된 토론" 섹션(숨김/복원)
+- [x] `DiscussionPanel`을 Drill 개요 레일·리포트 하단에 노출, 답글 UI, 글 종류 태그 필터
+- [x] 앱 푸터 "제품 피드백 ↗"(GitHub Issues)
+
+**완료 기준 충족**: 신규 `DiscussionThreadingTest` 3개(답글 한 단계·답글의 답글 400 / 스포일러 글은 미완료자에게 본문 빈 문자열, 완료자·작성자에게는 원문 / v2가 생기면 최신 스레드는 비고 v1 글이 `previousVersions`로, 이전 버전 글에 답글 400) + 기존 토론 8개·알림 2개 통과. 격리 환경에서 미완료 계정으로 스포일러 잠금, 답글 작성, "설계" 필터, 관리자 계정으로 신고 글 숨김 → "복원", 숨긴 글의 답글이 최상위로 올라오는 것, Drill 개요 레일·리포트 하단의 토론 요약, 푸터 "제품 피드백 ↗" 확인.
+
+**진행 중 발견한 결정 사항**:
+- 스포일러 본문은 응답에서 아예 빈 문자열로 내린다 — 화면에서만 가리면 개발자 도구로 그대로 보인다.
+- 부모가 숨겨진 답글은 지우지 않고 최상위로 올린다. "삭제된 글의 답글" 같은 흔적이 곧 신고 대상을 지목하는 신호가 된다는 기존 원칙(숨김은 흔적 없이)을 따랐다.
+- 리포트가 토론을 보여주려면 시나리오 ID가 필요해 `SessionResponse.scenarioId`를 추가했다(지금까지는 버전 ID와 도메인만 있었다).
+- 이전 버전 스레드는 접힌 `<details>`로 둔다 — v2 전환(E24) 전까지는 비어 있어 보이지 않는다.
 
 ### 묶음 2 — 시간축과 관측 기반
 
