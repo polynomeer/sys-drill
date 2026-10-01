@@ -66,6 +66,18 @@ class MentorControllerIntegrationTest(
     }
 
     @Test
+    fun `a draft over the size cap is rejected with 400, not passed to the LLM`() {
+        val sessionId = mockMvc.startSession(userId)
+        val tooLong = "x".repeat(20_001)
+
+        mockMvc.perform(
+            post("/sessions/$sessionId/mentor-hint").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId))
+                .content("""{"rawText":"$tooLong"}""")
+        ).andExpect(status().isBadRequest)
+    }
+
+    @Test
     fun `a caller who does not own the session gets not-found`() {
         val ownerId = userId
         val strangerId = userRepository.save(

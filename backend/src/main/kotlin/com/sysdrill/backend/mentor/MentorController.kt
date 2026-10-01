@@ -2,6 +2,7 @@ package com.sysdrill.backend.mentor
 
 import com.sysdrill.backend.auth.AuthenticatedUserId
 import com.sysdrill.backend.session.SessionAccessGuard
+import jakarta.validation.Valid
 import java.util.UUID
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -20,7 +21,7 @@ class MentorController(
     fun getHint(
         @PathVariable sessionId: UUID,
         @AuthenticatedUserId userId: UUID,
-        @RequestBody(required = false) request: MentorHintRequest?,
+        @Valid @RequestBody(required = false) request: MentorHintRequest?,
     ): MentorHintResponse {
         sessionAccessGuard.requireOwner(sessionId, userId)
         return mentorService.getHint(sessionId, request?.rawText)
