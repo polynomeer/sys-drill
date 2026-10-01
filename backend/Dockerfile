@@ -15,4 +15,8 @@ RUN addgroup -S sysdrill && adduser -S sysdrill -G sysdrill
 COPY --from=build /app/build/libs/*.jar app.jar
 USER sysdrill
 EXPOSE 8081
+# docs/COMMERCIALIZATION.md — marks this as a real deployment, not
+# bootRun/tests, so JwtSecretStartupCheck can fail fast if the JWT secret
+# was never overridden from its dev-only default.
+ENV SYSDRILL_DEPLOYMENT_MODE=container
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

@@ -35,6 +35,11 @@ spring:
 
 sysdrill:
   frontend-origin: ${FRONTEND_ORIGIN:http://localhost:3000}
+  # docs/COMMERCIALIZATION.md — the one signal this repo has for "this is a
+  # real deployment, not bootRun/tests". Set by Dockerfile; nothing else
+  # sets it. See JwtSecretStartupCheck for the one thing that currently
+  # reads it.
+  deployment-mode: ${SYSDRILL_DEPLOYMENT_MODE:}
   auth:
     # PLAN.md step 30 — HMAC signing secret for issued JWTs. The dev default
     # is fine for local/demo use (same trust boundary ADR-0003 already
