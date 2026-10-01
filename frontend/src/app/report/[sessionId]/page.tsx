@@ -15,6 +15,8 @@ import {
   getSession,
   getClarifications,
   Clarifications,
+  getEstimation,
+  Estimation,
   getSkillProfile,
   listScenarios,
   startSession,
@@ -33,6 +35,7 @@ import { formatDuration } from "@/lib/metrics";
 import { Gauge } from "@/components/ui/Gauge";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { useConceptLookup } from "@/lib/useConceptLabels";
+import { EstimateResultRow } from "@/components/Estimates";
 import { trackEvent } from "@/lib/events";
 
 const PHASE_LABELS: Record<string, string> = {
@@ -62,6 +65,7 @@ export default function ReportPage() {
   const concepts = useConceptLookup();
   const [scenarioId, setScenarioId] = useState<string | null>(null);
   const [clarifications, setClarifications] = useState<Clarifications | null>(null);
+  const [estimation, setEstimation] = useState<Estimation | null>(null);
 
   useEffect(() => {
     if (!getStoredToken()) {
@@ -74,6 +78,7 @@ export default function ReportPage() {
     getSession(sessionId).then((s) => setScenarioId(s.scenarioId ?? null)).catch(() => setScenarioId(null));
     // docs/DRILLS_EXPANSION_PLAN.md M1 — revealed only now that asking is over.
     getClarifications(sessionId).then(setClarifications).catch(() => setClarifications(null));
+    getEstimation(sessionId).then(setEstimation).catch(() => setEstimation(null));
     // 벤치마크는 부가 정보다 — 실패해도 리포트 본문은 떠야 한다.
     getBenchmark(sessionId).then(setBenchmark).catch(() => setBenchmark(null));
 
@@ -225,6 +230,26 @@ export default function ReportPage() {
           </Card>
 
           {clarifications?.available && <RequirementsDiscovery data={clarifications} />}
+
+          {estimation?.results && (
+            <Card as="section">
+              <div className="mb-1 flex items-baseline justify-between">
+                <h2 className="text-sm font-semibold text-foreground-muted">규모 추정</h2>
+                <span className="font-mono text-sm">
+                  적중 {estimation.results.filter((r) => r.onTarget).length} / {estimation.results.length}
+                </span>
+              </div>
+              <p className="mb-1 text-xs text-foreground-muted">실제 값의 0.5~2배 안이면 적중입니다.</p>
+              <ul>
+                {estimation.results.map((r, i) => (
+                  <EstimateResultRow key={r.key} label={estimation.fields[i]?.label ?? r.key} unit={estimation.fields[i]?.unit ?? ""} result={r} />
+                ))}
+              </ul>
+              <Link href="/learning/labs" className="mt-2 inline-block text-xs text-accent hover:underline">
+                Capacity Lab에서 규모 추정 연습하기 →
+              </Link>
+            </Card>
+          )}
 
           <MissedConcepts
             riskKeys={Object.values(feedbackBySubmission).flatMap((f) => f.riskFlags.map((flag) => flag.riskKey))}

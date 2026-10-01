@@ -46,6 +46,18 @@ export default function LearningPage() {
         </p>
       </div>
 
+      {/* docs/LEARNING_EXPANSION_PLAN.md §5 — 랩: 읽는 대신 값을 바꿔 보는 곳 */}
+      <Link
+        href="/learning/labs"
+        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
+      >
+        <span>
+          <span className="block font-medium">랩</span>
+          <span className="block text-sm text-foreground-muted">규모 추정(Capacity Lab)과 시뮬레이션 랩 — 값을 바꿔서 현상을 발견합니다.</span>
+        </span>
+        <span className="text-accent">→</span>
+      </Link>
+
       {error && <p className="text-sm text-danger">{error}</p>}
       {!categories && !error && <LoadingState />}
 

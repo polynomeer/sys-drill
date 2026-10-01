@@ -34,4 +34,6 @@ data class Clarification(
 /** The mission add-ons authored on a scenario's INITIAL step `content` (all optional). */
 data class InitialMissionContent(
     val clarifications: List<Clarification> = emptyList(),
+    /** M2 (PLAN.md Round E9). */
+    val estimation: List<EstimationField> = emptyList(),
 )

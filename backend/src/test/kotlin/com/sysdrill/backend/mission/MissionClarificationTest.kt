@@ -49,6 +49,7 @@ class MissionClarificationTest(
     @Autowired val sessionRepository: SessionRepository,
     @Autowired val skillProfileRepository: SkillProfileRepository,
     @Autowired val missionService: MissionService,
+    @Autowired val submissionRepository: com.sysdrill.backend.submission.SubmissionRepository,
 ) {
 
     private fun newUser(): UUID =
@@ -73,6 +74,10 @@ class MissionClarificationTest(
                    {"id":"total","question":"쿠폰 수량은 얼마인가요?","answer":"10만 개입니다.","critical":true,"requirementKey":"totalCoupons"},
                    {"id":"dup","question":"중복 발급이 허용되나요?","answer":"절대 허용되지 않습니다.","critical":true},
                    {"id":"color","question":"버튼 색은 정해졌나요?","answer":"디자인팀이 정합니다."}
+                 ],
+                 "estimation":[
+                   {"key":"peakRps","label":"피크 발급 요청","unit":"req/s","answer":30000},
+                   {"key":"writeRps","label":"초당 발급 확정","unit":"req/s","answer":2000}
                  ]}
                 """.trimIndent(),
             )
@@ -179,6 +184,34 @@ class MissionClarificationTest(
         profile.weaknesses = """{"$other":99}"""
         skillProfileRepository.save(profile)
         assertThat(currentPrompt(sessionId, user)).isEqualTo(promptBefore)
+    }
+
+    /** PLAN.md Round E9 (M2) — estimates ride on the INITIAL submission and are judged after it. */
+    @Test
+    fun `estimation fields come without answers, then judged results after the INITIAL submit`() {
+        val user = newUser()
+        val sessionId = mockMvc.startSession(user, missionScenario())
+        val before = mockMvc.perform(get("/sessions/$sessionId/estimation").header("Authorization", bearerHeader(user)))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        assertThat(JsonPath.read<Boolean>(before, "$.open")).isTrue()
+        assertThat(before).doesNotContain("30000").doesNotContain("answer")
+
+        mockMvc.perform(
+            post("/sessions/$sessionId/submissions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(user))
+                .content("""{"rawText":"설계","clientRequestId":"${UUID.randomUUID()}","structuredJson":"{\"estimates\":{\"peakRps\":20000,\"writeRps\":100}}"}""")
+        ).andExpect(status().isCreated)
+
+        val after = mockMvc.perform(get("/sessions/$sessionId/estimation").header("Authorization", bearerHeader(user)))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        assertThat(JsonPath.read<List<String>>(after, "$.results[*].direction")).containsExactly("ON_TARGET", "UNDER")
+
+        val session = sessionRepository.findById(sessionId).orElseThrow()
+        val submission = submissionRepository.findBySessionIdOrderByCreatedAtAsc(sessionId).first()
+        val section = missionService.estimationPromptSection(session, submission)!!
+        assertThat(section).contains("피크 발급 요청: 사용자 20,000 req/s / 실제 30,000 req/s → 적중")
+        assertThat(section).contains("초당 발급 확정: 사용자 100 req/s / 실제 2,000 req/s → 과소 추정 (실제의 5%)")
     }
 
     private fun currentPrompt(sessionId: UUID, userId: UUID): String = JsonPath.read(

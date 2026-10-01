@@ -22,6 +22,7 @@ import {
   saveSubmissionId,
 } from "@/lib/localSession";
 import { ClarificationPanel } from "./ClarificationPanel";
+import { EstimationPanel } from "./EstimationPanel";
 import { WargameLive } from "./WargameLive";
 import { BridgeProgress } from "@/components/BridgeProgress";
 import { PhaseTimer } from "@/components/PhaseTimer";
@@ -74,6 +75,8 @@ export default function DesignWorkspacePage() {
   const [view, setView] = useState<ViewState>("loading");
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [answer, setAnswer] = useState("");
+  // PLAN.md Round E9 — mission inputs fixed at submit time, sent as structuredJson (M2 estimates, …).
+  const [estimates, setEstimates] = useState<Record<string, number | null>>({});
   const [feedback, setFeedback] = useState<EvaluationFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [diagramMode, setDiagramMode] = useState<"canvas" | "text">("canvas");
@@ -235,7 +238,10 @@ export default function DesignWorkspacePage() {
     try {
       const clientRequestId =
         typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}`;
-      const submission = await submitAnswer(sessionId, textToSubmit, clientRequestId);
+      const filled = Object.fromEntries(Object.entries(estimates).filter(([, v]) => v !== null));
+      const structured = Object.keys(filled).length > 0 ? { estimates: filled } : undefined;
+      const submission = await submitAnswer(sessionId, textToSubmit, clientRequestId, structured);
+      setEstimates({});
       saveSubmissionId(sessionId, submission.id);
       clearDraft(sessionId);
       setView("waiting");
@@ -341,6 +347,9 @@ export default function DesignWorkspacePage() {
             )}
 
             {isEditing && session?.currentPhase === "INITIAL" && <ClarificationPanel sessionId={sessionId} />}
+            {isEditing && session?.currentPhase === "INITIAL" && (
+              <EstimationPanel sessionId={sessionId} values={estimates} onChange={setEstimates} />
+            )}
 
             {isEditing && (
               <Card as="section" className="text-sm">

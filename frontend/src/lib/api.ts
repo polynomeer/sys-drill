@@ -556,6 +556,78 @@ export function getClarifications(sessionId: string): Promise<Clarifications> {
   return apiFetch<Clarifications>(`/sessions/${sessionId}/clarifications`);
 }
 
+/** docs/DRILLS_EXPANSION_PLAN.md M2 / docs/LEARNING_EXPANSION_PLAN.md L6 — one order-of-magnitude judgement. */
+export interface EstimateResult {
+  key: string;
+  estimate: number | null;
+  truth: number;
+  ratio: number | null;
+  onTarget: boolean;
+  direction: "ON_TARGET" | "UNDER" | "OVER" | "MISSING";
+}
+
+export interface EstimationField {
+  key: string;
+  label: string;
+  unit: string;
+  hint: string | null;
+}
+
+export interface Estimation {
+  available: boolean;
+  open: boolean;
+  fields: EstimationField[];
+  results: EstimateResult[] | null;
+}
+
+export function getEstimation(sessionId: string): Promise<Estimation> {
+  return apiFetch<Estimation>(`/sessions/${sessionId}/estimation`);
+}
+
+export interface LabSummary {
+  slug: string;
+  kind: "CAPACITY" | "ENGINE";
+  title: string;
+  summary: string;
+  riskKey: string | null;
+  domain: string | null;
+}
+
+export interface CapacityInput {
+  key: string;
+  label: string;
+  value: number;
+  unit: string;
+}
+
+export interface CapacityLab {
+  slug: string;
+  title: string;
+  summary: string;
+  variants: { label: string; inputs: CapacityInput[] }[];
+  asks: { key: string; label: string; unit: string }[];
+}
+
+export interface CapacityCheckResult {
+  variant: number;
+  results: { key: string; label: string; unit: string; formula: string; result: EstimateResult }[];
+}
+
+export function listLabs(): Promise<LabSummary[]> {
+  return apiFetch<LabSummary[]>("/learning/labs");
+}
+
+export function getCapacityLab(slug: string): Promise<CapacityLab> {
+  return apiFetch<CapacityLab>(`/learning/labs/${slug}/capacity`);
+}
+
+export function checkCapacityLab(slug: string, variant: number, answers: Record<string, number | null>): Promise<CapacityCheckResult> {
+  return apiFetch<CapacityCheckResult>(`/learning/labs/${slug}/capacity/check`, {
+    method: "POST",
+    body: JSON.stringify({ variant, answers }),
+  });
+}
+
 export function askClarification(sessionId: string, questionId: string): Promise<Clarifications> {
   return apiFetch<Clarifications>(`/sessions/${sessionId}/clarifications/${questionId}`, { method: "POST" });
 }

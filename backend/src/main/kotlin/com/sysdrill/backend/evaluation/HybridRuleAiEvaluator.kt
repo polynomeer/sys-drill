@@ -99,7 +99,10 @@ class HybridRuleAiEvaluator(
      */
     private fun missionSections(session: Session, submission: Submission): String {
         val sections = buildList {
-            if (submission.phase == "INITIAL") missionService.clarificationPromptSection(session)?.let(::add)
+            if (submission.phase == "INITIAL") {
+                missionService.clarificationPromptSection(session)?.let(::add)
+                missionService.estimationPromptSection(session, submission)?.let(::add)
+            }
         }
         return if (sections.isEmpty()) "" else sections.joinToString(separator = "\n", prefix = "\n")
     }

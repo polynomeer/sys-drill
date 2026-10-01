@@ -7,6 +7,8 @@ import com.sysdrill.backend.scenario.ScenarioStepRepository
 import com.sysdrill.backend.session.Session
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.session.SessionStatus
+import com.sysdrill.backend.submission.Submission
+import com.sysdrill.backend.submission.SubmissionRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.DeserializationFeature
@@ -24,6 +26,7 @@ import java.util.UUID
 @Service
 class MissionService(
     private val sessionRepository: SessionRepository,
+    private val submissionRepository: SubmissionRepository,
     private val scenarioStepRepository: ScenarioStepRepository,
     private val mapper: ObjectMapper,
 ) {
@@ -110,6 +113,69 @@ class MissionService(
         }
     }
 
+    // ---- M2: scale estimation ----
+
+    /**
+     * Before the INITIAL submit: the fields to fill, no answers. After it: each estimate judged
+     * against the scenario's value. Estimates travel in the INITIAL submission's
+     * `structured_json` ({"estimates": {key: number}}) — they're fixed at submit time.
+     */
+    fun estimation(sessionId: UUID): EstimationResponse {
+        val session = requireSession(sessionId)
+        val fields = initialContent(session).estimation
+        if (fields.isEmpty()) return EstimationResponse(available = false, open = false, fields = emptyList(), results = null)
+        val initial = initialSubmission(session)
+        if (initial == null) {
+            return EstimationResponse(
+                available = true,
+                open = canAsk(session),
+                fields = fields.map { EstimationFieldView(it.key, it.label, it.unit, it.hint) },
+                results = null,
+            )
+        }
+        return EstimationResponse(
+            available = true,
+            open = false,
+            fields = fields.map { EstimationFieldView(it.key, it.label, it.unit, it.hint) },
+            results = judgeEstimates(fields, estimatesOf(initial)),
+        )
+    }
+
+    /** The evaluation prompt's M2 section for an INITIAL submission. */
+    fun estimationPromptSection(session: Session, submission: Submission): String? {
+        val fields = initialContent(session).estimation
+        if (fields.isEmpty()) return null
+        val results = judgeEstimates(fields, estimatesOf(submission))
+        return buildString {
+            appendLine("## 규모 추정 판정 (자릿수 기준 — 실제 값의 0.5~2배면 적중)")
+            fields.zip(results).forEach { (field, r) ->
+                val estimate = r.estimate?.let { "%,.0f".format(it) } ?: "(입력 안 함)"
+                val verdict = when (r.direction) {
+                    "ON_TARGET" -> "적중"
+                    "UNDER" -> "과소 추정 (실제의 ${"%.0f".format((r.ratio ?: 0.0) * 100)}%)"
+                    "OVER" -> "과대 추정 (실제의 ${"%.1f".format(r.ratio ?: 0.0)}배)"
+                    else -> "추정하지 않음"
+                }
+                appendLine("- ${field.label}: 사용자 $estimate ${field.unit} / 실제 ${"%,.0f".format(field.answer)} ${field.unit} → $verdict")
+            }
+            appendLine("크게 빗나간 추정이 설계 선택(용량·샤딩·캐시 크기 등)에 어떤 영향을 줬는지 요구사항 해석력 항목에서 짚어 주세요. 정확한 숫자를 맞혔는지가 아니라 규모 감각을 봅니다.")
+        }
+    }
+
+    private fun judgeEstimates(fields: List<EstimationField>, estimates: Map<String, Double>): List<EstimateResult> =
+        fields.map { EstimateJudge.judge(it.key, estimates[it.key], it.answer) }
+
+    private fun initialSubmission(session: Session): Submission? =
+        submissionRepository.findBySessionIdOrderByCreatedAtAsc(session.id!!).firstOrNull { it.phase == "INITIAL" }
+
+    @Suppress("UNCHECKED_CAST")
+    fun estimatesOf(submission: Submission): Map<String, Double> {
+        val json = submission.structuredJson ?: return emptyMap()
+        val parsed = runCatching { read(json, Map::class.java) as Map<String, Any?> }.getOrNull() ?: return emptyMap()
+        val raw = parsed["estimates"] as? Map<String, Any?> ?: return emptyMap()
+        return raw.mapNotNull { (k, v) -> (v as? Number)?.toDouble()?.let { k to it } }.toMap()
+    }
+
     private fun requireSession(sessionId: UUID): Session =
         sessionRepository.findById(sessionId).orElseThrow { NotFoundException("Session not found: $sessionId") }
 }
@@ -156,3 +222,14 @@ data class ClarificationsResponse(
         }
     }
 }
+
+data class EstimationFieldView(val key: String, val label: String, val unit: String, val hint: String?)
+
+data class EstimationResponse(
+    val available: Boolean,
+    /** True while the INITIAL design can still be submitted with estimates. */
+    val open: Boolean,
+    val fields: List<EstimationFieldView>,
+    /** After the INITIAL submit, in [fields] order. */
+    val results: List<EstimateResult>?,
+)

@@ -4,6 +4,8 @@ import com.sysdrill.backend.auth.AuthenticatedUserId
 import java.util.UUID
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
@@ -21,6 +23,7 @@ class LearningController(
     private val learningQuizService: LearningQuizService,
     private val learningService: LearningService,
     private val learningPathService: LearningPathService,
+    private val learningLabService: LearningLabService,
 ) {
 
     /** 역량 카테고리 6개와 그 아래 개념 요약. 내 약점이 많은 카테고리가 먼저 온다. */
@@ -35,6 +38,19 @@ class LearningController(
     /** docs/CODECRAFTERS_BENCHMARK.md §3.6 — self-check question generated from concept data (see [LearningQuizService]). */
     @GetMapping("/concepts/{riskKey}/quiz")
     fun quiz(@PathVariable riskKey: String): ConceptQuiz = learningQuizService.quiz(riskKey)
+
+    /** docs/LEARNING_EXPANSION_PLAN.md L5·L6 (PLAN.md Round E9) — every lab. */
+    @GetMapping("/labs")
+    fun labs(): List<LabSummary> = learningLabService.list()
+
+    /** L6 — a Capacity Lab problem, formulas withheld. */
+    @GetMapping("/labs/{slug}/capacity")
+    fun capacityLab(@PathVariable slug: String): CapacityLabView = learningLabService.capacity(slug)
+
+    /** L6 — judge the learner's estimates on order of magnitude (same rule as the Drill's M2). Nothing is stored. */
+    @PostMapping("/labs/{slug}/capacity/check")
+    fun checkCapacity(@PathVariable slug: String, @RequestBody request: CapacityCheckRequest): CapacityCheckResult =
+        learningLabService.checkCapacity(slug, request)
 
     @GetMapping("/concepts/{riskKey}")
     fun concept(@PathVariable riskKey: String, @AuthenticatedUserId userId: UUID): LearningConceptDetail =
