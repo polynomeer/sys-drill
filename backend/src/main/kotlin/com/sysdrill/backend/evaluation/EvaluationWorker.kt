@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.event.ApplicationReadyEvent
+import org.springframework.context.event.ContextClosedEvent
 import org.springframework.context.event.EventListener
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Component
@@ -64,9 +65,24 @@ class EvaluationWorker(
         repeat(workerConcurrency) { executor.submit { runLoop() } }
     }
 
+    /**
+     * `@PreDestroy` 가 아니라 [ContextClosedEvent] 로 멈춘다.
+     *
+     * Spring 의 종료 순서는 ContextClosedEvent 발행 → Lifecycle 빈 stop() →
+     * 싱글턴 destroy() 다. `@PreDestroy` 는 마지막 단계라, 그 사이에 이미 멈춘
+     * LettuceConnectionFactory 를 워커가 계속 폴링하며
+     * `IllegalStateException: LettuceConnectionFactory has been STOPPED` 를
+     * 끝없이 던진다. 테스트처럼 한 JVM 에서 컨텍스트가 여러 번 뜨고 닫히면 그
+     * 스레드들이 살아남아 이후 테스트 내내 CPU 와 로그를 먹는다 — 2026-10-01
+     * 전체 실행에서 클래스당 수백 건씩 찍힌 그 오류가 이것이다.
+     *
+     * [stop] 은 멱등이고, `@PreDestroy` 는 이벤트를 받지 못하는 경로를 위한
+     * 안전망으로 남겨 둔다.
+     */
+    @EventListener(ContextClosedEvent::class)
     @PreDestroy
     fun stop() {
-        running.set(false)
+        if (!running.compareAndSet(true, false)) return
         executor.shutdownNow()
     }
 
@@ -85,8 +101,22 @@ class EvaluationWorker(
                 // treat it as a real error if we're not already shutting down.
                 if (running.get()) {
                     log.error("Evaluation worker loop error", ex)
+                    backOffAfterError()
                 }
             }
+        }
+    }
+
+    /**
+     * 예외 뒤에는 반드시 쉬었다 간다 — 이유는
+     * [com.sysdrill.backend.build.BuildRunnerWorker] 의 같은 메서드 주석 참고.
+     * 두 워커가 같은 루프 모양을 공유하므로 같은 함정도 공유한다.
+     */
+    private fun backOffAfterError() {
+        try {
+            Thread.sleep(ERROR_BACKOFF.toMillis())
+        } catch (ex: InterruptedException) {
+            Thread.currentThread().interrupt()
         }
     }
 
@@ -206,5 +236,8 @@ class EvaluationWorker(
 
     private companion object {
         val POLL_TIMEOUT: Duration = Duration.ofSeconds(2)
+
+        /** 예외 직후의 대기. 유휴 시 루프 주기가 이미 [POLL_TIMEOUT] 이라 이 정도면 충분하다. */
+        val ERROR_BACKOFF: Duration = Duration.ofSeconds(1)
     }
 }
