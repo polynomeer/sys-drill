@@ -634,6 +634,8 @@ export interface LearningConceptSummary {
   myWeaknessCount: number;
   /** docs/CODECRAFTERS_BENCHMARK.md §3.7 — lets the domain track page group concepts without fetching each detail. */
   relatedDomains?: string[];
+  /** Server-estimated reading time of the full concept (minutes, ≥ 1). */
+  readingMinutes?: number;
 }
 
 export interface LearningCategory {
@@ -657,6 +659,7 @@ export interface LearningConceptDetail {
   relatedActions: string[];
   relatedChallenges: string[];
   myWeaknessCount: number;
+  readingMinutes?: number;
 }
 
 /** docs/LEARNING_COMMUNITY_PLAN.md §5.3 — 내 약점에서 파생한 학습 경로 (저장되지 않음). */

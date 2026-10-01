@@ -81,6 +81,7 @@ export default function LearningPage() {
                           )}
                         </div>
                         <p className="text-sm text-foreground-muted">{concept.summary}</p>
+                        {concept.readingMinutes && <p className="mt-2 text-[11px] text-foreground-muted">읽는 데 약 {concept.readingMinutes}분</p>}
                       </Card>
                     </Link>
                   ))}

@@ -117,9 +117,12 @@ export default function LandingPage() {
           <p className="text-sm text-foreground-muted">
             단계마다 AI가 7개 루브릭 항목으로 채점하고, 놓친 점과 꼬리질문을 돌려줍니다.
           </p>
-          <Button href="/onboarding" className="self-start">
-            가입하고 시작하기 →
-          </Button>
+          <div className="flex flex-wrap items-center gap-4">
+            <Button href="/onboarding">가입하고 시작하기 →</Button>
+            <Button href="/how-it-works" variant="ghost">
+              자세히 알아보기
+            </Button>
+          </div>
         </div>
       </section>
     </div>
