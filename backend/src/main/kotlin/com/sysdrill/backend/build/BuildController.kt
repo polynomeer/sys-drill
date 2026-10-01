@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController
 class BuildController(
     private val buildSubmissionService: BuildSubmissionService,
     private val buildChallengeRepository: BuildChallengeRepository,
+    private val buildSubmissionRepository: BuildSubmissionRepository,
     private val buildStageRepository: BuildStageRepository,
     private val buildStageResultRepository: BuildStageResultRepository,
 ) {
@@ -45,6 +46,19 @@ class BuildController(
     ): ResponseEntity<BuildSubmissionResponse> {
         val submission = buildSubmissionService.submit(slug, userId, request.sourceCode, request.commitRef)
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(submission))
+    }
+
+    /**
+     * PLAN.md Round B12 — the caller's newest submission to this challenge, from
+     * any source (the /bridge editor or `submit.sh`). /bridge restores from this
+     * and polls it while the "로컬에서 풀기" panel waits for a CLI submission.
+     */
+    @GetMapping("/build-challenges/{slug}/submissions/latest")
+    fun latest(@PathVariable slug: String, @AuthenticatedUserId userId: UUID): BuildSubmissionResponse {
+        val challenge = buildChallengeRepository.findBySlug(slug) ?: throw NotFoundException("Build challenge not found: $slug")
+        val submission = buildSubmissionRepository.findFirstByUserIdAndChallengeIdOrderByCreatedAtDesc(userId, challenge.id!!)
+            ?: throw NotFoundException("No submission yet for $slug")
+        return toResponse(submission)
     }
 
     /** PLAN.md step 31 — BuildSubmission.userId is direct, no join needed like SessionAccessGuard's. */

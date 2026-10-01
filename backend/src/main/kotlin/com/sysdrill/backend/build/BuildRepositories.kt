@@ -13,6 +13,7 @@ interface BuildStageRepository : JpaRepository<BuildStage, UUID> {
 
 interface BuildSubmissionRepository : JpaRepository<BuildSubmission, UUID> {
     fun findByUserIdOrderByCreatedAtDesc(userId: UUID): List<BuildSubmission>
+    fun findFirstByUserIdAndChallengeIdOrderByCreatedAtDesc(userId: UUID, challengeId: UUID): BuildSubmission?
 }
 
 interface BuildStageResultRepository : JpaRepository<BuildStageResult, UUID> {
