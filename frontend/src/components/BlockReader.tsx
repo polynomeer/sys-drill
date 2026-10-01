@@ -25,8 +25,8 @@ export function BlockReader({
   const handleKey = useCallback(
     (e: KeyboardEvent) => {
       // Don't hijack Enter while the user is typing somewhere (e.g. the header search).
-      const target = e.target as HTMLElement | null;
-      if (e.key !== "Enter" || done || target?.closest("input, textarea, select, button, a")) return;
+      if (e.key !== "Enter" || done) return;
+      if (e.target instanceof Element && e.target.closest("input, textarea, select, button, a")) return;
       e.preventDefault();
       onContinue();
     },

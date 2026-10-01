@@ -12,8 +12,8 @@ export function useCardKeyboardNav(container: RefObject<HTMLElement | null>) {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "j" && e.key !== "k") return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const target = e.target as HTMLElement | null;
-      if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
+      // Synthetic events can target window/document, which have no closest().
+      if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable=true]")) return;
       const links = Array.from(container.current?.querySelectorAll<HTMLAnchorElement>("a[data-card]") ?? []);
       if (links.length === 0) return;
       e.preventDefault();
