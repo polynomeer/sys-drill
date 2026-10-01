@@ -1763,6 +1763,24 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## 완성도 재진단 5라운드 — JWT 시크릿 기본값 fail-fast ✅ 완료 (2026-10-01)
+
+`docs/COMMERCIALIZATION.md` "완성도 재진단" 6번 항목. 당초 조치안은 "프로덕션 프로파일에서 기본값이 감지되면 기동 실패"였는데, 착수해보니 이 저장소엔 Spring 프로파일 자체가 전혀 쓰이지 않고 있었다(`@Profile` 0건, `Dockerfile`도 프로파일 미지정) — "프로덕션인지 어떻게 아는가"부터 다시 풀어야 했다.
+
+대안 두 개를 검토하고 기각했다: (1) 기본값 자체를 아예 없애고 필수 프로퍼티로 바꾸기 — 가장 확실하지만 `bootRun`/전체 테스트 스위트(수십 개 `@SpringBootTest`, 전부 이 기본값에 의존)가 한꺼번에 깨짐. (2) 별도 `SYSDRILL_REQUIRE_STRONG_JWT_SECRET` 옵트인 플래그 — 기존 동작에 영향 없지만, 배포자가 잊어버리면 그만이라 애초에 고치려던 "까먹음" 문제를 그대로 반복함. 대신 이 저장소가 이미 가진 유일한 "진짜 배포" 신호인 `Dockerfile`을 활용 — `SYSDRILL_DEPLOYMENT_MODE=container`를 설정하게 하고, 그 신호 + 기본 시크릿 조합일 때만 기동을 막는다(docs/adr/0044).
+
+- [x] `Dockerfile` — `ENV SYSDRILL_DEPLOYMENT_MODE=container` 추가
+- [x] `application.yml` — `sysdrill.deployment-mode: ${SYSDRILL_DEPLOYMENT_MODE:}`(기본 빈 값)
+- [x] 신규 `JwtSecretStartupCheck.kt` — `@PostConstruct`에서 `deploymentMode == "container" && jwtSecret == 기본값`일 때만 `IllegalStateException`
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. 신규 `JwtSecretStartupCheckTest`(플레인 유닛 테스트 3개 — 컨테이너+기본값=실패/컨테이너+실시크릿=정상/비컨테이너+기본값=정상, 협력 객체가 없는 단순 조건문이라 `@SpringBootTest` 대신 직접 생성자 호출로 검증) + 기존 `com.sysdrill.backend.auth.*` 전체 통과(기존 수십 개 `@SpringBootTest` 컨텍스트가 여전히 기본 시크릿으로 정상 기동되는 회귀 확인).
+
+**실 검증**: 실제 `bootRun`을 `SYSDRILL_DEPLOYMENT_MODE=container`로 두 번 띄워봄 — 기본 시크릿 그대로면 `IllegalStateException: sysdrill.auth.jwt-secret is still the insecure default in a container deployment`로 즉시 기동 실패(로그로 메시지까지 확인), `SYSDRILL_AUTH_JWT_SECRET`을 실제 값으로 넘기면 6.5초 만에 정상 기동 + `/actuator/health` 200 확인.
+
+**하지 않은 것**: 실제 `docker build`로 이미지까지 새로 빌드해 검증하진 않음(Dockerfile 변경은 `ENV` 한 줄 추가뿐이라 문법 위험이 낮고, 실제 검증은 `bootRun`으로 같은 환경변수 조합을 직접 재현해 충분히 확인). ADR 작성함(docs/adr/0044) — "왜 프로파일이 아니라 Dockerfile 신호를 썼는가"가 맥락 없이 보면 놀라운 결정이고, 되돌리기도(나중에 진짜 프로파일 시스템이 생기면 이 신호를 교체해야 함) 공짜가 아니고, 실제로 대안 두 개를 저울질했기 때문.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.

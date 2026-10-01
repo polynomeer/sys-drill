@@ -56,9 +56,9 @@
 
 ### 보안
 
-**6. JWT 시크릿 기본값이 프로덕션에서도 조용히 통과된다**
-- 현재 상태: `jwt-secret: ${SYSDRILL_AUTH_JWT_SECRET:dev-only-insecure-secret-change-me}`([application.yml:35](../backend/src/main/resources/application.yml)) — 환경변수 설정을 빠뜨려도 앱은 경고 없이 알려진 문자열을 시크릿으로 써서 정상 기동된다.
-- 조치: 프로덕션 프로파일에서 이 기본값이 감지되면 기동을 실패시키는(fail-fast) 검증 추가.
+**6. JWT 시크릿 기본값이 프로덕션에서도 조용히 통과된다 — ✅ 5라운드(2026-10-01)에서 fail-fast 추가**
+- 당초 상태: `jwt-secret: ${SYSDRILL_AUTH_JWT_SECRET:dev-only-insecure-secret-change-me}` — 환경변수 설정을 빠뜨려도 앱은 경고 없이 알려진 문자열을 시크릿으로 써서 정상 기동됐다.
+- 이 저장소엔 Spring 프로파일 같은 "프로덕션 감지" 신호가 전혀 없어서(`@Profile` 미사용, Dockerfile도 프로파일 미지정), 당초 조치안("프로덕션 프로파일에서 감지")을 그대로 쓸 수 없었다. 대신 `Dockerfile`이 `SYSDRILL_DEPLOYMENT_MODE=container`를 설정하도록 하고(이 저장소에서 "진짜 배포"를 가리키는 유일한 실제 신호), 신규 `JwtSecretStartupCheck`이 그 신호 + 기본 시크릿 조합일 때만 `@PostConstruct`에서 기동을 막는다 — `bootRun`/테스트는 전혀 영향 없음.
 
 **7. 토큰 폐기(로그아웃) 메커니즘이 서버에 없다, TTL은 30일**
 - 현재 상태: `POST /auth/logout` 같은 서버 엔드포인트 자체가 존재하지 않는다(레포 전체 검색 0건) — "로그아웃"은 프론트에서 `localStorage`의 토큰을 지우는 것뿐이다. 토큰이 탈취되면 기본 만료(`token-ttl-days: 30`)까지 막을 방법이 없다.
