@@ -62,3 +62,7 @@ Short records of decisions that are hard to reverse, would surprise a future rea
 | [0042](0042-drill-score-and-ranking-reward-breadth-and-difficulty-not-repetition.md) | 점수·랭킹은 반복이 아니라 넓이와 난이도를 보상한다 |
 | [0043](0043-assessment-sessions-stay-out-of-community-and-public-aggregates.md) | 채용 평가 세션은 커뮤니티·공개 집계에서 제외한다 |
 | [0044](0044-jwt-secret-fail-fast-keyed-on-dockerfile-deployment-mode-not-a-spring-profile.md) | JWT 시크릿 기본값 fail-fast는 Spring 프로파일이 아니라 Dockerfile이 설정하는 deployment-mode 플래그 기준 |
+| [0045](0045-simulation-time-axis-is-a-sampler-outside-the-domain-functions.md) | 시뮬레이션 시간축은 도메인 함수를 고치지 않고 엔진 밖 샘플러가 파생한다(램프업 + 적체 적분, 저장 없음) |
+| [0046](0046-forks-are-ephemeral-redis-state-not-sessions.md) | 포크(Counterfactual · Fork My Run)는 세션이 아니라 Redis 임시 상태이며, 샌드박스 액션은 표식으로 집계에서 뺀다 |
+| [0047](0047-learning-labs-call-the-simulation-engine-and-store-no-answer-key.md) | Learning 랩은 시뮬레이션 엔진을 세션 없이 호출하고 예측 정답표를 저장하지 않는다 |
+| [0048](0048-official-scenarios-move-to-mission-content-in-a-single-v2-bump.md) | 공식 시나리오는 미션 콘텐츠를 담아 제자리 수정 없이 한 번에 v2로 올린다 |

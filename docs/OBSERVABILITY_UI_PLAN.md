@@ -82,8 +82,13 @@ GET /sessions/{id}/simulation/series?from=&to=&step=10s
   → [{ t, trafficRps, p95LatencyMs, errorRate, … }]     // 저장하지 않고 매번 계산
 ```
 
-- 도메인 함수는 `elapsed`를 **선택적으로** 씁니다. 1차에는 램프업(인시던트 시작 후 60~120초에 걸쳐 부하가 증가)과 누적형 지표(queueLag, 미처리 레코드 수)만 시간에 반응하게 하고 나머지 도메인 수식은 그대로 둡니다. 이렇게 하면 기존 손계산 단언 테스트([TESTING.md](TESTING.md))가 `elapsed = ∞`(정상 상태) 케이스로 그대로 살아남습니다.
-- 인시던트 시작 시각은 이미 타임라인 첫 항목의 `appliedAt`으로 남아 있습니다(`PostmortemService.mttdMttr`). 새 저장 필드가 필요 없습니다.
+- ~~도메인 함수가 `elapsed`를 선택적으로 쓴다~~ → **확정(2026-10-01): 도메인 함수는 건드리지 않는다.** 엔진 밖에 순수 함수 `TelemetrySampler`를 두고, 시간 효과는 거기서 일반적으로 입힙니다. 7개 도메인 함수와 `SimulationEngineTest`의 손계산 단언이 한 줄도 바뀌지 않습니다([ADR-0045](adr/0045-simulation-time-axis-is-a-sampler-outside-the-domain-functions.md)).
+  - **램프업**: 인시던트 시작 후 `RAMP_SECONDS`(90초) 동안 같은 trait으로 계산한 `incidentActive=false` 상태와 `true` 상태를 숫자 필드별로 선형 보간
+  - **적체 누적**: 적체가 "초당 초과분"인 도메인(notification · payment · reservation)은 `queueLag`를 적분 — 초과면 `backlog += 정상상태 queueLag × dt`, 여유가 생기면 `backlog −= max(0, consumerThroughput − trafficRps) × dt`. 나머지 도메인의 `queueLag`(남은 재처리 레코드 수, crash-loop Pod 수)는 그대로
+  - 액션 효과는 즉시 반영(적체만 서서히 빠짐) — 그래서 "지표는 돌아왔는데 적체가 남은" 구간이 생기고, 이것이 Drill M5(완화/복구 분리)의 근거가 됩니다
+  - 시드 기반 지터는 넣지 않습니다(알림 임계값 판정이 흔들림)
+- 인시던트 시작 시각은 이미 `INCIDENT_STARTED` 표식 행(`applied_actions`)의 `created_at`으로 남아 있습니다. **인시던트 "종료" 개념은 지금 없으므로** Drill M5의 복구 선언이 `INCIDENT_RESOLVED` 표식 행을 같은 방식으로 추가합니다. 샘플 구간은 `시작 − 60초 ~ min(지금, 종료 + 120초, 시작 + 30분)`, 최대 120포인트.
+- 실제 인프라 세션은 저장된 스냅샷을 계단형 시계열로 그대로 돌려줍니다(보간·적분 없음, 응답에 `engineMode`로 표시).
 - 계산 비용: 도메인 함수가 마이크로초 단위라 15분 × 10초 간격 = 90포인트는 요청당 무시할 수준입니다.
 
 **ADR 후보** — 엔진 입력에 시간을 넣는 것은 7개 도메인 함수 전부와 테스트 관행에 번지는, 되돌리기 비싼 결정이고 "상태는 액션으로만 바뀐다"는 지금의 단순함을 버리는 진짜 트레이드오프입니다. 착수하는 순간 ADR을 씁니다(대안: 클라이언트 누적 유지 / 서버에 틱 워커를 두고 저장).
@@ -101,12 +106,14 @@ GET /sessions/{id}/simulation/series?from=&to=&step=10s
 
 ## 5. 슬라이스
 
-가치/비용 순이며, 각 슬라이스는 독립 배포 가능합니다. **O0-a 없이 가능한 것**을 표시했습니다.
+각 슬라이스는 독립 배포 가능합니다. ✦ = O0-a 없이 가능.
+
+> **순서 변경(2026-10-01)**: O1의 상태 5종(`RECOVERING`/`RECOVERED`)은 "직전보다 나아지는 중", "적체까지 해소"를 판정해야 해서 스냅샷 하나로는 정의가 흔들립니다. O0-a를 O1보다 먼저 합니다.
 
 | # | 슬라이스 | 선행 | 새 저장소 | 핵심 |
 |---|---|---|---|---|
-| O1 | Mission Control Bar + Observe 탭 재배치 | 없음 ✦ | 없음 | 즉시 체감 |
-| O0-a | 시간축 | 없음 | 없음 | 나머지의 기반 |
+| O0-a | 시간축 | 없음 | 없음 | 나머지의 기반 — **먼저** |
+| O1 | Mission Control Bar + Observe 탭 재배치 | O0-a | 없음 | 즉시 체감 |
 | O2 | 서버 시계열 차트 + Change Overlay + 비교 오버레이 | O0-a | 없음 | |
 | O3 | Service Map (라이브 토폴로지) + 노드 상세(RED/USE) | 없음 ✦ | 없음 | 캔버스 재사용 |
 | O0-b | 조사 행위 기록 | O1 | `investigation_events` | |
@@ -115,7 +122,7 @@ GET /sessions/{id}/simulation/series?from=&to=&step=10s
 | O6 | 트레이스 (real-infra 실측 → 규칙 기반 합성) | O4 | 없음 | |
 | O7 | Production Readiness 단계 + 관측 품질 판정 | O5, O6 | 세션별 설정(JSONB) | |
 
-### O1 — Mission Control Bar + Observe 탭 ✦
+### O1 — Mission Control Bar + Observe 탭
 
 - Drill 작업 화면 상단에 고정 바: `시나리오명 · 상태 · 인시던트 경과 시간 · RPS · P95 · 에러율 · 가용성`. 인시던트 전에는 단계 진행(`StageList`)만.
 - 상태 5종 `HEALTHY / DEGRADED / CRITICAL / RECOVERING / RECOVERED`는 **백엔드가 `SystemState`에서 파생**해 응답에 싣습니다(프론트가 임계값을 따로 들고 있으면 3-A 이전처럼 이중 관리가 됨). `RECOVERING`은 "직전 스냅샷보다 나아지는 중", `RECOVERED`는 밴드 정상 복귀.
@@ -174,6 +181,21 @@ GET /sessions/{id}/simulation/series?from=&to=&step=10s
 
 ---
 
+## 5-1. 착수 전 확정 사항 (2026-10-01)
+
+코드 확인 후 정한 구현 수준의 결정입니다. 각 라운드는 [PLAN.md](../PLAN.md) "4개 영역 확장" 절에 있습니다.
+
+| 항목 | 결정 |
+|---|---|
+| 시계열 API | `GET /sessions/{id}/simulation/series` → `{engineMode, incidentStartedAt, resolvedAt?, points:[{t, …SystemState 필드, level, status}]}`. 소유자·관전자 모두(기존 `/state`와 같은 권한) |
+| 상태 5종 판정 (O1) | 시계열의 마지막 점 기준. 인시던트 전 `HEALTHY` / level `ERROR`면 `CRITICAL`, `WARN`이면 `DEGRADED` / 그중 직전 3개 점보다 에러율·P95가 모두 낮아지는 중이면 `RECOVERING` / 인시던트 후 `INFO`이고 적체 0이면 `RECOVERED`, 적체가 남으면 `RECOVERING`. 서버가 계산해 각 점에 싣는다 |
+| 세션 단위 운영 설정 | SLO(Drill M3) · 알림 규칙(O5) · Readiness(O7)를 **`sessions.mission_state` JSONB 한 컬럼**에 둔다(Drill 계획 M1의 확인한 질문 목록도 같은 컬럼). 세션당 1:1이고 스키마가 슬라이스마다 늘어나는 값이라 ARCHITECTURE §4.1의 JSONB 기준에 맞는다 |
+| 조사 행위 기록 (O0-b) | `investigation_events(id, session_id, kind, target, created_at)` + `POST /sessions/{id}/investigations`(소유자만). 같은 `kind+target`은 30초 안에 한 번만 기록(탭을 오가며 생기는 잡음 제거) |
+| 로그 템플릿 (O4) | 도메인별 로그 문구는 Kotlin 상수(SimulationService의 액션 설명 문구와 같은 자리). 시드·시각·컴포넌트로 결정되는 해시로 빈도를 정해 같은 세션은 항상 같은 로그를 본다 |
+| 샌드박스 액션 | **기존 버그**: 완료 후 샌드박스에서 적용한 액션이 같은 `applied_actions`에 표시 없이 쌓여 리플레이·MTTR(=마지막 액션)·벤치마크를 오염시킨다. `parameters.sandbox=true`로 표시하고 MTTR·시계열·벤치마크에서 제외 — Drill M6 라운드에서 함께 고친다 |
+| 트레이스 1차 (O6) | real-infra coupon 스팬을 Jaeger HTTP API로 세션 ID 태그 조회. 태그가 실제로 붙는지 라운드 시작 시 확인하고, 없으면 계측에 태그를 먼저 추가 |
+| 성공 지표 | 화면 이벤트는 기존 익명 일별 카운터(`product_event_counts`, `POST /events`)에 이름만 추가, DB 파생 지표는 `SuccessMetricsService`에 추가 — 관리자 "성공 지표" 패널 재사용 |
+
 ## 6. 재사용 자산
 
 | 자산 | 쓰임 |
@@ -197,7 +219,7 @@ GET /sessions/{id}/simulation/series?from=&to=&step=10s
 
 ## 8. 열린 질문
 
-1. **시간축 1차에서 어느 지표가 시간에 반응해야 하는가.** 램프업과 누적형(lag, 미처리 레코드)만으로 알림·SLO가 의미 있게 보이는지, O0-a 착수 직후 한 도메인(coupon)으로 확인하고 나머지로 넓힙니다.
+1. ~~시간축 1차에서 어느 지표가 시간에 반응해야 하는가~~ **확정(2026-10-01)** — 램프업(전 지표) + 적체 적분(3개 도메인). §4 O0-a.
 2. **조사 행위를 점수에 반영할 것인가.** 반영하면 "모든 패널을 한 번씩 클릭"하는 게이밍이 생깁니다. 1차는 포스트모템 표시만, 점수화는 분포를 본 뒤.
 3. **알림 규칙 작성을 필수로 할 것인가.** 초급 Drill에서는 기본 규칙 세트를 켜 두고, 고급에서만 직접 작성하게 하는 난이도별 분기를 권합니다.
 

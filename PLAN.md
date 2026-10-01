@@ -1824,6 +1824,162 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## 4개 영역 확장 — Drill · Learning · Community · Observability (2026-10-01~)
+
+[docs/DRILLS_EXPANSION_PLAN.md](docs/DRILLS_EXPANSION_PLAN.md) · [docs/LEARNING_EXPANSION_PLAN.md](docs/LEARNING_EXPANSION_PLAN.md) · [docs/COMMUNITY_EXPANSION_PLAN.md](docs/COMMUNITY_EXPANSION_PLAN.md) · [docs/OBSERVABILITY_UI_PLAN.md](docs/OBSERVABILITY_UI_PLAN.md)의 슬라이스를 실행 순서로 옮긴 것. 순서와 묶음은 [docs/ROADMAP.md](docs/ROADMAP.md) "4개 영역 확장 계획안" 표, 구현 수준의 결정은 각 문서의 "착수 전 확정 사항" 절과 ADR-0045~0048.
+
+**모든 라운드 공통 완료 기준**: 해당 백엔드 통합 테스트(`./scripts/run-tests-isolated.sh --tests …`), `tsc`/`eslint`(변경 파일 에러 0)/`next build` 클린, 격리 환경 실브라우저 확인(375px 가로 넘침 없음 포함). 새 공개 노출은 ADR-0043(채용 평가 제외)·조직 시나리오 제외·랭킹 숨김 사용자 제외를 따른다. 해당 슬라이스의 성공 지표가 화면 이벤트면 `product_event_counts` 허용 목록에, DB 파생이면 `SuccessMetricsService`에 같은 라운드에서 추가한다.
+
+### 묶음 1 — 연결과 운영 마무리
+
+#### Round E1 — Drill ↔ 개념 링크 (L4)
+- [ ] 리포트 `FeedbackDetail`의 리스크 지적마다 `개념 보기 →`(`/learning/{riskKey}`), 리포트 끝 "이번에 놓친 개념" 묶음
+- [ ] 대시보드 "내 약점 TOP 3"·프로필 "보완이 필요한 영역"을 개념으로 링크
+- [ ] 개념 상세 "이 개념을 연습하는 방법" 레일(랩 자리는 L5 이후 채움): Build 챌린지 → Drill 개요 → 관련 시나리오 토론
+
+#### Round E2 — `/bridge` 일반화 (L4-b)
+- [ ] `build_challenges.starter_code` 컬럼 + `challenges/<slug>/` 스텁 7개 시딩 마이그레이션, `GET /build-challenges/{slug}` 응답에 포함
+- [ ] 파일 ↔ DB 스텁 일치 테스트(rate-limiter의 기존 B11 테스트와 같은 방식)
+- [ ] `/bridge?challenge=<slug>` — 챌린지 선택(목록), 프론트 스텁 상수 제거, 언어 토글은 해당 챌린지가 지원하는 언어만
+- [ ] 개념의 `relatedChallenges` 버튼과 트랙 페이지 Build 링크를 해당 챌린지로
+
+#### Round E3 — 토론 마무리 (C7)
+- [ ] 마이그레이션: `scenario_discussions.parent_id`(1단계만), `contains_spoiler`, `kind`
+- [ ] 이전 버전 토론(읽기 전용) 응답 필드 — ADR-0048의 v2 전환(E24)보다 먼저
+- [ ] 스포일러 글은 미완료자 응답에서 본문 대신 잠금
+- [ ] `/admin` "신고된 토론" 섹션(숨김/복원)
+- [ ] `DiscussionPanel`을 Drill 개요 레일·리포트 하단에 노출, 답글 UI, 글 종류 태그 필터
+- [ ] 앱 푸터 "제품 피드백 ↗"(GitHub Issues)
+
+### 묶음 2 — 시간축과 관측 기반
+
+#### Round E4 — 시뮬레이션 시간축 (O0-a, ADR-0045)
+- [ ] 순수 함수 `TelemetrySampler` — 램프업 보간 + 3개 도메인 적체 적분, 손계산 단위 테스트(도메인 함수·`SimulationEngineTest` 무변경)
+- [ ] `GET /sessions/{id}/simulation/series` — 규칙 기반은 샘플러, real-infra는 스냅샷 계단형. 소유자·관전자
+- [ ] 각 점에 `status`(HEALTHY/DEGRADED/CRITICAL/RECOVERING/RECOVERED) 서버 계산
+
+#### Round E5 — Mission Control + Observe 탭 (O1)
+- [ ] 작업 화면 상단 고정 바(시나리오 · 상태 · 인시던트 경과 · RPS · P95 · 에러율 · 가용성), 관전자 화면 포함
+- [ ] `WargameLive`를 `Overview | Metrics | Logs | Changes` 탭으로, 차트는 클라이언트 40포인트 누적 대신 series API
+- [ ] Overview = Golden Signals 4칸 + 최근 변경
+
+#### Round E6 — 변경 오버레이 · 비교 · 시간 범위 (O2)
+- [ ] 차트에 인시던트 시작·액션 세로선(클릭 시 전후 값), 지표 2개 겹치기, 최근 5/15분·인시던트 전체
+
+#### Round E7 — Service Map (O3)
+- [ ] 인시던트 중 캔버스 토폴로지를 읽기 전용으로, kind별 RED/USE 지표 매핑, 노드 상세 패널
+- [ ] 토폴로지 없는 세션은 도메인 기본 토폴로지(설정값)
+- [ ] 원인 강조 없음 — 모든 지표 같은 밴드 규칙
+
+### 묶음 3 — 미션 하위 활동
+
+#### Round E8 — 미션 기반 + 요구사항 질의 (M1)
+- [ ] 마이그레이션 `sessions.mission_state jsonb not null default '{}'`
+- [ ] **꼬리설계 변형 고정**: FOLLOWUP 진입 시 고른 키를 `mission_state.followupVariantKey`에 저장하고 이후 프롬프트는 그 키로(기존 공백 수정, 회귀 테스트)
+- [ ] 프론트 제출에 `structuredJson` 배관, `buildUserPrompt`에 structured 섹션 덧붙이기
+- [ ] INITIAL `content.clarifications` 읽기: `GET /sessions/{id}/clarifications`(답 없이), `POST …/{qid}`(답 공개 + `mission_state` 기록), 공개 시나리오 API에 답 비노출
+- [ ] 설계 화면 "확인된 요구사항" 패널, 평가 프롬프트 `## 확인한 요구사항 / 확인하지 않은 핵심 요구사항`, 리포트 Requirements Discovery 섹션
+- [ ] 콘텐츠가 없는 시나리오에서는 아무것도 나타나지 않음(테스트는 테스트 내 시나리오 버전으로)
+
+#### Round E9 — 규모 추정 (M2) + Capacity Lab (L6)
+- [ ] 공용 판정 함수(`|log10(추정/참값)| ≤ 0.3`)와 공용 입력 컴포넌트
+- [ ] M2: INITIAL `content.estimation`, 추정치는 INITIAL 제출 `structuredJson.estimates`, 평가 프롬프트·리포트 판정
+- [ ] L6: `learning_labs` 테이블(kind=ENGINE/CAPACITY) + CAPACITY 문제 시딩, 서버 계산 함수 목록, `POST /learning/labs/{slug}/check`, `/learning/labs` 화면
+
+#### Round E10 — 설계 방어 (M4) + 상태 공지 (M11)
+- [ ] FOLLOWUP 진입 전 INITIAL 평가의 `followupQuestions` 중 2개 답하기(면접형 모드 필수), FOLLOWUP 제출 `structuredJson.defense`
+- [ ] INCIDENT 답안에 `고객 공지 초안` 필드(`structuredJson.statusUpdate`), 평가 프롬프트 섹션
+
+#### Round E11 — 인터랙티브 랩 (L5, ADR-0047)
+- [ ] ENGINE 랩 7개 시딩(문서 L5 표), `POST /learning/labs/{slug}/run`(knob 범위 검증 → 엔진), Predict → Experiment → Break 화면
+- [ ] 개념 상세 연습 레일과 랩 목록에 연결
+
+### 묶음 4 — 시간축 위의 판단
+
+#### Round E12 — SLO (M3) + 알림·SLO·탐지 지연 (O5)
+- [ ] `mission_state.slo`, `mission_state.alertRules` 입력 화면(도메인 추천 규칙 세트)
+- [ ] 시계열에 규칙 적용 → Alert Center, `[조사하기]` 시간 범위 연동
+- [ ] SLO 목표 대비·에러 버짓 소진·burn rate(단일 창), 포스트모템에 "첫 알림까지" 지표 추가(기존 MTTD 유지)
+
+#### Round E13 — 완화/복구 분리 + 정합성 (M5)
+- [ ] `POST …/simulation/resolve` → `INCIDENT_RESOLVED` 표식 행, 시계열 종료 반영
+- [ ] MITIGATED/RECOVERED 판정, Partial Recovery 표시, 정합성 도메인 체크리스트(기존 계수에서 파생)
+- [ ] 포스트모템에 "복구 선언까지" 새 지표(기존 MTTR 정의 유지)
+
+#### Round E14 — Counterfactual (M6, ADR-0046) + 샌드박스 오염 수정
+- [ ] 샌드박스 액션 `parameters.sandbox=true`, MTTR·벤치마크·시계열 제외 + 회귀 테스트
+- [ ] `POST /sessions/{id}/forks {atStep}`, `GET /forks/{id}/state|series`, `POST /forks/{id}/actions`, 비교 응답. 규칙 기반만
+- [ ] 리플레이 "여기서 다르게 해보기" + 실제 vs 포크 비교 화면
+
+#### Round E15 — 풀이 요약 · 설계 비교 · 나와 다른 설계 (C8)
+- [ ] `sessions.writeup_note`, 자동 요약 카드(다이어그램 · 바꾼 trait · 결과 · 액션 순서)
+- [ ] `GET /writeups/{sessionId}/compare`(열람자의 같은 시나리오 최고 세션과 토폴로지 차이), 목록 정렬 `나와 다른 순`(기본)
+
+#### Round E16 — Fork My Run (C9)
+- [ ] 포크 권한을 "공개 풀이 + 완료자"로 확장, 공개 풀이 리플레이에 "여기서 내가 해보기", 원래 풀이와 비교
+
+### 묶음 5 — 깊이
+
+#### Round E17 — 조사 기록 (O0-b) + 서버 로그 (O4)
+- [ ] `investigation_events` + `POST /sessions/{id}/investigations`(30초 디바운스), 탭·노드·로그 검색 기록, 포스트모템 타임라인에 함께 표시
+- [ ] 시계열 기반 결정론적 로그 생성 API, `LogViewer`의 클라이언트 합성 제거, 로그 컨텍스트·시간 범위 연동
+
+#### Round E18 — 개념 숙련 · 지식 맵 (L7)
+- [ ] 숙련 4단계 파생(변형 수는 M10과 같은 함수 — E21과 공유하므로 여기서 먼저 만든다), 학습 경로 상태와 통합
+- [ ] `learning_concepts.related_concepts` + 25개 엣지 시딩, `/learning/map`(@xyflow), 개념 페이지 단계 레일
+
+#### Round E19 — 장애 패턴 사전 · Bad Fixes (L8)
+- [ ] `failure_patterns`(도메인 키) 7개 시딩, `/learning/failures`
+- [ ] `learning_concepts.bad_fixes`, `when_not_to_use` + 25개 콘텐츠
+
+#### Round E20 — 가정 (M7) + 제약·비용·복잡도 (M8)
+- [ ] INITIAL `content.assumptions` 선택/추가, FOLLOWUP 변형 `breaks` → 고정된 변형 기준 "깨진 가정" 표시
+- [ ] `content.constraints`, 노드 kind 단가 상수, `GET /sessions/{id}/cost-estimate`, 캔버스 상단 비용·복잡도, 평가 프롬프트 사실 전달
+
+#### Round E21 — 변형 기반 신뢰도 (M10)
+- [ ] 도메인별 통과한 서로 다른 변형 수(E18 함수), 트랙·인증 페이지 표시. DrillScore 불변
+
+#### Round E22 — 앵커 리뷰 (C10)
+- [ ] `writeup_comments` + 신고, 노드·타임라인·전체 앵커, 리뷰 유형, 비공개 전환 시 숨김, 관리자 화면 재사용
+
+#### Round E23 — Community 홈 (C11)
+- [ ] 내 Drill에서 / 이번 주 활발한 토론 / 주목할 풀이 / 랭킹 / 시나리오, 토론 ↔ 개념 상호 링크
+
+### 묶음 6 — 콘텐츠 전환
+
+#### Round E24 — 공식 시나리오 v2 (ADR-0048)
+- [ ] 7개 시나리오 v2 한 마이그레이션: 줄인 INITIAL 프롬프트 + clarifications · estimation · assumptions · constraints, FOLLOWUP 변형 `breaks`
+- [ ] 정답 비노출·새 세션이 v2를 고르는지·v1 토론이 이전 버전으로 보이는지 테스트
+
+### 묶음 7 — 확장
+
+#### Round E25 — 트레이스 (O6)
+- [ ] real-infra coupon: Jaeger 스팬 세션 태그 확인/추가 → 워터폴 / 규칙 기반: 도메인별 지연 분해 합성 트레이스, 로그 `trace_id` 연결
+
+#### Round E26 — Production Readiness · 관측 품질 (O7)
+- [ ] 인시던트 직전 체크(알림·SLO·구조화 로그·트레이싱), 트레이싱 미활성 시 트레이스 탭 "No data", 관측 품질 규칙 판정을 평가 프롬프트 사전 점검으로
+
+#### Round E27 — 개인 Runbook (M12)
+- [ ] `user_runbooks`, 포스트모템에서 작성·수정, 다음 같은 도메인 인시던트에서 조사 이벤트와 대조
+
+#### Round E28 — 진단 퍼즐 (L9) + 주간 What Would You Do? (C12)
+- [ ] 엔진 생성 퍼즐(시드), `/learning/puzzle`, 7개 장애 패턴 선택 → L8 연결
+- [ ] ISO 주차 시드 퍼즐, `wwyd_answers`, 답한 뒤 분포·공개 이유
+
+#### Round E29 — 오개념 감지 (L10)
+- [ ] 액션 패턴 규칙(설정), 내 학습에 오개념 카드 → 랩·Bad Fixes
+
+#### Round E30 — Deploy/Canary 도메인 (M9)
+- [ ] 착수 전 영향 목록 기록 + ADR, 8번째 도메인 수식·액션·토폴로지 필드·시나리오 시드·개념 연결, 변경 검토 단계
+
+#### Round E31 — 챌린지 이벤트 (C13)
+- [ ] 이벤트 생성 경로 결정(ADR 판단), 기간 내 보드(점수 · 복구 선언까지 시간), 종료 후 디브리프
+
+#### Round E32 — 분야별 평판 (C14)
+- [ ] `community_reactions`, 토론·리뷰에 유형 반응, 도메인별 평판 파생·프로필 표시(랭킹과 분리)
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.

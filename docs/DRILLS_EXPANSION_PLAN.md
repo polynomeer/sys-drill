@@ -88,7 +88,11 @@ INITIAL(설계) ─제출→ 평가 ─→ FOLLOWUP(꼬리설계: 조건 변경)
 
 M1·M2·M7·M8은 시나리오 콘텐츠(INITIAL 프롬프트를 일부러 불완전하게 고치기, 질문·정답표, 가정 목록, 제약)를 추가합니다. 콘텐츠는 Flyway로 시딩하고([ADR-0002](adr/0002-content-via-migrations-not-admin-crud.md)), 프롬프트가 바뀌면 **새 `scenario_version`** 이 됩니다.
 
-- 벤치마크는 `scenario_version_id` 안에서만 비교하므로([LEARNING_COMMUNITY_PLAN.md §6.1](LEARNING_COMMUNITY_PLAN.md)) **새 버전은 표본 0에서 다시 시작**합니다. 공식 7개 시나리오를 한꺼번에 새 버전으로 올리지 말고, 한 도메인(coupon)으로 먼저 검증합니다.
+- 벤치마크는 `scenario_version_id` 안에서만 비교하므로([LEARNING_COMMUNITY_PLAN.md §6.1](LEARNING_COMMUNITY_PLAN.md)) **새 버전은 표본 0에서 다시 시작**합니다.
+- **확정(2026-10-01) — 버전은 한 번만 올린다** ([ADR-0048](adr/0048-official-scenarios-move-to-mission-content-in-a-single-v2-bump.md)). 초안은 "coupon으로 먼저 검증"이었지만 그러면 coupon만 버전을 두 번 올리게 되고(M1·M2 검증용 → M7·M8 추가용) 표본이 두 번 초기화됩니다. 대신:
+  1. 기능(M1·M2·M7·M8·M11)은 **콘텐츠 필드가 없으면 화면에 나타나지 않게** 구현하고, 테스트는 테스트 안에서 만든 시나리오 버전으로 검증합니다
+  2. 기능이 다 들어간 뒤 **공식 7개 시나리오의 v2를 하나의 마이그레이션으로** 추가합니다(이전 선례 V14처럼 v1을 제자리 UPDATE하지 않음 — 이번에는 INITIAL 프롬프트 자체를 줄이므로 난이도가 바뀌어 같은 버전으로 비교하면 안 됨)
+- 토론도 버전 단위라 v2가 나오면 **기존 v1 토론이 화면에서 사라집니다.** Community C7에서 "이전 버전 토론(읽기 전용)"을 함께 보여주도록 고칩니다 — v2 마이그레이션보다 먼저.
 - 공개 풀이·토론도 버전 단위이므로 같은 영향을 받습니다.
 
 ---
@@ -198,6 +202,22 @@ M1·M2·M7·M8은 시나리오 콘텐츠(INITIAL 프롬프트를 일부러 불�
 
 ---
 
+## 5-1. 착수 전 확정 사항 (2026-10-01)
+
+| 항목 | 결정 |
+|---|---|
+| 하위 활동 입력의 저장 위치 | 제출과 함께 확정되는 입력(M2 추정치, M4 방어 답, M7 가정 선택, M11 공지)은 **이미 있지만 아무도 쓰지 않는 `submissions.structured_json`** 에 담는다(`SubmitAnswerRequest.structuredJson`은 받아서 저장까지 하는데 프론트가 보낸 적이 없음). 제출 전에 서버가 알아야 하는 진행 상태(M1 확인한 질문, M3 SLO, 선택된 꼬리설계 변형 키)는 `sessions.mission_state` JSONB(관측 계획안 §5-1과 같은 컬럼) |
+| 평가 프롬프트 | `HybridRuleAiEvaluator.buildUserPrompt`가 이미 `Submission` 전체를 받으므로 `structured_json`에서 `## 확인한 요구사항`·`## 규모 추정 판정`·`## 설계 방어`·`## 고객 공지 초안` 섹션을 덧붙인다. 규칙 판정(`RuleEvaluator`)은 `rawText`만 보는 지금 구조 유지 |
+| 콘텐츠 필드 위치 | INITIAL 단계 `content`에 `clarifications` · `estimation` · `assumptions` · `constraints`, FOLLOWUP 변형에 `breaks`. 공개 API(`GET /scenarios/{id}`)는 이 필드의 **정답(answer)을 절대 내보내지 않는다** — 후속 프롬프트를 숨기는 기존 원칙(Round B1)과 같다 |
+| 꼬리설계 변형 고정 | **기존 공백**: 변형 키가 저장되지 않고 프롬프트를 읽을 때마다 `selectVariant`가 다시 고른다. 평가 후 약점 카운트가 바뀌면 같은 세션의 FOLLOWUP 프롬프트가 나중에 다르게 보일 수 있다. FOLLOWUP 진입 시 고른 키를 `mission_state.followupVariantKey`에 고정한다 — M7(어느 가정이 깨졌나)과 M10(서로 다른 변형 수)의 전제. M1 라운드에서 먼저 고친다 |
+| 인시던트 종료 | 지금은 종료 개념이 없다(Redis 6시간 TTL뿐). M5가 `INCIDENT_RESOLVED` 표식 행을 `INCIDENT_STARTED`와 같은 방식으로 `applied_actions`에 남긴다 |
+| 정합성 점검 (M5) | 엔진이 이미 아는 값에서 파생: batch-settlement는 `errorRate`가 곧 정합성 깨진 레코드 비율, payment는 `idempotentPgRetryEnabled=false`인 인시던트 구간의 재시도 수, reservation은 `atomicInventoryCheckEnabled=false`인 구간의 경쟁 재시도 수. 새 수식이 아니라 기존 계수(`PARTIAL_FAILURE_WASTE_FACTOR` 등)의 재해석 |
+| 포크 (M6) | `POST /sessions/{id}/forks {atStep}` → Redis `fork:{id}`(1시간 TTL)에 도메인 · 기준 trait · 액션 접두부 저장, 이후 `GET/POST /forks/{id}/…`. 규칙 기반만 — [ADR-0046](adr/0046-forks-are-ephemeral-redis-state-not-sessions.md) |
+| 샌드박스 오염 수정 (M6) | 완료 후 샌드박스 액션을 `parameters.sandbox=true`로 표시하고 MTTR·벤치마크·시계열에서 제외 |
+| 비용 단가표 (M8) | 노드 kind별 월 단가는 Kotlin 설정 상수(관리자 CRUD 없음, ADR-0006 정신 — 코드 리뷰를 거친 설정). 모든 금액에 "추정치" |
+| Runbook (M12) | `user_runbooks(user_id, domain, steps jsonb, updated_at)`, `unique(user_id, domain)` |
+| M9 Deploy 도메인 | 착수 시 영향 목록(KNOWN_DOMAINS · 인증 공식 도메인 · DrillScore 상한 · 트랙 · 개념 `relatedDomains` · `TOPOLOGY_FIELDS`/`NODE_TRAIT_CONFIG` · 액션 enum)을 PLAN.md에 먼저 적고 ADR을 쓴다 |
+
 ## 6. 보류 항목과 재개 조건
 
 | 항목 | 막는 것 | 재개 조건 |
@@ -211,15 +231,16 @@ M1·M2·M7·M8은 시나리오 콘텐츠(INITIAL 프롬프트를 일부러 불�
 
 ## 7. ADR 후보
 
-1. **포크는 영속 세션이 아니라 Redis 임시 상태다** (M6) — Community C9가 같은 결정을 물려받음.
+1. **포크는 영속 세션이 아니라 Redis 임시 상태다** (M6) — 작성함: [ADR-0046](adr/0046-forks-are-ephemeral-redis-state-not-sessions.md). Community C9가 같은 결정을 물려받음.
+4. **공식 시나리오를 미션 콘텐츠로 한 번에 v2로 올린다** (§4) — 작성함: [ADR-0048](adr/0048-official-scenarios-move-to-mission-content-in-a-single-v2-bump.md).
 2. **Deploy 도메인을 공식 도메인으로 추가하는가** (M9) — 인증·랭킹 상한까지 번지는 결정.
 3. 하위 활동을 새 단계 타입이 아니라 기존 단계 안에 둔다(§3-1)는 것은 **ADR 대상이 아닙니다** — 대안(새 단계 타입)의 비용이 명백히 커서 진짜 트레이드오프가 아니고, 나중에 필요하면 새 단계 타입을 추가하면 됩니다.
 
 ## 8. 열린 질문
 
-1. **M1 질문 카드에서 무관한 질문을 고르는 것을 감점할 것인가.** 원본은 `Irrelevant questions 3`을 표시했지만, 호기심을 벌주면 질문 자체를 줄입니다. 표시만 하고 감점은 하지 않기를 권합니다.
-2. **M2·M7 입력을 필수로 할 것인가.** 초급은 선택, 면접형 타이머 모드는 필수를 권합니다.
-3. **공식 시나리오 새 버전 전환 시점.** §4 — coupon 1개로 M1·M2·M7을 한꺼번에 검증한 뒤 나머지 6개를 한 번에 올리는 것을 권합니다(버전을 여러 번 올리면 벤치마크 표본이 매번 초기화됨).
+1. ~~M1 무관한 질문 감점~~ **확정(2026-10-01)** — 표시만 하고 감점하지 않는다. 평가 프롬프트에도 "확인하지 않은 핵심 질문"만 넘긴다.
+2. ~~M2·M7 입력 필수 여부~~ **확정** — 선택. 면접형 타이머 모드에서만 M4 방어를 필수로 한다(M2·M7은 시간 압박 속에 강제하면 설계 시간을 잠식).
+3. ~~새 버전 전환 시점~~ **확정** — §4, 기능 완료 후 7개를 한 번에.
 
 ## 9. 성공 지표
 

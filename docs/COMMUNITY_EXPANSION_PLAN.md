@@ -14,7 +14,7 @@ Community를 게시판이 아니라 **"다른 엔지니어가 어떻게 판단�
 
 ## 2. 지금 Community의 실제 상태
 
-1차 기획의 슬라이스 1~6은 끝났고, 7(토론)은 **작업 트리에 미커밋 상태로 진행 중**입니다(2026-09-30 기준).
+1차 기획의 슬라이스 1~7이 전부 끝났습니다(토론은 2026-10-01 커밋). 그 사이 알림 벨(`DISCUSSION_MESSAGE` — 내가 글을 쓴 스레드의 이후 글)과 채용 평가 세션 제외([ADR-0043](adr/0043-assessment-sessions-stay-out-of-community-and-public-aggregates.md))도 들어왔습니다. 이 계획의 새 공개 노출(비교·포크·리뷰·홈 카드)은 전부 ADR-0043의 `AssessmentSessions` 판별과 조직 시나리오 제외를 그대로 적용합니다.
 
 | 구성 | 상태 |
 |---|---|
@@ -22,7 +22,7 @@ Community를 게시판이 아니라 **"다른 엔지니어가 어떻게 판단�
 | 풀이 공유 `sessions.visibility` | 기본 비공개, 완료 세션만 공개 가능, **그 시나리오 완료자만 열람**(ADR-0041), 익명 선택 |
 | 랭킹 | DrillScore · 티어 5단계 · 보드 3종(종합/도메인/최근 30일) · 숨기기 |
 | 공개 프로필 | 별도 페이지 없이 `/certifications/[userId]`가 겸함 + 월별 활동 타임라인(미커밋) |
-| 토론 (미커밋) | `scenario_discussions` — 시나리오 버전당 **평면 스레드 하나**, 폴링, 신고·숨김 API. **답글·투표 없음, 관리자 UI 없음**, Drill 개요·리포트에 **노출 안 됨** |
+| 토론 | `scenario_discussions` — 시나리오 버전당 **평면 스레드 하나**, 폴링, 신고·숨김 API. **답글·투표 없음, 관리자 UI 없음**, Drill 개요·리포트에 **노출 안 됨** |
 | `/community` | 공식 시나리오별 토론 링크 목록(미커밋). GitHub Issues 링크는 제거됨 |
 
 원본 항목별 대조:
@@ -88,7 +88,8 @@ Community를 게시판이 아니라 **"다른 엔지니어가 어떻게 판단�
 - **관리자 모더레이션 화면**: 기존 `/admin`에 신고된 토론 목록 + 숨김/복원 (`GET /admin/discussions/reported`, `PUT /admin/discussions/{id}/hidden`은 이미 있음).
 - **노출 위치 확대**: Drill 개요 우측 레일("토론 N · 최근 질문"), 리포트 하단, 개념 상세의 "이 개념이 나오는 시나리오의 토론"([LEARNING_EXPANSION_PLAN.md](LEARNING_EXPANSION_PLAN.md) L4). 지금은 `/community`에서만 들어갈 수 있습니다.
 - **스포일러 표시**: 작성자가 `풀이 내용 포함`을 체크하면 미완료자에게 흐림 처리 + "완료 후 보기". 인용 풀이의 잠금(이미 구현)과 같은 게이트를 본문에도 씁니다.
-- **답글 1단계**: `parent_id` — 질문에 대한 답이 스레드 끝에 흩어지지 않게. 더 깊은 중첩은 만들지 않습니다.
+- **답글 1단계**: `parent_id` — 질문에 대한 답이 스레드 끝에 흩어지지 않게. 더 깊은 중첩은 만들지 않습니다. 알림의 `DISCUSSION_MESSAGE` 정의("내가 처음 쓴 뒤 그 스레드의 다른 사람 글")는 답글이 생겨도 그대로 둡니다 — 답글만으로 좁히면 지금 받던 알림이 줄어듭니다.
+- **이전 버전 토론 (확정 2026-10-01 — 범위 추가)**: 토론은 `scenario_version_id` 단위인데 조회는 "최신 PUBLISHED 버전"만 봅니다. Drill 계획 §4의 공식 시나리오 v2 전환이 오면 **기존 글이 전부 화면에서 사라집니다.** 같은 시나리오의 이전 버전 글을 "이전 버전(v1) 토론" 접힌 섹션으로 읽기 전용 표시합니다(새 글·답글은 최신 버전에만). ADR-0040의 "버전 단위 스레드"는 유지 — 버전이 바뀌면 난이도가 바뀌므로 섞어 쓰지 않는다는 원래 이유가 그대로 유효합니다. **v2 마이그레이션보다 먼저** 배포합니다.
 - **글 종류 태그**: `질문 · 설계 · 대응 · 인사이트` 정도. 원본의 7종 입력 템플릿은 과합니다 — 태그는 필터용이고 템플릿은 C10 리뷰 유형에서만.
 - **제품 피드백**: GitHub Issues 링크를 앱 푸터의 "제품 피드백 ↗"으로 복원(원본 §23 — 학습 커뮤니티와 제품 개발 커뮤니티의 분리).
 
@@ -96,6 +97,7 @@ Community를 게시판이 아니라 **"다른 엔지니어가 어떻게 판단�
 
 ### C8 — 풀이 자동 요약 + 설계 비교
 
+- **작성자 메모**: `sessions.writeup_note`(text, nullable) 한 컬럼.
 - **자동 요약 카드**: 공개 풀이 상단에 기존 데이터로 만든 요약 — 캔버스 다이어그램(Mermaid), 기본값에서 바꾼 trait(= 핵심 결정: `Redis TTL 10→60`, `single-flight 켬`), 결과(점수 · MTTD · MTTR · 적용 액션 순서), 역량 카테고리 점수. 작성자는 **메모 한 칸만** 쓰면 됩니다(원본 §4 "사용자는 설명만 추가"). 새로 생성하는 데이터는 없습니다.
 - **설계 비교** `GET /writeups/{sessionId}/compare` (열람자 자신의 같은 시나리오 최고 세션과): 두 `system_topologies.graph`의 차이 —
   - 노드 kind 집합 차이 (`상대만: queue, read replica`)
@@ -109,7 +111,7 @@ Community를 게시판이 아니라 **"다른 엔지니어가 어떻게 판단�
 ### C9 — Fork My Run
 
 - 공개 풀이의 리플레이 임의 시점에서 `[여기서 내가 해보기]` → **그 사람의 설계 trait + 그 시점까지의 액션 이력**으로 포크 상태를 만들고 내가 이어서 대응합니다. 결과는 원래 풀이와 나란히(`원래 MTTR 14분 32초 / 내 포크 7분 18초`).
-- 메커니즘은 Drill M6(Counterfactual)과 **동일**합니다 — 포크는 영속 세션이 아니라 Redis 임시 상태이고(M6의 ADR 후보를 그대로 물려받음), 규칙 기반 세션만 지원합니다. 실제 인프라 풀이에는 버튼을 표시하지 않습니다.
+- 메커니즘은 Drill M6(Counterfactual)과 **동일**합니다 — 포크는 영속 세션이 아니라 Redis 임시 상태이고([ADR-0046](adr/0046-forks-are-ephemeral-redis-state-not-sessions.md)), 규칙 기반 세션만 지원합니다. 같은 `POST /sessions/{id}/forks`를 쓰되 권한 검사가 "소유자" 또는 "공개 풀이 + 열람자가 그 시나리오 완료"(ADR-0041 게이트)로 넓어집니다. 실제 인프라 풀이에는 버튼을 표시하지 않습니다.
 - 포크 결과는 저장하지 않습니다. 공유하고 싶으면 토론에 "포크 결과"로 글을 쓰는 것까지(결과 수치를 첨부).
 - 추가로 노출되는 정보가 없습니다 — 액션 이력은 이미 공개 풀이 리플레이로 보이는 것입니다.
 
@@ -167,6 +169,17 @@ Community
 | 앵커 댓글 남용 | C7 신고·숨김 재사용, 풀이 비공개 전환 시 함께 숨김 |
 | 익명 풀이의 신원 추정 | 비교 화면·홈 카드에서도 익명 설정을 그대로 존중 |
 | 랭킹 숨김 사용자 노출 | 홈의 새 카드들도 숨김 사용자 제외(1차 기획 공개 범위 원칙) |
+
+## 5-1. 착수 전 확정 사항 (2026-10-01)
+
+| 항목 | 결정 |
+|---|---|
+| 토론 스키마 확장 (C7) | `scenario_discussions`에 `parent_id uuid null`(1단계만 — 답글의 답글은 거부), `contains_spoiler boolean`, `kind varchar(20)`(`QUESTION/DESIGN/RESPONSE/INSIGHT`, 기본 `QUESTION`) |
+| 관리자 화면 (C7) | 기존 `/admin`에 "신고된 토론" 섹션. API는 이미 있음 |
+| 앵커 리뷰 (C10) | `writeup_comments(id, session_id, author_user_id, anchor_type, anchor_ref, kind, body, hidden_at, hidden_by_user_id, created_at)` + `writeup_comment_reports` — 토론과 같은 신고·숨김 모양을 복제(공용 추상화는 두 번째 사례가 생긴 지금도 만들지 않음 — 둘의 가시성 규칙이 다름) |
+| 주간 퍼즐 (C12) | 퍼즐은 저장하지 않고 `ISO 주차`를 시드로 Learning L9 생성기에서 결정론적으로 만든다. 응답만 `wwyd_answers(week, user_id, choice, reason, reason_public, created_at)`, `unique(week, user_id)` |
+| 챌린지 이벤트 (C13) | 이벤트는 콘텐츠가 아니라 운영 일정이라 마이그레이션 시딩(ADR-0002)이 맞지 않는다 — 착수 시점에 결정하고 ADR 여부를 판단 |
+| 평판 (C14) | `community_reactions(target_type, target_id, user_id, kind)`, `unique(target_type, target_id, user_id, kind)`. 도메인별 합계는 읽기 시점 파생 |
 
 ## 6. ADR 후보
 
