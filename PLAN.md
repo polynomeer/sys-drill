@@ -1875,23 +1875,54 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ### 묶음 2 — 시간축과 관측 기반
 
-#### Round E4 — 시뮬레이션 시간축 (O0-a, ADR-0045)
-- [ ] 순수 함수 `TelemetrySampler` — 램프업 보간 + 3개 도메인 적체 적분, 손계산 단위 테스트(도메인 함수·`SimulationEngineTest` 무변경)
-- [ ] `GET /sessions/{id}/simulation/series` — 규칙 기반은 샘플러, real-infra는 스냅샷 계단형. 소유자·관전자
-- [ ] 각 점에 `status`(HEALTHY/DEGRADED/CRITICAL/RECOVERING/RECOVERED) 서버 계산
+#### Round E4 — 시뮬레이션 시간축 (O0-a, ADR-0045) ✅ 완료 (2026-10-02)
+- [x] 순수 함수 `TelemetrySampler` — 램프업 보간 + 3개 도메인 적체 적분, 손계산 단위 테스트(도메인 함수·`SimulationEngineTest` 무변경)
+- [x] `GET /sessions/{id}/simulation/series` — 규칙 기반은 샘플러, real-infra는 스냅샷 계단형. 소유자·관전자
+- [x] 각 점에 `status`(HEALTHY/DEGRADED/CRITICAL/RECOVERING/RECOVERED) 서버 계산
 
-#### Round E5 — Mission Control + Observe 탭 (O1)
-- [ ] 작업 화면 상단 고정 바(시나리오 · 상태 · 인시던트 경과 · RPS · P95 · 에러율 · 가용성), 관전자 화면 포함
-- [ ] `WargameLive`를 `Overview | Metrics | Logs | Changes` 탭으로, 차트는 클라이언트 40포인트 누적 대신 series API
-- [ ] Overview = Golden Signals 4칸 + 최근 변경
+**완료 기준 충족**: 신규 `TelemetrySamplerTest` 7개(전부 손계산 — notification 정상 상태 초과분 1,486/s, 램프 구간 Σ⌊1486k/90⌋ + 이후 초당 1,486 → 119초에 110,663, 조치 후 초당 700씩 감소해 278초에 0 / 샘플 간격이 값을 바꾸지 않음 / 상태 CRITICAL → RECOVERING → RECOVERED) + 신규 `SimulationSeriesIntegrationTest` 3개 + 기존 `SimulationEngineTest` 31·`SimulationControllerIntegrationTest` 9 무변경 통과.
 
-#### Round E6 — 변경 오버레이 · 비교 · 시간 범위 (O2)
-- [ ] 차트에 인시던트 시작·액션 세로선(클릭 시 전후 값), 지표 2개 겹치기, 최근 5/15분·인시던트 전체
+**진행 중 발견한 결정 사항**:
+- 상태는 **누적 적체를 뺀 증상 레벨**로 판정한다. `SystemState.cpuUtilization`이 `queueLag/100`을 부하로 보므로, 누적값으로 판정하면 조치가 다 들어간 뒤에도 적체가 빠지는 동안 계속 CRITICAL로 읽힌다. 점마다 `symptomLevel`(적체 제외)과 `backlog`를 따로 둔다.
+- 적체가 빠지는 속도는 `consumerThroughput − trafficRps` — 엔진이 재시도 증폭된 유입량을 노출하지 않아 생기는 근사(약간 빨리 빠짐)로, 도메인 함수를 고치지 않기 위해 받아들였다. 샘플러 KDoc에 명시.
+- 액션 반영 기준을 "샘플이 속한 초"로 했더니 지금 막 적용한 액션이 다음 초까지 안 보였다(통합 테스트에서 발견). 시간 효과는 초 단위로 적분하되 액션은 샘플 시각 그대로 자른다.
+- 남의 세션 시계열은 403이 아니라 404 — `/state`·`/timeline`과 같은 가드(존재 자체를 숨김).
 
-#### Round E7 — Service Map (O3)
-- [ ] 인시던트 중 캔버스 토폴로지를 읽기 전용으로, kind별 RED/USE 지표 매핑, 노드 상세 패널
-- [ ] 토폴로지 없는 세션은 도메인 기본 토폴로지(설정값)
-- [ ] 원인 강조 없음 — 모든 지표 같은 밴드 규칙
+#### Round E5 — Mission Control + Observe 탭 (O1) ✅ 완료 (2026-10-02)
+- [x] 작업 화면 상단 고정 바(시나리오 · 상태 · 인시던트 경과 · RPS · P95 · 에러율 · 가용성), 관전자 화면 포함
+- [x] `WargameLive`를 `Overview | Metrics | Logs | Changes` 탭으로, 차트는 클라이언트 40포인트 누적 대신 series API
+- [x] Overview = Golden Signals 4칸 + 최근 변경
+
+**완료 기준 충족**: `tsc`·변경 파일 `eslint` 에러 0. 격리 환경에서 notification 인시던트(시작 시각을 150초 앞당김)로 바에 CRITICAL · 경과 시간 · RPS 500 · P95 2400ms · 에러 30% · 적체 173,075, 세 조치 후 RECOVERING(증상은 정상, 적체 20만 건) → 이후 RECOVERED. 탭 4종, Golden Signals 스파크라인, 375px에서 바가 두 줄로 접히고 가로 넘침 없음.
+
+**진행 중 발견한 결정 사항**:
+- 규칙 기반 세션의 지표 패널은 `/state` 대신 시계열 마지막 점을 쓴다 — `/state`는 적체 누적을 모른다. real-infra는 `/state`가 가장 최근 측정이라 그대로.
+- 에러율을 utilization 밴드로 칠하면 30%가 "경고(노랑)"로 보였다. 에러율만 별도 밴드(0.5% / 5%).
+- 차트 카드가 375px에서 카드 밖으로 삐져나왔다 — grid 아이템에 `min-w-0`.
+- 화면 이벤트 `observe_tab_*` 추가(관리자 성공 지표).
+
+#### Round E6 — 변경 오버레이 · 비교 · 시간 범위 (O2) ✅ 완료 (2026-10-02)
+- [x] 차트에 인시던트 시작·액션 세로선(클릭 시 전후 값), 지표 2개 겹치기, 최근 5/15분·인시던트 전체
+
+**완료 기준 충족**: 격리 환경에서 인시던트 시작(빨간 실선)·조치 3개(점선) 마커, 마커 선택 시 직전·직후 값(Circuit Breaker: 처리량 13.3 → 400), 범위 버튼, 지표 두 개 겹쳐 보기 확인.
+
+**진행 중 발견한 결정 사항**:
+- x축을 범주형 라벨에서 숫자(인시던트 기준 초)로 바꿨다 — 그래야 액션 시각이 샘플 격자와 맞지 않아도 세로선을 정확한 위치에 그릴 수 있다.
+- **기존 UX 공백 수정**: coupon·notification은 새로고침할 때마다 "인시던트 시작 방식 선택" 게이트가 다시 떴다(이미 진행 중인 인시던트도). 마운트 시 서버에 상태가 있으면 게이트를 건너뛴다 — Mission Control 바가 새로고침 후에도 바로 보여야 해서.
+- 겹쳐 보기 기본값은 모든 도메인에서 값이 있는 에러율 × Saturation(처음엔 캐시 hit × DB 읽기였는데 notification에서는 둘 다 0).
+
+#### Round E7 — Service Map (O3) ✅ 완료 (2026-10-02)
+- [x] 인시던트 중 캔버스 토폴로지를 읽기 전용으로, kind별 RED/USE 지표 매핑, 노드 상세 패널
+- [x] 토폴로지 없는 세션은 도메인 기본 토폴로지(설정값)
+- [x] 원인 강조 없음 — 모든 지표 같은 밴드 규칙
+
+**완료 기준 충족**: `SessionChatControllerIntegrationTest`에 관전자 토폴로지 읽기 허용·쓰기 404 테스트 추가(4개 통과), `SystemTopologyControllerIntegrationTest` 3개 통과. 격리 환경에서 캔버스를 저장한 coupon 세션(Redis hit 39% 노랑, Postgres 쓰기 180% 빨강, 이 시나리오가 계산하지 않는 Kafka는 "측정되지 않음")과 캔버스 없는 notification 세션(기본 구성 4노드, RECOVERED) 확인, 노드 클릭 시 RED/USE 상세.
+
+**진행 중 발견한 결정 사항**:
+- 토폴로지 읽기 권한을 소유자 → 소유자·관전자로 넓혔다(쓰기는 그대로) — 관전자는 이미 같은 세션의 지표·타임라인·시계열을 본다.
+- 도메인이 계산하지 않는 필드(예: notification의 DB)는 0이 아니라 "측정되지 않음" — 0은 "정상"으로 읽혀 거짓 신호가 된다. 도메인별로 실제로 계산되는 필드 목록을 `ServiceMap.tsx`에 둔다(엔진 수식에서 읽어 옮김).
+- 노드 색은 각 노드 자신의 지표로만: 서비스는 에러율, DB는 읽기·쓰기·풀 중 최대, 캐시는 1−hit, 큐는 적체, 외부 의존성은 응답 지연. 시스템 전체 Saturation으로 칠하면 원인 아닌 노드까지 빨개진다.
+- 노드 클릭의 조사 이벤트 기록(`onInspect`)은 자리만 만들고 O0-b(E17)에서 연결.
 
 ### 묶음 3 — 미션 하위 활동
 
