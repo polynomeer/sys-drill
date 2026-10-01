@@ -26,6 +26,23 @@ export function clearStoredUser(): void {
   window.localStorage.removeItem(TOKEN_KEY);
 }
 
+// docs/COMMERCIALIZATION.md — module-level, not persisted: once the revoke
+// call in a deliberate logout reaches the server, the token is dead
+// immediately, so any other request still in flight (e.g. NotificationBell's
+// poll) can legitimately 401 in the same instant. Without this flag, api.ts's
+// generic 401 handler would hard-redirect to /login?reason=expired and race
+// the logout flow's own (correct) redirect to plain /login. Reset on the
+// next full page load regardless, since logout always ends in one.
+let loggingOut = false;
+
+export function markLoggingOut(): void {
+  loggingOut = true;
+}
+
+export function isLoggingOut(): boolean {
+  return loggingOut;
+}
+
 function draftKey(sessionId: string): string {
   return `sysdrill:draft:${sessionId}`;
 }

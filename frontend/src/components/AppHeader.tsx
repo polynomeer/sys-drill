@@ -6,7 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { Menu } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Avatar } from "@/components/ui/Avatar";
-import { clearStoredUser, getStoredNickname, getStoredToken } from "@/lib/localSession";
+import { logout } from "@/lib/api";
+import { clearStoredUser, getStoredNickname, getStoredToken, markLoggingOut } from "@/lib/localSession";
 
 /** SysDrill_UIUX_Design_Plan.docx §4 — Home/Drills/Learning/Community IA.
  * Learning/Community route to minimal placeholder pages (no backend content
@@ -65,6 +66,16 @@ export function AppHeader() {
   }, []);
 
   function handleLogout() {
+    // docs/COMMERCIALIZATION.md — markLoggingOut() first: the revoke call
+    // below takes effect on the server immediately, so any other request
+    // still in flight on the old token (e.g. NotificationBell's poll) can
+    // legitimately 401 in the same instant -- without the flag, api.ts's
+    // generic 401 handler would hard-redirect to /login?reason=expired and
+    // race this deliberate logout's own (correct) redirect to plain /login.
+    // Best-effort either way -- the user is logged out client-side
+    // regardless of whether the server call succeeds (offline, etc.).
+    markLoggingOut();
+    logout().catch(() => {});
     clearStoredUser();
     router.replace("/login");
   }

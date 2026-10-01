@@ -1,4 +1,4 @@
-import { clearStoredUser, getStoredToken } from "./localSession";
+import { clearStoredUser, getStoredToken, isLoggingOut } from "./localSession";
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8081";
 
@@ -405,7 +405,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     // treats its own 401 as "wrong email or password", not "session
     // expired" -- redirecting there would just bounce the login page off
     // itself.
-    if (res.status === 401 && !path.startsWith("/auth/") && typeof window !== "undefined") {
+    if (res.status === 401 && !path.startsWith("/auth/") && !isLoggingOut() && typeof window !== "undefined") {
       clearStoredUser();
       window.location.href = "/login?reason=expired";
     }
@@ -431,6 +431,11 @@ export function signup(input: {
 
 export function login(email: string, password: string): Promise<AuthResponse> {
   return apiFetch<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+
+/** docs/COMMERCIALIZATION.md — revokes every token this user currently holds (server-side), not just this browser's copy. */
+export function logout(): Promise<void> {
+  return apiFetch<void>("/auth/logout", { method: "POST" });
 }
 
 export function requestPasswordReset(email: string): Promise<void> {
