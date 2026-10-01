@@ -3,6 +3,8 @@ package com.sysdrill.backend.admin
 import com.sysdrill.backend.auth.AuthenticatedUserId
 import com.sysdrill.backend.auth.PlatformAccessGuard
 import com.sysdrill.backend.identity.UserRepository
+import com.sysdrill.backend.metrics.SuccessMetricsResponse
+import com.sysdrill.backend.metrics.SuccessMetricsService
 import com.sysdrill.backend.organization.OrganizationRepository
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.session.SessionStatus
@@ -21,6 +23,7 @@ class AdminDashboardController(
     private val userRepository: UserRepository,
     private val organizationRepository: OrganizationRepository,
     private val sessionRepository: SessionRepository,
+    private val successMetricsService: SuccessMetricsService,
 ) {
 
     @GetMapping("/stats")
@@ -33,5 +36,12 @@ class AdminDashboardController(
             totalOrganizations = organizationRepository.count(),
             sessionsCompletedToday = sessionRepository.countByStatusAndCompletedAtAfter(SessionStatus.COMPLETED, startOfToday),
         )
+    }
+
+    /** docs/CODECRAFTERS_BENCHMARK.md §6 (PLAN.md Round B17) — aggregate success metrics, no individual users. */
+    @GetMapping("/metrics")
+    fun metrics(@AuthenticatedUserId userId: UUID): SuccessMetricsResponse {
+        accessGuard.requirePlatformAdmin(userId)
+        return successMetricsService.compute()
     }
 }
