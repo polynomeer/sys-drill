@@ -100,6 +100,8 @@ data class SimulationSeriesResponse(
     val engineMode: String,
     /** Null until the incident starts — then `points` is empty too. */
     val incidentStartedAt: Instant?,
+    /** PLAN.md Round E13 — the learner's "복구 선언"; null until then. */
+    val resolvedAt: Instant? = null,
     val points: List<SeriesPointResponse>,
     /** PLAN.md Round E12 (O5) — fired alerts over this window, oldest first. */
     val alerts: List<AlertEvent> = emptyList(),
@@ -110,11 +112,37 @@ data class SimulationSeriesResponse(
         fun from(series: SimulationSeries) = SimulationSeriesResponse(
             engineMode = series.engineMode,
             incidentStartedAt = series.incidentStartedAt,
+            resolvedAt = series.resolvedAt,
             points = series.points.map { (point, status) ->
                 SeriesPointResponse(point.at, SystemStateResponse.from(point.state), status.name, point.backlog)
             },
             alerts = series.observability?.alerts.orEmpty(),
             slo = series.observability?.slo,
         )
+    }
+}
+
+/** docs/DRILLS_EXPANSION_PLAN.md M5 — one data-integrity item checked at recovery. */
+data class IntegrityCheck(val key: String, val label: String, val ok: Boolean, val detail: String)
+
+/**
+ * PLAN.md Round E13 (M5) — mitigation vs recovery. `status`: RECOVERED (symptoms back, backlog
+ * drained, integrity fine), PARTIAL (symptoms back but backlog or integrity left), NOT_RECOVERED.
+ * Before the declaration it's a preview "as of now" — the checklist the learner looks at.
+ */
+data class RecoveryReport(
+    val started: Boolean,
+    val resolved: Boolean,
+    val resolvedAt: Instant?,
+    /** Incident start → declaration. A new metric next to MTTR, which keeps its definition. */
+    val resolvedSeconds: Long?,
+    val status: String,
+    val healthStatus: String?,
+    val symptomsOk: Boolean,
+    val backlog: Long,
+    val integrity: List<IntegrityCheck>,
+) {
+    companion object {
+        fun notStarted() = RecoveryReport(false, false, null, null, "NOT_STARTED", null, false, 0, emptyList())
     }
 }

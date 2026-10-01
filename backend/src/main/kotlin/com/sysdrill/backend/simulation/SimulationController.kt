@@ -56,6 +56,20 @@ class SimulationController(
         return SimulationSeriesResponse.from(simulationService.getSeries(sessionId))
     }
 
+    /** PLAN.md Round E13 (M5) — declare recovery (once). */
+    @PostMapping("/resolve")
+    fun resolve(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): RecoveryReport {
+        sessionAccessGuard.requireOwner(sessionId, userId)
+        return simulationService.resolve(sessionId)
+    }
+
+    /** M5 — the recovery report, or the "if declared now" checklist before the declaration. */
+    @GetMapping("/recovery")
+    fun recovery(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): RecoveryReport {
+        sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
+        return simulationService.recovery(sessionId)
+    }
+
     /** PLAN.md step 36 — a Game Day spectator may also view the timeline. */
     @GetMapping("/timeline")
     fun getTimeline(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): List<TimelineStepResponse> {

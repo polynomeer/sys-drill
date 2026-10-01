@@ -214,7 +214,7 @@ M1·M2·M7·M8은 시나리오 콘텐츠(INITIAL 프롬프트를 일부러 불�
 | 오프라인 평가의 꼬리질문 (M4, 2026-10-02) | API 키가 없을 때의 고정 응답에 꼬리질문이 비어 있어 M4가 데모·테스트에서 나타나지 않았다. "(오프라인 예시)" 표시를 단 일반 질문 2개를 넣었다 |
 | 꼬리설계 변형 고정 | **기존 공백**: 변형 키가 저장되지 않고 프롬프트를 읽을 때마다 `selectVariant`가 다시 고른다. 평가 후 약점 카운트가 바뀌면 같은 세션의 FOLLOWUP 프롬프트가 나중에 다르게 보일 수 있다. FOLLOWUP 진입 시 고른 키를 `mission_state.followupVariantKey`에 고정한다 — M7(어느 가정이 깨졌나)과 M10(서로 다른 변형 수)의 전제. M1 라운드에서 먼저 고친다 |
 | 인시던트 종료 | 지금은 종료 개념이 없다(Redis 6시간 TTL뿐). M5가 `INCIDENT_RESOLVED` 표식 행을 `INCIDENT_STARTED`와 같은 방식으로 `applied_actions`에 남긴다 |
-| 정합성 점검 (M5) | 엔진이 이미 아는 값에서 파생: batch-settlement는 `errorRate`가 곧 정합성 깨진 레코드 비율, payment는 `idempotentPgRetryEnabled=false`인 인시던트 구간의 재시도 수, reservation은 `atomicInventoryCheckEnabled=false`인 구간의 경쟁 재시도 수. 새 수식이 아니라 기존 계수(`PARTIAL_FAILURE_WASTE_FACTOR` 등)의 재해석 |
+| 정합성 점검 (M5, 2026-10-02 구현 시 변경) | batch-settlement는 엔진의 `errorRate`가 곧 불일치 비율이고 `queueLag`가 재처리 레코드 수라 **엔진 자신의 숫자로 "중복 반영 N건"**을 낸다. payment·reservation은 초안처럼 "재시도 수"를 세려면 도메인 함수의 private 계수(`PARTIAL_FAILURE_WASTE_FACTOR` 등)를 밖으로 복제해야 해서(ADR-0045가 지키려는 경계) **위험 구간의 길이**만 낸다 — "멱등 재시도 없이 인시던트 N초, 그동안의 재시도는 대사 필요". 수정 조치가 선언 전에 들어갔으면 항목은 통과로 보되, 그 전 구간의 대사 필요는 문구로 남긴다 |
 | 포크 (M6) | `POST /sessions/{id}/forks {atStep}` → Redis `fork:{id}`(1시간 TTL)에 도메인 · 기준 trait · 액션 접두부 저장, 이후 `GET/POST /forks/{id}/…`. 규칙 기반만 — [ADR-0046](adr/0046-forks-are-ephemeral-redis-state-not-sessions.md) |
 | 샌드박스 오염 수정 (M6) | 완료 후 샌드박스 액션을 `parameters.sandbox=true`로 표시하고 MTTR·벤치마크·시계열에서 제외 |
 | 비용 단가표 (M8) | 노드 kind별 월 단가는 Kotlin 설정 상수(관리자 CRUD 없음, ADR-0006 정신 — 코드 리뷰를 거친 설정). 모든 금액에 "추정치" |

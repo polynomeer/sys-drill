@@ -39,6 +39,12 @@ data class PostmortemResponse(
     val alertRuleCount: Int = 0,
     /** Alerts that fired before the incident — too-sensitive thresholds. */
     val falseAlarmCount: Int = 0,
+    /** PLAN.md Round E13 (M5) — incident start → "복구 선언"; null until declared. */
+    val resolvedSeconds: Long? = null,
+    /** RECOVERED / PARTIAL / NOT_RECOVERED at the declaration. */
+    val recoveryStatus: String? = null,
+    val residualBacklog: Long = 0,
+    val integrity: List<com.sysdrill.backend.simulation.IntegrityCheck> = emptyList(),
 )
 
 data class SavePostmortemRequest(

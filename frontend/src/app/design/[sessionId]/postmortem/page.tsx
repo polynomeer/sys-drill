@@ -137,7 +137,7 @@ export default function PostmortemPage() {
           <p className="text-sm text-foreground-muted">이 세션은 인시던트를 시작하지 않아 자동 계산할 데이터가 없습니다.</p>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               {/* docs/OBSERVABILITY_UI_PLAN.md O5 (PLAN.md Round E12) — detection, separate from the first action (MTTD). */}
               <div>
                 <p className="text-xs text-foreground-muted">첫 알림까지 (탐지)</p>
@@ -155,6 +155,22 @@ export default function PostmortemPage() {
                 <p className="font-mono text-lg font-medium">
                   {postmortem.mttdSeconds !== null ? formatDuration(postmortem.mttdSeconds) : "-"}
                 </p>
+              </div>
+              {/* docs/DRILLS_EXPANSION_PLAN.md M5 (PLAN.md Round E13) — declared recovery, next to MTTR (unchanged). */}
+              <div>
+                <p className="text-xs text-foreground-muted">복구 선언까지</p>
+                <p className="font-mono text-lg font-medium">
+                  {postmortem.resolvedSeconds !== null ? formatDuration(postmortem.resolvedSeconds) : "-"}
+                </p>
+                {postmortem.recoveryStatus && (
+                  <p className={`text-[11px] ${postmortem.recoveryStatus === "RECOVERED" ? "text-success" : "text-warning"}`}>
+                    {postmortem.recoveryStatus === "RECOVERED"
+                      ? "복구 완료"
+                      : postmortem.recoveryStatus === "PARTIAL"
+                        ? `⚠ 부분 복구${postmortem.residualBacklog > 0 ? ` — 적체 ${postmortem.residualBacklog.toLocaleString()}건 남음` : ""}`
+                        : "복구되지 않은 채 선언"}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-xs text-foreground-muted">MTTR (마지막 조치까지)</p>
@@ -181,6 +197,17 @@ export default function PostmortemPage() {
                 </div>
               )}
             </div>
+
+            {postmortem.integrity.length > 0 && (
+              <ul className="mt-4 flex flex-col gap-1 border-t border-border pt-3 text-xs">
+                {postmortem.integrity.map((item) => (
+                  <li key={item.key}>
+                    <span className={item.ok ? "text-success" : "text-warning"}>{item.ok ? "✓" : "⚠"}</span> 정합성 — {item.label}:{" "}
+                    <span className="text-foreground-muted">{item.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
 
             <ul className="mt-4 flex flex-col gap-1 border-t border-border pt-3 text-xs text-foreground-muted  dark:text-foreground-muted">
               {postmortem.actionsTimeline.map((action, i) => (

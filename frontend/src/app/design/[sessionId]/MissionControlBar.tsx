@@ -33,6 +33,7 @@ export function MissionControlBar({
   title,
   latest,
   incidentStartedAt,
+  resolvedAt,
   slo,
   firingAlerts = 0,
   onAlertsClick,
@@ -40,6 +41,8 @@ export function MissionControlBar({
   title: string;
   latest: SeriesPoint | null;
   incidentStartedAt: string | null;
+  /** PLAN.md Round E13 — once declared, the clock stops at the declaration. */
+  resolvedAt?: string | null;
   /** PLAN.md Round E12 (M3) — the learner's SLO against the latest point. */
   slo?: SloStatus | null;
   firingAlerts?: number;
@@ -72,8 +75,9 @@ export function MissionControlBar({
       <span className={`rounded-full px-2.5 py-0.5 font-mono text-xs font-semibold tracking-wide ${meta.className}`}>
         ● {meta.label}
       </span>
-      <span className="font-mono text-sm tabular-nums text-foreground-muted" title="인시던트 경과 시간">
-        {formatElapsed(now - new Date(incidentStartedAt).getTime())}
+      <span className="font-mono text-sm tabular-nums text-foreground-muted" title={resolvedAt ? "복구 선언까지" : "인시던트 경과 시간"}>
+        {formatElapsed((resolvedAt ? new Date(resolvedAt).getTime() : now) - new Date(incidentStartedAt).getTime())}
+        {resolvedAt && <span className="ml-1 text-xs text-success">복구 선언</span>}
       </span>
       <div className="flex flex-wrap gap-x-5 gap-y-1 sm:ml-auto">
         {signals.map((signal) => (

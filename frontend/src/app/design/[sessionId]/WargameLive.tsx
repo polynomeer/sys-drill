@@ -28,6 +28,7 @@ import { MissionControlBar } from "./MissionControlBar";
 import { GoldenSignals, RecentChanges, SeriesCharts } from "./ObserveViews";
 import { ServiceMap } from "./ServiceMap";
 import { AlertsView } from "./AlertsView";
+import { RecoveryCard } from "./RecoveryCard";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
 import { trackEvent } from "@/lib/events";
 
@@ -496,6 +497,7 @@ export function WargameLive({
         title={title ?? DOMAIN_TITLES[domain] ?? domain}
         latest={latestPoint}
         incidentStartedAt={incidentStartedAt}
+        resolvedAt={series?.resolvedAt ?? null}
         slo={series?.slo ?? null}
         firingAlerts={series?.alerts.filter((a) => !a.resolvedAt).length ?? 0}
         onAlertsClick={() => selectTab("alerts")}
@@ -568,6 +570,8 @@ export function WargameLive({
 
         <SessionChat sessionId={sessionId} />
       </div>
+
+      {isOwner && <RecoveryCard sessionId={sessionId} onResolved={() => getSimulationSeries(sessionId).then(setSeries).catch(() => undefined)} />}
 
       {error && <p className="text-sm text-danger">{error}</p>}
     </div>

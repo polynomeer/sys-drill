@@ -68,6 +68,8 @@ class PostmortemService(
         // MTTD keeps its definition: the benchmark and ranking compare it across sessions.
         val series = incidentStart?.let { simulationService.getSeries(sessionId) }
         val firstAlert = series?.observability?.alerts?.firstOrNull { !it.falseAlarm }
+        // docs/DRILLS_EXPANSION_PLAN.md M5 (PLAN.md Round E13) — declared recovery, separate from MTTR.
+        val recovery = series?.resolvedAt?.let { simulationService.recovery(sessionId) }
 
         return PostmortemResponse(
             sessionId = sessionId,
@@ -96,6 +98,10 @@ class PostmortemService(
             firstAlertSeconds = firstAlert?.let { a -> series.incidentStartedAt?.let { Duration.between(it, a.firedAt).seconds } },
             alertRuleCount = series?.let { simulationService.alertRuleCount(sessionId) } ?: 0,
             falseAlarmCount = series?.observability?.alerts?.count { it.falseAlarm } ?: 0,
+            resolvedSeconds = recovery?.resolvedSeconds,
+            recoveryStatus = recovery?.status,
+            residualBacklog = recovery?.backlog ?: 0,
+            integrity = recovery?.integrity.orEmpty(),
         )
     }
 

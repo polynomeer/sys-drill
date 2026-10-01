@@ -285,6 +285,11 @@ export interface Postmortem {
   firstAlertSeconds: number | null;
   alertRuleCount: number;
   falseAlarmCount: number;
+  /** PLAN.md Round E13 (M5) — incident start → "복구 선언"; null until declared. */
+  resolvedSeconds: number | null;
+  recoveryStatus: "RECOVERED" | "PARTIAL" | "NOT_RECOVERED" | null;
+  residualBacklog: number;
+  integrity: IntegrityCheck[];
 }
 
 export interface SavePostmortemRequest {
@@ -743,6 +748,8 @@ export interface SeriesPoint {
 export interface SimulationSeries {
   engineMode: "RULE_BASED" | "REAL_INFRA";
   incidentStartedAt: string | null;
+  /** PLAN.md Round E13 — the learner's "복구 선언"; the series ends two minutes after. */
+  resolvedAt: string | null;
   points: SeriesPoint[];
   /** PLAN.md Round E12 (O5) — fired alerts over this window. */
   alerts: AlertEvent[];
@@ -796,6 +803,35 @@ export interface OpsConfig {
   alertRules: AlertRule[];
   suggestedRules: AlertRule[];
   metrics: { key: string; label: string; unit: string }[];
+}
+
+/** docs/DRILLS_EXPANSION_PLAN.md M5 — mitigation vs recovery. */
+export interface IntegrityCheck {
+  key: string;
+  label: string;
+  ok: boolean;
+  detail: string;
+}
+
+export interface RecoveryReport {
+  started: boolean;
+  resolved: boolean;
+  resolvedAt: string | null;
+  resolvedSeconds: number | null;
+  status: "RECOVERED" | "PARTIAL" | "NOT_RECOVERED" | "NOT_STARTED";
+  healthStatus: HealthStatus | null;
+  symptomsOk: boolean;
+  backlog: number;
+  integrity: IntegrityCheck[];
+}
+
+/** Before the declaration: the "if declared now" checklist. After: the judged report. */
+export function getRecovery(sessionId: string): Promise<RecoveryReport> {
+  return apiFetch<RecoveryReport>(`/sessions/${sessionId}/simulation/recovery`);
+}
+
+export function resolveIncident(sessionId: string): Promise<RecoveryReport> {
+  return apiFetch<RecoveryReport>(`/sessions/${sessionId}/simulation/resolve`, { method: "POST" });
 }
 
 export function getOpsConfig(sessionId: string): Promise<OpsConfig> {

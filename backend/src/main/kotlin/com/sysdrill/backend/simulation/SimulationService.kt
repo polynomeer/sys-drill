@@ -54,15 +54,24 @@ data class IncidentStartResult(
 data class SimulationSeries(
     val engineMode: String,
     val incidentStartedAt: Instant?,
+    /** PLAN.md Round E13 — when the learner declared recovery; the series ends two minutes after. */
+    val resolvedAt: Instant? = null,
     val points: List<Pair<TelemetryPoint, HealthStatus>>,
     /** PLAN.md Round E12 (O5) — alerts and SLO judged over these same points. */
     val observability: ObservabilitySummary? = null,
 )
 
 private const val SERIES_LEAD_SECONDS = 60L
+private const val SERIES_TAIL_AFTER_RESOLVE_SECONDS = 120L
 private const val SERIES_MIN_STEP_SECONDS = 5L
 private const val SERIES_MAX_POINTS = 120
 private val SERIES_MAX_SPAN: java.time.Duration = java.time.Duration.ofMinutes(30)
+
+/**
+ * PLAN.md Round E13 (docs/DRILLS_EXPANSION_PLAN.md M5) — the learner's explicit "복구 선언".
+ * Like [INCIDENT_STARTED] a sentinel row, not an action: never replayed, never counted in MTTR.
+ */
+const val INCIDENT_RESOLVED = "INCIDENT_RESOLVED"
 
 /** Sentinel [AppliedAction.actionType] for the incident-start row — deliberately not a [SimulationActionType] member, since it isn't a user-applicable action. */
 const val INCIDENT_STARTED = "INCIDENT_STARTED"
@@ -303,7 +312,8 @@ class SimulationService(
      */
     fun getTimeline(sessionId: UUID): List<TimelineStep> {
         requireSessionExists(sessionId)
-        val events = appliedActionRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)
+        // The resolution marker isn't a step of the replay (and has no real-infra snapshot) — see [resolve].
+        val events = appliedActionRepository.findBySessionIdOrderByCreatedAtAsc(sessionId).filter { it.actionType != INCIDENT_RESOLVED }
         if (events.isEmpty()) return emptyList()
 
         val firstSnapshot = readSnapshot(events.first())
@@ -364,15 +374,16 @@ class SimulationService(
         requireSessionExists(sessionId)
         val events = appliedActionRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)
         val startEvent = events.firstOrNull { it.actionType == INCIDENT_STARTED }
-            ?: return SimulationSeries(EngineMode.RULE_BASED.name, null, emptyList())
+            ?: return SimulationSeries(EngineMode.RULE_BASED.name, null, points = emptyList())
         val start = startEvent.createdAt!!
         val engineMode = readSnapshot(startEvent)?.engineMode ?: EngineMode.RULE_BASED.name
+        val resolvedAt = events.firstOrNull { it.actionType == INCIDENT_RESOLVED }?.createdAt
 
         if (engineMode == EngineMode.REAL_INFRA.name) {
             val steps = getTimeline(sessionId)
             val points = steps.map { TelemetryPoint(it.appliedAt, it.systemState, it.systemState.level, backlog = 0) }
             val withNow = if (points.isNotEmpty() && points.last().at.isBefore(now)) points + points.last().copy(at = now) else points
-            return SimulationSeries(engineMode, start, withNow.zip(TelemetrySampler.classify(withNow, start)), observabilityOf(sessionId, withNow, start))
+            return SimulationSeries(engineMode, start, resolvedAt, withNow.zip(TelemetrySampler.classify(withNow, start)), observabilityOf(sessionId, withNow, start))
         }
 
         val session = sessionRepository.findById(sessionId).orElseThrow { NotFoundException("Session not found: $sessionId") }
@@ -384,11 +395,93 @@ class SimulationService(
                 runCatching { SimulationActionType.valueOf(event.actionType) }.getOrNull()?.let { TimedAction(event.createdAt!!, it) }
             }
         val from = start.minusSeconds(SERIES_LEAD_SECONDS)
-        val to = minOf(maxOf(now, start), start.plus(SERIES_MAX_SPAN))
+        val to = listOfNotNull(maxOf(now, start), start.plus(SERIES_MAX_SPAN), resolvedAt?.plusSeconds(SERIES_TAIL_AFTER_RESOLVE_SECONDS)).min()
         val spanSeconds = java.time.Duration.between(from, to).seconds
         val stepSeconds = maxOf(SERIES_MIN_STEP_SECONDS, Math.ceilDiv(spanSeconds, SERIES_MAX_POINTS.toLong()))
         val points = TelemetrySampler.sample(domain, traits, start, actions, from, to, java.time.Duration.ofSeconds(stepSeconds))
-        return SimulationSeries(engineMode, start, points.zip(TelemetrySampler.classify(points, start)), observabilityOf(sessionId, points, start))
+        return SimulationSeries(engineMode, start, resolvedAt, points.zip(TelemetrySampler.classify(points, start)), observabilityOf(sessionId, points, start))
+    }
+
+    /**
+     * PLAN.md Round E13 (M5) — "복구 선언". Records the moment once; the recovery report is
+     * judged at that instant (symptoms back, backlog drained, data integrity). Declaring while
+     * a backlog remains is allowed — that's exactly the Partial Recovery the drill teaches.
+     */
+    @Transactional
+    fun resolve(sessionId: UUID): RecoveryReport {
+        requireSessionExists(sessionId)
+        val events = appliedActionRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)
+        val startEvent = events.firstOrNull { it.actionType == INCIDENT_STARTED }
+            ?: throw com.sysdrill.backend.common.web.ConflictException("인시던트가 시작되지 않았습니다")
+        if (events.none { it.actionType == INCIDENT_RESOLVED }) {
+            appliedActionRepository.save(
+                AppliedAction(
+                    sessionId = sessionId,
+                    actionType = INCIDENT_RESOLVED,
+                    effect = "복구 선언",
+                    parameters = objectMapper.writeValueAsString(AppliedActionSnapshot(engineMode = readSnapshot(startEvent)?.engineMode ?: EngineMode.RULE_BASED.name)),
+                )
+            )
+        }
+        return recovery(sessionId)
+    }
+
+    /** The recovery report — at the declared moment, or "if you declared now" before that (the checklist). */
+    fun recovery(sessionId: UUID, now: Instant = Instant.now()): RecoveryReport {
+        val resolvedAt = appliedActionRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)
+            .firstOrNull { it.actionType == INCIDENT_RESOLVED }?.createdAt
+        // Sample the series so it ends exactly at the moment being judged — on the 5s grid the last
+        // point before a declaration can predate the actions applied just before it.
+        val series = getSeries(sessionId, resolvedAt ?: now)
+        val start = series.incidentStartedAt ?: return RecoveryReport.notStarted()
+        val at = series.resolvedAt ?: now
+        val (point, status) = series.points.last()
+        val events = appliedActionRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)
+        val session = sessionRepository.findById(sessionId).orElseThrow()
+        val domain = resolveDomain(session.scenarioVersionId)
+        fun appliedAt(action: SimulationActionType) = events.firstOrNull { it.actionType == action.name }?.createdAt?.takeIf { !it.isAfter(at) }
+        fun riskWindow(fix: SimulationActionType) = java.time.Duration.between(start, appliedAt(fix) ?: at).seconds.coerceAtLeast(0)
+
+        // An item is "ok" once the fix that stops new damage is in before the declaration; the window
+        // before it still needs reconciliation and the detail says how long it was.
+        val integrity = when (domain) {
+            RuleBasedSimulationEngine.DOMAIN_PAYMENT -> listOf(
+                riskWindow(SimulationActionType.ENABLE_IDEMPOTENT_PG_RETRY).let { secs ->
+                    IntegrityCheck("payment-duplicates", "중복 결제", ok = appliedAt(SimulationActionType.ENABLE_IDEMPOTENT_PG_RETRY) != null,
+                        detail = if (appliedAt(SimulationActionType.ENABLE_IDEMPOTENT_PG_RETRY) == null) "멱등 재시도 없이 인시던트 ${secs}초 — 그동안의 PG 재시도는 중복 결제가 됐을 수 있습니다. 주문·결제 대사가 필요합니다"
+                        else "멱등 재시도 적용 전 ${secs}초 동안의 재시도는 대사가 필요합니다")
+                },
+            )
+            RuleBasedSimulationEngine.DOMAIN_RESERVATION -> listOf(
+                riskWindow(SimulationActionType.ENABLE_ATOMIC_INVENTORY_CHECK).let { secs ->
+                    IntegrityCheck("reservation-oversell", "초과 예약", ok = appliedAt(SimulationActionType.ENABLE_ATOMIC_INVENTORY_CHECK) != null,
+                        detail = if (appliedAt(SimulationActionType.ENABLE_ATOMIC_INVENTORY_CHECK) == null) "원자적 재고 확인 없이 인시던트 ${secs}초 — 같은 좌석이 두 번 확정됐을 수 있습니다. 좌석·결제 대사가 필요합니다"
+                        else "원자적 재고 확인 적용 전 ${secs}초 동안의 확정은 대사가 필요합니다")
+                },
+            )
+            RuleBasedSimulationEngine.DOMAIN_BATCH_SETTLEMENT -> listOf(
+                // In this domain the engine's errorRate *is* the mismatched fraction and queueLag the
+                // records reprocessed — so the count below is the formula's own number, not an estimate.
+                IntegrityCheck("settlement-mismatch", "정산 불일치",
+                    ok = point.state.errorRate == 0.0,
+                    detail = if (point.state.errorRate == 0.0) "재처리가 멱등해 중복 반영 없음"
+                    else "중복 반영된 정산 레코드 ${point.state.queueLag}건 — 정산 결과 재대사가 필요합니다"),
+            )
+            else -> emptyList()
+        }
+        val symptomsOk = point.symptomLevel == "INFO"
+        val backlogOk = point.backlog == 0L
+        return RecoveryReport(
+            started = true,
+            resolved = series.resolvedAt != null,
+            resolvedAt = series.resolvedAt,
+            resolvedSeconds = series.resolvedAt?.let { java.time.Duration.between(start, it).seconds },
+            status = if (symptomsOk && backlogOk && integrity.all { it.ok }) "RECOVERED" else if (symptomsOk) "PARTIAL" else "NOT_RECOVERED",
+            healthStatus = status.name,
+            symptomsOk = symptomsOk,
+            backlog = point.backlog,
+            integrity = integrity,
+        )
     }
 
     /** PLAN.md Round E12 — how many alert rules the learner wrote (postmortem context). */
