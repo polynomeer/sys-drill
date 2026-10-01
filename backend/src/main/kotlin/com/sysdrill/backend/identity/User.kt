@@ -45,6 +45,10 @@ class User(
     @Column(name = "training_goal")
     var trainingGoal: TrainingGoal? = null,
 
+    /** V53 — when the notification list was last opened; newer derived notifications count as unseen. */
+    @Column(name = "notifications_seen_at")
+    var notificationsSeenAt: Instant? = null,
+
     /** PLAN.md step 35 — platform-wide RBAC, distinct from a per-organization [com.sysdrill.backend.organization.OrganizationRole]. */
     @Enumerated(EnumType.STRING)
     @Column(name = "platform_role", nullable = false)

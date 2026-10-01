@@ -14,6 +14,9 @@ interface OrganizationMembershipRepository : JpaRepository<OrganizationMembershi
 
 interface OrganizationInvitationRepository : JpaRepository<OrganizationInvitation, UUID> {
     fun findByToken(token: String): OrganizationInvitation?
+
+    /** Notifications (PLAN.md Round B16): invitations waiting for this email. */
+    fun findByInviteeEmailAndStatus(inviteeEmail: String, status: OrganizationInvitationStatus): List<OrganizationInvitation>
     fun findByOrganizationIdAndStatus(organizationId: UUID, status: OrganizationInvitationStatus): List<OrganizationInvitation>
     fun findByOrganizationIdAndInviteeEmailAndStatus(
         organizationId: UUID,

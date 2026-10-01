@@ -75,6 +75,10 @@ interface DiscussionReportCount {
 
 interface ScenarioDiscussionRepository : JpaRepository<ScenarioDiscussion, UUID> {
     fun findByScenarioVersionIdOrderByCreatedAtAsc(scenarioVersionId: UUID): List<ScenarioDiscussion>
+
+    /** Notifications (PLAN.md Round B16): the threads a user has posted in. */
+    fun findByAuthorUserId(authorUserId: UUID): List<ScenarioDiscussion>
+    fun findByScenarioVersionIdInAndCreatedAtAfter(scenarioVersionIds: Collection<UUID>, after: Instant): List<ScenarioDiscussion>
 }
 
 interface ScenarioDiscussionReportRepository : JpaRepository<ScenarioDiscussionReport, UUID> {
