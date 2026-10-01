@@ -1781,6 +1781,28 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## 완성도 재진단 6라운드 — 로그아웃/토큰 폐기 ✅ 완료 (2026-10-01)
+
+`docs/COMMERCIALIZATION.md` "완성도 재진단" 7번 항목. 무상태 JWT라 "로그아웃"이 지금까지 프론트 `localStorage`를 지우는 것뿐이었다 — 토큰이 탈취되면 30일 TTL이 끝날 때까지 서버 쪽에서 막을 방법이 없었다.
+
+개별 토큰 블랙리스트 대신 유저당 "이 시각 이전 토큰은 전부 무효" 타임스탬프 하나를 쓰기로 했다 — 1라운드에서 이미 "7번의 로그아웃/토큰 폐기와 같은 메커니즘을 공유할 수 있다"고 예고해뒀던 그대로(`UserExistenceCache`와 동일한 Redis idiom). 저장할 게 유저당 값 1개뿐이라 간단하고, 로그아웃이 자연히 "모든 기기에서 로그아웃"이 되어 탈취 대응에도 더 적합하다.
+
+- [x] `JwtService.kt` — `verify()` 반환 타입을 `UUID?` → `VerifiedToken?`(`userId` + `issuedAt`)로 확장. 실 호출부는 `AuthInterceptor` 하나뿐이라 블래스트 반경이 작았다.
+- [x] 신규 `TokenRevocationService.kt` — `revokeAllTokens(userId)`/`isRevoked(userId, issuedAt)`. 비교는 `<=`(엄격한 `<`가 아니라) — JWT `iat`가 초 단위라 로그아웃 직후 같은 초 재로그인 시 타이가 날 수 있는데, "탈취 토큰을 확실히 막는 것"이 "드문 재로그인 UX 끊김"보다 중요해 보수적으로 감.
+- [x] `AuthInterceptor.kt` — 1라운드의 `UserExistenceCache` 체크 옆에 자연스럽게 추가
+- [x] `AuthController.kt`/`AuthWebConfig.kt` — `POST /auth/logout` 신규, `/auth/*` 중 유일한 인증 필요 경로로 carve-in
+- [x] 프론트 `api.ts`/`AppHeader.tsx` — 로그아웃 버튼이 서버 API도 best-effort로 호출
+
+**진행 중 발견하고 고친 버그**: 실 브라우저 검증 중 로그아웃을 누르면 종종 `/login?reason=expired`(의도한 평범한 `/login`이 아니라)로 떨어지는 걸 발견 — 네트워크 로그로 추적하니 로그아웃 직후 `NotificationBell`의 백그라운드 폴링이 막 폐기된 토큰으로 401을 받고, 1라운드에서 추가한 전역 401 핸들러(`api.ts`)가 "세션 만료"로 오인해 하드 리다이렉트하며 로그아웃 자체의 정상 리다이렉트와 경합한 것이었다. 처음엔 `handleLogout` 내부 호출 순서를 바꿔보려 했지만, 서버 쪽 토큰 폐기는 `POST /auth/logout`이 서버에 도달하는 즉시 적용되므로 클라이언트 쪽 순서 조정으로는 근본적으로 못 막는다는 걸 깨닫고, `localSession.ts`에 `markLoggingOut()` 플래그를 추가해 로그아웃 진행 중엔 전역 401 핸들러가 아예 끼어들지 않게 하는 쪽으로 고쳤다.
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. 신규 `TokenRevocationIntegrationTest`(로그아웃 후 옛 토큰 401 + 1초 뒤 새 토큰은 정상 + 다른 유저 토큰은 영향 없음) + 기존 `AuthControllerIntegrationTest`(단언 하나만 `.userId`로 조정) 포함 `com.sysdrill.backend.auth.*` 전체 통과. 프론트 `tsc`/`lint`(0 errors)/`build` 클린.
+
+**실 검증**: 격리 인스턴스에서 직접 `curl`로 로그아웃 후 옛 토큰이 401 받는 것 확인. 실 브라우저로 가입 → 토큰을 `localStorage`에서 직접 캡처 → 로그아웃 버튼 클릭 → (수정 전) `/login?reason=expired`로 경합하는 것 재현 → 수정 후 평범한 `/login`으로 깔끔하게 착지 + `localStorage` 비워짐 + 캡처해뒀던 옛 토큰이 서버에서 실제로 401 받는 것까지 전부 확인.
+
+**하지 않은 것**: 관리자가 남의 계정을 강제 로그아웃시키는 기능은 스코프 밖(별도 완성도 항목). 새 ADR 안 씀 — 1라운드에서 이미 예고했던 패턴을 그대로 확장한 되돌리기 쉬운 구현.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
