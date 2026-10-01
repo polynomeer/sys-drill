@@ -319,6 +319,25 @@ export function WargameLive({
     return () => clearInterval(timer);
   }, [refreshState, awaitingStartChoice]);
 
+  // The real-infra gate used to re-show on every reload even for an incident that was already
+  // running (startIncident is idempotent, so a second click was harmless but pointless). Skip it
+  // when the server already has state — the Mission Control bar should be there on reload.
+  useEffect(() => {
+    if (!awaitingStartChoice) return;
+    let cancelled = false;
+    getSimulationState(sessionId)
+      .then(() => {
+        if (cancelled) return;
+        started.current = true;
+        setAwaitingStartChoice(false);
+      })
+      .catch(() => undefined); // 404 = not started yet, keep the gate
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
   const refreshSteps = useCallback(
     () => getSimulationTimeline(sessionId).then(setSteps).catch(() => undefined),
     [sessionId],
@@ -495,7 +514,7 @@ export function WargameLive({
       {tab === "metrics" && (
         <div className="flex flex-col gap-4">
           <MetricsPanel state={shownState} domain={domain} />
-          {series && incidentStartedAt && <SeriesCharts points={series.points} incidentStartedAt={incidentStartedAt} />}
+          {series && incidentStartedAt && <SeriesCharts points={series.points} incidentStartedAt={incidentStartedAt} steps={steps} />}
         </div>
       )}
       {tab === "logs" && isOwner && <LogViewer entries={logs} />}
