@@ -1746,6 +1746,23 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## 완성도 재진단 4라운드 — API 레이트리밋 확대 ✅ 완료 (2026-10-01)
+
+`docs/COMMERCIALIZATION.md` "완성도 재진단" 5번 항목. 당초 진단은 실 평가 제출(`POST /sessions/{id}/submissions`)의 일일 한도(`LlmUsageGuard`)에 분당 버스트 제한이 없다는 점만 지적했다. 착수 전 LLM을 호출하는 모든 지점을 `grep -rl "llmClient\."`로 직접 찾아보니 범위가 더 넓었다 — mentor-hint/postmortem 저장/시뮬레이션 인시던트 내레이션 3개는 **아무 제한도 없었다**(3라운드에서 mentor-hint에 길이 제한만 추가했을 뿐).
+
+- [x] 신규 `ActionRateLimiter.kt`(`auth` 패키지) — 기존 `RateLimiter`(Redis 고정 윈도우, `RateLimitInterceptor`가 IP 기반으로 쓰는 것과 동일 프리미티브)를 유저ID 기반으로 재사용하는 얇은 래퍼. 5곳 전부 인증된 엔드포인트라(`AuthInterceptor`가 이미 보장) IP 대신 계정에 직접 건다.
+- [x] evaluation(`SessionService.submit`)/mentor-hint(`MentorController`)/postmortem 저장(`PostmortemController`)/build 제출(`BuildSubmissionService`) — 초과 시 `TooManyRequestsException`(기존 예외, 429) 즉시 차단
+- [x] 시뮬레이션 내레이션(`SimulationService.generateNarration`)만 다른 처리 — 이미 "내레이션 실패가 인시던트 시작 자체를 막지 않는다"는 fail-open 설계(KDoc에 명시)라, 한도 초과도 다른 LLM 실패와 똑같이 `null` 반환(프론트가 정적 내레이션으로 대체)
+- [x] `application.yml`에 5개 설정값(전부 `@Value`, 기본값: evaluation 5/min, mentor 10/min, postmortem 5/min, simulation-narration 10/min, build 10/min)
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. 신규 테스트 5개(evaluation/mentor/postmortem/build는 "두 번째 호출이 429", simulation은 Redis 카운터 직접 확인 + "한도 초과해도 여전히 200·state 정상·narration만 없음") — 각각 별도 파일/컨텍스트로 분리(`EvaluationWorkerConcurrencyTest`처럼 유저당 여러 번 호출하는 기존 테스트가 있는 파일에 클래스 전체 low-limit 오버라이드를 얹으면 깨지기 때문; `BuildControllerIntegrationTest`도 같은 이유로 건드리지 않고 신규 `BuildSubmissionRateLimitIntegrationTest`로 분리). `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.evaluation.*" --tests "com.sysdrill.backend.mentor.*" --tests "com.sysdrill.backend.postmortem.*" --tests "com.sysdrill.backend.simulation.*" --tests "com.sysdrill.backend.build.*"` 172개 중 171개 통과, 1개(`BuildRunnerWorkerConcurrencyTest`, 2라운드 소속·이번 변경과 무관)는 호스트 부하로 인한 60초 타임아웃 — 격리 재실행 시 37초에 정상 통과 확인, 진짜 회귀 아님.
+
+**진행 중 발견하고 고친 버그**: `ActionRateLimiter.kt`의 KDoc 주석에 `` `/auth/*` `` 라고 썼다가 전체 모듈이 "Unclosed comment"로 컴파일 실패 — Kotlin의 블록 주석(`/* */`)은 중첩이 허용돼서, 주석 안에 등장한 `/auth` 다음의 `/*`(슬래시+애스터리스크)가 새 중첩 주석을 여는 것으로 해석되고, 그 안쪽 주석은 끝까지 안 닫혀서 파일 끝까지 전부 주석으로 먹혀버린 것. `` `/auth` ``로 수정.
+
+**하지 않은 것**: 기존 `RateLimitInterceptor`(IP 기반, 비로그인 엔드포인트용)는 무변경 — 이번 건 별개의 유저ID 기반 메커니즘. 새 ADR 안 씀 — `RateLimiter`라는 기존 범용 프리미티브를 그대로 재사용하는 되돌리기 쉬운 확장.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.

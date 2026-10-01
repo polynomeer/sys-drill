@@ -49,9 +49,10 @@
 - 조치: 워커별 동시성을 환경변수로 설정 가능하게 만들고(`newFixedThreadPool(n)`으로 전환). 단, 무작정 늘리면 안 되는 이유가 있다 — evaluation은 사용자별 일일 한도(`LlmUsageGuard`)와, build는 도커 샌드박스 동시 실행 시 호스트 리소스(컨테이너당 `--cpus 0.5`/`--memory 128m`) 총량과 부딪힌다. 동시성 상한은 호스트 스펙 기준으로 별도 산정 필요.
 - 부수 발견: 이 벤치마크 도중 로컬 `.env.local`의 실 Anthropic API 키가 워커를 통해 실제로 호출되는 사고가 있었다(비용 영향은 확인 결과 없었음 — 벤치마크 중 완료된 평가 0건). 벤치마크/테스트 실행 시 `LLM_ANTHROPIC_API_KEY`가 절대 활성화되지 않도록 하는 가드(예: 특정 프로파일에서 강제 무시)를 추가하는 게 안전하다.
 
-**5. API 레이트리밋 범위가 인증 3개 엔드포인트로 한정돼 있다**
-- 현재 상태: `RateLimitInterceptor`는 `/auth/signup`·`/auth/login`·`/auth/password-reset/request`에만 걸려 있다. LLM을 호출하는 `POST /sessions/{id}/submissions`는 일일 카운터(`LlmUsageGuard`, 기본 50/day)만 있고 초 단위 버스트 제한이 없다 — 자동화 스크립트가 짧은 시간에 몰아서 소진 가능. 빌드 챌린지 제출(도커 샌드박스 실행)처럼 자원을 쓰는 다른 엔드포인트는 레이트리밋이 아예 없다.
-- 조치: LLM 호출·샌드박스 실행처럼 비용/자원이 드는 엔드포인트 전반으로 레이트리밋 확대.
+**5. API 레이트리밋 범위가 인증 3개 엔드포인트로 한정돼 있다 — ✅ 4라운드(2026-10-01)에서 확대 완료**
+- 당초 상태: `RateLimitInterceptor`는 `/auth/signup`·`/auth/login`·`/auth/password-reset/request`에만 걸려 있었다. LLM을 호출하는 `POST /sessions/{id}/submissions`는 일일 카운터(`LlmUsageGuard`, 기본 50/day)만 있고 분당 버스트 제한이 없었다.
+- **정밀 조사 결과**: LLM 호출 지점을 전부 찾아보니 당초 진단보다 범위가 넓었다 — mentor-hint/postmortem 저장/시뮬레이션 인시던트 내레이션 3개는 **아무 제한도 없었다**(daily cap조차 없음).
+- 조치: 기존 `RateLimiter`(Redis 고정 윈도우)를 재사용하는 신규 `ActionRateLimiter`(유저ID 기반, 분당)로 5곳 전부 커버 — evaluation(일일 한도 위에 분당 버스트 추가)/mentor-hint/postmortem 저장/build 제출은 초과 시 429, 시뮬레이션 내레이션만 기존 "fail-open" 설계를 따라 한도 초과도 조용히 내레이션만 생략(인시던트 시작 자체는 막지 않음).
 
 ### 보안
 
