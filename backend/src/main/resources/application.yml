@@ -89,6 +89,12 @@ sysdrill:
       # 순위를 감춘다. 3명이 푼 시나리오의 "상위 33%"는 정보가 아니라 노이즈다.
       # 설정값인 이유는 실제 참여자 수를 보고 조정할 항목이기 때문.
       min-sample-size: ${COMMUNITY_BENCHMARK_MIN_SAMPLE_SIZE:5}
+    recent-completions:
+      # docs/CODECRAFTERS_BENCHMARK.md §7 — 서로 다른 완료자가 이 수에 못 미치면
+      # "최근 완료" 목록을 비운다. 한두 명일 때는 이름 목록이 곧 "이 Drill을 한
+      # 사람이 누구인가"가 된다. 벤치마크와 같은 이유의 하한이지만 이름을 보여주는
+      # 것이라 더 낮게 둘 수 있다.
+      min-completers: ${COMMUNITY_RECENT_COMPLETIONS_MIN:3}
   certification:
     # Phase 5 (docs/adr/0032) — a config value, not a hardcoded constant, so
     # the bar can move without a migration since certification is computed

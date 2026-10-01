@@ -9,6 +9,7 @@ import com.sysdrill.backend.scenario.ScenarioVersionRepository
 import com.sysdrill.backend.session.Session
 import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.session.SessionStatus
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.util.UUID
 
@@ -33,6 +34,7 @@ class ActivityService(
     private val contentItemRepository: ContentItemRepository,
     private val userRepository: UserRepository,
     private val assessmentSessions: AssessmentSessions,
+    @Value("\${sysdrill.community.recent-completions.min-completers:3}") private val minCompleters: Int,
 ) {
 
     fun recentCompletions(scenarioId: UUID, limit: Int = 5): List<RecentCompletionResponse> {
@@ -47,9 +49,12 @@ class ActivityService(
             sessionRepository.findTop50ByScenarioVersionIdInAndStatusOrderByCompletedAtDesc(versionIds, SessionStatus.COMPLETED)
         )
         val usersById = userRepository.findAllById(sessions.map { it.userId }.toSet()).associateBy { it.id }
-        return sessions
+        val visible = sessions
             .filter { usersById[it.userId]?.rankingOptOut == false && it.completedAt != null }
             .distinctBy { it.userId }
+        // Too few people to show names without singling someone out (application.yml).
+        if (visible.size < minCompleters) return emptyList()
+        return visible
             .take(limit)
             .map { RecentCompletionResponse(nickname = usersById.getValue(it.userId).nickname, completedAt = it.completedAt!!) }
     }

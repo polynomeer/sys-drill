@@ -36,6 +36,7 @@ class LearningService(
                             summary = it.summary,
                             myWeaknessCount = weaknesses[it.riskKey] ?: 0,
                             relatedDomains = it.relatedDomains,
+                            readingMinutes = it.readingMinutes(),
                         )
                     },
                     myWeaknessCount = concepts.sumOf { weaknesses[it.riskKey] ?: 0 },
@@ -60,6 +61,7 @@ class LearningService(
             tradeoffs = concept.tradeoffs,
             relatedDomains = concept.relatedDomains,
             relatedActions = concept.relatedActions,
+            readingMinutes = concept.readingMinutes(),
             relatedChallenges = concept.relatedChallenges,
             myWeaknessCount = weaknessCounts(userId)[riskKey] ?: 0,
         )

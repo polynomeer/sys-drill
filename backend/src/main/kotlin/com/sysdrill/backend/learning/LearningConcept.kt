@@ -70,3 +70,12 @@ class LearningConcept(
 interface LearningConceptRepository : JpaRepository<LearningConcept, String> {
     fun findAllByOrderByCategoryAscDisplayOrderAscLabelAsc(): List<LearningConcept>
 }
+
+/** Korean technical prose reads at roughly 500 characters a minute; never less than one minute. */
+private const val READING_CHARS_PER_MINUTE = 500
+
+/** Estimated reading time over every body field the concept page shows (summary through trade-offs). */
+fun LearningConcept.readingMinutes(): Int {
+    val chars = (listOf(summary, whyItMatters, tradeoffs) + symptoms + patterns).sumOf { it.length }
+    return maxOf(1, Math.round(chars.toDouble() / READING_CHARS_PER_MINUTE).toInt())
+}

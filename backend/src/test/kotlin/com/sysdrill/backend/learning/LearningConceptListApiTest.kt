@@ -39,5 +39,9 @@ class LearningConceptListApiTest(
         val expected = conceptRepository.findAll().first { it.relatedDomains.isNotEmpty() }
         val actual = JsonPath.read<List<List<String>>>(response, "$[*].concepts[?(@.riskKey == '${expected.riskKey}')].relatedDomains")
         assertThat(actual.single()).containsExactlyElementsOf(expected.relatedDomains)
+
+        // docs/CODECRAFTERS_BENCHMARK.md §3.6 — reading time comes from the server, same figure as the detail page.
+        val minutes = JsonPath.read<List<Int>>(response, "$[*].concepts[?(@.riskKey == '${expected.riskKey}')].readingMinutes")
+        assertThat(minutes.single()).isEqualTo(expected.readingMinutes()).isGreaterThanOrEqualTo(1)
     }
 }

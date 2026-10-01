@@ -33,7 +33,9 @@ import java.util.UUID
  * since grading isn't what's under test. Completion times are set slightly
  * in the future so these rows are the newest in a shared test database.
  */
-@SpringBootTest
+// The minimum-completers threshold has its own test (RecentCompletionsMinimumTest); here it would
+// only make the outcome depend on how many other tests already completed the coupon scenario.
+@SpringBootTest(properties = ["sysdrill.community.recent-completions.min-completers=1"])
 @AutoConfigureMockMvc
 class ActivityIntegrationTest(
     @Autowired val mockMvc: MockMvc,

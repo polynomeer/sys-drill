@@ -12,6 +12,8 @@ data class LearningConceptSummary(
     val myWeaknessCount: Int,
     /** docs/CODECRAFTERS_BENCHMARK.md §3.7 — the domain track page lists concepts by domain without fetching every detail. */
     val relatedDomains: List<String> = emptyList(),
+    /** docs/CODECRAFTERS_BENCHMARK.md §3.6 — estimated reading time of the full concept, see [LearningConcept.readingMinutes]. */
+    val readingMinutes: Int = 1,
 )
 
 data class LearningCategory(
@@ -36,6 +38,7 @@ data class LearningConceptDetail(
     val relatedActions: List<String>,
     val relatedChallenges: List<String>,
     val myWeaknessCount: Int,
+    val readingMinutes: Int = 1,
 )
 
 /** 학습 경로의 한 단계 상태 — 전부 기존 이력에서 파생한다(ADR-0011). */
