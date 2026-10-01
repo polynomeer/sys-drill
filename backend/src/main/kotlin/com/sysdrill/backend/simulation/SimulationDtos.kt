@@ -84,3 +84,31 @@ data class TimelineStepResponse(
         )
     }
 }
+
+/** PLAN.md Round E4 (ADR-0045) — one sample of `GET /sessions/{id}/simulation/series`. */
+data class SeriesPointResponse(
+    val t: Instant,
+    val state: SystemStateResponse,
+    /** HEALTHY / DEGRADED / CRITICAL / RECOVERING / RECOVERED — see [TelemetrySampler.classify]. */
+    val status: String,
+    /** Accumulated backlog (already reflected in `state.queueLag` for backlog domains). */
+    val backlog: Long,
+)
+
+data class SimulationSeriesResponse(
+    /** RULE_BASED is sampled from the engine; REAL_INFRA is the stored snapshots as steps (ADR-0016). */
+    val engineMode: String,
+    /** Null until the incident starts — then `points` is empty too. */
+    val incidentStartedAt: Instant?,
+    val points: List<SeriesPointResponse>,
+) {
+    companion object {
+        fun from(series: SimulationSeries) = SimulationSeriesResponse(
+            engineMode = series.engineMode,
+            incidentStartedAt = series.incidentStartedAt,
+            points = series.points.map { (point, status) ->
+                SeriesPointResponse(point.at, SystemStateResponse.from(point.state), status.name, point.backlog)
+            },
+        )
+    }
+}

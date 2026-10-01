@@ -49,6 +49,13 @@ class SimulationController(
         return SystemStateResponse.from(simulationService.applyAction(sessionId, request.actionType))
     }
 
+    /** PLAN.md Round E4 (ADR-0045) — the incident as a time series; spectators too, like /state and /timeline. */
+    @GetMapping("/series")
+    fun getSeries(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): SimulationSeriesResponse {
+        sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
+        return SimulationSeriesResponse.from(simulationService.getSeries(sessionId))
+    }
+
     /** PLAN.md step 36 — a Game Day spectator may also view the timeline. */
     @GetMapping("/timeline")
     fun getTimeline(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): List<TimelineStepResponse> {

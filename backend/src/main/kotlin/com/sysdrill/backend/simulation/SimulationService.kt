@@ -50,6 +50,18 @@ data class IncidentStartResult(
     val narration: String? = null,
 )
 
+/** PLAN.md Round E4 — [SimulationService.getSeries]'s result: each point paired with its health status. */
+data class SimulationSeries(
+    val engineMode: String,
+    val incidentStartedAt: Instant?,
+    val points: List<Pair<TelemetryPoint, HealthStatus>>,
+)
+
+private const val SERIES_LEAD_SECONDS = 60L
+private const val SERIES_MIN_STEP_SECONDS = 5L
+private const val SERIES_MAX_POINTS = 120
+private val SERIES_MAX_SPAN: java.time.Duration = java.time.Duration.ofMinutes(30)
+
 /** Sentinel [AppliedAction.actionType] for the incident-start row — deliberately not a [SimulationActionType] member, since it isn't a user-applicable action. */
 const val INCIDENT_STARTED = "INCIDENT_STARTED"
 
@@ -334,6 +346,46 @@ class SimulationService(
                 )
             }
         }
+    }
+
+    /**
+     * ADR-0045 / PLAN.md Round E4 — the incident as a time series. Rule-based
+     * sessions are sampled by [TelemetrySampler] from the same inputs
+     * [getTimeline] replays (topology-first traits + the action rows); real-infra
+     * sessions return their stored snapshots as a step series, since their
+     * numbers can't be recomputed (ADR-0016). Window: a minute before the start
+     * through now, capped at [SERIES_MAX_SPAN] after the start; at most
+     * [SERIES_MAX_POINTS] points.
+     */
+    fun getSeries(sessionId: UUID, now: Instant = Instant.now()): SimulationSeries {
+        requireSessionExists(sessionId)
+        val events = appliedActionRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)
+        val startEvent = events.firstOrNull { it.actionType == INCIDENT_STARTED }
+            ?: return SimulationSeries(EngineMode.RULE_BASED.name, null, emptyList())
+        val start = startEvent.createdAt!!
+        val engineMode = readSnapshot(startEvent)?.engineMode ?: EngineMode.RULE_BASED.name
+
+        if (engineMode == EngineMode.REAL_INFRA.name) {
+            val steps = getTimeline(sessionId)
+            val points = steps.map { TelemetryPoint(it.appliedAt, it.systemState, it.systemState.level, backlog = 0) }
+            val withNow = if (points.isNotEmpty() && points.last().at.isBefore(now)) points + points.last().copy(at = now) else points
+            return SimulationSeries(engineMode, start, withNow.zip(TelemetrySampler.classify(withNow, start)))
+        }
+
+        val session = sessionRepository.findById(sessionId).orElseThrow { NotFoundException("Session not found: $sessionId") }
+        val domain = resolveDomain(session.scenarioVersionId)
+        val traits = systemTopologyService.deriveDesignTraits(sessionId, domain) ?: DesignTraits()
+        val actions = events
+            .filter { it.actionType != INCIDENT_STARTED }
+            .mapNotNull { event ->
+                runCatching { SimulationActionType.valueOf(event.actionType) }.getOrNull()?.let { TimedAction(event.createdAt!!, it) }
+            }
+        val from = start.minusSeconds(SERIES_LEAD_SECONDS)
+        val to = minOf(maxOf(now, start), start.plus(SERIES_MAX_SPAN))
+        val spanSeconds = java.time.Duration.between(from, to).seconds
+        val stepSeconds = maxOf(SERIES_MIN_STEP_SECONDS, Math.ceilDiv(spanSeconds, SERIES_MAX_POINTS.toLong()))
+        val points = TelemetrySampler.sample(domain, traits, start, actions, from, to, java.time.Duration.ofSeconds(stepSeconds))
+        return SimulationSeries(engineMode, start, points.zip(TelemetrySampler.classify(points, start)))
     }
 
     private fun readSnapshot(event: AppliedAction): AppliedActionSnapshot? =
