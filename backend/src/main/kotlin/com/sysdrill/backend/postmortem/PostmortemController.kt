@@ -1,9 +1,12 @@
 package com.sysdrill.backend.postmortem
 
+import com.sysdrill.backend.auth.ActionRateLimiter
 import com.sysdrill.backend.auth.AuthenticatedUserId
+import com.sysdrill.backend.common.web.TooManyRequestsException
 import com.sysdrill.backend.session.SessionAccessGuard
 import jakarta.validation.Valid
 import java.util.UUID
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PutMapping
@@ -16,6 +19,8 @@ import org.springframework.web.bind.annotation.RestController
 class PostmortemController(
     private val postmortemService: PostmortemService,
     private val sessionAccessGuard: SessionAccessGuard,
+    private val actionRateLimiter: ActionRateLimiter,
+    @Value("\${sysdrill.postmortem.rate-limit-per-minute}") private val rateLimitPerMinute: Long,
 ) {
 
     @GetMapping
@@ -31,6 +36,11 @@ class PostmortemController(
         @Valid @RequestBody request: SavePostmortemRequest,
     ): PostmortemResponse {
         sessionAccessGuard.requireOwner(sessionId, userId)
+        // docs/COMMERCIALIZATION.md — every save regenerates LLM coaching
+        // (PostmortemService.generateCoaching's kdoc), with no other guard.
+        if (!actionRateLimiter.tryAcquire("postmortem-save", userId, rateLimitPerMinute)) {
+            throw TooManyRequestsException("Too many postmortem saves -- please slow down")
+        }
         return postmortemService.save(sessionId, request)
     }
 }

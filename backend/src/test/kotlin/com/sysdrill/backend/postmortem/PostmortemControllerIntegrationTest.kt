@@ -16,6 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
+import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
@@ -40,6 +42,14 @@ class PostmortemControllerIntegrationTest(
     @Autowired val userRepository: UserRepository,
     @Autowired val sessionRepository: SessionRepository,
 ) {
+    companion object {
+        @DynamicPropertySource
+        @JvmStatic
+        fun lowRateLimit(registry: DynamicPropertyRegistry) {
+            registry.add("sysdrill.postmortem.rate-limit-per-minute") { "1" }
+        }
+    }
+
     private lateinit var userId: UUID
 
     @BeforeEach
@@ -165,6 +175,23 @@ class PostmortemControllerIntegrationTest(
             .andExpect(jsonPath("$.rootFixActions[0]").value("read replica 도입 예정"))
             .andExpect(jsonPath("$.preventionItems[0]").value("풀 사용률 알림 추가"))
             .andExpect(jsonPath("$.actionsTimeline.length()").value(1))
+    }
+
+    @Test
+    fun `a second postmortem save within the same minute is rejected with 429`() {
+        val sessionId = mockMvc.startSession(userId)
+        mockMvc.perform(post("/sessions/$sessionId/simulation/incident").header("Authorization", bearerHeader(userId))).andExpect(status().isOk)
+        completeSession(sessionId)
+
+        val body = """{"rootCause":"DB 커넥션 풀 고갈"}"""
+        mockMvc.perform(
+            put("/sessions/$sessionId/postmortem").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId)).content(body)
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            put("/sessions/$sessionId/postmortem").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(userId)).content(body)
+        ).andExpect(status().isTooManyRequests)
     }
 
     /**

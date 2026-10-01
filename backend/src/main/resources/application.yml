@@ -108,6 +108,10 @@ sysdrill:
     # (normal usage is a handful of submissions/day); exists to catch runaway
     # abuse, not to throttle real training sessions.
     daily-limit-per-user: ${EVALUATION_DAILY_LIMIT_PER_USER:50}
+    # docs/COMMERCIALIZATION.md — the daily cap above doesn't stop a burst
+    # that spends the whole day's budget in seconds. Per-user, per-minute,
+    # via ActionRateLimiter.
+    rate-limit-per-minute: ${EVALUATION_RATE_LIMIT_PER_MINUTE:5}
     # docs/COMMERCIALIZATION.md — how many EvaluationWorker threads poll the
     # queue concurrently. This is I/O-bound (an LLM HTTP round-trip per job,
     # no local CPU/memory reservation like BuildRunnerWorker's containers
@@ -146,6 +150,17 @@ sysdrill:
     # at most ~1 CPU / 256MB for sandboxes -- raise only alongside host
     # capacity.
     worker-concurrency: ${BUILD_WORKER_CONCURRENCY:2}
+    # docs/COMMERCIALIZATION.md — not an LLM call, but a real docker sandbox
+    # run per stage; had no rate limit of any kind before this.
+    rate-limit-per-minute: ${BUILD_RATE_LIMIT_PER_MINUTE:10}
+  mentor:
+    # docs/COMMERCIALIZATION.md — AI 4역할 Slice 3's hint request has no daily
+    # cap the way a real submission does (LlmUsageGuard); this is its only guard.
+    rate-limit-per-minute: ${MENTOR_RATE_LIMIT_PER_MINUTE:10}
+  postmortem:
+    # docs/COMMERCIALIZATION.md — every PUT regenerates LLM coaching
+    # (PostmortemService.generateCoaching); had no guard before this.
+    rate-limit-per-minute: ${POSTMORTEM_RATE_LIMIT_PER_MINUTE:5}
   session:
     # PLAN.md step 28 — per-phase time limit when a session opts into
     # interview-timer mode (docs/PRD.md §12's "Advanced/Interview" tier).
@@ -157,6 +172,12 @@ sysdrill:
       followup-seconds: ${INTERVIEW_TIMER_FOLLOWUP_SECONDS:600}
       incident-seconds: ${INTERVIEW_TIMER_INCIDENT_SECONDS:480}
   simulation:
+    # docs/COMMERCIALIZATION.md — AI 4역할 Slice 4 (Director)'s narration call,
+    # per user. Unlike mentor/postmortem/build above, going over this doesn't
+    # block anything -- SimulationService.generateNarration is fail-open by
+    # design, so an over-budget request just starts the incident without a
+    # narration line (frontend's static fallback), same as any other failure.
+    narration-rate-limit-per-minute: ${SIMULATION_NARRATION_RATE_LIMIT_PER_MINUTE:10}
     realinfra:
       # PLAN.md step 21 — coupon-only real-infra pilot. baseline/incident-rps are
       # deliberately NOT the rule-based engine's 300/6000 — that would saturate a

@@ -1,5 +1,6 @@
 package com.sysdrill.backend.simulation
 
+import com.sysdrill.backend.auth.ActionRateLimiter
 import com.sysdrill.backend.common.web.BadRequestException
 import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.evaluation.PromptTemplateRepository
@@ -10,6 +11,7 @@ import com.sysdrill.backend.session.SessionRepository
 import com.sysdrill.backend.simulation.realinfra.RealInfraCouponEngine
 import com.sysdrill.backend.simulation.realinfra.RealInfraNotificationEngine
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
@@ -65,6 +67,8 @@ class SimulationService(
     private val llmClient: LlmClient,
     private val directorNarrationResultParser: DirectorNarrationResultParser,
     private val objectMapper: ObjectMapper,
+    private val actionRateLimiter: ActionRateLimiter,
+    @Value("\${sysdrill.simulation.narration-rate-limit-per-minute}") private val narrationRateLimitPerMinute: Long,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -190,7 +194,7 @@ class SimulationService(
         // applyAction/first-computeState already runs k6 synchronously (3-10s+,
         // see RealInfraCouponEngine's own doc comment), and stacking an LLM call
         // on top of that would make an already-slow path slower for no real gain.
-        val narration = if (!realInfra) generateNarration(domain, computed) else null
+        val narration = if (!realInfra) generateNarration(domain, computed, session.userId) else null
         return IncidentStartResult(state = computed, narration = narration)
     }
 
@@ -199,22 +203,29 @@ class SimulationService(
      * start, which worked fine before this feature existed and is the core
      * simulation flow, not an optional add-on. Returns null (the frontend
      * falls back to its own static per-domain narration string) on any
-     * failure — missing/misconfigured prompt template, LLM error, bad JSON.
+     * failure — missing/misconfigured prompt template, LLM error, bad JSON,
+     * or (docs/COMMERCIALIZATION.md) this user's own narration rate limit --
+     * unlike mentor-hint/postmortem, going over budget here just means a
+     * plainer incident start, not a blocked one.
      */
-    private fun generateNarration(domain: String, state: SystemState): String? = try {
-        val template = promptTemplateRepository.findFirstByPurposeAndActiveTrue(DIRECTOR_NARRATION_PURPOSE)
-        if (template == null) {
+    private fun generateNarration(domain: String, state: SystemState, userId: UUID): String? = try {
+        if (!actionRateLimiter.tryAcquire("simulation-narration", userId, narrationRateLimitPerMinute)) {
             null
         } else {
-            val userPrompt = buildString {
-                appendLine("## 도메인")
-                appendLine(domain)
-                appendLine()
-                appendLine("## 방금 계산된 시스템 지표")
-                appendLine(objectMapper.writeValueAsString(SystemStateResponse.from(state)))
+            val template = promptTemplateRepository.findFirstByPurposeAndActiveTrue(DIRECTOR_NARRATION_PURPOSE)
+            if (template == null) {
+                null
+            } else {
+                val userPrompt = buildString {
+                    appendLine("## 도메인")
+                    appendLine(domain)
+                    appendLine()
+                    appendLine("## 방금 계산된 시스템 지표")
+                    appendLine(objectMapper.writeValueAsString(SystemStateResponse.from(state)))
+                }
+                val completion = llmClient.complete(template.templateBody, userPrompt)
+                directorNarrationResultParser.parse(completion.text).narration
             }
-            val completion = llmClient.complete(template.templateBody, userPrompt)
-            directorNarrationResultParser.parse(completion.text).narration
         }
     } catch (ex: Exception) {
         log.warn("Director narration generation failed for domain={}: {}", domain, ex.message)

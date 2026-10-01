@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
+import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -32,6 +34,14 @@ class MentorControllerIntegrationTest(
     @Autowired val mockMvc: MockMvc,
     @Autowired val userRepository: UserRepository,
 ) {
+    companion object {
+        @DynamicPropertySource
+        @JvmStatic
+        fun lowRateLimit(registry: DynamicPropertyRegistry) {
+            registry.add("sysdrill.mentor.rate-limit-per-minute") { "1" }
+        }
+    }
+
     private lateinit var userId: UUID
 
     @BeforeEach
@@ -75,6 +85,16 @@ class MentorControllerIntegrationTest(
                 .header("Authorization", bearerHeader(userId))
                 .content("""{"rawText":"$tooLong"}""")
         ).andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `a second hint request within the same minute is rejected with 429`() {
+        val sessionId = mockMvc.startSession(userId)
+
+        mockMvc.perform(post("/sessions/$sessionId/mentor-hint").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+        mockMvc.perform(post("/sessions/$sessionId/mentor-hint").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isTooManyRequests)
     }
 
     @Test

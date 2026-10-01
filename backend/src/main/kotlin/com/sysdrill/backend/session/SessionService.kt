@@ -1,11 +1,13 @@
 package com.sysdrill.backend.session
 
+import com.sysdrill.backend.auth.ActionRateLimiter
 import com.sysdrill.backend.build.BuildSubmissionRepository
 import com.sysdrill.backend.build.BuildSubmissionStatus
 import com.sysdrill.backend.common.events.EvaluationRequested
 import com.sysdrill.backend.common.readIntMap
 import com.sysdrill.backend.common.web.ConflictException
 import com.sysdrill.backend.common.web.NotFoundException
+import com.sysdrill.backend.common.web.TooManyRequestsException
 import com.sysdrill.backend.evaluation.LlmUsageGuard
 import com.sysdrill.backend.identity.SkillProfileRepository
 import com.sysdrill.backend.organization.OrganizationAccessGuard
@@ -39,10 +41,12 @@ class SessionService(
     private val skillProfileRepository: SkillProfileRepository,
     private val organizationAccessGuard: OrganizationAccessGuard,
     private val llmUsageGuard: LlmUsageGuard,
+    private val actionRateLimiter: ActionRateLimiter,
     private val objectMapper: ObjectMapper,
     @Value("\${sysdrill.session.interview-timer.initial-seconds}") private val initialTimerSeconds: Long,
     @Value("\${sysdrill.session.interview-timer.followup-seconds}") private val followupTimerSeconds: Long,
     @Value("\${sysdrill.session.interview-timer.incident-seconds}") private val incidentTimerSeconds: Long,
+    @Value("\${sysdrill.evaluation.rate-limit-per-minute}") private val evaluationRateLimitPerMinute: Long,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -198,6 +202,12 @@ class SessionService(
         // quota-exceeded submission never leaves the session stuck in SUBMITTED
         // with no evaluation ever coming; the caller can just retry later.
         llmUsageGuard.checkAndRecord(session.userId)
+        // docs/COMMERCIALIZATION.md — the daily cap above doesn't stop a burst
+        // that spends the whole day's budget in seconds; this is a separate
+        // per-minute check on top of it.
+        if (!actionRateLimiter.tryAcquire("evaluation-submit", session.userId, evaluationRateLimitPerMinute)) {
+            throw TooManyRequestsException("Too many submissions -- please slow down")
+        }
 
         // Read before compareAndSetStatus flips it, not after — the deadline is
         // computed from the phase row that's about to be marked complete, and

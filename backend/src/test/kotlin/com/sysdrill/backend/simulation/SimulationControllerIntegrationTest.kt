@@ -12,7 +12,10 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.http.MediaType
+import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
@@ -32,7 +35,16 @@ import java.util.UUID
 class SimulationControllerIntegrationTest(
     @Autowired val mockMvc: MockMvc,
     @Autowired val userRepository: UserRepository,
+    @Autowired val redisTemplate: StringRedisTemplate,
 ) {
+    companion object {
+        @DynamicPropertySource
+        @JvmStatic
+        fun lowNarrationRateLimit(registry: DynamicPropertyRegistry) {
+            registry.add("sysdrill.simulation.narration-rate-limit-per-minute") { "1" }
+        }
+    }
+
     private lateinit var userId: UUID
 
     @BeforeEach
@@ -49,6 +61,31 @@ class SimulationControllerIntegrationTest(
                 .header("Authorization", bearerHeader(userId))
                 .content("""{"actionType":"${action.name}"}""")
         ).andExpect(status().isOk)
+    }
+
+    @Test
+    fun `going over the narration rate limit never blocks incident start -- it only skips narration`() {
+        // docs/COMMERCIALIZATION.md — narration-rate-limit-per-minute=1 above.
+        // Two distinct sessions for the same user so each one's first
+        // incident-start actually calls generateNarration (a second
+        // incident-start on the SAME session hits the idempotent-replay
+        // branch instead, which never calls it regardless of the limit).
+        val sessionA = mockMvc.startSession(userId)
+        val sessionB = mockMvc.startSession(userId)
+        val redisKey = "sysdrill:ratelimit:simulation-narration:$userId"
+
+        mockMvc.perform(post("/sessions/$sessionA/simulation/incident").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.trafficRps").value(6000.0))
+        assertThat(redisTemplate.opsForValue().get(redisKey)).isEqualTo("1")
+
+        // Second session's first incident-start is over this user's budget --
+        // still 200 with a real state, not a 429 and not a broken response.
+        mockMvc.perform(post("/sessions/$sessionB/simulation/incident").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.trafficRps").value(6000.0))
+            .andExpect(jsonPath("$.narration").doesNotExist())
+        assertThat(redisTemplate.opsForValue().get(redisKey)).isEqualTo("2")
     }
 
     @Test

@@ -1,7 +1,10 @@
 package com.sysdrill.backend.build
 
+import com.sysdrill.backend.auth.ActionRateLimiter
 import com.sysdrill.backend.common.events.BuildSubmissionRequested
 import com.sysdrill.backend.common.web.NotFoundException
+import com.sysdrill.backend.common.web.TooManyRequestsException
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -12,10 +15,17 @@ class BuildSubmissionService(
     private val buildChallengeRepository: BuildChallengeRepository,
     private val buildSubmissionRepository: BuildSubmissionRepository,
     private val eventPublisher: ApplicationEventPublisher,
+    private val actionRateLimiter: ActionRateLimiter,
+    @Value("\${sysdrill.build.rate-limit-per-minute}") private val rateLimitPerMinute: Long,
 ) {
 
     @Transactional
     fun submit(slug: String, userId: UUID, sourceCode: String, commitRef: String?): BuildSubmission {
+        // docs/COMMERCIALIZATION.md — not an LLM call, but a real docker
+        // sandbox run per stage (SandboxExecutor); no other guard exists here.
+        if (!actionRateLimiter.tryAcquire("build-submit", userId, rateLimitPerMinute)) {
+            throw TooManyRequestsException("Too many build submissions -- please slow down")
+        }
         val challenge = buildChallengeRepository.findBySlug(slug)
             ?: throw NotFoundException("Build challenge not found: $slug")
 
