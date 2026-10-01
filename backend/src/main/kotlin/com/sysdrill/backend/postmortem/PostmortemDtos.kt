@@ -34,6 +34,11 @@ data class PostmortemResponse(
     val coachGaps: List<String>,
     val coachFollowupQuestions: List<String>,
     val updatedAt: Instant?,
+    /** PLAN.md Round E12 (O5) — incident start → first (non-false) alert; null with no rules or none fired. */
+    val firstAlertSeconds: Long? = null,
+    val alertRuleCount: Int = 0,
+    /** Alerts that fired before the incident — too-sensitive thresholds. */
+    val falseAlarmCount: Int = 0,
 )
 
 data class SavePostmortemRequest(

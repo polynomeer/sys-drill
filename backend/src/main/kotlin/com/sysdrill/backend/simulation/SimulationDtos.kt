@@ -101,6 +101,10 @@ data class SimulationSeriesResponse(
     /** Null until the incident starts — then `points` is empty too. */
     val incidentStartedAt: Instant?,
     val points: List<SeriesPointResponse>,
+    /** PLAN.md Round E12 (O5) — fired alerts over this window, oldest first. */
+    val alerts: List<AlertEvent> = emptyList(),
+    /** M3 — the learner's SLO (or the defaults) against the latest point, with error budget. */
+    val slo: SloStatus? = null,
 ) {
     companion object {
         fun from(series: SimulationSeries) = SimulationSeriesResponse(
@@ -109,6 +113,8 @@ data class SimulationSeriesResponse(
             points = series.points.map { (point, status) ->
                 SeriesPointResponse(point.at, SystemStateResponse.from(point.state), status.name, point.backlog)
             },
+            alerts = series.observability?.alerts.orEmpty(),
+            slo = series.observability?.slo,
         )
     }
 }

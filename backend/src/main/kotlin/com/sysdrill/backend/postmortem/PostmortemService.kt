@@ -64,6 +64,10 @@ class PostmortemService(
         val actions = timeline.drop(1)
         val (mttdSeconds, mttrSeconds) = mttdMttr(timeline)
         val saved = postmortemRepository.findBySessionId(sessionId)
+        // docs/OBSERVABILITY_UI_PLAN.md O5 (PLAN.md Round E12) — detection, separate from MTTD (first action).
+        // MTTD keeps its definition: the benchmark and ranking compare it across sessions.
+        val series = incidentStart?.let { simulationService.getSeries(sessionId) }
+        val firstAlert = series?.observability?.alerts?.firstOrNull { !it.falseAlarm }
 
         return PostmortemResponse(
             sessionId = sessionId,
@@ -89,6 +93,9 @@ class PostmortemService(
             coachGaps = objectMapper.readStringList(saved?.coachGaps),
             coachFollowupQuestions = objectMapper.readStringList(saved?.coachFollowupQuestions),
             updatedAt = saved?.updatedAt,
+            firstAlertSeconds = firstAlert?.let { a -> series.incidentStartedAt?.let { Duration.between(it, a.firedAt).seconds } },
+            alertRuleCount = series?.let { simulationService.alertRuleCount(sessionId) } ?: 0,
+            falseAlarmCount = series?.observability?.alerts?.count { it.falseAlarm } ?: 0,
         )
     }
 

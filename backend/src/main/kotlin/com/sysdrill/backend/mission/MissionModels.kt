@@ -15,6 +15,32 @@ data class MissionState(
      * change after an evaluation updated the learner's weakness counts.
      */
     val followupVariantKey: String? = null,
+    /** M3 (PLAN.md Round E12) — the learner's own SLO; null until set (the defaults below apply). */
+    val slo: SloTargets? = null,
+    /** O5 (PLAN.md Round E12) — alert rules, evaluated over the incident's time series. */
+    val alertRules: List<AlertRule> = emptyList(),
+)
+
+/** docs/DRILLS_EXPANSION_PLAN.md M3 — what "healthy" means for this system, set before the incident. */
+data class SloTargets(
+    val availabilityPct: Double = 99.9,
+    val p95Ms: Double = 500.0,
+    val errorRatePct: Double = 1.0,
+)
+
+/**
+ * docs/OBSERVABILITY_UI_PLAN.md O5 — "[metric] [op] [threshold] for [forSeconds]".
+ * [createdAt] matters: a rule only fires from the moment it existed, so writing one
+ * after watching the incident unfold can't buy a short detection delay.
+ */
+data class AlertRule(
+    val id: String,
+    val metric: String,
+    val op: String,
+    val threshold: Double,
+    val forSeconds: Int,
+    val severity: String = "WARN",
+    val createdAt: java.time.Instant? = null,
 )
 
 /**

@@ -3,6 +3,7 @@ package com.sysdrill.backend.mission
 import com.sysdrill.backend.common.web.ConflictException
 import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.evaluation.EvaluationRepository
+import com.sysdrill.backend.simulation.ObservabilityEvaluator
 import com.sysdrill.backend.scenario.ScenarioStep
 import com.sysdrill.backend.scenario.ScenarioStepRepository
 import com.sysdrill.backend.session.Session
@@ -29,6 +30,8 @@ class MissionService(
     private val sessionRepository: SessionRepository,
     private val submissionRepository: SubmissionRepository,
     private val evaluationRepository: EvaluationRepository,
+    private val scenarioVersionRepository: com.sysdrill.backend.scenario.ScenarioVersionRepository,
+    private val scenarioRepository: com.sysdrill.backend.scenario.ScenarioRepository,
     private val scenarioStepRepository: ScenarioStepRepository,
     private val mapper: ObjectMapper,
 ) {
@@ -38,7 +41,11 @@ class MissionService(
         mapper.readerFor(type).without(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).readValue(json)
 
     fun state(session: Session): MissionState =
-        runCatching { read(session.missionState, MissionState::class.java) }.getOrDefault(MissionState())
+        runCatching { read(session.missionState, MissionState::class.java) }
+            .onFailure { log.warn("Unreadable mission_state for session ${session.id} — treating as empty", it) }
+            .getOrDefault(MissionState())
+
+    private val log = org.slf4j.LoggerFactory.getLogger(javaClass)
 
     /** The JSON to store when pinning the tail-design variant (the caller saves the session). */
     fun withFollowupVariant(session: Session, key: String): String =
@@ -88,6 +95,7 @@ class MissionService(
 
     companion object {
         const val DEFENSE_QUESTION_COUNT = 2
+        const val MAX_ALERT_RULES = 10
     }
 
     private fun canAsk(session: Session): Boolean =
@@ -166,6 +174,61 @@ class MissionService(
             }
             appendLine("크게 빗나간 추정이 설계 선택(용량·샤딩·캐시 크기 등)에 어떤 영향을 줬는지 요구사항 해석력 항목에서 짚어 주세요. 정확한 숫자를 맞혔는지가 아니라 규모 감각을 봅니다.")
         }
+    }
+
+    // ---- M3 / O5: SLO and alert rules ----
+
+    fun ops(sessionId: UUID): OpsConfigResponse {
+        val session = requireSession(sessionId)
+        val state = state(session)
+        return OpsConfigResponse(
+            slo = state.slo,
+            sloDefaults = SloTargets(),
+            alertRules = state.alertRules,
+            suggestedRules = ObservabilityEvaluator.suggestedRules(domainOf(session)),
+            metrics = ObservabilityEvaluator.METRICS.map { OpsMetric(it.key, it.label, it.unit) },
+        )
+    }
+
+    @Transactional
+    fun updateSlo(sessionId: UUID, slo: SloTargets): OpsConfigResponse {
+        if (slo.availabilityPct !in 50.0..99.9999 || slo.p95Ms <= 0 || slo.errorRatePct !in 0.0..100.0) {
+            throw com.sysdrill.backend.common.web.BadRequestException("SLO 값이 범위를 벗어났습니다")
+        }
+        val session = requireSession(sessionId)
+        save(session, state(session).copy(slo = slo))
+        return ops(sessionId)
+    }
+
+    /**
+     * Full replace (same shape as the org curriculum, ADR-0030). A rule that already existed
+     * keeps its original `createdAt` — editing a threshold mid-incident doesn't backdate it,
+     * and re-saving doesn't make an old rule look new.
+     */
+    @Transactional
+    fun updateAlertRules(sessionId: UUID, rules: List<AlertRuleInput>): OpsConfigResponse {
+        if (rules.size > MAX_ALERT_RULES) throw com.sysdrill.backend.common.web.BadRequestException("알림 규칙은 최대 $MAX_ALERT_RULES 개입니다")
+        rules.forEach { r ->
+            if (!ObservabilityEvaluator.isKnownMetric(r.metric)) throw com.sysdrill.backend.common.web.BadRequestException("알 수 없는 지표: ${r.metric}")
+            if (r.op !in setOf(">", "<")) throw com.sysdrill.backend.common.web.BadRequestException("조건은 > 또는 < 입니다")
+            if (r.forSeconds !in 0..600) throw com.sysdrill.backend.common.web.BadRequestException("지속 시간은 0~600초입니다")
+            if (r.severity !in setOf("WARN", "CRITICAL")) throw com.sysdrill.backend.common.web.BadRequestException("심각도는 WARN 또는 CRITICAL 입니다")
+        }
+        val session = requireSession(sessionId)
+        val current = state(session)
+        val existing = current.alertRules.associateBy { it.id }
+        val now = java.time.Instant.now()
+        val next = rules.map { r ->
+            val id = r.id?.takeIf { it in existing } ?: UUID.randomUUID().toString()
+            AlertRule(id, r.metric, r.op, r.threshold, r.forSeconds, r.severity, existing[id]?.createdAt ?: now)
+        }
+        save(session, current.copy(alertRules = next))
+        return ops(sessionId)
+    }
+
+    fun domainOf(session: Session): String {
+        val version = scenarioVersionRepository.findById(session.scenarioVersionId).orElseThrow()
+        return scenarioRepository.findById(version.scenarioId).orElseThrow().domain
     }
 
     // ---- M4: design defense ----
@@ -302,4 +365,25 @@ data class EstimationResponse(
     val fields: List<EstimationFieldView>,
     /** After the INITIAL submit, in [fields] order. */
     val results: List<EstimateResult>?,
+)
+
+data class OpsMetric(val key: String, val label: String, val unit: String)
+
+data class AlertRuleInput(
+    /** Existing rule id to keep its createdAt; omit for a new rule. */
+    val id: String? = null,
+    val metric: String,
+    val op: String,
+    val threshold: Double,
+    val forSeconds: Int,
+    val severity: String = "WARN",
+)
+
+data class OpsConfigResponse(
+    /** Null until the learner sets one — the UI then shows [sloDefaults]. */
+    val slo: SloTargets?,
+    val sloDefaults: SloTargets,
+    val alertRules: List<AlertRule>,
+    val suggestedRules: List<AlertRule>,
+    val metrics: List<OpsMetric>,
 )

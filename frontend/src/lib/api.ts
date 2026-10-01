@@ -281,6 +281,10 @@ export interface Postmortem {
   coachGaps: string[];
   coachFollowupQuestions: string[];
   updatedAt: string | null;
+  /** PLAN.md Round E12 (O5) — incident start → first real alert; null with no rules or none fired. */
+  firstAlertSeconds: number | null;
+  alertRuleCount: number;
+  falseAlarmCount: number;
 }
 
 export interface SavePostmortemRequest {
@@ -740,6 +744,74 @@ export interface SimulationSeries {
   engineMode: "RULE_BASED" | "REAL_INFRA";
   incidentStartedAt: string | null;
   points: SeriesPoint[];
+  /** PLAN.md Round E12 (O5) — fired alerts over this window. */
+  alerts: AlertEvent[];
+  /** M3 — SLO against the latest point, with error budget. */
+  slo: SloStatus | null;
+}
+
+export interface SloTargets {
+  availabilityPct: number;
+  p95Ms: number;
+  errorRatePct: number;
+}
+
+export interface SloStatus {
+  targets: SloTargets;
+  availabilityMet: boolean;
+  p95Met: boolean;
+  errorRateMet: boolean;
+  budgetSpentSeconds: number;
+  monthlyBudgetSeconds: number;
+  burnRate: number;
+}
+
+export interface AlertRule {
+  id: string;
+  metric: string;
+  op: ">" | "<";
+  threshold: number;
+  forSeconds: number;
+  severity: "WARN" | "CRITICAL";
+  createdAt: string | null;
+}
+
+export interface AlertEvent {
+  ruleId: string;
+  metric: string;
+  label: string;
+  unit: string;
+  op: string;
+  threshold: number;
+  severity: "WARN" | "CRITICAL";
+  firedAt: string;
+  resolvedAt: string | null;
+  value: number;
+  falseAlarm: boolean;
+}
+
+export interface OpsConfig {
+  slo: SloTargets | null;
+  sloDefaults: SloTargets;
+  alertRules: AlertRule[];
+  suggestedRules: AlertRule[];
+  metrics: { key: string; label: string; unit: string }[];
+}
+
+export function getOpsConfig(sessionId: string): Promise<OpsConfig> {
+  return apiFetch<OpsConfig>(`/sessions/${sessionId}/ops`);
+}
+
+export function updateSlo(sessionId: string, slo: SloTargets): Promise<OpsConfig> {
+  return apiFetch<OpsConfig>(`/sessions/${sessionId}/ops/slo`, { method: "PUT", body: JSON.stringify(slo) });
+}
+
+/** Full replace; pass an existing rule's id to keep its createdAt (a rule only fires from when it existed). */
+export function updateAlertRules(
+  sessionId: string,
+  rules: { id?: string; metric: string; op: string; threshold: number; forSeconds: number; severity: string }[],
+): Promise<OpsConfig> {
+  return apiFetch<OpsConfig>(`/sessions/${sessionId}/ops/alert-rules`, { method: "PUT", body: JSON.stringify(rules) });
 }
 
 /** PLAN.md Round E4/E5 — a minute before the incident through now, ≤120 points, nothing stored server-side. */

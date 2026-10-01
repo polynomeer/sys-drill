@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { HealthStatus, SeriesPoint } from "@/lib/api";
+import type { HealthStatus, SeriesPoint, SloStatus } from "@/lib/api";
 import { formatMs, formatPercent } from "@/lib/metrics";
 
 /**
@@ -33,10 +33,17 @@ export function MissionControlBar({
   title,
   latest,
   incidentStartedAt,
+  slo,
+  firingAlerts = 0,
+  onAlertsClick,
 }: {
   title: string;
   latest: SeriesPoint | null;
   incidentStartedAt: string | null;
+  /** PLAN.md Round E12 (M3) — the learner's SLO against the latest point. */
+  slo?: SloStatus | null;
+  firingAlerts?: number;
+  onAlertsClick?: () => void;
 }) {
   // Ticks every second between the 3s polls so the clock doesn't stutter.
   const [now, setNow] = useState(() => Date.now());
@@ -75,6 +82,22 @@ export function MissionControlBar({
             <span className="font-mono text-sm tabular-nums">{signal.value}</span>
           </span>
         ))}
+        {slo && (
+          <span className="flex items-baseline gap-1.5" title="SLO (Alerts 탭에서 설정)">
+            <span className="text-[11px] uppercase tracking-wide text-foreground-muted">SLO</span>
+            <span className="font-mono text-xs">
+              <span className={slo.availabilityMet ? "text-success" : "text-danger"}>Avail{slo.availabilityMet ? "✓" : "✕"}</span>{" "}
+              <span className={slo.p95Met ? "text-success" : "text-danger"}>P95{slo.p95Met ? "✓" : "✕"}</span>{" "}
+              <span className={slo.errorRateMet ? "text-success" : "text-danger"}>Err{slo.errorRateMet ? "✓" : "✕"}</span>
+            </span>
+          </span>
+        )}
+        {firingAlerts > 0 && (
+          <button type="button" onClick={onAlertsClick} className="flex items-baseline gap-1.5 text-danger">
+            <span className="text-[11px] uppercase tracking-wide">Alerts</span>
+            <span className="font-mono text-sm">{firingAlerts}</span>
+          </button>
+        )}
         {latest.backlog > 0 && (
           <span className="flex items-baseline gap-1.5">
             <span className="text-[11px] uppercase tracking-wide text-foreground-muted">Backlog</span>

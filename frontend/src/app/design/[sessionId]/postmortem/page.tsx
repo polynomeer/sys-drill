@@ -138,6 +138,18 @@ export default function PostmortemPage() {
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {/* docs/OBSERVABILITY_UI_PLAN.md O5 (PLAN.md Round E12) — detection, separate from the first action (MTTD). */}
+              <div>
+                <p className="text-xs text-foreground-muted">첫 알림까지 (탐지)</p>
+                <p className="font-mono text-lg font-medium">
+                  {postmortem.firstAlertSeconds !== null ? formatDuration(postmortem.firstAlertSeconds) : "-"}
+                </p>
+                <p className="text-[11px] text-foreground-muted">
+                  {postmortem.alertRuleCount === 0
+                    ? "알림 규칙 없음"
+                    : `규칙 ${postmortem.alertRuleCount}개${postmortem.falseAlarmCount > 0 ? ` · 정상 구간 발화 ${postmortem.falseAlarmCount}회` : ""}`}
+                </p>
+              </div>
               <div>
                 <p className="text-xs text-foreground-muted">MTTD (최초 대응까지)</p>
                 <p className="font-mono text-lg font-medium">

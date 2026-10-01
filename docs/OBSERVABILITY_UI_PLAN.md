@@ -190,6 +190,9 @@ GET /sessions/{id}/simulation/series?from=&to=&step=10s
 | 시계열 API | `GET /sessions/{id}/simulation/series` → `{engineMode, incidentStartedAt, resolvedAt?, points:[{t, …SystemState 필드, level, status}]}`. 소유자·관전자 모두(기존 `/state`와 같은 권한) |
 | 상태 5종 판정 (O1) | 시계열의 마지막 점 기준. 인시던트 전 `HEALTHY` / level `ERROR`면 `CRITICAL`, `WARN`이면 `DEGRADED` / 그중 직전 3개 점보다 에러율·P95가 모두 낮아지는 중이면 `RECOVERING` / 인시던트 후 `INFO`이고 적체 0이면 `RECOVERED`, 적체가 남으면 `RECOVERING`. 서버가 계산해 각 점에 싣는다 |
 | 세션 단위 운영 설정 | SLO(Drill M3) · 알림 규칙(O5) · Readiness(O7)를 **`sessions.mission_state` JSONB 한 컬럼**에 둔다(Drill 계획 M1의 확인한 질문 목록도 같은 컬럼). 세션당 1:1이고 스키마가 슬라이스마다 늘어나는 값이라 ARCHITECTURE §4.1의 JSONB 기준에 맞는다 |
+| 알림 규칙의 생성 시각 (O5, 2026-10-02 추가) | 알림은 시계열에 규칙을 **사후에** 적용해 계산하므로, 장애를 지켜본 뒤 규칙을 쓰면 탐지 지연을 짧게 꾸밀 수 있다. 규칙마다 `createdAt`을 두고 **만든 시점부터만 발화**한다(조건 지속 시간도 그때부터 센다). 다시 저장해도 기존 규칙의 생성 시각은 유지 |
+| 알림·SLO 응답 위치 (O5) | 별도 엔드포인트 대신 `GET …/simulation/series` 응답에 `alerts`·`slo`를 함께 싣는다 — 같은 점으로 계산해야 차트·Alert Center·포스트모템이 어긋나지 않고, 3초 폴링 요청 수도 늘지 않는다 |
+| 에러 버짓 (M3) | 월 버짓 = 30일 × (1 − 가용성 목표). 소진량 = 인시던트 구간 Σ 에러율·dt(완전 장애 환산 초), burn rate = 인시던트 평균 에러율 ÷ 허용 에러율. multi-window burn-rate는 보류 그대로 |
 | 조사 행위 기록 (O0-b) | `investigation_events(id, session_id, kind, target, created_at)` + `POST /sessions/{id}/investigations`(소유자만). 같은 `kind+target`은 30초 안에 한 번만 기록(탭을 오가며 생기는 잡음 제거) |
 | 로그 템플릿 (O4) | 도메인별 로그 문구는 Kotlin 상수(SimulationService의 액션 설명 문구와 같은 자리). 시드·시각·컴포넌트로 결정되는 해시로 빈도를 정해 같은 세션은 항상 같은 로그를 본다 |
 | 샌드박스 액션 | **기존 버그**: 완료 후 샌드박스에서 적용한 액션이 같은 `applied_actions`에 표시 없이 쌓여 리플레이·MTTR(=마지막 액션)·벤치마크를 오염시킨다. `parameters.sandbox=true`로 표시하고 MTTR·시계열·벤치마크에서 제외 — Drill M6 라운드에서 함께 고친다 |

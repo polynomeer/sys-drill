@@ -10,6 +10,7 @@ export type ProductEvent =
   | "report_view"
   | "feedback_concept_click"
   | "observe_tab_map"
+  | "observe_tab_alerts"
   | "observe_tab_metrics"
   | "observe_tab_logs"
   | "observe_tab_changes";

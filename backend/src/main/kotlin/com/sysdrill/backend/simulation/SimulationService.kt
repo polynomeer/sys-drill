@@ -55,6 +55,8 @@ data class SimulationSeries(
     val engineMode: String,
     val incidentStartedAt: Instant?,
     val points: List<Pair<TelemetryPoint, HealthStatus>>,
+    /** PLAN.md Round E12 (O5) — alerts and SLO judged over these same points. */
+    val observability: ObservabilitySummary? = null,
 )
 
 private const val SERIES_LEAD_SECONDS = 60L
@@ -80,6 +82,7 @@ class SimulationService(
     private val directorNarrationResultParser: DirectorNarrationResultParser,
     private val objectMapper: ObjectMapper,
     private val actionRateLimiter: ActionRateLimiter,
+    private val missionService: com.sysdrill.backend.mission.MissionService,
     @Value("\${sysdrill.simulation.narration-rate-limit-per-minute}") private val narrationRateLimitPerMinute: Long,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -369,7 +372,7 @@ class SimulationService(
             val steps = getTimeline(sessionId)
             val points = steps.map { TelemetryPoint(it.appliedAt, it.systemState, it.systemState.level, backlog = 0) }
             val withNow = if (points.isNotEmpty() && points.last().at.isBefore(now)) points + points.last().copy(at = now) else points
-            return SimulationSeries(engineMode, start, withNow.zip(TelemetrySampler.classify(withNow, start)))
+            return SimulationSeries(engineMode, start, withNow.zip(TelemetrySampler.classify(withNow, start)), observabilityOf(sessionId, withNow, start))
         }
 
         val session = sessionRepository.findById(sessionId).orElseThrow { NotFoundException("Session not found: $sessionId") }
@@ -385,7 +388,17 @@ class SimulationService(
         val spanSeconds = java.time.Duration.between(from, to).seconds
         val stepSeconds = maxOf(SERIES_MIN_STEP_SECONDS, Math.ceilDiv(spanSeconds, SERIES_MAX_POINTS.toLong()))
         val points = TelemetrySampler.sample(domain, traits, start, actions, from, to, java.time.Duration.ofSeconds(stepSeconds))
-        return SimulationSeries(engineMode, start, points.zip(TelemetrySampler.classify(points, start)))
+        return SimulationSeries(engineMode, start, points.zip(TelemetrySampler.classify(points, start)), observabilityOf(sessionId, points, start))
+    }
+
+    /** PLAN.md Round E12 — how many alert rules the learner wrote (postmortem context). */
+    fun alertRuleCount(sessionId: UUID): Int =
+        sessionRepository.findById(sessionId).map { missionService.state(it).alertRules.size }.orElse(0)
+
+    private fun observabilityOf(sessionId: UUID, points: List<TelemetryPoint>, start: Instant): ObservabilitySummary {
+        val session = sessionRepository.findById(sessionId).orElseThrow { NotFoundException("Session not found: $sessionId") }
+        val mission = missionService.state(session)
+        return ObservabilityEvaluator.evaluate(points, start, mission.alertRules, mission.slo ?: com.sysdrill.backend.mission.SloTargets())
     }
 
     private fun readSnapshot(event: AppliedAction): AppliedActionSnapshot? =

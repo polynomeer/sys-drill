@@ -27,14 +27,16 @@ import { LogEntry, LogLevel, LogViewer } from "./LogViewer";
 import { MissionControlBar } from "./MissionControlBar";
 import { GoldenSignals, RecentChanges, SeriesCharts } from "./ObserveViews";
 import { ServiceMap } from "./ServiceMap";
+import { AlertsView } from "./AlertsView";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
 import { trackEvent } from "@/lib/events";
 
 /** docs/OBSERVABILITY_UI_PLAN.md O1 — one investigation space instead of a stack of panels. */
-type ObserveTab = "overview" | "map" | "metrics" | "logs" | "changes";
+type ObserveTab = "overview" | "map" | "metrics" | "alerts" | "logs" | "changes";
 const OBSERVE_TABS: { key: ObserveTab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "map", label: "Service Map" },
+  { key: "alerts", label: "Alerts" },
   { key: "metrics", label: "Metrics" },
   { key: "logs", label: "Logs" },
   { key: "changes", label: "Changes" },
@@ -490,7 +492,14 @@ export function WargameLive({
 
   return (
     <div className="flex flex-col gap-4">
-      <MissionControlBar title={title ?? DOMAIN_TITLES[domain] ?? domain} latest={latestPoint} incidentStartedAt={incidentStartedAt} />
+      <MissionControlBar
+        title={title ?? DOMAIN_TITLES[domain] ?? domain}
+        latest={latestPoint}
+        incidentStartedAt={incidentStartedAt}
+        slo={series?.slo ?? null}
+        firingAlerts={series?.alerts.filter((a) => !a.resolvedAt).length ?? 0}
+        onAlertsClick={() => selectTab("alerts")}
+      />
 
       <div role="tablist" aria-label="Observe" className="flex gap-1 overflow-x-auto border-b border-border text-sm">
         {OBSERVE_TABS.filter((t) => t.key !== "logs" || isOwner).map((t) => (
@@ -512,6 +521,9 @@ export function WargameLive({
           {series && <GoldenSignals points={series.points} />}
           {incidentStartedAt && <RecentChanges steps={steps} incidentStartedAt={incidentStartedAt} limit={5} />}
         </div>
+      )}
+      {tab === "alerts" && (
+        <AlertsView sessionId={sessionId} series={series} isOwner={isOwner} onInvestigate={() => selectTab("metrics")} />
       )}
       {tab === "map" && <ServiceMap sessionId={sessionId} domain={domain} latest={latestPoint} />}
       {tab === "metrics" && (
