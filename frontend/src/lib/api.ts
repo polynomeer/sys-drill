@@ -692,6 +692,17 @@ export function getLearningConcepts(): Promise<LearningCategory[]> {
   return apiFetch<LearningCategory[]>("/learning/concepts");
 }
 
+/** docs/CODECRAFTERS_BENCHMARK.md §3.6 — a self-check built from concept data; graded on the page, nothing recorded. */
+export interface ConceptQuiz {
+  riskKey: string;
+  question: string;
+  options: { text: string; correct: boolean; fromRiskKey: string; fromLabel: string }[];
+}
+
+export function getConceptQuiz(riskKey: string): Promise<ConceptQuiz> {
+  return apiFetch<ConceptQuiz>(`/learning/concepts/${riskKey}/quiz`);
+}
+
 export function getLearningConcept(riskKey: string): Promise<LearningConceptDetail> {
   return apiFetch<LearningConceptDetail>(`/learning/concepts/${riskKey}`);
 }

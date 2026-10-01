@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { BlockReader } from "@/components/BlockReader";
+import { ConceptQuizCard } from "@/components/ConceptQuizCard";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { LearningConceptDetail, ScenarioSummary, getLearningConcept, listScenarios } from "@/lib/api";
@@ -9,9 +11,6 @@ import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Button } from "@/components/ui/Button";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
-
-/** Korean technical prose reads at roughly 500 characters a minute. */
-const CHARS_PER_MINUTE = 500;
 
 /**
  * docs/LEARNING_COMMUNITY_PLAN.md §5.2 / §5.4 — 개념 상세.
@@ -31,6 +30,8 @@ export default function LearningConceptPage() {
   const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(1);
+  // Stable so BlockReader's done-effect fires once, not on every render.
+  const markRead = useCallback(() => markConceptRead(riskKey), [riskKey]);
 
   useEffect(() => {
     if (!getStoredToken()) {
@@ -108,6 +109,8 @@ export default function LearningConceptPage() {
       ),
     },
   ];
+  // docs/CODECRAFTERS_BENCHMARK.md §3.6 — self-check before the call to action.
+  blocks.push({ key: "quiz", node: <ConceptQuizCard riskKey={riskKey} /> });
   if (hasTryIt) {
     blocks.push({
       key: "try",
@@ -138,20 +141,13 @@ export default function LearningConceptPage() {
     });
   }
 
-  const readingMinutes = Math.max(
-    1,
-    Math.round(
-      [concept.summary, concept.whyItMatters, concept.tradeoffs, ...concept.symptoms, ...concept.patterns].join("").length /
-        CHARS_PER_MINUTE,
-    ),
-  );
   const shown = Math.min(revealed, blocks.length);
   const done = shown >= blocks.length;
 
   return (
-    <ConceptReader
-      riskKey={riskKey}
+    <BlockReader
       done={done}
+      onDone={markRead}
       onContinue={() => setRevealed((n) => n + 1)}
       onExpandAll={() => setRevealed(Number.MAX_SAFE_INTEGER)}
     >
@@ -169,7 +165,7 @@ export default function LearningConceptPage() {
           )}
         </div>
         <p className="mt-1 text-xs text-foreground-muted">
-          읽는 데 약 {readingMinutes}분 · {shown} / {blocks.length} 블록
+          읽는 데 약 {concept.readingMinutes ?? 1}분 · {shown} / {blocks.length} 블록
         </p>
         <p className="mt-3 leading-relaxed">{concept.summary}</p>
       </div>
@@ -177,61 +173,6 @@ export default function LearningConceptPage() {
       {blocks.slice(0, shown).map((block) => (
         <div key={block.key}>{block.node}</div>
       ))}
-    </ConceptReader>
-  );
-}
-
-/**
- * The reveal controls: a "계속" button (+ Enter ↵) until every block is out,
- * then marks the concept as read so the next visit opens expanded.
- */
-function ConceptReader({
-  riskKey,
-  done,
-  onContinue,
-  onExpandAll,
-  children,
-}: {
-  riskKey: string;
-  done: boolean;
-  onContinue: () => void;
-  onExpandAll: () => void;
-  children: React.ReactNode;
-}) {
-  const handleKey = useCallback(
-    (e: KeyboardEvent) => {
-      // Don't hijack Enter while the user is typing somewhere (e.g. the header search).
-      const target = e.target as HTMLElement | null;
-      if (e.key !== "Enter" || done || target?.closest("input, textarea, select, button, a")) return;
-      e.preventDefault();
-      onContinue();
-    },
-    [done, onContinue],
-  );
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [handleKey]);
-
-  useEffect(() => {
-    if (done) markConceptRead(riskKey);
-  }, [done, riskKey]);
-
-  return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-5 p-8">
-      {children}
-      {!done && (
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col items-center gap-1">
-            <Button onClick={onContinue}>계속</Button>
-            <span className="text-[11px] text-foreground-muted">Enter ↵</span>
-          </div>
-          <button onClick={onExpandAll} className="self-start pt-2 text-xs text-foreground-muted underline hover:text-foreground">
-            모두 펼치기
-          </button>
-        </div>
-      )}
-    </div>
+    </BlockReader>
   );
 }
