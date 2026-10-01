@@ -4,6 +4,10 @@
 >
 > 선행 문서와의 관계: [UX_STRATEGY.md](UX_STRATEGY.md)(Phase A + 다크 네이비 리뉴얼 Round 1~4)가 **디자인 시스템과 개별 화면의 완성도**를 다뤘다면, 이 문서는 그 위에서 **학습 루프의 구조**(카탈로그 → 상세 → 단계별 진행 → 피드백 → 다음 단계 → 공유)를 다룬다. Learning/Community 세부 설계는 [LEARNING_COMMUNITY_PLAN.md](LEARNING_COMMUNITY_PLAN.md)에 이미 있으므로 여기서는 CodeCrafters와의 대응 관계만 짚고 중복 설계하지 않는다.
 
+## 진행 상황 (2026-10-01)
+
+§5의 P0·P1·P2와 후속 두 항목을 PLAN.md "CodeCrafters 벤치마킹" 절의 Round B1~B12로 구현했다(세부 결정과 검증 기록은 PLAN.md). 본문에 적었지만 아직 하지 않은 것: "SysDrill은 어떻게 동작하나요" 개념 문서(§3.4), 개념 퀴즈 블록·목록 읽기 시간(§3.6), 친구 초대(§3.8), 키보드 단축키(`⌘↵`, `j/k`)와 Tooltip·Skeleton·Toast·Avatar 컴포넌트·알림 벨 기능(§3.9), 성공 지표 계측(§6), 최근 완료자 최소 인원(§7).
+
 ## 0. 조사 방법과 한계
 
 - **직접 관찰(2026-09-30, 비로그인)**: 카탈로그(`/catalog`), 챌린지 개요(`/courses/redis/overview`), 언어 트랙(`/tracks/go`), 공개 프로필(`/users/<id>`), 개념 라이브러리(`/concepts`, `/concepts/redis-protocol`), 문서(`docs.codecrafters.io` — "How do challenges work?", CLI 사용법).
