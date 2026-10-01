@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import tools.jackson.databind.ObjectMapper
+import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -99,6 +100,43 @@ class BuildControllerIntegrationTest(
     fun `the challenge endpoint 404s for an unknown slug`() {
         mockMvc.perform(get("/build-challenges/does-not-exist").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isNotFound)
+    }
+
+    /**
+     * PLAN.md Round B11 — the shipped stub (challenges/…, mirrored in /bridge)
+     * fails stage 1 as-is and passes it once the commented-out lines under
+     * "Stage 1 — uncomment" are uncommented; for Python, stage 2 stays a real
+     * task because the stub's expire() is a no-op.
+     */
+    @Test
+    fun `the python stub passes stage 1 only after uncommenting, and stage 2 is still open`() {
+        val stub = File("../challenges/rate-limiter/rate_limiter.py").readText()
+
+        val raw = awaitCompleted(submit(stub), Duration.ofSeconds(240))
+        assertThat(JsonPath.read<String>(raw, "$.stages[0].status")).isEqualTo("FAILED")
+
+        val uncommented = awaitCompleted(submit(uncommentStageOne(stub, lines = 4)), Duration.ofSeconds(240))
+        assertThat(JsonPath.read<String>(uncommented, "$.stages[0].status")).isEqualTo("PASSED")
+        assertThat(JsonPath.read<String>(uncommented, "$.stages[1].status")).isEqualTo("FAILED")
+    }
+
+    @Test
+    fun `the typescript stub passes stage 1 after uncommenting`() {
+        val stub = File("../challenges/rate-limiter-ts/rate_limiter.ts").readText()
+        val submissionId = mockMvc.submitBuildChallenge(objectMapper, "rate-limiter-ts", userId, uncommentStageOne(stub, lines = 3))
+        val response = awaitCompleted(submissionId, Duration.ofSeconds(240))
+        assertThat(JsonPath.read<String>(response, "$.stages[0].status")).isEqualTo("PASSED")
+    }
+
+    /** Strips the first "# " / "// " from the [lines] lines right after the "Stage 1 — uncomment" marker. */
+    private fun uncommentStageOne(source: String, lines: Int): String {
+        val all = source.lines().toMutableList()
+        val marker = all.indexOfFirst { it.contains("Stage 1 — uncomment") }
+        check(marker >= 0) { "stub has no Stage 1 marker" }
+        for (i in marker + 1..marker + lines) {
+            all[i] = all[i].replaceFirst("# ", "").replaceFirst("// ", "")
+        }
+        return all.joinToString("\n")
     }
 
     @Test

@@ -59,15 +59,18 @@ export class RateLimiter {
   private failMode: FailMode;
 
   constructor(capacity: number, windowSeconds: number = 1.0, store?: InMemoryStore | FaultyStore, failMode: FailMode = "open") {
-    // TODO(stage 1): store the config. Default to new InMemoryStore() if
-    // `store` is undefined (stage 4: callers may pass a *shared* store).
-    throw new Error("not implemented");
+    this.capacity = capacity;
+    this.windowSeconds = windowSeconds;
+    // Stage 4: callers may pass a *shared* store.
+    this.store = store ?? new InMemoryStore();
+    this.failMode = failMode;
   }
 
   async allow(key: string): Promise<boolean> {
-    // TODO(stage 1): fixed-window admission — at most `capacity`
-    // true results per `windowSeconds` per key. A classic pattern:
-    // `count = await this.store.incr(key); if (count === 1) await this.store.expire(key, this.windowSeconds);`
+    // Stage 1 — uncomment the three lines below and submit.
+    // const count = await this.store.incr(key);
+    // if (count === 1) await this.store.expire(key, this.windowSeconds);
+    // return count <= this.capacity;
     // TODO(stage 3): the store's incr() is NOT atomic (see its own doc
     // comment) — make this method safe when many calls race on the same
     // key at once.

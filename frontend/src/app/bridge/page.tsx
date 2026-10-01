@@ -51,34 +51,67 @@ const PYTHON_STUB_TEMPLATE = `# Build your own Rate Limiter — challenges/rate-
 # 6개 stage를 모두 통과하지 않아도 Bridge로 넘어갈 수 있습니다 — 제출이 완료(COMPLETED)되기만 하면 됩니다.
 
 class InMemoryStore:
+    """A minimal key -> counter store, shared by every RateLimiter
+    instance that's constructed with the same InMemoryStore object.
+    Passing the same store to two RateLimiter instances is how stage 4
+    simulates "multiple instances behind a shared rate-limit store"
+    without needing a real network call.
+    """
+
     def __init__(self):
-        self._data = {}
+        self._data: dict[str, int] = {}
 
-    def incr(self, key):
-        raise NotImplementedError  # TODO(stage 1)
+    def incr(self, key: str) -> int:
+        self._data[key] = self._data.get(key, 0) + 1
+        return self._data[key]
 
-    def expire(self, key, seconds):
-        raise NotImplementedError  # TODO(stage 1)
+    def expire(self, key: str, seconds: float) -> None:
+        # TODO(stage 2): make the counter for \`key\` reset to 0 after \`seconds\`.
+        # Until you do, this does nothing — so a window never ends.
+        pass
 
 
 class FaultyStore:
-    def incr(self, key):
+    """Always raises — stage 5 uses this to simulate the backing store
+    (e.g. Redis) being unavailable, so you can test fail_mode."""
+
+    def incr(self, key: str) -> int:
         raise ConnectionError("store unavailable")
 
-    def expire(self, key, seconds):
+    def expire(self, key: str, seconds: float) -> None:
         raise ConnectionError("store unavailable")
 
 
 class RateLimiter:
-    def __init__(self, capacity, window_seconds=1.0, store=None, fail_mode="open"):
-        raise NotImplementedError  # TODO(stage 1)
+    def __init__(
+        self,
+        capacity: int,
+        window_seconds: float = 1.0,
+        store=None,
+        fail_mode: str = "open",
+    ):
+        self.capacity = capacity
+        self.window_seconds = window_seconds
+        # Stage 4: callers may pass a *shared* store.
+        self.store = store if store is not None else InMemoryStore()
+        self.fail_mode = fail_mode
 
-    def allow(self, key):
-        raise NotImplementedError  # TODO(stage 1-6)
+    def allow(self, key: str) -> bool:
+        # Stage 1 — uncomment the four lines below and submit.
+        # count = self.store.incr(key)
+        # if count == 1:
+        #     self.store.expire(key, self.window_seconds)
+        # return count <= self.capacity
+        # TODO(stage 3): make this safe under concurrent calls.
+        # TODO(stage 5): when the store raises, admit if fail_mode == "open",
+        # reject if fail_mode == "closed".
+        # TODO(stage 6): track allowed/rejected counts for \`metrics\`.
+        raise NotImplementedError
 
     @property
-    def metrics(self):
-        raise NotImplementedError  # TODO(stage 6)
+    def metrics(self) -> dict:
+        # TODO(stage 6): return {"allowed": int, "rejected": int, "reject_rate": float}.
+        raise NotImplementedError
 `;
 
 const TYPESCRIPT_STUB_TEMPLATE = `// Build your own Rate Limiter — challenges/rate-limiter-ts/rate_limiter.ts 와 동일한 스텁입니다.
@@ -88,6 +121,16 @@ const TYPESCRIPT_STUB_TEMPLATE = `// Build your own Rate Limiter — challenges/
 // 샌드박스는 node --experimental-strip-types로 실행됩니다(타입만 벗겨낼 뿐 완전한
 // 트랜스파일이 아님) — 생성자 파라미터 프로퍼티 같은 일부 TS 문법은 지원하지 않습니다.
 
+/**
+ * A shared key -> counter store — provided as a working implementation,
+ * not a TODO. It deliberately mirrors a real round trip to an external
+ * store like Redis: \`incr()\` reads, awaits (simulating network I/O), then
+ * writes — so it is NOT atomic on its own; two concurrent \`incr()\` calls
+ * on the same key can race. That's intentional: making the overall
+ * operation safe under concurrent calls is \`RateLimiter\`'s job (stage 3),
+ * exactly like it would be against a real external store used without an
+ * atomic command.
+ */
 export class InMemoryStore {
   private data: Map<string, number> = new Map();
 
@@ -105,6 +148,7 @@ export class InMemoryStore {
   }
 }
 
+/** Always rejects — stage 5 uses this to simulate the backing store (e.g. Redis) being unavailable, so you can test failMode. */
 export class FaultyStore {
   async incr(_key: string): Promise<number> {
     throw new Error("store unavailable");
@@ -124,15 +168,30 @@ export class RateLimiter {
   private failMode: FailMode;
 
   constructor(capacity: number, windowSeconds: number = 1.0, store?: InMemoryStore | FaultyStore, failMode: FailMode = "open") {
-    throw new Error("not implemented"); // TODO(stage 1)
+    this.capacity = capacity;
+    this.windowSeconds = windowSeconds;
+    // Stage 4: callers may pass a *shared* store.
+    this.store = store ?? new InMemoryStore();
+    this.failMode = failMode;
   }
 
   async allow(key: string): Promise<boolean> {
-    throw new Error("not implemented"); // TODO(stage 1-6)
+    // Stage 1 — uncomment the three lines below and submit.
+    // const count = await this.store.incr(key);
+    // if (count === 1) await this.store.expire(key, this.windowSeconds);
+    // return count <= this.capacity;
+    // TODO(stage 3): the store's incr() is NOT atomic (see its own doc
+    // comment) — make this method safe when many calls race on the same
+    // key at once.
+    // TODO(stage 5): when the store throws, admit if failMode === "open",
+    // reject if failMode === "closed".
+    // TODO(stage 6): track allowed/rejected counts for \`metrics\`.
+    throw new Error("not implemented");
   }
 
   get metrics(): { allowed: number; rejected: number; rejectRate: number } {
-    throw new Error("not implemented"); // TODO(stage 6)
+    // TODO(stage 6): return { allowed, rejected, rejectRate }.
+    throw new Error("not implemented");
   }
 }
 `;

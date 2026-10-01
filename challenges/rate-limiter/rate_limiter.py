@@ -20,12 +20,13 @@ class InMemoryStore:
         self._data: dict[str, int] = {}
 
     def incr(self, key: str) -> int:
-        # TODO(stage 1): increment and return the counter for `key`.
-        raise NotImplementedError
+        self._data[key] = self._data.get(key, 0) + 1
+        return self._data[key]
 
     def expire(self, key: str, seconds: float) -> None:
-        # TODO(stage 1): make the counter for `key` reset to 0 after `seconds`.
-        raise NotImplementedError
+        # TODO(stage 2): make the counter for `key` reset to 0 after `seconds`.
+        # Until you do, this does nothing — so a window never ends.
+        pass
 
 
 class FaultyStore:
@@ -47,13 +48,18 @@ class RateLimiter:
         store=None,
         fail_mode: str = "open",
     ):
-        # TODO(stage 1): store the config. Default to InMemoryStore() if
-        # `store` is None (stage 4: callers may pass a *shared* store).
-        raise NotImplementedError
+        self.capacity = capacity
+        self.window_seconds = window_seconds
+        # Stage 4: callers may pass a *shared* store.
+        self.store = store if store is not None else InMemoryStore()
+        self.fail_mode = fail_mode
 
     def allow(self, key: str) -> bool:
-        # TODO(stage 1): fixed-window admission — at most `capacity`
-        # True results per `window_seconds` per key.
+        # Stage 1 — uncomment the four lines below and submit.
+        # count = self.store.incr(key)
+        # if count == 1:
+        #     self.store.expire(key, self.window_seconds)
+        # return count <= self.capacity
         # TODO(stage 3): make this safe under concurrent calls.
         # TODO(stage 5): when the store raises, admit if fail_mode == "open",
         # reject if fail_mode == "closed".
