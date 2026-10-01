@@ -758,6 +758,16 @@ export function getUserActivity(userId: string): Promise<UserActivity> {
   return apiFetch<UserActivity>(`/community/users/${userId}/activity`);
 }
 
+/** The caller's newest submission to this challenge from any source (/bridge or submit.sh), or null if none yet. */
+export async function getLatestBuildSubmission(slug: string): Promise<BuildSubmissionResponse | null> {
+  try {
+    return await apiFetch<BuildSubmissionResponse>(`/build-challenges/${slug}/submissions/latest`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
 /** Stage roadmap + instructions, available before any submission exists. */
 export function getBuildChallenge(slug: string): Promise<BuildChallenge> {
   return apiFetch<BuildChallenge>(`/build-challenges/${slug}`);

@@ -58,9 +58,13 @@ export function TestLogPanel({
       const raw = outputLines(stage.stageOrder, stage.output);
       lines.push(...(raw.length > 0 ? raw : [{ prefix: `[stage-${stage.stageOrder}]`, text: stage.feedback ?? "", tone: "fail" as const }]));
       if (stage.stageOrder === currentStage) {
+        // A sandbox timeout says nothing about the code's logic — don't send the learner to the test spec for it.
+        const timedOut = (stage.output ?? "").includes("sandbox timed out");
         lines.push({
           prefix: "[next]",
-          text: `왼쪽 Stage ${stage.stageOrder} 지시문의 "테스트가 확인하는 것"과 위 실패 메시지를 비교해 고친 뒤 다시 제출하세요.`,
+          text: timedOut
+            ? "테스트가 제한 시간 안에 끝나지 않았습니다. 무한 루프나 오래 기다리는 호출이 없다면 채점 환경이 붐비는 것이니 다시 제출해 보세요."
+            : `왼쪽 Stage ${stage.stageOrder} 지시문의 "테스트가 확인하는 것"과 위 실패 메시지를 비교해 고친 뒤 다시 제출하세요.`,
           tone: "info",
         });
       }

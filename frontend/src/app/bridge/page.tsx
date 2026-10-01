@@ -14,6 +14,7 @@ import {
   ScenarioSummary,
   getBuildChallenge,
   getBuildSubmission,
+  getLatestBuildSubmission,
   getMyPreferences,
   listScenarios,
   startSession,
@@ -22,7 +23,6 @@ import {
 import {
   getStoredToken,
   loadBuildDraft,
-  loadBuildSubmissionId,
   saveBuildDraft,
   saveBuildSubmissionId,
 } from "@/lib/localSession";
@@ -32,6 +32,13 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { TestLogPanel } from "./TestLogPanel";
+import { LocalSolvePanel } from "./LocalSolvePanel";
+
+const CHALLENGE_DIRS: Record<Language, string> = {
+  python: "rate-limiter",
+  typescript: "rate-limiter-ts",
+};
+const LOCAL_WATCH_INTERVAL_MS = 3000;
 
 type Language = "python" | "typescript";
 
@@ -241,6 +248,7 @@ export default function BridgePage() {
   const [lastGraded, setLastGraded] = useState<BuildSubmissionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState(false);
+  const [mode, setMode] = useState<"web" | "local">("web");
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const slug = SLUGS[language];
@@ -281,17 +289,10 @@ export default function BridgePage() {
       setLastGraded(null);
       const nextSlug = SLUGS[lang];
       setSourceCode(loadBuildDraft(nextSlug) || STUB_TEMPLATES[lang]);
+      // Restore from the server, not this browser — submissions from submit.sh or another device count too.
       const [nextChallenge, last] = await Promise.all([
         getBuildChallenge(nextSlug),
-        (async () => {
-          const lastId = loadBuildSubmissionId(nextSlug);
-          if (!lastId) return null;
-          try {
-            return await getBuildSubmission(lastId);
-          } catch {
-            return null; // e.g. a submission id from another account or a reset database
-          }
-        })(),
+        getLatestBuildSubmission(nextSlug).catch(() => null),
       ]);
       setChallenge(nextChallenge);
       setSubmission(last);
@@ -330,6 +331,29 @@ export default function BridgePage() {
       });
     return () => stopPolling();
   }, [router, loadLanguage, stopPolling]);
+
+  // PLAN.md Round B12 — while "로컬에서 풀기" is open and nothing is grading, watch for a
+  // new submission (typically from ./submit.sh) and pick it up into the test log.
+  const submissionId = submission?.id;
+  useEffect(() => {
+    if (mode !== "local" || runState !== "idle" || pageState !== "ready") return;
+    const timer = setInterval(async () => {
+      try {
+        const latest = await getLatestBuildSubmission(slug);
+        if (!latest || latest.id === submissionId) return;
+        setSubmission(latest);
+        if (latest.status === "COMPLETED") {
+          setLastGraded(latest);
+        } else if (latest.status === "QUEUED" || latest.status === "RUNNING") {
+          setRunState("grading");
+          startPolling(latest.id);
+        }
+      } catch {
+        // transient — the next tick retries
+      }
+    }, LOCAL_WATCH_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [mode, runState, pageState, slug, submissionId, startPolling]);
 
   function handleLanguageChange(next: Language) {
     setLanguage(next);
@@ -466,23 +490,46 @@ export default function BridgePage() {
               <span className="ml-auto font-mono text-xs text-foreground-muted">{challenge.sourceFileName}</span>
             </div>
 
-            <CodeMirror
-              value={sourceCode}
-              onChange={handleSourceChange}
-              height="420px"
-              theme={oneDark}
-              extensions={language === "python" ? PYTHON_EXTENSIONS : TS_EXTENSIONS}
-              className="overflow-hidden rounded-lg border border-border text-sm"
-              basicSetup={{ tabSize: 4 }}
-              editable={!busy}
-            />
+            <div className="flex gap-1 border-b border-border text-sm">
+              {(
+                [
+                  ["web", "웹 에디터"],
+                  ["local", "로컬에서 풀기"],
+                ] as const
+              ).map(([m, label]) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  aria-pressed={mode === m}
+                  className={`-mb-px border-b-2 px-3 py-2 ${mode === m ? "border-accent text-foreground" : "border-transparent text-foreground-muted hover:text-foreground"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {mode === "local" ? (
+              <LocalSolvePanel dir={CHALLENGE_DIRS[language]} waiting={runState === "idle"} />
+            ) : (
+              <CodeMirror
+                value={sourceCode}
+                onChange={handleSourceChange}
+                height="420px"
+                theme={oneDark}
+                extensions={language === "python" ? PYTHON_EXTENSIONS : TS_EXTENSIONS}
+                className="overflow-hidden rounded-lg border border-border text-sm"
+                basicSetup={{ tabSize: 4 }}
+                editable={!busy}
+              />
+            )}
 
             {error && <p className="text-sm text-danger">{error}</p>}
 
             <div className="flex flex-wrap items-center gap-3">
-              <Button onClick={handleSubmit} disabled={busy}>
+              {mode === "web" && <Button onClick={handleSubmit} disabled={busy}>
                 {runState === "submitting" ? "제출하는 중..." : runState === "grading" ? "채점 중..." : graded ? "다시 제출하기" : "제출하기"}
-              </Button>
+              </Button>}
               {graded && (
                 <Button variant="secondary" onClick={handleContinueToDesign} disabled={startingSession || !scenario || busy}>
                   {startingSession ? "이동하는 중..." : `다음: ${scenario?.title ?? "설계"}로 이동 →`}
