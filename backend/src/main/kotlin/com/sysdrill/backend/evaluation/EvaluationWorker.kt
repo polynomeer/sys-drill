@@ -248,7 +248,15 @@ class EvaluationWorker(
         /** 첫 실패 직후의 대기. 이후 연속 실패마다 두 배가 된다. */
         val ERROR_BACKOFF: Duration = Duration.ofSeconds(1)
 
-        /** 백오프 상한. 끊긴 Redis 를 계속 두드려도 분당 한 번꼴로만 로그가 남는다. */
-        val MAX_ERROR_BACKOFF: Duration = Duration.ofSeconds(60)
+        /**
+         * 백오프 상한.
+         *
+         * 60초로 잡았다가 10초로 낮췄다. 상한이 클수록 좀비 스레드의 로그는 줄지만,
+         * 그만큼 **살아 있는 워커가 다음 작업을 늦게 집는다** — 일시적인 오류 몇 번에
+         * 60초를 자고 있으면 그 사이 들어온 제출은 사용자가 1분을 기다린다.
+         * 10초면 소음은 여전히 10배 줄고(1초 간격 대비), 사용자가 체감할 지연은
+         * 폴링 주기([POLL_TIMEOUT]) 수준에 머문다.
+         */
+        val MAX_ERROR_BACKOFF: Duration = Duration.ofSeconds(10)
     }
 }
