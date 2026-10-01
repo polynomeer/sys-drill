@@ -291,3 +291,12 @@ management:
         # default too — Jaeger only ingests traces, so this just 404s on
         # every export cycle. Traces are the only signal this step adds.
         enabled: false
+
+sentry:
+  # docs/COMMERCIALIZATION.md — DSN 미설정 시 SDK가 스스로 비활성 상태가 되는
+  # 것은 Sentry SDK 자체의 동작(프론트 instrumentation.ts와 동일한 전제).
+  dsn: ${SENTRY_DSN:}
+  # 이 프로젝트는 이미 OpenTelemetry+Jaeger로 분산 트레이싱을 갖고 있다
+  # (management.tracing.* 위 참고) — Sentry의 자체 성능 트레이싱까지 켜면
+  # 트레이싱 시스템이 둘로 쪼개지므로, 에러 캡처 용도로만 쓴다.
+  traces-sample-rate: 0

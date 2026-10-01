@@ -1,5 +1,6 @@
 package com.sysdrill.backend.common.web
 
+import io.sentry.Sentry
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
@@ -59,9 +60,17 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
     // nothing logged by this app -- exactly what happened when a stale JWT
     // (user deleted from the DB after the token was issued) reached a
     // service layer and hit a FK-constraint violation.
+    //
+    // Sentry.captureException is called explicitly here rather than relying
+    // on Sentry's own auto-configured HandlerExceptionResolver: that
+    // resolver only ever sees exceptions nothing else has resolved, and this
+    // @RestControllerAdvice's ExceptionHandlerExceptionResolver always
+    // resolves first -- Sentry's resolver would never run for anything this
+    // class handles. A no-op when sentry.dsn is unset (SDK's own behavior).
     @ExceptionHandler(Exception::class)
     fun handleUnexpected(ex: Exception): ResponseEntity<ApiError> {
         log.error("Unhandled exception", ex)
+        Sentry.captureException(ex)
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(ApiError(HttpStatus.INTERNAL_SERVER_ERROR.value(), "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요."))
     }
