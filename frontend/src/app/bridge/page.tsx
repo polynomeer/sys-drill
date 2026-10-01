@@ -10,12 +10,14 @@ import { Lock } from "lucide-react";
 import {
   ApiError,
   BuildChallenge,
+  BuildChallengeSummary,
   BuildSubmissionResponse,
   ScenarioSummary,
   getBuildChallenge,
   getBuildSubmission,
   getLatestBuildSubmission,
   getMyPreferences,
+  listBuildChallenges,
   listScenarios,
   startSession,
   submitBuildChallenge,
@@ -33,19 +35,15 @@ import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { TestLogPanel } from "./TestLogPanel";
 import { LocalSolvePanel } from "./LocalSolvePanel";
+import {
+  type BuildLanguage as Language,
+  CHALLENGE_FAMILIES,
+  familyInfo,
+  familyOf,
+  slugFor,
+} from "@/lib/buildChallenges";
 
-const CHALLENGE_DIRS: Record<Language, string> = {
-  python: "rate-limiter",
-  typescript: "rate-limiter-ts",
-};
 const LOCAL_WATCH_INTERVAL_MS = 3000;
-
-type Language = "python" | "typescript";
-
-const SLUGS: Record<Language, string> = {
-  python: "rate-limiter",
-  typescript: "rate-limiter-ts",
-};
 const POLL_INTERVAL_MS = 1000;
 
 // Module-scope so the array identity is stable across renders — CodeMirror
@@ -53,166 +51,19 @@ const POLL_INTERVAL_MS = 1000;
 const PYTHON_EXTENSIONS = [python()];
 const TS_EXTENSIONS = [javascript({ typescript: true })];
 
-const PYTHON_STUB_TEMPLATE = `# Build your own Rate Limiter — challenges/rate-limiter/rate_limiter.py 와 동일한 스텁입니다.
-# 로컬에서 git으로 받아 CLI(submit.sh)로 제출할 수도 있습니다 (README.md 참고).
-# 6개 stage를 모두 통과하지 않아도 Bridge로 넘어갈 수 있습니다 — 제출이 완료(COMPLETED)되기만 하면 됩니다.
-
-class InMemoryStore:
-    """A minimal key -> counter store, shared by every RateLimiter
-    instance that's constructed with the same InMemoryStore object.
-    Passing the same store to two RateLimiter instances is how stage 4
-    simulates "multiple instances behind a shared rate-limit store"
-    without needing a real network call.
-    """
-
-    def __init__(self):
-        self._data: dict[str, int] = {}
-
-    def incr(self, key: str) -> int:
-        self._data[key] = self._data.get(key, 0) + 1
-        return self._data[key]
-
-    def expire(self, key: str, seconds: float) -> None:
-        # TODO(stage 2): make the counter for \`key\` reset to 0 after \`seconds\`.
-        # Until you do, this does nothing — so a window never ends.
-        pass
-
-
-class FaultyStore:
-    """Always raises — stage 5 uses this to simulate the backing store
-    (e.g. Redis) being unavailable, so you can test fail_mode."""
-
-    def incr(self, key: str) -> int:
-        raise ConnectionError("store unavailable")
-
-    def expire(self, key: str, seconds: float) -> None:
-        raise ConnectionError("store unavailable")
-
-
-class RateLimiter:
-    def __init__(
-        self,
-        capacity: int,
-        window_seconds: float = 1.0,
-        store=None,
-        fail_mode: str = "open",
-    ):
-        self.capacity = capacity
-        self.window_seconds = window_seconds
-        # Stage 4: callers may pass a *shared* store.
-        self.store = store if store is not None else InMemoryStore()
-        self.fail_mode = fail_mode
-
-    def allow(self, key: str) -> bool:
-        # Stage 1 — uncomment the four lines below and submit.
-        # count = self.store.incr(key)
-        # if count == 1:
-        #     self.store.expire(key, self.window_seconds)
-        # return count <= self.capacity
-        # TODO(stage 3): make this safe under concurrent calls.
-        # TODO(stage 5): when the store raises, admit if fail_mode == "open",
-        # reject if fail_mode == "closed".
-        # TODO(stage 6): track allowed/rejected counts for \`metrics\`.
-        raise NotImplementedError
-
-    @property
-    def metrics(self) -> dict:
-        # TODO(stage 6): return {"allowed": int, "rejected": int, "reject_rate": float}.
-        raise NotImplementedError
-`;
-
-const TYPESCRIPT_STUB_TEMPLATE = `// Build your own Rate Limiter — challenges/rate-limiter-ts/rate_limiter.ts 와 동일한 스텁입니다.
-// 로컬에서 git으로 받아 CLI(submit.sh)로 제출할 수도 있습니다 (README.md 참고).
-// 6개 stage를 모두 통과하지 않아도 Bridge로 넘어갈 수 있습니다 — 제출이 완료(COMPLETED)되기만 하면 됩니다.
-//
-// 샌드박스는 node --experimental-strip-types로 실행됩니다(타입만 벗겨낼 뿐 완전한
-// 트랜스파일이 아님) — 생성자 파라미터 프로퍼티 같은 일부 TS 문법은 지원하지 않습니다.
-
-/**
- * A shared key -> counter store — provided as a working implementation,
- * not a TODO. It deliberately mirrors a real round trip to an external
- * store like Redis: \`incr()\` reads, awaits (simulating network I/O), then
- * writes — so it is NOT atomic on its own; two concurrent \`incr()\` calls
- * on the same key can race. That's intentional: making the overall
- * operation safe under concurrent calls is \`RateLimiter\`'s job (stage 3),
- * exactly like it would be against a real external store used without an
- * atomic command.
- */
-export class InMemoryStore {
-  private data: Map<string, number> = new Map();
-
-  async incr(key: string): Promise<number> {
-    const current = this.data.get(key) ?? 0;
-    await new Promise((resolve) => setImmediate(resolve));
-    const next = current + 1;
-    this.data.set(key, next);
-    return next;
-  }
-
-  async expire(key: string, seconds: number): Promise<void> {
-    await new Promise((resolve) => setImmediate(resolve));
-    setTimeout(() => this.data.delete(key), seconds * 1000).unref();
-  }
-}
-
-/** Always rejects — stage 5 uses this to simulate the backing store (e.g. Redis) being unavailable, so you can test failMode. */
-export class FaultyStore {
-  async incr(_key: string): Promise<number> {
-    throw new Error("store unavailable");
-  }
-
-  async expire(_key: string, _seconds: number): Promise<void> {
-    throw new Error("store unavailable");
-  }
-}
-
-export type FailMode = "open" | "closed";
-
-export class RateLimiter {
-  private capacity: number;
-  private windowSeconds: number;
-  private store: InMemoryStore | FaultyStore;
-  private failMode: FailMode;
-
-  constructor(capacity: number, windowSeconds: number = 1.0, store?: InMemoryStore | FaultyStore, failMode: FailMode = "open") {
-    this.capacity = capacity;
-    this.windowSeconds = windowSeconds;
-    // Stage 4: callers may pass a *shared* store.
-    this.store = store ?? new InMemoryStore();
-    this.failMode = failMode;
-  }
-
-  async allow(key: string): Promise<boolean> {
-    // Stage 1 — uncomment the three lines below and submit.
-    // const count = await this.store.incr(key);
-    // if (count === 1) await this.store.expire(key, this.windowSeconds);
-    // return count <= this.capacity;
-    // TODO(stage 3): the store's incr() is NOT atomic (see its own doc
-    // comment) — make this method safe when many calls race on the same
-    // key at once.
-    // TODO(stage 5): when the store throws, admit if failMode === "open",
-    // reject if failMode === "closed".
-    // TODO(stage 6): track allowed/rejected counts for \`metrics\`.
-    throw new Error("not implemented");
-  }
-
-  get metrics(): { allowed: number; rejected: number; rejectRate: number } {
-    // TODO(stage 6): return { allowed, rejected, rejectRate }.
-    throw new Error("not implemented");
-  }
-}
-`;
-
-const STUB_TEMPLATES: Record<Language, string> = {
-  python: PYTHON_STUB_TEMPLATE,
-  typescript: TYPESCRIPT_STUB_TEMPLATE,
-};
-
 type PageState = "loading" | "ready" | "error";
 type RunState = "idle" | "submitting" | "grading";
 
-function findBridgeScenario(scenarios: ScenarioSummary[]): ScenarioSummary | null {
-  return scenarios.find((s) => s.domain === "coupon") ?? scenarios.find((s) => s.title.includes("쿠폰")) ?? scenarios[0] ?? null;
+/** The official Drill this challenge leads into (Bridge Mode) — see lib/buildChallenges.ts for why each domain. */
+function findBridgeScenario(scenarios: ScenarioSummary[], family: string): ScenarioSummary | null {
+  const domain = familyInfo(family)?.domain ?? "coupon";
+  return scenarios.find((s) => s.domain === domain && !s.creatorNickname && !s.organizationId) ?? null;
+}
+
+/** `?challenge=<slug>` — read once on mount (no useSearchParams, so the page needs no Suspense boundary). */
+function requestedChallenge(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("challenge");
 }
 
 /** The first stage (by order) the latest graded submission didn't pass — where the learner is now.
@@ -239,9 +90,11 @@ export default function BridgePage() {
   const [pageState, setPageState] = useState<PageState>("loading");
   const [runState, setRunState] = useState<RunState>("idle");
   const [language, setLanguage] = useState<Language>("python");
+  const [family, setFamily] = useState<string>("rate-limiter");
+  const [catalog, setCatalog] = useState<BuildChallengeSummary[]>([]);
+  const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
   const [sourceCode, setSourceCode] = useState("");
   const [challenge, setChallenge] = useState<BuildChallenge | null>(null);
-  const [scenario, setScenario] = useState<ScenarioSummary | null>(null);
   const [submission, setSubmission] = useState<BuildSubmissionResponse | null>(null);
   // The last *fully graded* submission — progress is judged against it, so the stage
   // list doesn't jump back to Stage 1 while a resubmission is still being graded.
@@ -251,7 +104,12 @@ export default function BridgePage() {
   const [mode, setMode] = useState<"web" | "local">("web");
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const slug = SLUGS[language];
+  const slug = slugFor(family, language);
+  const scenario = findBridgeScenario(scenarios, family);
+  /** Languages this challenge actually ships in (rate-limiter has a TypeScript twin, the rest are Python only). */
+  const familyLanguages: Language[] = catalog
+    .filter((c) => familyOf(c.slug) === family)
+    .map((c) => (c.language === "typescript" ? "typescript" : "python"));
 
   const stopPolling = useCallback(() => {
     if (pollTimer.current) {
@@ -280,20 +138,20 @@ export default function BridgePage() {
     [stopPolling],
   );
 
-  /** Challenge roadmap + the learner's last submission for this language (restored from localStorage). */
-  const loadLanguage = useCallback(
-    async (lang: Language) => {
+  /** Challenge roadmap + the learner's last submission for this challenge (restored from the server). */
+  const loadChallenge = useCallback(
+    async (nextSlug: string) => {
       stopPolling();
       setRunState("idle");
       setSubmission(null);
       setLastGraded(null);
-      const nextSlug = SLUGS[lang];
-      setSourceCode(loadBuildDraft(nextSlug) || STUB_TEMPLATES[lang]);
       // Restore from the server, not this browser — submissions from submit.sh or another device count too.
       const [nextChallenge, last] = await Promise.all([
         getBuildChallenge(nextSlug),
         getLatestBuildSubmission(nextSlug).catch(() => null),
       ]);
+      // PLAN.md Round E2 — the stub comes from the DB (same file as challenges/<slug>/), not a frontend constant.
+      setSourceCode(loadBuildDraft(nextSlug) || nextChallenge.starterCode || "");
       setChallenge(nextChallenge);
       setSubmission(last);
       if (last?.status === "COMPLETED") setLastGraded(last);
@@ -311,18 +169,24 @@ export default function BridgePage() {
       return;
     }
     // docs/CODECRAFTERS_BENCHMARK.md §3.4 — open in the learner's preferred language (default Python).
-    const initialLanguage = getMyPreferences()
+    const preferred = getMyPreferences()
       .then((p): Language => (p.preferredLanguage === "TYPESCRIPT" ? "typescript" : "python"))
       .catch((): Language => "python");
-    Promise.all([
-      listScenarios(),
-      initialLanguage.then((lang) => {
-        setLanguage(lang);
-        return loadLanguage(lang);
-      }),
-    ])
-      .then(([scenarios]) => {
-        setScenario(findBridgeScenario(scenarios));
+    Promise.all([listScenarios(), listBuildChallenges(), preferred])
+      .then(async ([nextScenarios, nextCatalog, preferredLanguage]) => {
+        setScenarios(nextScenarios);
+        setCatalog(nextCatalog);
+        // PLAN.md Round E2 — `?challenge=<slug>` (from a concept page or a track) picks the challenge;
+        // an explicit `-ts` slug also picks the language, otherwise the preference applies where it exists.
+        const requested = requestedChallenge();
+        const known = nextCatalog.some((c) => c.slug === requested) ? requested : null;
+        const nextFamily = known ? familyOf(known) : "rate-limiter";
+        const available = nextCatalog.filter((c) => familyOf(c.slug) === nextFamily).map((c) => c.slug);
+        const wanted = known?.endsWith("-ts") ? "typescript" : preferredLanguage;
+        const nextLanguage: Language = available.includes(slugFor(nextFamily, wanted)) ? wanted : "python";
+        setFamily(nextFamily);
+        setLanguage(nextLanguage);
+        await loadChallenge(slugFor(nextFamily, nextLanguage));
         setPageState("ready");
       })
       .catch((err) => {
@@ -330,7 +194,7 @@ export default function BridgePage() {
         setPageState("error");
       });
     return () => stopPolling();
-  }, [router, loadLanguage, stopPolling]);
+  }, [router, loadChallenge, stopPolling]);
 
   // PLAN.md Round B12 — while "로컬에서 풀기" is open and nothing is grading, watch for a
   // new submission (typically from ./submit.sh) and pick it up into the test log.
@@ -358,7 +222,17 @@ export default function BridgePage() {
   function handleLanguageChange(next: Language) {
     setLanguage(next);
     setError(null);
-    loadLanguage(next).catch((err) => setError(err instanceof ApiError ? err.message : "챌린지를 불러오지 못했습니다."));
+    router.replace(`/bridge?challenge=${slugFor(family, next)}`, { scroll: false });
+    loadChallenge(slugFor(family, next)).catch((err) => setError(err instanceof ApiError ? err.message : "챌린지를 불러오지 못했습니다."));
+  }
+
+  function handleFamilyChange(next: string) {
+    const nextLanguage: Language = catalog.some((c) => c.slug === slugFor(next, language)) ? language : "python";
+    setFamily(next);
+    setLanguage(nextLanguage);
+    setError(null);
+    router.replace(`/bridge?challenge=${slugFor(next, nextLanguage)}`, { scroll: false });
+    loadChallenge(slugFor(next, nextLanguage)).catch((err) => setError(err instanceof ApiError ? err.message : "챌린지를 불러오지 못했습니다."));
   }
 
   function handleSourceChange(value: string) {
@@ -420,7 +294,7 @@ export default function BridgePage() {
     <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Build your own Rate Limiter</h1>
+          <h1 className="text-xl font-semibold">{challenge?.title ?? "Build"}</h1>
           <p className="mt-1 text-sm text-foreground-muted">
             단계를 하나씩 통과하세요. 제출이 끝나면 언제든 {scenario ? `"${scenario.title}"` : "연결된"} 설계 → 꼬리설계 →
             Wargame으로 넘어갈 수 있습니다.
@@ -428,6 +302,23 @@ export default function BridgePage() {
         </div>
         <BridgeProgress current="build" />
       </div>
+
+      {pageState === "ready" && (
+        <nav aria-label="Build 챌린지" className="-mt-2 flex flex-wrap gap-2">
+          {CHALLENGE_FAMILIES.filter((f) => catalog.some((c) => familyOf(c.slug) === f.family)).map((f) => (
+            <Button
+              key={f.family}
+              size="sm"
+              variant={f.family === family ? "primary" : "secondary"}
+              onClick={() => handleFamilyChange(f.family)}
+              disabled={busy || f.family === family}
+              aria-pressed={f.family === family}
+            >
+              {f.title}
+            </Button>
+          ))}
+        </nav>
+      )}
 
       {pageState === "loading" && <LoadingState />}
       {pageState === "error" && <p className="text-sm text-danger">{error}</p>}
@@ -449,7 +340,7 @@ export default function BridgePage() {
               <Card as="section" className="border-success/40">
                 <p className="font-medium text-success">모든 단계를 통과했습니다</p>
                 <p className="mt-1 text-sm text-foreground-muted">
-                  직접 만든 Rate Limiter가 설계 단계에서 어떤 선택으로 이어지는지 확인해보세요.
+                  직접 만든 {familyInfo(family)?.title ?? "컴포넌트"}가 설계 단계에서 어떤 선택으로 이어지는지 확인해보세요.
                 </p>
               </Card>
             ) : (
@@ -477,7 +368,7 @@ export default function BridgePage() {
           <main className="flex min-w-0 flex-col gap-4">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-foreground-muted">언어</span>
-              {(["python", "typescript"] as const).map((lang) => (
+              {familyLanguages.map((lang) => (
                 <Button
                   key={lang}
                   size="sm"
@@ -511,7 +402,7 @@ export default function BridgePage() {
             </div>
 
             {mode === "local" ? (
-              <LocalSolvePanel dir={CHALLENGE_DIRS[language]} waiting={runState === "idle"} />
+              <LocalSolvePanel dir={slug} waiting={runState === "idle"} />
             ) : (
               // docs/CODECRAFTERS_BENCHMARK.md §3.9 — ⌘↵ / Ctrl↵ submits. Caught in the capture phase so
               // CodeMirror's own Mod-Enter ("insert blank line") never sees it.

@@ -366,6 +366,15 @@ export interface BuildChallenge {
   language: string;
   sourceFileName: string;
   stages: BuildStageInfo[];
+  /** PLAN.md Round E2 — the stub /bridge starts from (same file as challenges/<slug>/). */
+  starterCode: string | null;
+}
+
+export interface BuildChallengeSummary {
+  slug: string;
+  title: string;
+  language: string;
+  stageCount: number;
 }
 
 export interface BuildSubmissionResponse {
@@ -815,6 +824,11 @@ export async function getLatestBuildSubmission(slug: string): Promise<BuildSubmi
 /** Stage roadmap + instructions, available before any submission exists. */
 export function getBuildChallenge(slug: string): Promise<BuildChallenge> {
   return apiFetch<BuildChallenge>(`/build-challenges/${slug}`);
+}
+
+/** PLAN.md Round E2 — every Build challenge, for the /bridge picker. */
+export function listBuildChallenges(): Promise<BuildChallengeSummary[]> {
+  return apiFetch<BuildChallengeSummary[]>("/build-challenges");
 }
 
 export function createOrganization(name: string): Promise<OrganizationDetail> {

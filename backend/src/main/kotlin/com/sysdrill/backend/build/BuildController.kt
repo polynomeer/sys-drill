@@ -23,6 +23,18 @@ class BuildController(
     private val buildStageResultRepository: BuildStageResultRepository,
 ) {
 
+    /** PLAN.md Round E2 — every challenge, so `/bridge` can offer all of them rather than only rate-limiter. */
+    @GetMapping("/build-challenges")
+    fun listChallenges(): List<BuildChallengeSummaryResponse> =
+        buildChallengeRepository.findAll().sortedBy { it.createdAt }.map {
+            BuildChallengeSummaryResponse(
+                slug = it.slug,
+                title = it.title,
+                language = it.languages,
+                stageCount = buildStageRepository.findByChallengeIdOrderByStageOrderAsc(it.id!!).size,
+            )
+        }
+
     /** docs/CODECRAFTERS_BENCHMARK.md §3.2 — the frontend shows the current stage's instructions before the first submit. */
     @GetMapping("/build-challenges/{slug}")
     fun getChallenge(@PathVariable slug: String): BuildChallengeResponse {
@@ -35,6 +47,7 @@ class BuildController(
             stages = buildStageRepository.findByChallengeIdOrderByStageOrderAsc(challenge.id!!).map {
                 BuildStageInfoResponse(stageOrder = it.stageOrder, title = it.title, spec = it.spec, instructions = it.instructions)
             },
+            starterCode = challenge.starterCode,
         )
     }
 

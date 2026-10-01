@@ -29,6 +29,10 @@ class BuildChallenge(
     @Column(name = "source_file_name", nullable = false)
     var sourceFileName: String,
 
+    /** PLAN.md Round E2 — the stub `/bridge` starts from, mirrored from `challenges/<slug>/` (BuildStarterCodeTest). */
+    @Column(name = "starter_code")
+    var starterCode: String? = null,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant? = null,

@@ -18,7 +18,8 @@ import {
 import { getStoredToken } from "@/lib/localSession";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
 import { DomainIcon } from "@/lib/domainIcons";
-import { TRACK_BUILD, trackDrills } from "@/lib/tracks";
+import { trackDrills } from "@/lib/tracks";
+import { buildsForDomain } from "@/lib/buildChallenges";
 import { DrillCard } from "@/components/DrillCard";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -81,7 +82,7 @@ export default function TrackPage() {
 
   const drills = trackDrills(scenarios, domain);
   const completions = drills.reduce((sum, s) => sum + (s.completedCount ?? 0), 0);
-  const build = TRACK_BUILD[domain];
+  const builds = buildsForDomain(domain);
   const myDomain = certification?.domains.find((d) => d.domain === domain);
 
   return (
@@ -116,19 +117,22 @@ export default function TrackPage() {
             )}
           </section>
 
-          {build && (
+          {builds.length > 0 && (
             <section className="flex flex-col gap-3">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-muted">Build</h2>
-              <Link
-                href={build.href}
-                className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-5 transition-colors hover:border-accent/40"
-              >
-                <div>
-                  <p className="font-semibold group-hover:text-accent">{build.title}</p>
-                  <p className="mt-1 text-sm text-foreground-muted">핵심 컴포넌트를 직접 구현한 뒤 이 도메인의 설계로 이어갑니다.</p>
-                </div>
-                <Terminal className="h-5 w-5 shrink-0 text-foreground-muted" aria-hidden strokeWidth={1.75} />
-              </Link>
+              {builds.map((build) => (
+                <Link
+                  key={build.href}
+                  href={build.href}
+                  className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-5 transition-colors hover:border-accent/40"
+                >
+                  <div>
+                    <p className="font-semibold group-hover:text-accent">{build.title}</p>
+                    <p className="mt-1 text-sm text-foreground-muted">핵심 컴포넌트를 직접 구현한 뒤 이 도메인의 설계로 이어갑니다.</p>
+                  </div>
+                  <Terminal className="h-5 w-5 shrink-0 text-foreground-muted" aria-hidden strokeWidth={1.75} />
+                </Link>
+              ))}
             </section>
           )}
 

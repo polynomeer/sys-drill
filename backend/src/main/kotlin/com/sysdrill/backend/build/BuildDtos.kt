@@ -27,6 +27,16 @@ data class BuildChallengeResponse(
     val language: String,
     val sourceFileName: String,
     val stages: List<BuildStageInfoResponse>,
+    /** PLAN.md Round E2 — null only for a challenge seeded without a stub. */
+    val starterCode: String? = null,
+)
+
+/** PLAN.md Round E2 — the `/bridge` challenge picker. */
+data class BuildChallengeSummaryResponse(
+    val slug: String,
+    val title: String,
+    val language: String,
+    val stageCount: Int,
 )
 
 data class BuildStageInfoResponse(

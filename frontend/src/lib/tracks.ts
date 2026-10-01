@@ -7,12 +7,6 @@ import { TIER_ORDER } from "@/lib/drillPrereq";
  * the same order as DOMAIN_TITLES. */
 export const TRACK_DOMAINS = Object.keys(DOMAIN_TITLES);
 
-/** The Build challenge wired to a domain. Only coupon has one today (Bridge
- * Mode's rate limiter, see bridge/page.tsx findBridgeScenario). */
-export const TRACK_BUILD: Record<string, { title: string; href: string }> = {
-  coupon: { title: "Rate Limiter 구현 (Bridge Mode)", href: "/bridge" },
-};
-
 /** A domain's Drills: official first, then community ones using the same domain label, easiest first. */
 export function trackDrills(scenarios: ScenarioSummary[], domain: string): ScenarioSummary[] {
   const tier = (d: string | null) => {
