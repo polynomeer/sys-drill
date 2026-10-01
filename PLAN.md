@@ -1980,6 +1980,25 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## 백엔드 Sentry 에러 추적 재시도 (관측성 격차 해소) ✅ 완료 (2026-10-01)
+
+`docs/COMMERCIALIZATION.md` "관측성/장애 대응" 항목 — 10개 항목 "완성도 재진단"과는 별개 트랙. 프론트는 이미 `@sentry/nextjs`로 연동돼 있지만, 백엔드는 예전에 `sentry-spring-boot-starter-jakarta`를 시도했다가 **이 프로젝트의 Spring Boot 4.1.1과 호환되지 않아**(`RestClientCustomizer` 클래스 누락으로 앱이 아예 기동 안 됨) 되돌린 상태로 남아 있었다.
+
+착수 전 Maven Central을 직접 확인(`repo1.maven.org/maven2/io/sentry/` 디렉터리 리스팅 + `maven-metadata.xml`)해, Sentry가 그 사이 Spring Boot 4 전용 아티팩트(`io.sentry:sentry-spring-boot-4-starter`, 최신 8.59.0)를 따로 낸 걸 확인했다 — 예전 실패 원인이던 `sentry-spring-boot-starter-jakarta`는 Spring Framework 6(Boot 3) 전용이었고, 새 아티팩트는 `sentry-spring-7`(Boot 4가 쓰는 Spring Framework 7)에 맞춰 다시 빌드된 것이었다(JAR 안의 `AutoConfiguration.imports`/클래스 목록까지 직접 까봐서 확인).
+
+- [x] `build.gradle.kts` — `io.sentry:sentry-spring-boot-4-starter:8.59.0` 추가(기존 `-starter` 네이밍 컨벤션을 따름, 코어와 starter 둘 다 같은 자동구성을 가져서 starter 쪽이 특별히 더 위험하지 않음을 JAR 내용으로 확인 후 선택)
+- [x] `application.yml` — `sentry.dsn: ${SENTRY_DSN:}`(미설정 시 SDK 스스로 비활성, 프론트와 동일 전제) + `sentry.traces-sample-rate: 0`(이미 OTel+Jaeger가 분산 트레이싱을 맡고 있어 중복 방지)
+- [x] `GlobalExceptionHandler.kt`의 진짜 캐치올(`handleUnexpected`)에서 `Sentry.captureException(ex)` 명시적 호출 — Sentry의 자체 `HandlerExceptionResolver`는 "아무도 처리하지 않은" 예외만 잡는데, 이 `@RestControllerAdvice`가 모든 예외를 이미 끝까지 처리해버려서 Sentry 리졸버는 체인 순서상 끼어들 기회조차 없다. 의도된 4xx 핸들러(`NotFoundException` 등)는 건드리지 않음 — 비즈니스 정상 흐름이지 "에러"가 아님.
+- [x] 신규 `GlobalExceptionHandlerSentryTest` — 기존 `GlobalExceptionHandlerTest`(DSN 미설정)와 별도 `@SpringBootTest` 컨텍스트로 분리(`@DynamicPropertySource`로 `sentry.dsn`을 실제 설정), `@TestConfiguration`으로 테스트 전용 예외 발생 엔드포인트(`/__test/boom`) 추가해 진짜 예상 밖 예외 경로를 재현
+
+**완료 기준 충족**: `./gradlew compileKotlin compileTestKotlin` 클린. `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.common.web.*"` 통과 — 신규 테스트가 `sentry.dsn`이 실제로 설정된 상태로 `ApplicationContext`를 기동(15.8초, 지난번 실패가 바로 이 지점이었음)하고 `/__test/boom`이 여전히 구조화된 500(`{"status":500,...}`)을 반환하는 것, 즉 Sentry 캡처 호출이 응답 모양을 바꾸거나 요청을 막지 않는 것까지 확인.
+
+**실 검증(지난번 실패가 "테스트가 아니라 기동 자체"였던 만큼 가장 중요한 부분)**: 격리 `bootRun`(8086, 공유 dev Postgres/Redis 재사용 — 이번엔 별도 DB 상태가 필요 없는 설정값 검증이라 격리 DB 없이도 충분)을 `SENTRY_DSN=http://examplePublicKey@localhost:9/1`(열려 있지 않은 로컬 포트, Sentry 전송이 비동기라 기동/응답을 막지 않는지까지 같이 확인하려는 의도)로 띄워 9.5초 만에 정상 기동(round 5의 정상 기동 6.5초와 비슷한 수준) + 로그에 에러/예외 없음 + `/actuator/health` 200 확인.
+
+**하지 않은 것**: Sentry 자체 성능 트레이싱/APM 안 켬(OTel/Jaeger와 중복). Logback 어펜더 연동 안 함(`handleUnexpected`의 명시적 호출 하나로 충분, 이중 캡처 경로 안 만듦). `sentry.send-default-pii` 안 건드림(기본값 false 유지 — 개인정보 국외 이전 검토는 아직 사람이 해야 할 일로 남아 있음). `backend/.env.local.example`에 `SENTRY_DSN` 추가 안 함(프론트도 같은 이유로 안 넣었음 — 실제 Sentry 계정이 아직 없음). 새 ADR 안 씀 — 되돌리기 쉬운 한 줄짜리 코드 변경(의존성 교체 + 명시적 캡처 호출 하나).
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.

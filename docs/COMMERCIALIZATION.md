@@ -112,9 +112,9 @@
 - `backend/Dockerfile`, `frontend/Dockerfile`(Next.js standalone 출력) 작성, `docker build` 성공 확인.
 - 클라우드 프로바이더가 정해지지 않아 Terraform 등 IaC는 만들지 않았다.
 
-### 관측성/장애 대응 — 프론트만 구현, 백엔드는 막힘
+### 관측성/장애 대응 ✅ 구현 완료 (2026-10-01 백엔드 재시도 성공)
 - **프론트**: `@sentry/nextjs` 연동(`instrumentation.ts`/`instrumentation-client.ts`), `SENTRY_DSN` 미설정 시 비활성.
-- **백엔드**: `sentry-spring-boot-starter-jakarta`를 시도했으나 **이 프로젝트의 Spring Boot 4.1.1과 호환되지 않아**(`RestClientCustomizer` 클래스 누락으로 앱이 아예 기동 안 됨) 되돌렸다. Sentry의 Spring Boot 4 지원이 나오거나, Spring 특화 스타터 없이 순수 Sentry Java SDK를 수동으로 연동하는 방법을 나중에 다시 시도해야 한다.
+- **백엔드**: 당초 `sentry-spring-boot-starter-jakarta`를 시도했으나 Spring Boot 3(Spring Framework 6) 전용 아티팩트라 `RestClientCustomizer` 클래스 누락으로 기동 자체가 깨져 되돌렸던 적이 있다. 이후 Sentry가 Spring Boot 4 전용 아티팩트(`io.sentry:sentry-spring-boot-4-starter`, Spring Framework 7 기준으로 다시 빌드됨)를 냈고, 이걸로 재시도해 해결했다 — `GlobalExceptionHandler`의 진짜 캐치올(`handleUnexpected`)에서 `Sentry.captureException`을 명시적으로 호출한다(Sentry 자체 `HandlerExceptionResolver`는 이 `@RestControllerAdvice`가 이미 모든 예외를 처리해버려서 끼어들 기회가 없음 — PLAN.md 라운드 기록 참고). `SENTRY_DSN` 미설정 시 SDK가 스스로 비활성화되는 건 프론트와 동일. 성능 트레이싱은 끔(`traces-sample-rate: 0`) — 이미 OpenTelemetry+Jaeger가 분산 트레이싱을 맡고 있어 중복 방지.
 - DB/Redis 백업 자동화는 미착수(클라우드 프로바이더 결정 이후가 자연스러움).
 
 ### 보안 하드닝 ✅ 부분 완료
