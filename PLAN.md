@@ -1619,6 +1619,31 @@ Round B9에서 발견한 공백의 후속. 조직 채용 평가는 공개 시나
 
 ---
 
+## CodeCrafters 벤치마킹 후속 — Build 첫 경험 (2026-10-01~)
+
+P0~P2 이후 [docs/CODECRAFTERS_BENCHMARK.md](docs/CODECRAFTERS_BENCHMARK.md) 본문에서 라운드로 옮기지 않았던 항목 중 첫 경험에 가장 직접 닿는 두 가지.
+
+### Round B11 — Build 1단계를 "주석 해제 후 제출"로 (§3.2)
+
+CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
+
+- [ ] Python 스텁: `InMemoryStore.incr`와 생성자는 채워 두고, `allow()`에 fixed window 세 줄을 주석으로 넣어 "주석을 풀고 제출"이면 1단계 통과. `expire`는 아무것도 하지 않는 TODO(stage 2)로 남겨 2단계(윈도우 회복)가 여전히 실제 과제가 되게
+- [ ] TypeScript 스텁: 생성자를 채우고 `allow()`에 같은 세 줄을 주석으로. TS는 `InMemoryStore`(expire 포함)를 원래 제공된 구현으로 두는 설계라, 1단계를 풀면 2단계도 함께 통과한다 — 지시문에 그대로 밝힌다
+- [ ] `challenges/` 파일과 `/bridge`의 스텁 상수를 함께 갱신, 1·2단계 지시문을 새 스텁에 맞게 갱신(새 마이그레이션 — 적용된 V49는 고치지 않음)
+- [ ] 통합 테스트: 실제 스텁 파일 그대로 → 1단계 실패, 주석만 푼 스텁 → 1단계 통과·2단계 실패(Python)
+
+**완료 기준**: 위 테스트 통과(실제 샌드박스), `tsc`/`lint`/`build` 클린.
+
+### Round B12 — 로컬에서 풀기 (§3.3)
+
+- [ ] `challenges/rate-limiter/submit.sh` 복구 — 아직 `userId`를 본문에 넣고 토큰을 안 보내서(PLAN step 31 이후) **항상 401**이다. TS판처럼 `SYSDRILL_TOKEN`으로 인증하고, 두 스크립트 모두 제출 후 채점 결과를 터미널에 `[stage-N]` 형식으로 스트리밍(폴링)
+- [ ] 백엔드 `GET /build-challenges/{slug}/submissions/latest` — 내 최신 제출. `/bridge`가 localStorage 대신 이것으로 마지막 제출을 복원(다른 기기·CLI 제출도 반영)
+- [ ] `/bridge`에 "로컬에서 풀기" 패널: `git clone` → 디렉터리 이동 → 토큰 설정(복사 버튼 + 노출 주의) → `./submit.sh`. 패널이 열려 있는 동안 최신 제출을 감시해 CLI 제출이 도착하면 화면의 테스트 로그에 바로 반영("제출을 기다리는 중…")
+
+**완료 기준**: 백엔드 테스트(latest 엔드포인트), 실제로 `submit.sh`로 제출해 터미널 출력과 `/bridge` 화면 반영 확인, `tsc`/`lint`/`build` 클린.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
