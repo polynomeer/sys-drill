@@ -14,7 +14,7 @@ import {
   listScenarios,
 } from "@/lib/api";
 import { dismissStartHere, getStoredNickname, getStoredToken, isStartHereDismissed } from "@/lib/localSession";
-import { useConceptLabels } from "@/lib/useConceptLabels";
+import { useConceptLookup } from "@/lib/useConceptLabels";
 import { completedTiers, needsPrereq, pickFirstDrill } from "@/lib/drillPrereq";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -50,7 +50,8 @@ const MODE_CARDS = [
 ];
 
 export default function DashboardPage() {
-  const riskLabel = useConceptLabels();
+  const concepts = useConceptLookup();
+  const riskLabel = concepts.label;
   const router = useRouter();
   const [nickname, setNickname] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
@@ -225,7 +226,13 @@ export default function DashboardPage() {
                 <ul className="space-y-1 text-sm">
                   {topWeaknesses.map(([key, count]) => (
                     <li key={key} className="flex justify-between">
-                      <span>{riskLabel(key)}</span>
+                      {concepts.isConcept(key) ? (
+                        <Link href={`/learning/${key}`} className="hover:text-accent hover:underline">
+                          {riskLabel(key)}
+                        </Link>
+                      ) : (
+                        <span>{riskLabel(key)}</span>
+                      )}
                       <span className="text-foreground-muted">{count}회</span>
                     </li>
                   ))}

@@ -74,6 +74,8 @@ const EVENT_LABELS: Record<string, string> = {
   certifications_view: "인증 페이지 방문",
   organizations_view: "조직 페이지 방문",
   architecture_analysis_view: "아키텍처 분석 방문",
+  report_view: "리포트 조회",
+  feedback_concept_click: "피드백 → 개념 클릭",
 };
 
 /** docs/CODECRAFTERS_BENCHMARK.md §6 — the success metrics, aggregates only. */

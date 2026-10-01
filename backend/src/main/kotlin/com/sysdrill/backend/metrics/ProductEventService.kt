@@ -43,6 +43,9 @@ class ProductEventService(private val jdbc: JdbcTemplate) {
             "certifications_view",
             "organizations_view",
             "architecture_analysis_view",
+            // docs/LEARNING_EXPANSION_PLAN.md §8 — 피드백에서 개념으로 넘어가는 비율
+            "report_view",
+            "feedback_concept_click",
         )
     }
 }

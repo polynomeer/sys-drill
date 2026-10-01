@@ -6,7 +6,9 @@ export type ProductEvent =
   | "drill_overview_start"
   | "certifications_view"
   | "organizations_view"
-  | "architecture_analysis_view";
+  | "architecture_analysis_view"
+  | "report_view"
+  | "feedback_concept_click";
 
 /**
  * docs/CODECRAFTERS_BENCHMARK.md §6 (PLAN.md Round B17) — bump an anonymous

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer } from "recharts";
@@ -19,7 +20,7 @@ import {
 } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
-import { useConceptLabels } from "@/lib/useConceptLabels";
+import { useConceptLookup } from "@/lib/useConceptLabels";
 import { categoryLabel } from "@/lib/skillCategoryLabels";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -67,7 +68,8 @@ function formatSeconds(seconds: number | null): string {
  * 각각 부분적으로 이미 쓰던 것)로 채운다 — 새 백엔드 작업 없음.
  */
 export default function ProfilePage() {
-  const riskLabel = useConceptLabels();
+  const concepts = useConceptLookup();
+  const riskLabel = concepts.label;
   const router = useRouter();
   const [skillProfile, setSkillProfile] = useState<SkillProfile | null>(null);
   const [certification, setCertification] = useState<CertificationStatus | null>(null);
@@ -260,7 +262,13 @@ export default function ProfilePage() {
                 <ul className="mt-1 space-y-1 pl-3 text-sm text-foreground-muted">
                   {topRiskKeys.map(([key, count]) => (
                     <li key={key} className="flex justify-between">
-                      <span>{riskLabel(key)}</span>
+                      {concepts.isConcept(key) ? (
+                        <Link href={`/learning/${key}`} className="hover:text-accent hover:underline">
+                          {riskLabel(key)}
+                        </Link>
+                      ) : (
+                        <span>{riskLabel(key)}</span>
+                      )}
                       <span>{count}회</span>
                     </li>
                   ))}

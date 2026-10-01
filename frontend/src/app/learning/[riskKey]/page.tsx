@@ -112,30 +112,43 @@ export default function LearningConceptPage() {
   // docs/CODECRAFTERS_BENCHMARK.md §3.6 — self-check before the call to action.
   blocks.push({ key: "quiz", node: <ConceptQuizCard riskKey={riskKey} /> });
   if (hasTryIt) {
+    // docs/LEARNING_EXPANSION_PLAN.md L4 — 짧은 것부터 긴 것 순서의 연습 레일:
+    // Build 단계(구현) → Drill(설계·장애 대응) → 같은 Drill을 푼 사람들의 토론.
     blocks.push({
       key: "try",
       node: (
         <Card as="section" className="border-accent/40">
-          <h2 className="mb-1 text-sm font-semibold">직접 해보기</h2>
+          <h2 className="mb-1 text-sm font-semibold">이 개념을 연습하는 방법</h2>
           <p className="mb-3 text-xs text-foreground-muted">읽는 것으로는 이 개념이 어디서 깨지는지 알 수 없습니다.</p>
-          {relatedScenarios.length > 0 && (
-            <div className="mb-3 flex flex-wrap gap-2">
-              {relatedScenarios.map((s) => (
-                <Button key={s.id} href={`/drills/${s.id}`} size="sm" variant="secondary">
-                  {DOMAIN_TITLES[s.domain] ?? s.title} Drill →
-                </Button>
-              ))}
-            </div>
-          )}
-          {concept.relatedChallenges.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {concept.relatedChallenges.map((slug) => (
-                <Button key={slug} href="/bridge" size="sm" variant="secondary">
-                  Build: {slug}
-                </Button>
-              ))}
-            </div>
-          )}
+          <ol className="flex flex-col gap-3">
+            {concept.relatedChallenges.length > 0 && (
+              <PracticeStep title="직접 구현하기" hint="Build 챌린지 — 작은 단계부터">
+                {concept.relatedChallenges.map((slug) => (
+                  <Button key={slug} href={`/bridge?challenge=${slug}`} size="sm" variant="secondary">
+                    Build: {slug}
+                  </Button>
+                ))}
+              </PracticeStep>
+            )}
+            {relatedScenarios.length > 0 && (
+              <PracticeStep title="설계하고 장애에 대응하기" hint="이 개념이 채점 기준에 들어 있는 Drill">
+                {relatedScenarios.map((s) => (
+                  <Button key={s.id} href={`/drills/${s.id}`} size="sm" variant="secondary">
+                    {DOMAIN_TITLES[s.domain] ?? s.title} Drill →
+                  </Button>
+                ))}
+              </PracticeStep>
+            )}
+            {relatedScenarios.length > 0 && (
+              <PracticeStep title="다른 사람은 어떻게 풀었나" hint="시나리오별 토론">
+                {relatedScenarios.map((s) => (
+                  <Button key={s.id} href={`/discussions/${s.id}`} size="sm" variant="ghost">
+                    {DOMAIN_TITLES[s.domain] ?? s.title} 토론
+                  </Button>
+                ))}
+              </PracticeStep>
+            )}
+          </ol>
         </Card>
       ),
     });
@@ -174,5 +187,15 @@ export default function LearningConceptPage() {
         <div key={block.key}>{block.node}</div>
       ))}
     </BlockReader>
+  );
+}
+
+function PracticeStep({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
+  return (
+    <li>
+      <p className="text-sm font-medium">{title}</p>
+      <p className="mb-2 text-xs text-foreground-muted">{hint}</p>
+      <div className="flex flex-wrap gap-2">{children}</div>
+    </li>
   );
 }

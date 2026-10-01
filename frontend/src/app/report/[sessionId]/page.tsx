@@ -28,6 +28,8 @@ import { ShareWriteupCard } from "@/components/ShareWriteupCard";
 import { formatDuration } from "@/lib/metrics";
 import { Gauge } from "@/components/ui/Gauge";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { useConceptLookup } from "@/lib/useConceptLabels";
+import { trackEvent } from "@/lib/events";
 
 const PHASE_LABELS: Record<string, string> = {
   INITIAL: "초기 설계",
@@ -53,6 +55,7 @@ export default function ReportPage() {
   const [startingRecommended, setStartingRecommended] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const concepts = useConceptLookup();
 
   useEffect(() => {
     if (!getStoredToken()) {
@@ -60,6 +63,7 @@ export default function ReportPage() {
       return;
     }
 
+    trackEvent("report_view");
     // 벤치마크는 부가 정보다 — 실패해도 리포트 본문은 떠야 한다.
     getBenchmark(sessionId).then(setBenchmark).catch(() => setBenchmark(null));
 
@@ -210,6 +214,12 @@ export default function ReportPage() {
             </ul>
           </Card>
 
+          <MissedConcepts
+            riskKeys={Object.values(feedbackBySubmission).flatMap((f) => f.riskFlags.map((flag) => flag.riskKey))}
+            isConcept={concepts.isConcept}
+            label={concepts.label}
+          />
+
           {report.improvementGuide.length > 0 && (
             <Card as="section">
               <h2 className="mb-2 text-sm font-semibold text-foreground-muted">다음에 시도해볼 것</h2>
@@ -237,5 +247,42 @@ export default function ReportPage() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * docs/LEARNING_EXPANSION_PLAN.md L4 — 이번 세션에서 지적받은 개념을 한곳에 모은다.
+ * 같은 개념이 여러 단계에서 지적되면 한 번만, 지적 횟수를 함께 보여준다.
+ */
+function MissedConcepts({
+  riskKeys,
+  isConcept,
+  label,
+}: {
+  riskKeys: string[];
+  isConcept: (riskKey: string) => boolean;
+  label: (riskKey: string) => string;
+}) {
+  const counts = new Map<string, number>();
+  riskKeys.filter(isConcept).forEach((key) => counts.set(key, (counts.get(key) ?? 0) + 1));
+  if (counts.size === 0) return null;
+  return (
+    <Card as="section">
+      <h2 className="mb-1 text-sm font-semibold text-foreground-muted">이번에 놓친 개념</h2>
+      <p className="mb-3 text-xs text-foreground-muted">개념 문서에서 왜 문제인지, 어떤 신호로 드러나는지 확인하고 다시 도전해 보세요.</p>
+      <div className="flex flex-wrap gap-2">
+        {[...counts.entries()].map(([key, count]) => (
+          <Link
+            key={key}
+            href={`/learning/${key}`}
+            onClick={() => trackEvent("feedback_concept_click")}
+            className="rounded-full border border-border px-3 py-1 text-sm hover:border-accent hover:text-accent"
+          >
+            {label(key)}
+            {count > 1 && <span className="ml-1 text-xs text-foreground-muted">×{count}</span>}
+          </Link>
+        ))}
+      </div>
+    </Card>
   );
 }

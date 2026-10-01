@@ -1,4 +1,9 @@
+"use client";
+
+import Link from "next/link";
 import { EvaluationFeedback } from "@/lib/api";
+import { useConceptLookup } from "@/lib/useConceptLabels";
+import { trackEvent } from "@/lib/events";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 
@@ -10,6 +15,7 @@ import { Card } from "@/components/ui/Card";
  * of only the summary fields `Report.timelineFeedback` carries.
  */
 export function FeedbackDetail({ feedback }: { feedback: EvaluationFeedback }) {
+  const concepts = useConceptLookup();
   return (
     <div className="flex flex-col gap-4">
       <Card as="section">
@@ -49,6 +55,12 @@ export function FeedbackDetail({ feedback }: { feedback: EvaluationFeedback }) {
                   {flag.severity}
                 </Badge>
                 {flag.description}
+                {/* docs/LEARNING_EXPANSION_PLAN.md L4 — 약점을 발견한 바로 그 자리에서 개념으로 */}
+                {concepts.isConcept(flag.riskKey) && (
+                  <Link href={`/learning/${flag.riskKey}`} onClick={() => trackEvent("feedback_concept_click")} className="ml-2 whitespace-nowrap text-xs text-accent hover:underline">
+                    {concepts.label(flag.riskKey)} 개념 보기 →
+                  </Link>
+                )}
               </li>
             ))}
           </ul>
