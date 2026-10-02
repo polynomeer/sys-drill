@@ -1,5 +1,6 @@
 "use client";
 
+import { actionLabel } from "@/lib/actionLabels";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -99,7 +100,7 @@ export function WriteupSummaryCard({ writeup, onUpdated }: { writeup: WriteupDet
         <div>
           <dt className="text-xs text-foreground-muted">인시던트 조치 순서</dt>
           <dd className="mt-1 text-xs">
-            {(summary?.actions ?? []).length === 0 ? <span className="text-foreground-muted">없음</span> : summary!.actions.join(" → ")}
+            {(summary?.actions ?? []).length === 0 ? <span className="text-foreground-muted">없음</span> : summary!.actions.map(actionLabel).join(" → ")}
           </dd>
         </div>
       </dl>
@@ -193,13 +194,13 @@ export function ComparePanel({ sessionId }: { sessionId: string }) {
             <div>
               <dt className="text-foreground-muted">나 — 점수 · MTTR · 조치</dt>
               <dd>
-                {mine.averageScore ?? "-"}점 · {mine.mttrSeconds != null ? formatDuration(mine.mttrSeconds) : "-"} · {mine.actions.join(" → ") || "없음"}
+                {mine.averageScore ?? "-"}점 · {mine.mttrSeconds != null ? formatDuration(mine.mttrSeconds) : "-"} · {mine.actions.map(actionLabel).join(" → ") || "없음"}
               </dd>
             </div>
             <div>
               <dt className="text-foreground-muted">이 풀이 — 점수 · MTTR · 조치</dt>
               <dd>
-                {theirs.averageScore ?? "-"}점 · {theirs.mttrSeconds != null ? formatDuration(theirs.mttrSeconds) : "-"} · {theirs.actions.join(" → ") || "없음"}
+                {theirs.averageScore ?? "-"}점 · {theirs.mttrSeconds != null ? formatDuration(theirs.mttrSeconds) : "-"} · {theirs.actions.map(actionLabel).join(" → ") || "없음"}
               </dd>
             </div>
           </dl>
@@ -220,7 +221,7 @@ export function ForkMyRunPanel({ writeup }: { writeup: WriteupDetail }) {
   const summary = writeup.summary;
   if (!summary?.forkable) return null;
 
-  const steps = [{ label: "인시던트 시작 직후", seconds: 0 }, ...summary.actions.map((a, i) => ({ label: `${a} 직후`, seconds: summary.actionSeconds[i] ?? 0 }))];
+  const steps = [{ label: "인시던트 시작 직후", seconds: 0 }, ...summary.actions.map((a, i) => ({ label: `${actionLabel(a)} 직후`, seconds: summary.actionSeconds[i] ?? 0 }))];
 
   async function fork(atStep: number) {
     setPending(atStep);

@@ -1,5 +1,6 @@
 "use client";
 
+import { actionLabel } from "@/lib/actionLabels";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -114,7 +115,7 @@ export function ForkView({
           <h1 className="text-xl font-semibold">여기서 다르게 했다면?</h1>
           <p className="mt-1 text-sm text-foreground-muted">
             원래 인시던트의 {formatDuration(fork.forkedAtSeconds)} 시점(그때까지의 조치:{" "}
-            {fork.prefixActions.length === 0 ? "없음" : fork.prefixActions.join(", ")})에서 갈라졌습니다. 이 실험은 기록·점수에 남지 않고 1시간 뒤 사라집니다.
+            {fork.prefixActions.length === 0 ? "없음" : fork.prefixActions.map(actionLabel).join(", ")})에서 갈라졌습니다. 이 실험은 기록·점수에 남지 않고 1시간 뒤 사라집니다.
           </p>
         </div>
         <Link href={backHref} className="text-sm underline">
@@ -182,7 +183,7 @@ function SideCard({ title, side, better }: { title: string; side: ForkSide; bett
         <dt className="text-xs text-foreground-muted">남은 적체</dt>
         <dd className="font-mono">{side.finalBacklog.toLocaleString()}</dd>
       </dl>
-      <p className="mt-2 text-[11px] text-foreground-muted">조치: {side.actions.length === 0 ? "없음" : side.actions.join(" → ")}</p>
+      <p className="mt-2 text-[11px] text-foreground-muted">조치: {side.actions.length === 0 ? "없음" : side.actions.map(actionLabel).join(" → ")}</p>
     </div>
   );
 }
