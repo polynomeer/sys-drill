@@ -2118,7 +2118,7 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 **완료 기준 충족**: 신규 `OfficialScenarioV2Test`(7개 모두 최신 = v2, 단계 INITIAL·FOLLOWUP·INCIDENT, 핵심 질문 3개 이상·추정·예산, 모든 변형의 `breaks`가 실제 가정 ID; 새 쿠폰 세션이 v2에 묶이고 개요에서 `targetUsers`·`totalCoupons` 등과 답 문자열이 빠지며 질문·추정 응답에 답이 없음). v1 토론의 "이전 버전" 표시는 `DiscussionThreadingTest`가 이미 버전 일반으로 검증. 꼬리설계 문구를 검사하는 기존 E2E(`Phase2ScenarioE2ETest`)가 v2에서도 그대로 통과 — 변형 문구를 SQL로 복사한 덕. 격리 환경 새 쿠폰 세션: 짧아진 문제, 요구사항 질문 6개, "캔버스를 그리면 … 추정(예산 $3,000, 팀 3명)".
 
-**진행 중 발견한 결정 사항**: V65(DRILLS_EXPANSION_PLAN §4 확정 사항). 전체 테스트 실행에서 25개가 실패했는데 원인은 공유 Redis를 쓰는 다른 개발 서버(8081, `bootRun`)가 같은 평가 큐 키로 테스트 작업을 가져가 실제 LLM으로 채점한 것 — 저장소의 `scripts/run-tests-isolated.sh`(격리 Postgres/Redis)로 같은 18개 클래스를 다시 돌려 모두 통과를 확인했다. 앞으로 전체 테스트는 이 스크립트로 돌린다.
+**진행 중 발견한 결정 사항**: V65(DRILLS_EXPANSION_PLAN §4 확정 사항). 전체 테스트 실행에서 25개가 실패했는데 원인은 공유 Redis를 쓰는 다른 개발 서버(8081, `bootRun`)가 같은 평가 큐 키로 테스트 작업을 가져가 실제 LLM으로 채점한 것 — 저장소의 `scripts/run-tests-isolated.sh`(격리 Postgres/Redis)로 같은 18개 클래스를 다시 돌려 모두 통과를 확인했다. 앞으로 전체 테스트는 이 스크립트로 돌린다. **후속(2026-10-02)**: `./gradlew test`도 실행마다 평가·빌드 큐 키를 새로 정해(`sysdrill-test-<id>:…`, 명시한 환경 변수가 있으면 그것) 개발 서버나 다른 테스트 실행이 작업을 가져가지 않는다 — 8081 개발 서버가 떠 있는 상태에서 이전에 실패하던 평가 테스트 3개 클래스 통과 확인.
 
 ### 묶음 7 — 확장
 

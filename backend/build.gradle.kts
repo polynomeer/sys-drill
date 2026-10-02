@@ -127,6 +127,19 @@ tasks.withType<Test> {
 	// CPU with no output after RealInfraCouponControllerSessionTrackingTest hit
 	// "Java heap space").
 	maxHeapSize = "3g"
+	// Each test run gets its own evaluation/build queue keys. Plain `./gradlew test` uses the shared
+	// docker-compose Redis, where a running dev server (`bootRun`) — or another test run — would
+	// otherwise pop this run's jobs and grade them with a real LLM: slow, different scores, and
+	// "did not reach FEEDBACK_READY" failures that look like bugs. An explicit env value still wins.
+	doFirst {
+		val run = "sysdrill-test-" + System.currentTimeMillis().toString(36)
+		fun keyed(name: String, value: String) {
+			if (System.getenv(name).isNullOrBlank()) environment(name, value)
+		}
+		keyed("EVALUATION_QUEUE_KEY", "$run:evaluation:jobs")
+		keyed("EVALUATION_DEAD_LETTER_KEY", "$run:evaluation:dead-letter")
+		keyed("BUILD_QUEUE_KEY", "$run:build:jobs")
+	}
 	finalizedBy(tasks.jacocoTestReport)
 }
 
