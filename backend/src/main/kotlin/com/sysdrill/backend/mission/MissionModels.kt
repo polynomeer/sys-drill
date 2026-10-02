@@ -24,6 +24,8 @@ data class MissionState(
      * session that never saw the readiness step (older ones, API-only starts): everything on.
      */
     val readiness: Readiness? = null,
+    /** M9 (PLAN.md Round E30) — the release change picked as riskiest before the incident. */
+    val changeReviewPick: String? = null,
 )
 
 data class Readiness(

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ApiError, Benchmark, Postmortem, PostmortemInvestigation, RunbookStep, getBenchmark, getPostmortem, savePostmortem } from "@/lib/api";
 import { RunbookPanel } from "@/components/RunbookPanel";
+import { ChangeReviewCard } from "@/components/ChangeReviewCard";
 import { getStoredToken } from "@/lib/localSession";
 import { formatDuration, formatMs, formatPercent } from "@/lib/metrics";
 import { Button } from "@/components/ui/Button";
@@ -230,6 +231,8 @@ export default function PostmortemPage() {
           </>
         )}
       </Card>
+
+      <ChangeReviewCard sessionId={sessionId} />
 
       {/* docs/DRILLS_EXPANSION_PLAN.md M12 (PLAN.md Round E27) */}
       {postmortem.actionsTimeline.length > 0 && <RunbookPanel sessionId={sessionId} suggestions={runbookSuggestions(postmortem)} />}

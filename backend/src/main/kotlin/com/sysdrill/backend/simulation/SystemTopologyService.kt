@@ -102,6 +102,8 @@ class SystemTopologyService(
         "holdTimeoutSeconds" -> traits.holdTimeoutSeconds
         "chunkSize" -> traits.chunkSize
         "podReplicas" -> traits.podReplicas
+        "canaryStartPercent" -> traits.canaryStartPercent
+        "autoRollbackErrorPct" -> traits.autoRollbackErrorPct
         else -> 0
     }
 
@@ -148,6 +150,8 @@ class SystemTopologyService(
         "holdTimeoutSeconds" -> traits.copy(holdTimeoutSeconds = value.toInt())
         "chunkSize" -> traits.copy(chunkSize = value.toInt())
         "podReplicas" -> traits.copy(podReplicas = value.toInt())
+        "canaryStartPercent" -> traits.copy(canaryStartPercent = value.toInt().coerceIn(1, 100))
+        "autoRollbackErrorPct" -> traits.copy(autoRollbackErrorPct = value.toInt().coerceIn(0, 100))
         else -> traits
     }
 
@@ -221,6 +225,11 @@ private val TOPOLOGY_FIELDS: Map<String, Map<String, List<TopologyField>>> = map
     ),
     RuleBasedSimulationEngine.DOMAIN_AUTOSCALING to mapOf(
         "service" to listOf(TopologyField("podReplicas", Aggregation.SUM)),
+    ),
+    // PLAN.md Round E30 — the rollout plan: the canary's first share on the service, the auto-rollback bar at the gateway.
+    RuleBasedSimulationEngine.DOMAIN_DEPLOYMENT to mapOf(
+        "service" to listOf(TopologyField("canaryStartPercent", Aggregation.LAST)),
+        "gateway" to listOf(TopologyField("autoRollbackErrorPct", Aggregation.LAST)),
     ),
 )
 

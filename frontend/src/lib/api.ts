@@ -227,7 +227,10 @@ export type SimulationActionType =
   | "ENABLE_IDEMPOTENT_RECONCILIATION"
   | "SCALE_OUT_REPLICAS"
   | "TUNE_RESOURCE_LIMITS"
-  | "ENABLE_ROLLOUT_SAFEGUARD";
+  | "ENABLE_ROLLOUT_SAFEGUARD"
+  | "CONTINUE_ROLLOUT"
+  | "PAUSE_ROLLOUT"
+  | "ROLLBACK";
 
 export interface SystemState {
   trafficRps: number;
@@ -975,6 +978,24 @@ export function saveRunbook(domain: string, steps: RunbookStep[]): Promise<Runbo
 
 export function getRunbookCheck(sessionId: string): Promise<RunbookCheck> {
   return apiFetch<RunbookCheck>(`/sessions/${sessionId}/runbook-check`);
+}
+
+/** docs/DRILLS_EXPANSION_PLAN.md M9 (PLAN.md Round E30) — the riskiest change in the release, picked before the incident. */
+export interface ChangeReview {
+  available: boolean;
+  changes: { id: string; text: string }[];
+  pick: string | null;
+  locked: boolean;
+  culpritId: string | null;
+  explanation: string | null;
+}
+
+export function getChangeReview(sessionId: string): Promise<ChangeReview> {
+  return apiFetch<ChangeReview>(`/sessions/${sessionId}/change-review`);
+}
+
+export function pickChangeReview(sessionId: string, pick: string): Promise<ChangeReview> {
+  return apiFetch<ChangeReview>(`/sessions/${sessionId}/change-review`, { method: "PUT", body: JSON.stringify({ pick }) });
 }
 
 export function getOpsConfig(sessionId: string): Promise<OpsConfig> {

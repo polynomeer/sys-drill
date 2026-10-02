@@ -47,6 +47,7 @@ class HybridRuleAiEvaluator(
     private val missionService: MissionService,
     private val costEstimateService: com.sysdrill.backend.mission.CostEstimateService,
     private val readinessService: com.sysdrill.backend.mission.ReadinessService,
+    private val changeReviewService: com.sysdrill.backend.mission.ChangeReviewService,
 ) {
     private val designPurpose = "design_evaluation"
 
@@ -114,6 +115,8 @@ class HybridRuleAiEvaluator(
             if (submission.phase == "INCIDENT") missionService.statusUpdatePromptSection(submission)?.let(::add)
             // PLAN.md Round E26 (O7) — observability quality, rule-judged facts only.
             if (submission.phase == "INCIDENT") readinessService.observabilityPromptSection(session)?.let(::add)
+            // PLAN.md Round E30 (M9) — the pre-incident change review against the real cause.
+            if (submission.phase == "INCIDENT") changeReviewService.promptSection(session)?.let(::add)
         }
         return if (sections.isEmpty()) "" else sections.joinToString(separator = "\n", prefix = "\n")
     }

@@ -158,4 +158,14 @@ class CertificationControllerIntegrationTest(
             .andExpect(status().isOk).andReturn().response.contentAsString
         assertThat(JsonPath.read<List<Map<String, Any?>>>(twice, "$.domains").first { it["domain"] == "coupon" }["passedVariants"]).isEqualTo(2)
     }
+
+    @Test
+    fun `deployment is an official drill but not a certification requirement`() {
+        val user = createUser("cert-deploy")
+        CertificationService.CERTIFICATION_DOMAINS.forEach { completeOfficialDomain(user.id!!, it, passingScore + 5) }
+        val response = mockMvc.perform(get("/certifications/me").header("Authorization", bearerHeader(user.id!!)))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        assertThat(JsonPath.read<Boolean>(response, "$.certified")).isTrue()
+        assertThat(JsonPath.read<List<String>>(response, "$.domains[*].domain")).hasSize(7).doesNotContain("deployment")
+    }
 }

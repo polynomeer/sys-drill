@@ -181,6 +181,10 @@ object SyntheticTraces {
             RuleBasedSimulationEngine.DOMAIN_AUTOSCALING -> Triple("GET /recommendations", "ingress", listOf(
                 Part("recommend", "recommend-api", total * 0.9, error),
             ))
+            RuleBasedSimulationEngine.DOMAIN_DEPLOYMENT -> Triple("POST /checkout", "checkout-api", listOf(
+                Part("calculate price (2.14.0-canary)", "checkout-api", total * 0.7, error),
+                Part("SELECT cart", "checkout-db", 4.0),
+            ))
             else -> Triple("request", "service", emptyList())
         }
         // Children run back to back after 1ms of the root's own work; the root covers them all.

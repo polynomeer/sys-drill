@@ -70,7 +70,7 @@ class LearningConceptListApiTest(
         ).id!!
         val list = mockMvc.perform(get("/learning/failures").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk).andReturn().response.contentAsString
-        assertThat(JsonPath.read<List<String>>(list, "$[*].domain")).hasSize(7).startsWith("coupon")
+        assertThat(JsonPath.read<List<String>>(list, "$[*].domain")).hasSize(8).startsWith("coupon").endsWith("deployment")
 
         val detail = mockMvc.perform(get("/learning/failures/notification").header("Authorization", bearerHeader(userId)))
             .andExpect(status().isOk).andReturn().response.contentAsString

@@ -67,10 +67,8 @@ class LearningConceptCatalogTest(
 
     @Test
     fun `연결된 도메인은 실제 시나리오 도메인이다`() {
-        val valid = setOf(
-            "coupon", "notification", "product-browsing",
-            "payment", "reservation", "batch-settlement", "autoscaling",
-        )
+        // The engine's own list — a new official domain (deployment, ADR-0049) needs no edit here.
+        val valid = com.sysdrill.backend.simulation.RuleBasedSimulationEngine.KNOWN_DOMAINS
         val unknown = seeded.values.flatMap { c -> c.relatedDomains.map { c.riskKey to it } }
             .filterNot { (_, domain) -> domain in valid }
 

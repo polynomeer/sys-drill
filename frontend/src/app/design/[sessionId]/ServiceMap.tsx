@@ -35,6 +35,7 @@ const MODELED: Record<string, Field[]> = {
   reservation: ["traffic", "p95", "errors", "dbWrite", "backlog", "throughput"],
   "batch-settlement": ["traffic", "p95", "errors", "dbWrite", "backlog", "throughput", "external"],
   autoscaling: ["traffic", "p95", "errors", "backlog", "throughput"],
+  deployment: ["traffic", "p95", "errors", "dbRead", "dbWrite", "pool"],
 };
 
 const FIELD_META: Record<Field, { label: string; value: (s: SystemState, backlog: number) => string }> = {
@@ -188,6 +189,15 @@ const DEFAULT_TOPOLOGY: Record<string, Spec> = {
       { id: "q", label: "재시작 중 Pod", kind: "queue", x: 620, y: 60 },
     ],
     edges: [["c", "g"], ["g", "s"], ["s", "q"]],
+  },
+  deployment: {
+    nodes: [
+      { id: "c", label: "사용자", kind: "client", x: 0, y: 60 },
+      { id: "g", label: "Load Balancer", kind: "gateway", x: 200, y: 60 },
+      { id: "s", label: "checkout (stable + canary)", kind: "service", x: 400, y: 60 },
+      { id: "d", label: "주문 DB", kind: "db", x: 620, y: 60 },
+    ],
+    edges: [["c", "g"], ["g", "s"], ["s", "d"]],
   },
 };
 

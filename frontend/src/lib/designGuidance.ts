@@ -10,6 +10,7 @@ export const DOMAIN_TITLES: Record<string, string> = {
   reservation: "예약 시스템",
   "batch-settlement": "배치/정산",
   autoscaling: "실시간 추천 API",
+  deployment: "카나리 배포",
 };
 
 export const DESIGN_GUIDANCE_BY_DOMAIN: Record<string, string[]> = {
@@ -79,6 +80,15 @@ export const DESIGN_GUIDANCE_BY_DOMAIN: Record<string, string[]> = {
     "트래픽 급증 대응 전략",
     "관측(metrics/logs/alert) 계획",
     "예상 병목과 트레이드오프",
+  ],
+  deployment: [
+    "기능/비기능 요구사항 요약 (무엇을 보장하고 무엇을 포기할지)",
+    "배포 전략 (Rolling / Blue-Green / Canary)과 고른 이유",
+    "카나리 비율·단계와 단계마다 무엇을 보고 판단하는지",
+    "자동 중단·롤백 기준(에러율·지연 임계)",
+    "되돌릴 수 있는 배포 — 마이그레이션·피처 플래그",
+    "관측(버전별 metrics/logs/alert) 계획",
+    "예상 위험과 트레이드오프",
   ],
 };
 

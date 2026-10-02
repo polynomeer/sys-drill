@@ -44,7 +44,9 @@ class CertificationService(
     fun status(userId: UUID): CertificationStatusResponse {
         val user = userRepository.findById(userId).orElseThrow { NotFoundException("User not found: $userId") }
 
-        val officialScenarios = scenarioRepository.findByOrganizationIdIsNull().filter { it.creatorUserId == null }
+        // ADR-0049 — the certified set is frozen at these seven; a later official domain (deployment) is a Drill,
+        // not a certification requirement, so nobody's live-computed certification is revoked by its arrival.
+        val officialScenarios = scenarioRepository.findByOrganizationIdIsNull().filter { it.creatorUserId == null && it.domain in CERTIFICATION_DOMAINS }
         val officialScenarioIds = officialScenarios.mapNotNull { it.id }.toSet()
         val titleByScenarioId = contentItemRepository.findAllById(officialScenarios.map { it.contentId }).associateBy { it.id }
             .let { byContent -> officialScenarios.associate { it.id to (byContent[it.contentId]?.title ?: it.domain) } }
@@ -109,5 +111,10 @@ class CertificationService(
             ?: return 1
         val variants = followup.content?.let { runCatching { objectMapper.readTree(it).get("variants") }.getOrNull() }
         return if (variants != null && variants.isArray && variants.size() > 0) variants.size() else 1
+    }
+
+    companion object {
+        /** ADR-0049 — fixed; widening it means a new certification version, not editing this set. */
+        val CERTIFICATION_DOMAINS = setOf("coupon", "notification", "product-browsing", "payment", "reservation", "batch-settlement", "autoscaling")
     }
 }

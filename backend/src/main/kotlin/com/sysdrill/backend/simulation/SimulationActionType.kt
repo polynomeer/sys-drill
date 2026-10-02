@@ -34,4 +34,8 @@ enum class SimulationActionType {
     SCALE_OUT_REPLICAS,
     TUNE_RESOURCE_LIMITS,
     ENABLE_ROLLOUT_SAFEGUARD,
+    // deployment (PLAN.md Round E30, ADR-0049)
+    CONTINUE_ROLLOUT,
+    PAUSE_ROLLOUT,
+    ROLLBACK,
 }

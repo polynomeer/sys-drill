@@ -181,8 +181,14 @@ object TelemetrySampler {
         second: Long,
         actionCutoff: Instant = incidentStartedAt.plusSeconds(second),
     ): SystemState {
-        val traits = actions.filter { !it.at.isAfter(actionCutoff) }.fold(baseTraits) { traits, timed ->
+        val folded = actions.filter { !it.at.isAfter(actionCutoff) }.fold(baseTraits) { traits, timed ->
             RuleBasedSimulationEngine.applyAction(session(domain, traits, incidentActive = true), timed.action).traits
+        }
+        // PLAN.md Round E30 — the one domain whose state moves with the clock: hand it the canary share at this second.
+        val traits = if (domain == RuleBasedSimulationEngine.DOMAIN_DEPLOYMENT) {
+            folded.copy(canaryPercent = RuleBasedSimulationEngine.deploymentRolloutAt(baseTraits, actions, incidentStartedAt, second, actionCutoff))
+        } else {
+            folded
         }
         val incident = compute(domain, traits, incidentActive = true)
         if (second >= RAMP_SECONDS) return incident

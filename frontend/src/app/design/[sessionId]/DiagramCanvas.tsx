@@ -75,6 +75,11 @@ const NODE_TRAIT_CONFIG: Record<string, Partial<Record<NodeKind, TraitField[]>>>
   autoscaling: {
     service: [{ key: "podReplicas", label: "Pod Replicas", min: 1, max: 20, step: 1, default: 4 }],
   },
+  // PLAN.md Round E30 — the rollout plan lives on the canvas: first canary share, auto-rollback bar (0 = none).
+  deployment: {
+    service: [{ key: "canaryStartPercent", label: "카나리 시작 비율(%)", min: 1, max: 100, step: 1, default: 10 }],
+    gateway: [{ key: "autoRollbackErrorPct", label: "자동 롤백 에러율(%, 0=없음)", min: 0, max: 50, step: 1, default: 0 }],
+  },
 };
 
 function mermaidId(index: number): string {

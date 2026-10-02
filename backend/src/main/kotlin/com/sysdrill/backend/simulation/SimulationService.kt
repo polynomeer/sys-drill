@@ -603,6 +603,12 @@ class SimulationService(
             "긍정 효과: 메모리 사용량이 request/limit에 맞게 조정돼 OOM kill로 인한 Pod 재시작 반복 해소. 가능한 부작용: limit을 너무 낮게 잡으면 정상 부하에서도 스로틀링 발생 가능."
         SimulationActionType.ENABLE_ROLLOUT_SAFEGUARD ->
             "긍정 효과: readiness probe/PodDisruptionBudget으로 롤링 배포 중에도 가용 용량 유지. 가능한 부작용: 배포 자체의 소요 시간 증가."
+        SimulationActionType.CONTINUE_ROLLOUT ->
+            "긍정 효과: 새 버전 전환을 빨리 끝냄. 가능한 부작용: 새 버전에 결함이 있으면 실패하는 트래픽이 그만큼 늘어남."
+        SimulationActionType.PAUSE_ROLLOUT ->
+            "긍정 효과: 카나리 비율이 더 늘지 않아 결함 확산이 멈춤. 가능한 부작용: 이미 새 버전으로 가는 트래픽의 실패는 그대로."
+        SimulationActionType.ROLLBACK ->
+            "긍정 효과: 새 버전 트래픽을 0으로 되돌려 결함이 원인이면 즉시 회복. 가능한 부작용: 함께 나간 다른 변경도 되돌아가고, 되돌릴 수 없는 마이그레이션이 섞였다면 실패."
     }
 
     private companion object {

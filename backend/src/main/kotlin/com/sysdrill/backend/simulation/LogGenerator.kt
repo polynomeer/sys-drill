@@ -80,6 +80,11 @@ object LogGenerator {
             Template("ingress", "ERROR", { it.state.errorRate >= 0.05 }, 2) { _, _ -> "503 no healthy upstream for recommend-api" },
             Template("recommend-api", "WARN", { it.state.p95LatencyMs >= 100 }, 1) { p, _ -> "request latency p95=${p.state.p95LatencyMs.toInt()}ms" },
         ),
+        RuleBasedSimulationEngine.DOMAIN_DEPLOYMENT to listOf(
+            Template("checkout-api", "ERROR", { it.state.errorRate >= 0.02 }, 2) { _, h -> "NullPointerException at PriceCalculator.apply (version=2.14.0-canary) orderId=ORD-${h % 1000000}" },
+            Template("checkout-api", "WARN", { it.state.errorRate >= 0.02 }, 1) { _, h -> "client retry #${1 + h % 3} after 500 from version=2.14.0-canary" },
+            Template("deployer", "INFO", { it.state.errorRate >= 0.005 }, 1) { p, _ -> "rollout checkout-api 2.14.0: canary serving ${((p.state.errorRate - 0.001) / 0.6 * 100).toInt().coerceIn(0, 100)}% of traffic" },
+        ),
     )
 
     fun generate(

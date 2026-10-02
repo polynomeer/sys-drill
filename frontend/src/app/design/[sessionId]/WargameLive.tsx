@@ -206,6 +206,27 @@ export const ACTIONS_BY_DOMAIN: Record<string, ActionDef[]> = {
       category: "config",
     },
   ],
+  // PLAN.md Round E30 (ADR-0049) — the one incident where the fix is undoing the change.
+  deployment: [
+    {
+      type: "CONTINUE_ROLLOUT",
+      label: "배포 계속 (다음 단계로)",
+      effect: "긍정 효과: 새 버전 전환을 빨리 끝냄. 부작용: 새 버전에 결함이 있으면 그만큼 많은 트래픽이 실패.",
+      category: "config",
+    },
+    {
+      type: "PAUSE_ROLLOUT",
+      label: "배포 일시 중지",
+      effect: "긍정 효과: 카나리 비율이 더 늘지 않아 확산이 멈춤. 부작용: 이미 새 버전으로 가는 트래픽의 실패는 그대로.",
+      category: "traffic",
+    },
+    {
+      type: "ROLLBACK",
+      label: "롤백",
+      effect: "긍정 효과: 새 버전 트래픽을 0으로 — 결함이 원인이면 즉시 회복. 부작용: 새 버전의 다른 변경도 함께 되돌아가고, 되돌릴 수 없는 마이그레이션이 섞였다면 실패.",
+      category: "traffic",
+    },
+  ],
 };
 
 /**
@@ -223,6 +244,7 @@ const INCIDENT_EVENT_BY_DOMAIN: Record<string, string> = {
   reservation: "인시던트 발생: 인기 좌석에 예약 시도 집중 → 락 경합 급증 → 락 대기 시간 증가",
   "batch-settlement": "인시던트 발생: 정산 API 응답 지연 급증 → 처리 중이던 청크 실패 → 재처리 범위 및 중복 반영 위험 증가",
   autoscaling: "인시던트 발생: 트래픽 10배 급증 + 롤링 배포 겹침 → Pod OOM kill 재시작 반복, 가용 용량 붕괴",
+  deployment: "인시던트 발생: checkout 2.14.0 카나리 배포 시작 직후 결제 실패 증가 — 카나리는 시간이 지나면 자동으로 비율을 늘립니다",
 };
 
 const POLL_INTERVAL_MS = 3000;
@@ -761,6 +783,9 @@ export function MetricsPanel({ state, domain }: { state: SystemState; domain: st
     autoscaling: [
       { label: "재시작 중인 Pod 수", value: `${state.queueLag}`, colorFor: state.queueLag > 0 ? 0.9 : 0 },
       { label: "가용 처리 용량", value: `${state.consumerThroughput.toFixed(0)} rps` },
+    ],
+    deployment: [
+      { label: "새 버전 트래픽 비율(추정)", value: `${Math.round(Math.max(0, (state.errorRate - 0.001) / 0.6) * 100)}%`, colorFor: state.errorRate * 2 },
     ],
   };
   const metrics = [...common, ...(domainSpecificByDomain[domain] ?? domainSpecificByDomain.coupon)];

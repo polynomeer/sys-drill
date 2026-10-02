@@ -5,6 +5,7 @@ import { type Readiness, confirmReadiness, getReadiness } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { AlertsView } from "./AlertsView";
+import { ChangeReviewCard } from "@/components/ChangeReviewCard";
 
 const POLL_MS = 3000;
 
@@ -79,6 +80,8 @@ export function ReadinessGate({ sessionId, onDone }: { sessionId: string; onDone
           {busy ? "배포하는 중..." : "배포하고 인시던트 시작"}
         </Button>
       </Card>
+      {/* PLAN.md Round E30 (M9) — only for scenarios whose incident carries a release change list */}
+      <ChangeReviewCard sessionId={sessionId} />
       <AlertsView sessionId={sessionId} series={null} isOwner onInvestigate={() => undefined} />
     </div>
   );

@@ -40,10 +40,11 @@ class OfficialScenarioV2Test(
 
     @Test
     fun `every official scenario's latest version is v2 with complete mission content`() {
-        assertThat(official).hasSize(7)
+        // The seven of ADR-0048 are on v2; deployment (ADR-0049) started with mission content at v1.
+        assertThat(official.map { it.domain }).hasSize(8).contains("deployment")
         official.forEach { scenario ->
             val version = latest(scenario.id!!)
-            assertThat(version.versionNo).describedAs(scenario.domain).isEqualTo(2)
+            assertThat(version.versionNo).describedAs(scenario.domain).isEqualTo(if (scenario.domain == "deployment") 1 else 2)
             val steps = scenarioStepRepository.findByScenarioVersionIdOrderByStepOrder(version.id!!)
             assertThat(steps.map { it.stepType }).describedAs(scenario.domain).containsExactly("INITIAL", "FOLLOWUP", "INCIDENT")
             val initial = missionService.parseInitial(steps.first())

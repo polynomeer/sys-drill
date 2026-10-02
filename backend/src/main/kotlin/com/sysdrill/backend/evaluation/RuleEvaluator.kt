@@ -176,6 +176,20 @@ object RuleEvaluator {
         ),
     )
 
+    /** PLAN.md Round E30 (docs/DRILLS_EXPANSION_PLAN.md M9) — a release going out: how its canary is judged and how it's undone. */
+    private val deploymentConcepts = listOf(
+        Concept(
+            "MISSING_CANARY_ANALYSIS",
+            listOf("카나리", "canary", "점진", "progressive", "단계적 배포", "자동 롤백", "에러율 임계"),
+            "카나리 배포와 그 판단 기준(에러율 임계·자동 중단)에 대한 언급이 없습니다. 결함 있는 버전이 전체 트래픽으로 번지기 전에 어떻게 멈추는지 확인이 필요합니다.",
+        ),
+        Concept(
+            "MISSING_ROLLBACK_PLAN",
+            listOf("롤백", "rollback", "되돌", "이전 버전", "blue-green", "블루그린", "feature flag", "피처 플래그"),
+            "롤백 계획에 대한 언급이 없습니다. 문제가 생겼을 때 얼마나 빨리, 무엇을 기준으로 이전 버전으로 되돌리는지 확인이 필요합니다.",
+        ),
+    )
+
     private val conceptsByDomain = mapOf(
         "coupon" to couponConcepts,
         "notification" to notificationConcepts,
@@ -184,6 +198,7 @@ object RuleEvaluator {
         "reservation" to reservationConcepts,
         "batch-settlement" to batchSettlementConcepts,
         "autoscaling" to autoscalingConcepts,
+        "deployment" to deploymentConcepts,
     )
 
     /** Reverse lookup (riskKey -> domain), derived from [conceptsByDomain] rather than duplicated — used by SkillProfileController (PLAN.md step 13) to group weaknesses by scenario domain. */
@@ -233,6 +248,8 @@ object RuleEvaluator {
         "MISSING_RESOURCE_LIMITS" to "CAPACITY_TIMING",
         // OBSERVABILITY — 관측 가능성 (Rubric.kt의 "Observability" 축과 이름을 맞춤)
         "MISSING_OBSERVABILITY" to "OBSERVABILITY",
+        "MISSING_CANARY_ANALYSIS" to "RESILIENCE",
+        "MISSING_ROLLBACK_PLAN" to "RESILIENCE",
     )
 
     /** PLAN.md step 34 — an unrecognized domain (e.g. an org's custom scenario) yields no findings rather than silently borrowing coupon's rubric, which would grade unrelated text against the wrong keywords. */

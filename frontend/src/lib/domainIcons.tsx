@@ -1,4 +1,4 @@
-import { Boxes, CalendarCheck, CreditCard, Bell, Receipt, ShoppingBag, Sparkles, Ticket, type LucideIcon } from "lucide-react";
+import { Boxes, CalendarCheck, CreditCard, Bell, Receipt, Rocket, ShoppingBag, Sparkles, Ticket, type LucideIcon } from "lucide-react";
 
 /** docs/CODECRAFTERS_BENCHMARK.md §3.9 — one monochrome icon per simulation
  * domain (CodeCrafters gives every challenge its own mark), shared by
@@ -12,6 +12,7 @@ const DOMAIN_ICONS: Record<string, LucideIcon> = {
   reservation: CalendarCheck,
   "batch-settlement": Receipt,
   autoscaling: Sparkles,
+  deployment: Rocket,
 };
 
 export function DomainIcon({ domain, className = "h-5 w-5" }: { domain: string; className?: string }) {

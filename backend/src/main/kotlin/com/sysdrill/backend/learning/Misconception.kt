@@ -67,7 +67,7 @@ class MisconceptionService(
         private val ACTION_NAMES = mapOf(
             A.INCREASE_DB_POOL to "DB Pool 증가", A.ADD_CONSUMERS to "컨슈머 증설", A.ADD_READ_REPLICA to "Read Replica 추가",
             A.ADD_DISPATCHER_WORKERS to "디스패처 증설", A.SHORTEN_HOLD_TIMEOUT to "홀드 타임아웃 단축",
-            A.REDUCE_CHUNK_SIZE to "청크 크기 축소", A.SCALE_OUT_REPLICAS to "Pod 증설",
+            A.REDUCE_CHUNK_SIZE to "청크 크기 축소", A.SCALE_OUT_REPLICAS to "Pod 증설", A.CONTINUE_ROLLOUT to "배포 계속",
         )
 
         /** The per-domain ones are the L8 failure patterns' first "bad fix"; the last spans domains. */
@@ -86,6 +86,8 @@ class MisconceptionService(
                 "재처리 범위는 줄지만 처음부터 다시 도는 구조와 중복 반영은 그대로입니다. 재개 지점과 멱등한 반영이 먼저입니다."),
             MisconceptionRule("more-pods", "autoscaling", setOf(A.SCALE_OUT_REPLICAS), "Pod를 늘리면 용량 문제가 해결된다",
                 "새 Pod도 같은 리소스 제한으로 재시작하고 롤아웃에 휩쓸립니다. 수평 확장은 안정성 문제를 대신 풀어주지 않습니다."),
+            MisconceptionRule("push-rollout", "deployment", setOf(A.CONTINUE_ROLLOUT), "배포를 빨리 끝내면 문제도 끝난다",
+                "결함 있는 버전이라면 비율을 올릴수록 실패가 비례해 늘어납니다. 원인이 방금 나간 변경일 때 첫 수는 멈추거나 되돌리는 것입니다."),
             MisconceptionRule("capacity-first", null,
                 setOf(A.INCREASE_DB_POOL, A.ADD_CONSUMERS, A.ADD_READ_REPLICA, A.ADD_DISPATCHER_WORKERS, A.SCALE_OUT_REPLICAS),
                 "장애가 나면 일단 용량부터 늘린다",

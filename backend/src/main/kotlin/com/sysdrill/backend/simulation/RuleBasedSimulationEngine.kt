@@ -25,6 +25,7 @@ object RuleBasedSimulationEngine : SimulationEngine {
     const val DOMAIN_RESERVATION = "reservation"
     const val DOMAIN_BATCH_SETTLEMENT = "batch-settlement"
     const val DOMAIN_AUTOSCALING = "autoscaling"
+    const val DOMAIN_DEPLOYMENT = "deployment"
 
     /**
      * ADR-0038 — the exact domain set [computeState]/[applyAction] below can
@@ -40,6 +41,7 @@ object RuleBasedSimulationEngine : SimulationEngine {
         DOMAIN_RESERVATION,
         DOMAIN_BATCH_SETTLEMENT,
         DOMAIN_AUTOSCALING,
+        DOMAIN_DEPLOYMENT,
     )
 
     /**
@@ -74,6 +76,7 @@ object RuleBasedSimulationEngine : SimulationEngine {
         DOMAIN_RESERVATION -> Reservation.computeState(session)
         DOMAIN_BATCH_SETTLEMENT -> BatchSettlement.computeState(session)
         DOMAIN_AUTOSCALING -> Autoscaling.computeState(session)
+        DOMAIN_DEPLOYMENT -> Deployment.computeState(session)
         else -> error("Unknown simulation domain: ${session.domain}")
     }
 
@@ -86,6 +89,7 @@ object RuleBasedSimulationEngine : SimulationEngine {
             DOMAIN_RESERVATION -> current.copy(traits = Reservation.applyAction(current.traits, action))
             DOMAIN_BATCH_SETTLEMENT -> current.copy(traits = BatchSettlement.applyAction(current.traits, action))
             DOMAIN_AUTOSCALING -> current.copy(traits = Autoscaling.applyAction(current.traits, action))
+            DOMAIN_DEPLOYMENT -> current.copy(traits = Deployment.applyAction(current.traits, action))
             else -> error("Unknown simulation domain: ${current.domain}")
         }
 
@@ -588,5 +592,93 @@ object RuleBasedSimulationEngine : SimulationEngine {
         }
 
         private const val SCALE_OUT_STEP = 36
+    }
+
+    /**
+     * The canary's share at [second] after the start — PLAN.md Round E30, called by the sampler (ADR-0045:
+     * time lives outside the domain functions). Every [Deployment.STAGE_SECONDS] the rollout doubles unless
+     * paused; CONTINUE_ROLLOUT promotes at once; ROLLBACK drops to zero; a designed auto-rollback bar
+     * rolls back [Deployment.AUTO_ROLLBACK_DELAY_SECONDS] after the error rate crosses it.
+     */
+    fun deploymentRolloutAt(base: DesignTraits, actions: List<TimedAction>, incidentStartedAt: java.time.Instant, second: Long, cutoff: java.time.Instant): Double =
+        Deployment.rolloutAt(base, actions.filter { !it.at.isAfter(cutoff) }, incidentStartedAt, second)
+
+    /**
+     * docs/DRILLS_EXPANSION_PLAN.md M9 (PLAN.md Round E30, ADR-0049) — a defective release on its way out
+     * by canary. Errors scale with the share of traffic on the new version: rollback ends it, pausing
+     * stops it from spreading, promoting makes it worse. The one domain where the fix is *undoing*.
+     */
+    private object Deployment {
+        private const val TRAFFIC_RPS = 800.0
+        private const val DEFECT_RATE = 0.6
+        private const val BASE_LATENCY_MS = 80.0
+        private const val RETRY_LATENCY_MS = 600.0
+        const val STAGE_SECONDS = 60L
+        const val AUTO_ROLLBACK_DELAY_SECONDS = 30L
+
+        fun stages(start: Int): List<Double> = generateSequence(start.coerceIn(1, 100).toDouble()) { if (it >= 100.0) null else minOf(100.0, it * 2) }.toList()
+
+        fun computeState(session: SimulationSessionState): SystemState {
+            val t = session.traits
+            val share = when {
+                t.rolledBack -> 0.0
+                t.canaryPercent != null -> t.canaryPercent
+                else -> stages(t.canaryStartPercent).let { it[minOf(t.rolloutPromotions, it.lastIndex)] }
+            } / 100.0
+            val defective = if (session.incidentActive) share else 0.0
+            val errorRate = BASELINE_ERROR_RATE + defective * DEFECT_RATE
+            return SystemState(
+                trafficRps = TRAFFIC_RPS,
+                p95LatencyMs = BASE_LATENCY_MS + defective * RETRY_LATENCY_MS,
+                errorRate = errorRate,
+                availability = 1.0 - errorRate,
+                dbReadLoad = 0.3,
+                dbWriteLoad = 0.2,
+                connectionPoolUsage = 0.3,
+                cacheHitRatio = 0.0,
+                cacheLatencyMs = 0.0,
+                queueLag = 0,
+                consumerThroughput = 0.0,
+                externalDependencyLatencyMs = 0.0,
+            )
+        }
+
+        fun applyAction(traits: DesignTraits, action: SimulationActionType): DesignTraits = when (action) {
+            SimulationActionType.CONTINUE_ROLLOUT -> traits.copy(rolloutPromotions = traits.rolloutPromotions + 1, rolloutPaused = false)
+            SimulationActionType.PAUSE_ROLLOUT -> traits.copy(rolloutPaused = true)
+            SimulationActionType.ROLLBACK -> traits.copy(rolledBack = true)
+            else -> error("$action does not apply to the deployment incident")
+        }
+
+        fun rolloutAt(base: DesignTraits, actions: List<TimedAction>, start: java.time.Instant, second: Long): Double {
+            val stages = stages(base.canaryStartPercent)
+            val bySecond = actions.groupBy { maxOf(0L, java.time.Duration.between(start, it.at).seconds) }
+            var stage = 0
+            var paused = false
+            var sinceStage = 0L
+            var overBarFor = 0L
+            for (s in 0..maxOf(0L, second)) {
+                bySecond[s]?.forEach {
+                    when (it.action) {
+                        SimulationActionType.ROLLBACK -> return 0.0
+                        SimulationActionType.PAUSE_ROLLOUT -> paused = true
+                        SimulationActionType.CONTINUE_ROLLOUT -> { paused = false; stage = minOf(stage + 1, stages.lastIndex); sinceStage = 0 }
+                        else -> Unit
+                    }
+                }
+                val errorPct = (BASELINE_ERROR_RATE + stages[stage] / 100.0 * DEFECT_RATE) * 100
+                if (base.autoRollbackErrorPct > 0 && errorPct >= base.autoRollbackErrorPct) {
+                    overBarFor++
+                    if (overBarFor >= AUTO_ROLLBACK_DELAY_SECONDS) return 0.0
+                } else {
+                    overBarFor = 0
+                }
+                if (!paused && s > 0 && ++sinceStage >= STAGE_SECONDS) {
+                    stage = minOf(stage + 1, stages.lastIndex)
+                    sinceStage = 0
+                }
+            }
+            return stages[stage]
+        }
     }
 }

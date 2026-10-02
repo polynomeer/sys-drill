@@ -37,6 +37,14 @@ data class DesignTraits(
     val podReplicas: Int = DEFAULT_POD_REPLICAS,
     val resourceLimitsTuned: Boolean = false,
     val rolloutSafeguardEnabled: Boolean = false,
+    // deployment (PLAN.md Round E30) — the canary's first share and the design's auto-rollback bar (0 = none)
+    val canaryStartPercent: Int = DEFAULT_CANARY_START_PERCENT,
+    val autoRollbackErrorPct: Int = 0,
+    val rolloutPaused: Boolean = false,
+    val rolledBack: Boolean = false,
+    val rolloutPromotions: Int = 0,
+    /** The share right now — filled in by the sampler's rollout clock; null outside it (then derived from the actions). */
+    val canaryPercent: Double? = null,
 ) {
     companion object {
         const val DEFAULT_CACHE_TTL_SECONDS = 10
@@ -47,5 +55,6 @@ data class DesignTraits(
         const val DEFAULT_HOLD_TIMEOUT_SECONDS = 300
         const val DEFAULT_CHUNK_SIZE = 10000
         const val DEFAULT_POD_REPLICAS = 4
+        const val DEFAULT_CANARY_START_PERCENT = 10
     }
 }
