@@ -45,7 +45,7 @@ class TraceService(
     private val sessionRepository: com.sysdrill.backend.session.SessionRepository,
     private val missionService: com.sysdrill.backend.mission.MissionService,
     private val objectMapper: ObjectMapper,
-    @Value("\${sysdrill.tracing.jaeger-query-url:http://localhost:16686}") jaegerQueryUrl: String,
+    @Value("\${sysdrill.tracing.jaeger-query-url}") jaegerQueryUrl: String,
     @Value("\${spring.application.name:backend}") private val serviceName: String,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -85,10 +85,14 @@ class TraceService(
 
     // ---- Jaeger (real-infra coupon) ----
 
-    private fun jaegerList(sessionId: UUID): TraceList {
+    internal fun jaegerList(sessionId: UUID): TraceList {
         val tags = objectMapper.writeValueAsString(mapOf(SESSION_TAG to sessionId.toString()))
         val body = runCatching {
-            jaeger.get().uri { it.path("/api/traces").queryParam("service", serviceName).queryParam("tags", tags).queryParam("limit", MAX_TRACES).queryParam("lookback", "6h").build() }
+            // The tags JSON has braces — passed as a template *value*, not inline, or the builder reads them as variables.
+            jaeger.get().uri {
+                it.path("/api/traces").queryParam("service", serviceName).queryParam("tags", "{tags}")
+                    .queryParam("limit", MAX_TRACES).queryParam("lookback", "6h").build(mapOf("tags" to tags))
+            }
                 .retrieve().body(String::class.java)
         }.onFailure { log.warn("Jaeger query failed for session $sessionId: ${it.message}") }.getOrNull()
             ?: return TraceList(JAEGER, available = false, traces = emptyList(), note = "Jaeger에 연결하지 못했습니다.")
@@ -98,7 +102,7 @@ class TraceService(
         return TraceList(JAEGER, available = true, traces = traces)
     }
 
-    private fun jaegerTrace(traceId: String): TraceView {
+    internal fun jaegerTrace(traceId: String): TraceView {
         require(TRACE_ID.matches(traceId)) { "bad trace id" }
         val body = runCatching { jaeger.get().uri("/api/traces/{id}", traceId).retrieve().body(String::class.java) }.getOrNull()
             ?: throw NotFoundException("Trace not found: $traceId")

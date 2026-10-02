@@ -176,6 +176,10 @@ sysdrill:
       initial-seconds: ${INTERVIEW_TIMER_INITIAL_SECONDS:600}
       followup-seconds: ${INTERVIEW_TIMER_FOLLOWUP_SECONDS:600}
       incident-seconds: ${INTERVIEW_TIMER_INCIDENT_SECONDS:480}
+  tracing:
+    # PLAN.md Round E25 (O6) — Jaeger's query API for real-infra coupon traces. Same port variable as
+    # docker-compose.yml's JAEGER_UI_PORT so the two can't drift (see RealInfraCouponTracingTest).
+    jaeger-query-url: ${JAEGER_QUERY_URL:http://localhost:${JAEGER_UI_PORT:16686}}
   simulation:
     # docs/COMMERCIALIZATION.md — AI 4역할 Slice 4 (Director)'s narration call,
     # per user. Unlike mentor/postmortem/build above, going over this doesn't
