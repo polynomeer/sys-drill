@@ -1,9 +1,9 @@
 plugins {
-	kotlin("jvm") version "2.3.21"
-	kotlin("plugin.spring") version "2.3.21"
+	kotlin("jvm") version "2.4.10"
+	kotlin("plugin.spring") version "2.4.10"
 	id("org.springframework.boot") version "4.1.1"
 	id("io.spring.dependency-management") version "1.1.7"
-	kotlin("plugin.jpa") version "2.3.21"
+	kotlin("plugin.jpa") version "2.4.10"
 	jacoco
 }
 
@@ -64,7 +64,7 @@ dependencies {
 	// object model for ArchitectureRiskScanner to walk, instead of hand-rolling
 	// YAML/JSON traversal — same "well-audited library over hand-rolled
 	// parsing" choice as java-jwt above.
-	implementation("io.swagger.parser.v3:swagger-parser:2.1.22")
+	implementation("io.swagger.parser.v3:swagger-parser:2.1.48")
 	// docs/COMMERCIALIZATION.md — invitation/password-reset/verification email.
 	// Plain SMTP via JavaMailSender, not a provider SDK (SES/SendGrid/Postmark
 	// all speak SMTP too) — see MailConfig.kt for the "not configured" fallback.
