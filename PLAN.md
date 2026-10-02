@@ -2070,9 +2070,16 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 **진행 중 발견한 결정 사항**: V63. 패턴의 잘못된 대응은 `{fix, why}`, 문구는 엔진 수식과 대조, 전형적 로그는 E17 로그 템플릿과 같은 문구(LEARNING_EXPANSION_PLAN L8 확정 사항).
 
-#### Round E20 — 가정 (M7) + 제약·비용·복잡도 (M8)
-- [ ] INITIAL `content.assumptions` 선택/추가, FOLLOWUP 변형 `breaks` → 고정된 변형 기준 "깨진 가정" 표시
-- [ ] `content.constraints`, 노드 kind 단가 상수, `GET /sessions/{id}/cost-estimate`, 캔버스 상단 비용·복잡도, 평가 프롬프트 사실 전달
+#### Round E20 — 가정 (M7) + 제약·비용·복잡도 (M8) ✅ 완료 (2026-10-02)
+- [x] INITIAL `content.assumptions` 선택/추가, FOLLOWUP 변형 `breaks` → 고정된 변형 기준 "깨진 가정" 표시
+- [x] `content.constraints`, 노드 kind 단가 상수, `GET /sessions/{id}/cost-estimate`, 캔버스 상단 비용·복잡도, 평가 프롬프트 사실 전달
+
+**완료 기준 충족**: 신규 `MissionAssumptionCostTest`(선택이 INITIAL 제출로 고정·제출 뒤 닫힘, FOLLOWUP 진입 후 깨진 가정, 프롬프트의 "명시했던 가정 / 적지 않았음" 구분, 캔버스 기준 월 $1,200·예산 +20%·복잡도 49 / 팀 역량 30·컨슈머 증설 +$240, 콘텐츠 없는 시나리오는 둘 다 숨김). 격리 환경에 테스트 시나리오(알림, 가정 3개·예산 $1,000·팀 2명)를 넣고 캔버스에 Service·Queue 추가 → "월 비용 $620 / 예산 $1,000(−38%) · 운영 복잡도 33 / 팀 역량 30" → 가정 1개 선택 후 제출·다음 단계 → "깨진 가정: 내가 둔 가정 ✗ 외부 provider… / 적지 않았지만 기대고 있었을 수 있는 가정 ✗ 발송량은…".
+
+**진행 중 발견한 결정 사항** (DRILLS_EXPANSION_PLAN M7·M8 확정 사항):
+- 팀 운영 경험의 키는 기술명이 아니라 캔버스 노드 kind.
+- 빈 캔버스(또는 client만)는 "그리지 않음"으로 본다 — 저장된 빈 그래프에서도 기본 트레이트(컨슈머 4개)가 값으로 잡혀 $120이 찍히던 것을 브라우저 검증에서 발견.
+- 비용·가정 섹션은 INITIAL·FOLLOWUP 평가 프롬프트에 들어간다. `CostEstimateService`를 `MissionService`와 분리(캔버스 의존).
 
 #### Round E21 — 변형 기반 신뢰도 (M10)
 - [ ] 도메인별 통과한 서로 다른 변형 수(E18 함수), 트랙·인증 페이지 표시. DrillScore 불변

@@ -62,4 +62,17 @@ data class InitialMissionContent(
     val clarifications: List<Clarification> = emptyList(),
     /** M2 (PLAN.md Round E9). */
     val estimation: List<EstimationField> = emptyList(),
+    /** M7 (PLAN.md Round E20) — assumption candidates; a FOLLOWUP variant's `breaks` names the ones it breaks. */
+    val assumptions: List<Assumption> = emptyList(),
+    /** M8 (PLAN.md Round E20) — budget and team; null hides cost and complexity entirely. */
+    val constraints: MissionConstraints? = null,
+)
+
+data class Assumption(val id: String, val text: String)
+
+/** [opsExperience] is keyed by canvas node kind (queue, cache, db…) — LOW / MEDIUM / HIGH. */
+data class MissionConstraints(
+    val budgetPerMonth: Double? = null,
+    val teamSize: Int? = null,
+    val opsExperience: Map<String, String> = emptyMap(),
 )

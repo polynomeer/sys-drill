@@ -16,6 +16,7 @@ import java.util.UUID
 @RequestMapping("/sessions/{sessionId}")
 class MissionController(
     private val missionService: MissionService,
+    private val costEstimateService: CostEstimateService,
     private val sessionAccessGuard: SessionAccessGuard,
 ) {
 
@@ -71,5 +72,19 @@ class MissionController(
     fun defense(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): DefenseResponse {
         sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
         return missionService.defense(sessionId)
+    }
+
+    /** M7 (PLAN.md Round E20) — assumption candidates, my choice, and (after FOLLOWUP) what broke. */
+    @GetMapping("/assumptions")
+    fun assumptions(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): AssumptionsResponse {
+        sessionAccessGuard.requireOwner(sessionId, userId)
+        return missionService.assumptions(sessionId)
+    }
+
+    /** M8 (PLAN.md Round E20) — estimated monthly cost and ops complexity of the saved canvas. */
+    @GetMapping("/cost-estimate")
+    fun costEstimate(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): CostEstimateResponse {
+        sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
+        return costEstimateService.estimate(sessionId)
     }
 }

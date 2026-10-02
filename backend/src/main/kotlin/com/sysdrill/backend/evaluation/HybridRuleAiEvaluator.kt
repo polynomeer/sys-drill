@@ -45,6 +45,7 @@ class HybridRuleAiEvaluator(
     private val scenarioRepository: ScenarioRepository,
     private val objectMapper: ObjectMapper,
     private val missionService: MissionService,
+    private val costEstimateService: com.sysdrill.backend.mission.CostEstimateService,
 ) {
     private val designPurpose = "design_evaluation"
 
@@ -104,6 +105,11 @@ class HybridRuleAiEvaluator(
                 missionService.estimationPromptSection(session, submission)?.let(::add)
             }
             if (submission.phase == "FOLLOWUP") missionService.defensePromptSection(submission)?.let(::add)
+            // PLAN.md Round E20 — M7 assumptions (stated / broken) and M8 cost·complexity facts.
+            if (submission.phase == "INITIAL" || submission.phase == "FOLLOWUP") {
+                missionService.assumptionPromptSection(session, submission)?.let(::add)
+                costEstimateService.promptSection(session)?.let(::add)
+            }
             if (submission.phase == "INCIDENT") missionService.statusUpdatePromptSection(submission)?.let(::add)
         }
         return if (sections.isEmpty()) "" else sections.joinToString(separator = "\n", prefix = "\n")

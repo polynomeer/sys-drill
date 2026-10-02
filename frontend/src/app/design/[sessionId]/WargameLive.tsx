@@ -11,6 +11,7 @@ import {
   TimelineStep,
   applySimulationAction,
   InvestigationKind,
+  getCostEstimate,
   getSimulationLogs,
   getSimulationSeries,
   getSimulationState,
@@ -267,6 +268,13 @@ export function WargameLive({
   const [serverLogs, setServerLogs] = useState<LogEntry[]>([]);
   const [logWindow, setLogWindow] = useState<LogWindow | null>(null);
   const tabRef = useRef<ObserveTab>("overview");
+  // PLAN.md Round E20 (M8) — "+월 $240(추정)" on scale-out actions; empty when the scenario has no constraints.
+  const [actionCost, setActionCost] = useState<Record<string, number>>({});
+  useEffect(() => {
+    getCostEstimate(sessionId)
+      .then((e) => setActionCost(e.available ? e.actionCostDeltas : {}))
+      .catch(() => undefined);
+  }, [sessionId]);
   const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState<SimulationActionType | null>(null);
   const [notStarted, setNotStarted] = useState(false);
@@ -582,6 +590,9 @@ export function WargameLive({
                       </Badge>
                     </span>
                     <span className="mt-0.5 block text-xs text-foreground-muted">{action.effect}</span>
+                    {actionCost[action.type] !== undefined && (
+                      <span className="mt-0.5 block text-xs text-warning">비용 +월 ${Math.round(actionCost[action.type]).toLocaleString()} (추정)</span>
+                    )}
                   </button>
                 );
               })}

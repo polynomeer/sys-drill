@@ -169,6 +169,8 @@ M1·M2·M7·M8은 시나리오 콘텐츠(INITIAL 프롬프트를 일부러 불�
 - INITIAL에서 시나리오가 준 가정 후보(`Read ≫ Write`, `stale 30초 허용`, `리전 장애 없음`…)를 고르거나 직접 추가하고, FOLLOWUP 변형 콘텐츠에 `breaks: [assumptionId]`를 달아 해당 가정을 `Assumption Broken`으로 표시합니다.
 - 직접 추가한 자유 가정은 표시만 하고 자동 매칭하지 않습니다.
 
+  **확정(2026-10-02, Round E20 착수 시)**: INITIAL `content.assumptions: [{id, text}]`, FOLLOWUP 단일 콘텐츠 또는 각 변형에 `breaks: [id]`. 선택은 INITIAL 제출의 `structured_json.assumptions = {selected: [id], custom: [text]}`로 확정(M2 추정치와 같은 자리, 선택 사항). `GET /sessions/{id}/assumptions`는 후보·내 선택·(FOLLOWUP 진입 후) 고정된 변형이 깨뜨린 가정을 돌려준다 — 깨진 가정은 **고정된 변형 키**(Round E10)로만 판정해 나중에 바뀌지 않는다. 화면은 "내가 둔 가정이 깨졌다"와 "가정하지 않았던 조건이 바뀌었다"를 구분한다. 평가 프롬프트: INITIAL엔 사용자가 둔 가정, FOLLOWUP엔 깨진 가정과 그것을 사용자가 가정했었는지.
+
 ### M8 — 제약 · 비용 · 운영 복잡도 ✦
 
 - 시나리오 콘텐츠에 `constraints: {budgetPerMonth, teamSize, opsExperience: {kafka: LOW, redis: HIGH, …}}`.
@@ -176,6 +178,12 @@ M1·M2·M7·M8은 시나리오 콘텐츠(INITIAL 프롬프트를 일부러 불�
 - **운영 복잡도**: 서로 다른 인프라 종류 수 × 팀 운영 경험 가중치 → `복잡도 82 / 팀 역량 43`. 점수가 아니라 **평가 프롬프트에 주는 사실**입니다 — "기술을 많이 쓰면 좋은 설계"라는 습관을 교정한다는 원본의 목적은 LLM이 이 사실을 근거로 트레이드오프를 지적할 때 달성됩니다.
 - "CFO: 인프라 비용 30% 절감" 같은 이벤트는 **새 코드 없이 FOLLOWUP 변형 콘텐츠**로 추가할 수 있습니다.
 - 모든 금액 옆에 "추정치" 표기. 실제 클라우드 단가 추적은 하지 않습니다.
+
+  **확정(2026-10-02, Round E20 착수 시)**:
+  - 콘텐츠: INITIAL `content.constraints = {budgetPerMonth, teamSize, opsExperience: {<노드 kind>: LOW|MEDIUM|HIGH}}`. 경험 키는 기술 이름(kafka, redis)이 아니라 **캔버스 노드 kind**(queue, cache…) — 캔버스가 kind만 알기 때문에 매핑 표를 하나 더 두지 않는다. 화면에는 kind 이름을 사람이 읽는 이름으로 보여준다.
+  - 비용 = 노드 kind별 단가 × 노드 수 + 확장 단위 단가 × 트레이트 값(읽기 복제본·컨슈머·디스패처 워커·Pod, 도메인에서 캔버스가 정하는 것만). 단가는 Kotlin 상수(USD/월, "추정치"). `constraints`가 없는 시나리오는 비용·복잡도를 보여주지 않는다(M1·M2와 같은 "콘텐츠 없으면 숨김").
+  - 복잡도 = Σ(사용한 서로 다른 kind의 기본 복잡도 × 팀 경험 배수: LOW 1.5 · MEDIUM 1.0 · HIGH 0.7 · 미기재 1.0), 팀 역량 = 팀 인원 × 15. 점수가 아니라 평가 프롬프트의 사실("복잡도 82 / 팀 역량 43, 예산 대비 +24%").
+  - `GET /sessions/{id}/cost-estimate`는 저장된 캔버스 기준으로 매번 계산(ADR-0011) — 액션별 비용 증분(`actionCostDeltas`)도 함께 내려 Wargame 액션 카드에 "+월 $240(추정)"을 붙인다.
 
 ### M9 — Deploy/Canary 도메인 + 변경 검토
 

@@ -26,6 +26,8 @@ import {
 } from "@/lib/localSession";
 import { ClarificationPanel } from "./ClarificationPanel";
 import { EstimationPanel } from "./EstimationPanel";
+import { AssumptionPanel, BrokenAssumptions, type AssumptionChoice } from "./AssumptionPanel";
+import { CostBar } from "./CostBar";
 import { DefensePanel } from "./DefensePanel";
 import { WargameLive } from "./WargameLive";
 import { BridgeProgress } from "@/components/BridgeProgress";
@@ -84,6 +86,9 @@ export default function DesignWorkspacePage() {
   const [defense, setDefense] = useState<Defense | null>(null);
   const [defenseAnswers, setDefenseAnswers] = useState<Record<string, string>>({});
   const [statusUpdate, setStatusUpdate] = useState("");
+  // PLAN.md Round E20 — M7 choice (fixed at the INITIAL submit) and M8's refetch trigger.
+  const [assumptionChoice, setAssumptionChoice] = useState<AssumptionChoice>({ selected: [], custom: [] });
+  const [canvasVersion, setCanvasVersion] = useState(0);
   const [feedback, setFeedback] = useState<EvaluationFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [diagramMode, setDiagramMode] = useState<"canvas" | "text">("canvas");
@@ -208,11 +213,13 @@ export default function DesignWorkspacePage() {
 
   function handleCanvasMermaidChange(mermaidText: string) {
     handleAnswerChange(upsertCanvasBlock(answer, mermaidText));
+    setCanvasVersion((v) => v + 1);
   }
 
   /** ADR-0037 — canvas node config becomes this session's starting DesignTraits when the incident starts (WargameLive's `initialTraits` prop). */
   function handleCanvasTraitsChange(traits: Record<string, number>) {
     setCanvasTraits(traits);
+    setCanvasVersion((v) => v + 1);
   }
 
   /** AI 4역할 Slice 3 (Mentor) — on-demand hint for the current draft, requested explicitly (not auto/debounced). */
@@ -250,12 +257,16 @@ export default function DesignWorkspacePage() {
       const structured: Record<string, unknown> = {};
       const filled = Object.fromEntries(Object.entries(estimates).filter(([, v]) => v !== null));
       if (session?.currentPhase === "INITIAL" && Object.keys(filled).length > 0) structured.estimates = filled;
+      if (session?.currentPhase === "INITIAL" && (assumptionChoice.selected.length > 0 || assumptionChoice.custom.length > 0)) {
+        structured.assumptions = assumptionChoice;
+      }
       if (session?.currentPhase === "FOLLOWUP" && defense?.available) {
         structured.defense = defense.questions.map((q) => ({ question: q, answer: defenseAnswers[q] ?? "" }));
       }
       if (session?.currentPhase === "INCIDENT" && statusUpdate.trim()) structured.statusUpdate = statusUpdate.trim();
       const submission = await submitAnswer(sessionId, textToSubmit, clientRequestId, structured);
       setEstimates({});
+      setAssumptionChoice({ selected: [], custom: [] });
       setDefenseAnswers({});
       setStatusUpdate("");
       saveSubmissionId(sessionId, submission.id);
@@ -366,6 +377,10 @@ export default function DesignWorkspacePage() {
             {isEditing && session?.currentPhase === "INITIAL" && (
               <EstimationPanel sessionId={sessionId} values={estimates} onChange={setEstimates} />
             )}
+            {isEditing && session?.currentPhase === "INITIAL" && (
+              <AssumptionPanel sessionId={sessionId} value={assumptionChoice} onChange={setAssumptionChoice} />
+            )}
+            {isEditing && session?.currentPhase === "FOLLOWUP" && <BrokenAssumptions sessionId={sessionId} />}
             {isEditing && session?.currentPhase === "FOLLOWUP" && (
               <DefensePanel
                 sessionId={sessionId}
@@ -471,6 +486,7 @@ export default function DesignWorkspacePage() {
                         텍스트 (Mermaid)
                       </button>
                     </div>
+                    <CostBar sessionId={sessionId} version={canvasVersion} />
                     {diagramMode === "canvas" ? (
                       <DiagramCanvas
                         sessionId={sessionId}

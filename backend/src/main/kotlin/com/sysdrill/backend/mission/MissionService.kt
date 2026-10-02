@@ -98,7 +98,7 @@ class MissionService(
         const val MAX_ALERT_RULES = 10
     }
 
-    private fun canAsk(session: Session): Boolean =
+    fun canAsk(session: Session): Boolean =
         session.currentPhase == "INITIAL" && session.status == SessionStatus.IN_PROGRESS
 
     /** The evaluation prompt's M1 section for an INITIAL submission, or null when the scenario has no questions. */
@@ -271,6 +271,82 @@ class MissionService(
         }
     }
 
+    // ---- M7: assumptions ----
+
+    /**
+     * docs/DRILLS_EXPANSION_PLAN.md M7 (PLAN.md Round E20). The choice travels in the INITIAL
+     * submission's `structured_json.assumptions = {selected, custom}`; which ones broke is read from
+     * the FOLLOWUP variant pinned at advance (Round E10), so the answer never shifts afterwards.
+     */
+    fun assumptions(sessionId: UUID): AssumptionsResponse {
+        val session = requireSession(sessionId)
+        val options = initialContent(session).assumptions
+        if (options.isEmpty()) return AssumptionsResponse(available = false, open = false, options = emptyList())
+        val initial = initialSubmission(session)
+        val (selected, custom) = initial?.let { assumptionChoiceOf(it) } ?: (emptyList<String>() to emptyList())
+        val broken = brokenAssumptionIds(session)
+        return AssumptionsResponse(
+            available = true,
+            open = initial == null && canAsk(session),
+            options = options,
+            selected = selected,
+            custom = custom,
+            broken = broken?.let { ids -> options.filter { it.id in ids } },
+        )
+    }
+
+    /** Null until the session has a pinned FOLLOWUP variant (or a single FOLLOWUP prompt) to read `breaks` from. */
+    @Suppress("UNCHECKED_CAST")
+    fun brokenAssumptionIds(session: Session): List<String>? {
+        val step = scenarioStepRepository.findByScenarioVersionIdOrderByStepOrder(session.scenarioVersionId)
+            .firstOrNull { it.stepType == "FOLLOWUP" } ?: return null
+        if (session.currentPhase == "INITIAL") return null
+        val content = step.content?.let { runCatching { read(it, Map::class.java) as Map<String, Any?> }.getOrNull() } ?: return null
+        val variants = content["variants"] as? List<Map<String, Any?>>
+        val source = if (variants == null) content else {
+            val key = state(session).followupVariantKey ?: return null
+            variants.firstOrNull { it["key"] == key } ?: return null
+        }
+        return (source["breaks"] as? List<*>)?.mapNotNull { it as? String }.orEmpty()
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun assumptionChoiceOf(submission: Submission): Pair<List<String>, List<String>> {
+        val raw = structuredOf(submission)["assumptions"] as? Map<String, Any?> ?: return emptyList<String>() to emptyList()
+        val selected = (raw["selected"] as? List<*>)?.mapNotNull { it as? String }.orEmpty()
+        val custom = (raw["custom"] as? List<*>)?.mapNotNull { (it as? String)?.trim()?.takeIf { t -> t.isNotEmpty() }?.take(200) }.orEmpty().take(5)
+        return selected to custom
+    }
+
+    /** M7 — INITIAL: what the learner assumed. FOLLOWUP: what broke, and whether they had assumed it. */
+    fun assumptionPromptSection(session: Session, submission: Submission): String? {
+        val options = initialContent(session).assumptions
+        if (options.isEmpty()) return null
+        val initial = if (submission.phase == "INITIAL") submission else initialSubmission(session) ?: return null
+        val (selected, custom) = assumptionChoiceOf(initial)
+        val chosen = options.filter { it.id in selected }.map { it.text } + custom
+        return when (submission.phase) {
+            "INITIAL" -> buildString {
+                appendLine("## 사용자가 명시한 설계 가정")
+                if (chosen.isEmpty()) appendLine("- (가정을 적지 않았습니다)") else chosen.forEach { appendLine("- $it") }
+                appendLine("설계가 이 가정에 기대는 부분을 트레이드오프 설명 항목에서 짚어 주세요. 가정을 적지 않은 것은 감점하지 마세요.")
+            }
+            "FOLLOWUP" -> {
+                val broken = brokenAssumptionIds(session).orEmpty()
+                if (broken.isEmpty()) return null
+                buildString {
+                    appendLine("## 이번 조건 변경이 깨뜨린 가정")
+                    options.filter { it.id in broken }.forEach {
+                        val mine = if (it.id in selected) "사용자가 명시했던 가정" else "사용자는 이 가정을 적지 않았음(암묵적 가정)"
+                        appendLine("- ${it.text} — $mine")
+                    }
+                    appendLine("새 설계가 깨진 가정에 기대던 부분을 실제로 바꿨는지 판단하세요.")
+                }
+            }
+            else -> null
+        }
+    }
+
     // ---- M11: incident status update ----
 
     /** docs/DRILLS_EXPANSION_PLAN.md M11 — the customer-facing status update drafted with the INCIDENT answer. */
@@ -285,13 +361,13 @@ class MissionService(
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun structuredOf(submission: Submission): Map<String, Any?> =
+    fun structuredOf(submission: Submission): Map<String, Any?> =
         submission.structuredJson?.let { runCatching { read(it, Map::class.java) as Map<String, Any?> }.getOrNull() }.orEmpty()
 
     private fun judgeEstimates(fields: List<EstimationField>, estimates: Map<String, Double>): List<EstimateResult> =
         fields.map { EstimateJudge.judge(it.key, estimates[it.key], it.answer) }
 
-    private fun initialSubmission(session: Session): Submission? =
+    fun initialSubmission(session: Session): Submission? =
         submissionRepository.findBySessionIdOrderByCreatedAtAsc(session.id!!).firstOrNull { it.phase == "INITIAL" }
 
     @Suppress("UNCHECKED_CAST")
@@ -348,6 +424,18 @@ data class ClarificationsResponse(
         }
     }
 }
+
+data class AssumptionsResponse(
+    /** False when the scenario has no assumption candidates — the UI shows nothing. */
+    val available: Boolean,
+    /** True while the INITIAL design can still be submitted with a choice. */
+    val open: Boolean,
+    val options: List<Assumption>,
+    val selected: List<String> = emptyList(),
+    val custom: List<String> = emptyList(),
+    /** After entering FOLLOWUP: the candidates the pinned variant breaks (empty = none broke). */
+    val broken: List<Assumption>? = null,
+)
 
 data class DefenseResponse(
     val available: Boolean,

@@ -611,6 +611,45 @@ export function getDefense(sessionId: string): Promise<Defense> {
   return apiFetch<Defense>(`/sessions/${sessionId}/defense`);
 }
 
+/** docs/DRILLS_EXPANSION_PLAN.md M7 (PLAN.md Round E20) — assumptions stated at INITIAL, broken by the FOLLOWUP. */
+export interface Assumption {
+  id: string;
+  text: string;
+}
+
+export interface Assumptions {
+  available: boolean;
+  open: boolean;
+  options: Assumption[];
+  selected: string[];
+  custom: string[];
+  /** Null before FOLLOWUP; then the candidates the pinned variant broke. */
+  broken: Assumption[] | null;
+}
+
+export function getAssumptions(sessionId: string): Promise<Assumptions> {
+  return apiFetch<Assumptions>(`/sessions/${sessionId}/assumptions`);
+}
+
+/** M8 (PLAN.md Round E20) — estimated monthly cost and ops complexity of the saved canvas. */
+export interface CostEstimate {
+  available: boolean;
+  drawn: boolean;
+  monthlyCost: number;
+  budgetPerMonth: number | null;
+  budgetDeltaPct: number | null;
+  lines: { key: string; label: string; units: number; unitCost: number; cost: number }[];
+  complexity: number;
+  teamCapacity: number | null;
+  teamSize: number | null;
+  opsExperience: Record<string, string>;
+  actionCostDeltas: Record<string, number>;
+}
+
+export function getCostEstimate(sessionId: string): Promise<CostEstimate> {
+  return apiFetch<CostEstimate>(`/sessions/${sessionId}/cost-estimate`);
+}
+
 export function getEstimation(sessionId: string): Promise<Estimation> {
   return apiFetch<Estimation>(`/sessions/${sessionId}/estimation`);
 }
