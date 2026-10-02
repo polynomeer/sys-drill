@@ -610,7 +610,17 @@ export function WargameLive({
       {tab === "metrics" && (
         <div className="flex flex-col gap-4">
           <MetricsPanel state={shownState} domain={domain} />
-          {series && incidentStartedAt && <SeriesCharts points={series.points} incidentStartedAt={incidentStartedAt} steps={steps} />}
+          {series && incidentStartedAt && (
+            <SeriesCharts
+              points={series.points}
+              incidentStartedAt={incidentStartedAt}
+              steps={steps}
+              onInvestigateRange={(from, to) => {
+                setLogWindow({ from, to, label: "차트 구간" });
+                selectTab("logs");
+              }}
+            />
+          )}
         </div>
       )}
       {tab === "logs" && (

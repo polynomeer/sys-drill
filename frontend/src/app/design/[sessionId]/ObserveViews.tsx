@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { SeriesPoint, TimelineStep } from "@/lib/api";
 import { formatMs, formatPercent, utilizationColorClass } from "@/lib/metrics";
 import { Card } from "@/components/ui/Card";
@@ -175,16 +175,26 @@ const RANGES: { key: string; label: string; seconds: number | null }[] = [
  * of any two metrics so the learner can line up "hit ratio fell" with "DB
  * load rose" themselves. Nothing here is highlighted as the cause.
  */
+/** A drag shorter than this is a click, not a range. */
+const MIN_RANGE_SECONDS = 5;
+
 export function SeriesCharts({
   points,
   incidentStartedAt,
   steps = [],
+  onInvestigateRange,
 }: {
   points: SeriesPoint[];
   incidentStartedAt: string;
   steps?: TimelineStep[];
+  /** O4 (follow-up) — a range dragged on a chart opens the logs of that window. */
+  onInvestigateRange?: (from: Date, to: Date) => void;
 }) {
   const [range, setRange] = useState("all");
+  // Drag on any small chart to pick a window (seconds after the incident start).
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragTo, setDragTo] = useState<number | null>(null);
+  const [picked, setPicked] = useState<[number, number] | null>(null);
   const [left, setLeft] = useState("errorRate");
   const [right, setRight] = useState("cpu");
   const [selected, setSelected] = useState<number | null>(null);
@@ -223,6 +233,48 @@ export function SeriesCharts({
     />
   ));
 
+  const firstSec = data[0]?.sec ?? 0;
+  const lastSec = data[data.length - 1]?.sec ?? 0;
+  const secAt = (event: React.MouseEvent<HTMLDivElement>): number | null => {
+    const grid = event.currentTarget.querySelector(".recharts-cartesian-grid")?.getBoundingClientRect();
+    if (!grid || grid.width === 0) return null;
+    const fraction = Math.min(1, Math.max(0, (event.clientX - grid.left) / grid.width));
+    return Math.round(firstSec + fraction * (lastSec - firstSec));
+  };
+  // Plain DOM handlers on a wrapper, positioned from the pointer over the plotted grid — Recharts'
+  // own chart callbacks run after dispatch (no currentTarget) and their activeLabel trails the pointer.
+  const dragHandlers = onInvestigateRange
+    ? {
+        onMouseDown: (event: React.MouseEvent<HTMLDivElement>) => {
+          const at = secAt(event);
+          setDragFrom(at);
+          setDragTo(at);
+        },
+        onMouseMove: (event: React.MouseEvent<HTMLDivElement>) => {
+          if (dragFrom === null || (event.buttons & 1) === 0) return;
+          setDragTo(secAt(event));
+        },
+        onMouseUp: () => {
+          if (dragFrom !== null && dragTo !== null && Math.abs(dragTo - dragFrom) >= MIN_RANGE_SECONDS) {
+            setPicked([Math.min(dragFrom, dragTo), Math.max(dragFrom, dragTo)]);
+          }
+          setDragFrom(null);
+          setDragTo(null);
+        },
+        onMouseLeave: () => {
+          setDragFrom(null);
+          setDragTo(null);
+        },
+      }
+    : {};
+  const area =
+    dragFrom !== null && dragTo !== null ? (
+      <ReferenceArea x1={Math.min(dragFrom, dragTo)} x2={Math.max(dragFrom, dragTo)} fill="var(--accent)" fillOpacity={0.12} />
+    ) : picked ? (
+      <ReferenceArea x1={picked[0]} x2={picked[1]} fill="var(--accent)" fillOpacity={0.12} />
+    ) : null;
+  const startMs = new Date(incidentStartedAt).getTime();
+
   const leftDef = METRICS.find((m) => m.key === left)!;
   const rightDef = METRICS.find((m) => m.key === right)!;
   const selectedStep = selected === null ? null : steps[selected];
@@ -244,8 +296,27 @@ export function SeriesCharts({
         ))}
         <span className="ml-auto text-[11px] text-foreground-muted">
           <span className="text-danger">│</span> 인시던트 시작 · <span className="text-accent">┆</span> 조치
+          {onInvestigateRange && " · 차트를 드래그해 구간 선택"}
         </span>
       </div>
+
+      {picked && onInvestigateRange && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="font-mono text-foreground-muted">
+            선택 구간 {clock(picked[0])} ~ {clock(picked[1])}
+          </span>
+          <button
+            type="button"
+            className="rounded border border-accent px-2 py-0.5 text-accent"
+            onClick={() => onInvestigateRange(new Date(startMs + picked[0] * 1000), new Date(startMs + picked[1] * 1000))}
+          >
+            이 구간 로그 보기
+          </button>
+          <button type="button" className="text-foreground-muted underline" onClick={() => setPicked(null)}>
+            선택 해제
+          </button>
+        </div>
+      )}
 
       {markers.length > 0 && (
         <div className="flex flex-wrap gap-1.5" aria-label="변경 마커">
@@ -301,16 +372,19 @@ export function SeriesCharts({
         {shown.map((chart) => (
           <Card key={chart.key} as="section" className="min-w-0">
             <h2 className="mb-2 text-sm font-semibold text-foreground-muted">{chart.label}</h2>
-            <ResponsiveContainer width="100%" height={140}>
-              <LineChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                {xAxis}
-                <YAxis width={44} tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} stroke="var(--border)" />
-                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} labelFormatter={(v) => clock(Number(v))} />
-                {markerLines}
-                <Line type="monotone" dataKey={chart.key} stroke={chart.color} strokeWidth={2} dot={false} isAnimationActive={false} />
-              </LineChart>
-            </ResponsiveContainer>
+            <div {...dragHandlers} className={onInvestigateRange ? "cursor-crosshair select-none" : undefined}>
+              <ResponsiveContainer width="100%" height={140}>
+                <LineChart data={data}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  {xAxis}
+                  <YAxis width={44} tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} stroke="var(--border)" />
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} labelFormatter={(v) => clock(Number(v))} />
+                  {markerLines}
+                  {area}
+                  <Line type="monotone" dataKey={chart.key} stroke={chart.color} strokeWidth={2} dot={false} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </Card>
         ))}
       </div>
