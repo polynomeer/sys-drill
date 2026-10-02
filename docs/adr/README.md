@@ -67,3 +67,4 @@ Short records of decisions that are hard to reverse, would surprise a future rea
 | [0047](0047-learning-labs-call-the-simulation-engine-and-store-no-answer-key.md) | Learning 랩은 시뮬레이션 엔진을 세션 없이 호출하고 예측 정답표를 저장하지 않는다 |
 | [0048](0048-official-scenarios-move-to-mission-content-in-a-single-v2-bump.md) | 공식 시나리오는 미션 콘텐츠를 담아 제자리 수정 없이 한 번에 v2로 올린다 |
 | [0049](0049-deployment-is-an-official-drill-but-not-a-certification-domain.md) | Deploy 도메인은 공식 Drill이지만 인증 도메인 목록에는 들어가지 않는다(인증 대상 7개 고정) |
+| [0050](0050-challenge-events-are-created-by-admins-not-seeded.md) | 챌린지 이벤트는 마이그레이션이 아니라 관리자 화면에서 만든다(운영 일정 ≠ 콘텐츠) |
