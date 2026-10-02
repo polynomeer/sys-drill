@@ -2026,6 +2026,37 @@ export function getCommunityHome(since?: string): Promise<CommunityHome> {
   return apiFetch<CommunityHome>(`/community/home${since ? `?since=${encodeURIComponent(since)}` : ""}`);
 }
 
+/** docs/COMMUNITY_EXPANSION_PLAN.md C13 (PLAN.md Round E31, ADR-0050) — time-boxed challenges on an official scenario. */
+export interface ChallengeEventSummary {
+  id: string;
+  title: string;
+  scenarioId: string;
+  scenarioTitle: string;
+  domain: string;
+  startsAt: string;
+  endsAt: string;
+  phase: "UPCOMING" | "LIVE" | "ENDED";
+  participants: number;
+}
+
+export interface ChallengeBoard {
+  event: ChallengeEventSummary;
+  entries: { rank: number; nickname: string; score: number | null; resolvedSeconds: number | null; mine: boolean; writeupSessionId: string | null }[];
+  debriefOpen: boolean;
+}
+
+export function listChallengeEvents(): Promise<ChallengeEventSummary[]> {
+  return apiFetch<ChallengeEventSummary[]>("/community/events");
+}
+
+export function getChallengeBoard(eventId: string): Promise<ChallengeBoard> {
+  return apiFetch<ChallengeBoard>(`/community/events/${eventId}`);
+}
+
+export function createChallengeEvent(input: { title: string; scenarioId: string; startsAt: string; endsAt: string }): Promise<ChallengeEventSummary> {
+  return apiFetch<ChallengeEventSummary>("/admin/events", { method: "POST", body: JSON.stringify(input) });
+}
+
 export function getReportedDiscussions(): Promise<ReportedDiscussion[]> {
   return apiFetch<ReportedDiscussion[]>("/admin/discussions/reported");
 }

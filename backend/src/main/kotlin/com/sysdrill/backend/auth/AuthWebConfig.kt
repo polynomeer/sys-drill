@@ -93,6 +93,7 @@ class AuthWebConfig(
                 "/admin/dashboard/**",
                 "/admin/discussions/**",
                 "/admin/writeup-comments/**",
+                "/admin/events", "/admin/events/**",
                 "/marketplace/scenarios", "/marketplace/scenarios/**",
                 "/certifications/me",
                 "/architecture-analysis", "/architecture-analysis/**",

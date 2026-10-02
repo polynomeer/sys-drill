@@ -307,7 +307,7 @@ class WriteupService(
     }
 
     /** 목록의 점수는 리포트에서 온다 — 리포트 화면의 점수와 다른 값이 나오면 안 된다. */
-    private fun averageScores(sessionIds: Collection<UUID>): Map<UUID, Int?> =
+    fun averageScores(sessionIds: Collection<UUID>): Map<UUID, Int?> =
         sessionIds.associateWith { com.sysdrill.backend.reporting.averageScore(timelineOf(it)) }
 
     private fun nicknamesOf(sessions: Collection<Session>): Map<UUID, String> {

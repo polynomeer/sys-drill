@@ -30,6 +30,9 @@ interface CompletedSessionScore {
 }
 
 interface SessionRepository : JpaRepository<Session, UUID> {
+    /** PLAN.md Round E31 (C13) — a challenge's candidate runs. */
+    fun findByScenarioVersionIdInAndStatus(scenarioVersionIds: Collection<UUID>, status: SessionStatus): List<Session>
+
 
     /**
      * Guarded state transition per docs/ARCHITECTURE.md §5: only applies when the

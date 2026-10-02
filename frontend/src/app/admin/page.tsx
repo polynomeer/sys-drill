@@ -8,6 +8,11 @@ import {
   ApiError,
   ReportedDiscussion,
   ReportedWriteupComment,
+  ChallengeEventSummary,
+  ScenarioSummary,
+  createChallengeEvent,
+  listChallengeEvents,
+  listScenarios,
   getReportedWriteupComments,
   setWriteupCommentHidden,
   SuccessMetrics,
@@ -72,6 +77,7 @@ export default function AdminDashboardPage() {
 
       {stats && <ReportedDiscussionsPanel />}
       {stats && <ReportedWriteupCommentsPanel />}
+      {stats && <ChallengeEventAdminPanel />}
     </div>
   );
 }
@@ -171,6 +177,84 @@ function ReportedWriteupCommentsPanel() {
           <Button size="sm" variant={item.hidden ? "secondary" : "danger"} className="mt-3" onClick={() => toggle(item)}>
             {item.hidden ? "복원" : "숨기기"}
           </Button>
+        </Card>
+      ))}
+    </section>
+  );
+}
+
+/** PLAN.md Round E31 (C13, ADR-0050) — challenges are an operating schedule, so they're made here, not seeded. */
+function ChallengeEventAdminPanel() {
+  const [events, setEvents] = useState<ChallengeEventSummary[] | null>(null);
+  const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
+  const [form, setForm] = useState({ title: "", scenarioId: "", startsAt: "", endsAt: "" });
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    listChallengeEvents().then(setEvents).catch(() => setEvents([]));
+    listScenarios()
+      .then((all) => setScenarios(all.filter((s) => !s.creatorNickname)))
+      .catch(() => setScenarios([]));
+  }, []);
+
+  async function create() {
+    setError(null);
+    try {
+      const created = await createChallengeEvent({
+        title: form.title,
+        scenarioId: form.scenarioId,
+        startsAt: new Date(form.startsAt).toISOString(),
+        endsAt: new Date(form.endsAt).toISOString(),
+      });
+      setEvents((prev) => [created, ...(prev ?? [])]);
+      setForm({ title: "", scenarioId: "", startsAt: "", endsAt: "" });
+    } catch {
+      setError("챌린지를 만들지 못했습니다 — 공식 시나리오와 기간(종료 > 시작)을 확인하세요.");
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-lg font-semibold">챌린지 이벤트</h2>
+      <Card className="flex flex-col gap-2 text-sm">
+        <input
+          className="rounded border border-border bg-transparent px-2 py-1"
+          placeholder="제목 (예: 10월 결제 장애 챌린지)"
+          value={form.title}
+          onChange={(e) => setForm({ ...form, title: e.target.value })}
+          maxLength={120}
+        />
+        <select className="rounded border border-border bg-transparent px-2 py-1" value={form.scenarioId} onChange={(e) => setForm({ ...form, scenarioId: e.target.value })} aria-label="시나리오">
+          <option value="">공식 시나리오 선택</option>
+          {scenarios.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.title}
+            </option>
+          ))}
+        </select>
+        <div className="flex flex-wrap gap-2">
+          <label className="flex items-center gap-1 text-xs">
+            시작
+            <input type="datetime-local" className="rounded border border-border bg-transparent px-2 py-1" value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} />
+          </label>
+          <label className="flex items-center gap-1 text-xs">
+            종료
+            <input type="datetime-local" className="rounded border border-border bg-transparent px-2 py-1" value={form.endsAt} onChange={(e) => setForm({ ...form, endsAt: e.target.value })} />
+          </label>
+        </div>
+        {error && <p className="text-danger">{error}</p>}
+        <Button size="sm" className="self-start" onClick={create} disabled={!form.title || !form.scenarioId || !form.startsAt || !form.endsAt}>
+          만들기
+        </Button>
+      </Card>
+      {events?.map((e) => (
+        <Card key={e.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <Link href={`/community/events/${e.id}`} className="underline underline-offset-2">
+            {e.title}
+          </Link>
+          <span className="text-xs text-foreground-muted">
+            {e.scenarioTitle} · {e.phase} · 참가 {e.participants}명
+          </span>
         </Card>
       ))}
     </section>
