@@ -78,12 +78,18 @@ class SessionControllerIntegrationTest(
         val sessionId = mockMvc.startSession(userId)
         val session = sessionRepository.findById(sessionId).orElseThrow()
         val initialStep = scenarioStepRepository.findByScenarioVersionIdAndStepOrder(session.scenarioVersionId, 1)!!
+        val original = initialStep.content
         initialStep.content = "[1,2,3]" // valid JSON, but not the expected {"prompt": ...} object shape
         scenarioStepRepository.save(initialStep)
-
-        mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(userId)))
-            .andExpect(status().isOk)
-            .andExpect(jsonPath("$.currentStepPrompt").doesNotExist())
+        try {
+            mockMvc.perform(get("/sessions/$sessionId").header("Authorization", bearerHeader(userId)))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.currentStepPrompt").doesNotExist())
+        } finally {
+            // This is the official coupon scenario's step — leaving it broken fails every later test that reads its prompt.
+            initialStep.content = original
+            scenarioStepRepository.save(initialStep)
+        }
     }
 
     @Test

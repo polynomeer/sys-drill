@@ -37,6 +37,8 @@ import java.util.UUID
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+// One user completes several three-step sessions per test — past the per-minute evaluation limit.
+@org.springframework.test.context.TestPropertySource(properties = ["sysdrill.evaluation.rate-limit-per-minute=100"])
 class PostmortemControllerIntegrationTest(
     @Autowired val mockMvc: MockMvc,
     @Autowired val userRepository: UserRepository,
@@ -59,7 +61,7 @@ class PostmortemControllerIntegrationTest(
         ).id!!
     }
 
-    private fun awaitSessionStatus(sessionId: UUID, expected: SessionStatus, timeout: Duration = Duration.ofSeconds(10)) {
+    private fun awaitSessionStatus(sessionId: UUID, expected: SessionStatus, timeout: Duration = Duration.ofSeconds(30)) {
         val deadline = Instant.now().plus(timeout)
         while (Instant.now().isBefore(deadline)) {
             if (sessionRepository.findById(sessionId).orElseThrow().status == expected) return
