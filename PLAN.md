@@ -2136,8 +2136,12 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 **진행 중 발견한 결정 사항**: `mission_state.readiness`, 두 스위치 기본 꺼짐, 기록 없는 세션은 전부 켜진 것으로(OBSERVABILITY_UI_PLAN O7 확정 사항). 준비 화면에 Alerts 편집기를 그대로 둬 같은 자리에서 규칙·SLO를 채운다. 실전 인프라 선택 화면은 준비 화면 다음.
 
-#### Round E27 — 개인 Runbook (M12)
-- [ ] `user_runbooks`, 포스트모템에서 작성·수정, 다음 같은 도메인 인시던트에서 조사 이벤트와 대조
+#### Round E27 — 개인 Runbook (M12) ✅ 완료 (2026-10-02)
+- [x] `user_runbooks`, 포스트모템에서 작성·수정, 다음 같은 도메인 인시던트에서 조사 이벤트와 대조
+
+**완료 기준 충족**: 신규 `RunbookIntegrationTest`(로그 확인 ✓·노드 확인 ✕·조치 ✓·메모는 대조 안 함, 잘못된 종류 400, 없는 도메인 404, 남의 세션 대조 404). 격리 환경: 쿠폰 Runbook 3단계 → 새 인시던트에서 Logs·Traces 탭을 열자 "내 Runbook" 카드의 두 단계가 ✓.
+
+**진행 중 발견한 결정 사항**: V66. 단계 = `{type, target, text}`, "밟았는가"만 보고 순서는 채점하지 않음(DRILLS_EXPANSION_PLAN M12 확정 사항). 브라우저 검증에서 WargameLive → RunbookPanel → `lib/actionLabels` → WargameLive 순환 import로 `ACTIONS_BY_DOMAIN`을 초기화 전에 읽는 오류가 났다 — 라벨 표를 첫 사용 때 만들도록 바꿨다.
 
 #### Round E28 — 진단 퍼즐 (L9) + 주간 What Would You Do? (C12)
 - [ ] 엔진 생성 퍼즐(시드), `/learning/puzzle`, 7개 장애 패턴 선택 → L8 연결

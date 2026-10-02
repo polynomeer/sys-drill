@@ -944,6 +944,39 @@ export function confirmReadiness(sessionId: string, input: { structuredLogging: 
   return apiFetch<Readiness>(`/sessions/${sessionId}/readiness`, { method: "PUT", body: JSON.stringify(input) });
 }
 
+/** docs/DRILLS_EXPANSION_PLAN.md M12 (PLAN.md Round E27) — my runbook per domain, checked against the next incident. */
+export type RunbookStepType = "OPEN_PANEL" | "INSPECT_NODE" | "QUERY_LOGS" | "OPEN_TRACE" | "ACTION" | "NOTE";
+
+export interface RunbookStep {
+  type: RunbookStepType;
+  target: string | null;
+  text: string;
+}
+
+export interface Runbook {
+  domain: string;
+  steps: RunbookStep[];
+  updatedAt: string | null;
+}
+
+export interface RunbookCheck {
+  available: boolean;
+  domain: string | null;
+  steps: { index: number; step: RunbookStep; done: boolean | null; atSeconds: number | null }[];
+}
+
+export function getRunbook(domain: string): Promise<Runbook> {
+  return apiFetch<Runbook>(`/me/runbooks/${domain}`);
+}
+
+export function saveRunbook(domain: string, steps: RunbookStep[]): Promise<Runbook> {
+  return apiFetch<Runbook>(`/me/runbooks/${domain}`, { method: "PUT", body: JSON.stringify(steps) });
+}
+
+export function getRunbookCheck(sessionId: string): Promise<RunbookCheck> {
+  return apiFetch<RunbookCheck>(`/sessions/${sessionId}/runbook-check`);
+}
+
 export function getOpsConfig(sessionId: string): Promise<OpsConfig> {
   return apiFetch<OpsConfig>(`/sessions/${sessionId}/ops`);
 }

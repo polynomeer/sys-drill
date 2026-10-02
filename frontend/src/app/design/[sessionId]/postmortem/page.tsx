@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ApiError, Benchmark, Postmortem, PostmortemInvestigation, getBenchmark, getPostmortem, savePostmortem } from "@/lib/api";
+import { ApiError, Benchmark, Postmortem, PostmortemInvestigation, RunbookStep, getBenchmark, getPostmortem, savePostmortem } from "@/lib/api";
+import { RunbookPanel } from "@/components/RunbookPanel";
 import { getStoredToken } from "@/lib/localSession";
 import { formatDuration, formatMs, formatPercent } from "@/lib/metrics";
 import { Button } from "@/components/ui/Button";
@@ -230,6 +231,9 @@ export default function PostmortemPage() {
         )}
       </Card>
 
+      {/* docs/DRILLS_EXPANSION_PLAN.md M12 (PLAN.md Round E27) */}
+      {postmortem.actionsTimeline.length > 0 && <RunbookPanel sessionId={sessionId} suggestions={runbookSuggestions(postmortem)} />}
+
       <Card as="section" className="flex flex-col gap-4">
         <h2 className="text-sm font-semibold text-foreground-muted">직접 작성</h2>
 
@@ -340,4 +344,21 @@ function investigationLabel(v: PostmortemInvestigation): string {
     case "OPEN_TRACE":
       return `트레이스 ${v.target ?? ""} 열람`;
   }
+}
+
+/** M12 — this session's own looks and actions, in order, as one-click runbook steps (repeats dropped). */
+function runbookSuggestions(p: Postmortem): RunbookStep[] {
+  const rows = [
+    ...(p.investigations ?? []).filter((v) => v.elapsedSeconds >= 0).map((v) => ({ at: v.elapsedSeconds, step: { type: v.kind, target: v.target, text: "" } as RunbookStep })),
+    ...p.actionsTimeline.map((a) => ({ at: a.elapsedSeconds, step: { type: "ACTION", target: a.actionType, text: "" } as RunbookStep })),
+  ].sort((a, b) => a.at - b.at);
+  const seen = new Set<string>();
+  return rows
+    .map((r) => r.step)
+    .filter((s) => {
+      const key = `${s.type}:${s.target}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }

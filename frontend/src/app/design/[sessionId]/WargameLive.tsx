@@ -36,6 +36,7 @@ import { AlertsView } from "./AlertsView";
 import { RecoveryCard } from "./RecoveryCard";
 import { TracesView } from "./TracesView";
 import { ReadinessGate } from "./ReadinessGate";
+import { RunbookLiveCard } from "@/components/RunbookPanel";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
 import { trackEvent } from "@/lib/events";
 
@@ -321,10 +322,17 @@ export function WargameLive({
       .catch(() => undefined);
   }, [sessionId]);
 
+  // M12 — bumps after each recorded look so the runbook card re-checks.
+  const [lookCount, setLookCount] = useState(0);
+
   /** O0-b — what the learner looked at; owner only, never blocks the UI. */
   const look = useCallback(
     (kind: InvestigationKind, target?: string) => {
-      if (isOwner) recordInvestigation(sessionId, kind, target).catch(() => undefined);
+      if (isOwner) {
+        recordInvestigation(sessionId, kind, target)
+          .then(() => setLookCount((n) => n + 1))
+          .catch(() => undefined);
+      }
     },
     [sessionId, isOwner],
   );
@@ -597,6 +605,9 @@ export function WargameLive({
         <TracesView sessionId={sessionId} selected={selectedTrace} onSelect={openTrace} onShowService={() => selectTab("map")} />
       )}
       {tab === "changes" && incidentStartedAt && <RecentChanges steps={steps} incidentStartedAt={incidentStartedAt} />}
+
+      {/* docs/DRILLS_EXPANSION_PLAN.md M12 (PLAN.md Round E27) */}
+      {isOwner && <RunbookLiveCard sessionId={sessionId} version={steps.length * 1000 + lookCount} />}
 
       <div className="grid gap-4 md:grid-cols-2">
         {isOwner && (
