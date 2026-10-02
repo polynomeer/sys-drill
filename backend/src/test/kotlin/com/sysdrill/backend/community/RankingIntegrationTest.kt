@@ -10,6 +10,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.test.context.TestPropertySource
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
@@ -36,6 +37,9 @@ import kotlin.math.roundToInt
  * 공식 시나리오의 난이도는 이미 한 번 조정된 적이 있고(V43), 그때 깨져야 할 것은
  * 수식이 아니라 수식을 베껴 쓴 테스트이기 때문이다.
  */
+// 같은 사용자가 1분 안에 세션 두 개(제출 6회)를 완료한다 — 분당 평가 제출 제한(5회, ActionRateLimiter)이
+// 생긴 뒤로 6번째 제출이 429가 됐다. 이 테스트가 보는 것은 점수 규칙이지 레이트리밋이 아니다.
+@TestPropertySource(properties = ["sysdrill.evaluation.rate-limit-per-minute=100"])
 @SpringBootTest
 @AutoConfigureMockMvc
 class RankingIntegrationTest(
