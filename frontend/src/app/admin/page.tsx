@@ -199,6 +199,7 @@ const EVENT_LABELS: Record<string, string> = {
   observe_tab_metrics: "인시던트 Metrics 탭",
   observe_tab_logs: "인시던트 Logs 탭",
   observe_tab_changes: "인시던트 Changes 탭",
+  observe_tab_traces: "인시던트 Traces 탭",
 };
 
 /** docs/CODECRAFTERS_BENCHMARK.md §6 — the success metrics, aggregates only. */

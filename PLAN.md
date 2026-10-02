@@ -2122,8 +2122,12 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ### 묶음 7 — 확장
 
-#### Round E25 — 트레이스 (O6)
-- [ ] real-infra coupon: Jaeger 스팬 세션 태그 확인/추가 → 워터폴 / 규칙 기반: 도메인별 지연 분해 합성 트레이스, 로그 `trace_id` 연결
+#### Round E25 — 트레이스 (O6) ✅ 완료 (2026-10-02)
+- [x] real-infra coupon: Jaeger 스팬 세션 태그 확인/추가 → 워터폴 / 규칙 기반: 도메인별 지연 분해 합성 트레이스, 로그 `trace_id` 연결
+
+**완료 기준 충족**: 신규 `TraceIntegrationTest`(목록의 trace id가 로그의 trace id 중 하나, 워터폴에 coupon-api·redis·coupon-db, 자식 합 ≤ 루트, 없는 id 404; Jaeger 응답 JSON → 부모·오프셋·지속·에러가 맞는 스팬). 격리 환경 Traces 탭: "합성" 표지와 최근 트레이스, 하나를 열면 "총 240ms · 가장 긴 구간: UPDATE coupon_stock (87%)" 워터폴. 로그 줄의 trace id 클릭 → 같은 트레이스.
+
+**진행 중 발견한 결정 사항**: 세션 태그(`sysdrill.session_id`)는 이미 DB 관측 스팬에 붙어 있어 계측 추가 없음. 합성은 로그 줄의 trace id에서만, 루트 = 그 시점 p95(OBSERVABILITY_UI_PLAN O6 확정 사항). Traces 탭 이벤트 `observe_tab_traces`, 트레이스 열람은 `OPEN_TRACE` 조사 기록.
 
 #### Round E26 — Production Readiness · 관측 품질 (O7)
 - [ ] 인시던트 직전 체크(알림·SLO·구조화 로그·트레이싱), 트레이싱 미활성 시 트레이스 탭 "No data", 관측 품질 규칙 판정을 평가 프롬프트 사전 점검으로

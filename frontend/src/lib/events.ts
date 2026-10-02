@@ -13,7 +13,8 @@ export type ProductEvent =
   | "observe_tab_alerts"
   | "observe_tab_metrics"
   | "observe_tab_logs"
-  | "observe_tab_changes";
+  | "observe_tab_changes"
+  | "observe_tab_traces";
 
 /**
  * docs/CODECRAFTERS_BENCHMARK.md §6 (PLAN.md Round B17) — bump an anonymous

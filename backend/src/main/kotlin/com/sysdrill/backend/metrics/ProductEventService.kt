@@ -52,6 +52,7 @@ class ProductEventService(private val jdbc: JdbcTemplate) {
             "observe_tab_metrics",
             "observe_tab_logs",
             "observe_tab_changes",
+            "observe_tab_traces",
         )
     }
 }

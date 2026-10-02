@@ -35,6 +35,7 @@ export function LogViewer({
   onClearWindow,
   onShowMetrics,
   onQuery,
+  onOpenTrace,
 }: {
   entries: LogEntry[];
   window?: LogWindow | null;
@@ -42,6 +43,8 @@ export function LogViewer({
   onShowMetrics?: (at: Date) => void;
   /** O0-b — called once the learner stops typing a search. */
   onQuery?: (query: string) => void;
+  /** O6 (PLAN.md Round E25) — a line's trace id opens its trace. */
+  onOpenTrace?: (traceId: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [activeLevels, setActiveLevels] = useState<Set<LogLevel>>(new Set(ALL_LEVELS));
@@ -136,7 +139,19 @@ export function LogViewer({
         <div className="flex flex-col gap-2 rounded-lg border border-border p-3 text-xs">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-foreground-muted">
-              앞뒤 {CONTEXT_LINES}줄{selected.traceId && <> · trace <span className="font-mono">{selected.traceId}</span></>}
+              앞뒤 {CONTEXT_LINES}줄
+              {selected.traceId && (
+                <>
+                  {" · trace "}
+                  {onOpenTrace ? (
+                    <button type="button" className="font-mono underline" onClick={() => onOpenTrace(selected.traceId!)}>
+                      {selected.traceId}
+                    </button>
+                  ) : (
+                    <span className="font-mono">{selected.traceId}</span>
+                  )}
+                </>
+              )}
             </span>
             {onShowMetrics && (
               <Button size="sm" variant="ghost" onClick={() => onShowMetrics(selected.time)}>

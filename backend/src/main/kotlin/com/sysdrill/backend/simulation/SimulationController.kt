@@ -18,6 +18,7 @@ class SimulationController(
     private val simulationService: SimulationService,
     private val sessionAccessGuard: SessionAccessGuard,
     private val investigationService: InvestigationService,
+    private val traceService: TraceService,
 ) {
 
     @PostMapping("/incident")
@@ -95,5 +96,18 @@ class SimulationController(
     ) {
         sessionAccessGuard.requireOwner(sessionId, userId)
         investigationService.record(sessionId, request.kind, request.target)
+    }
+
+    /** PLAN.md Round E25 (O6) — recent traces: real Jaeger spans for real-infra coupon, synthetic otherwise. */
+    @GetMapping("/traces")
+    fun traces(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): TraceList {
+        sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
+        return traceService.list(sessionId)
+    }
+
+    @GetMapping("/traces/{traceId}")
+    fun trace(@PathVariable sessionId: UUID, @PathVariable traceId: String, @AuthenticatedUserId userId: UUID): TraceView {
+        sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
+        return traceService.get(sessionId, traceId)
     }
 }

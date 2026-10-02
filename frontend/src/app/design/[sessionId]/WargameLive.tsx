@@ -33,17 +33,19 @@ import { GoldenSignals, RecentChanges, SeriesCharts } from "./ObserveViews";
 import { ServiceMap } from "./ServiceMap";
 import { AlertsView } from "./AlertsView";
 import { RecoveryCard } from "./RecoveryCard";
+import { TracesView } from "./TracesView";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
 import { trackEvent } from "@/lib/events";
 
 /** docs/OBSERVABILITY_UI_PLAN.md O1 — one investigation space instead of a stack of panels. */
-type ObserveTab = "overview" | "map" | "metrics" | "alerts" | "logs" | "changes";
+type ObserveTab = "overview" | "map" | "metrics" | "alerts" | "logs" | "traces" | "changes";
 const OBSERVE_TABS: { key: ObserveTab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "map", label: "Service Map" },
   { key: "alerts", label: "Alerts" },
   { key: "metrics", label: "Metrics" },
   { key: "logs", label: "Logs" },
+  { key: "traces", label: "Traces" },
   { key: "changes", label: "Changes" },
 ];
 
@@ -267,6 +269,7 @@ export function WargameLive({
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [serverLogs, setServerLogs] = useState<LogEntry[]>([]);
   const [logWindow, setLogWindow] = useState<LogWindow | null>(null);
+  const [selectedTrace, setSelectedTrace] = useState<string | null>(null);
   const tabRef = useRef<ObserveTab>("overview");
   // PLAN.md Round E20 (M8) — "+월 $240(추정)" on scale-out actions; empty when the scenario has no constraints.
   const [actionCost, setActionCost] = useState<Record<string, number>>({});
@@ -499,6 +502,13 @@ export function WargameLive({
     }
   }
 
+  /** O6 — from the Traces list or a log line's trace id; recorded as OPEN_TRACE (O0-b). */
+  function openTrace(traceId: string) {
+    setSelectedTrace(traceId);
+    if (tabRef.current !== "traces") selectTab("traces");
+    look("OPEN_TRACE", traceId);
+  }
+
   const logEntries = [...logs, ...serverLogs].sort((a, b) => a.time.getTime() - b.time.getTime());
 
   return (
@@ -562,7 +572,11 @@ export function WargameLive({
           onClearWindow={() => setLogWindow(null)}
           onShowMetrics={() => selectTab("metrics")}
           onQuery={(q) => look("QUERY_LOGS", q)}
+          onOpenTrace={(traceId) => openTrace(traceId)}
         />
+      )}
+      {tab === "traces" && (
+        <TracesView sessionId={sessionId} selected={selectedTrace} onSelect={openTrace} onShowService={() => selectTab("map")} />
       )}
       {tab === "changes" && incidentStartedAt && <RecentChanges steps={steps} incidentStartedAt={incidentStartedAt} />}
 

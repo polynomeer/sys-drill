@@ -174,6 +174,8 @@ GET /sessions/{id}/simulation/series?from=&to=&step=10s
 - **2차: 규칙 기반** — `p95LatencyMs`를 컴포넌트 지연(cacheLatencyMs, DB, externalDependencyLatencyMs)으로 분해한 합성 워터폴. 분해 규칙이 도메인 함수 안에 새로 필요하므로 도메인별로 하나씩 추가합니다.
 - 로그의 `trace_id` → 트레이스, 스팬 → 해당 노드의 Service Map 상세.
 
+  **확정(2026-10-02, Round E25 구현 시)**: 실측은 Jaeger 조회 API(`/api/traces?service=backend&tags={"sysdrill.session_id":…}`)로 — 태그는 `RealInfraCouponController`의 DB 관측 스팬에 이미 붙어 있어 계측 추가가 필요 없었다. 합성은 **로그 줄의 trace id에서만** 만든다: 그 줄이 나온 시계열 점의 p95를 루트로, 도메인 엔진이 실제로 모델링하는 구성 요소(캐시 지연·외부 의존성 지연·커넥션 풀 포화 시 대기)로 나눈다 — 차트와 모순되지 않는 분해. 합성 트레이스에는 "합성" 표지와 "실측 아님" 설명을 붙인다. 스팬의 서비스 이름은 Service Map 탭으로 잇는다(노드 단위 매칭은 캔버스 라벨이 자유 입력이라 보류).
+
 ### O7 — Production Readiness + 관측 품질
 
 - 인시던트 직전 체크 단계: `알림 규칙 설정 · SLO 정의 · 구조화 로그 · 트레이싱 활성화`. 각각 실제로 한 일(O5 규칙 존재 여부 등)에서 자동 체크되고, 트레이싱을 켜지 않았으면 인시던트 중 트레이스 탭이 **"No data — 배포 시 트레이싱이 비활성이었습니다"** 로 비어 있습니다. 원본 §25의 "준비하지 않은 결과를 장애에서 체험"을 그대로 구현.

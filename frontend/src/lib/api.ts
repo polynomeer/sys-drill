@@ -963,6 +963,40 @@ export function getSimulationLogs(sessionId: string): Promise<SimulationLogLine[
   return apiFetch<SimulationLogLine[]>(`/sessions/${sessionId}/simulation/logs`);
 }
 
+/** PLAN.md Round E25 (O6) — real Jaeger spans (real-infra coupon) or a waterfall decomposed from the rule engine. */
+export interface TraceSpan {
+  spanId: string;
+  parentSpanId: string | null;
+  name: string;
+  service: string;
+  startMs: number;
+  durationMs: number;
+  error: boolean;
+}
+
+export interface TraceList {
+  source: "JAEGER" | "SYNTHETIC";
+  available: boolean;
+  traces: { traceId: string; at: string; rootName: string; service: string; durationMs: number; error: boolean }[];
+  note: string | null;
+}
+
+export interface TraceView {
+  traceId: string;
+  source: "JAEGER" | "SYNTHETIC";
+  at: string;
+  durationMs: number;
+  spans: TraceSpan[];
+}
+
+export function getTraces(sessionId: string): Promise<TraceList> {
+  return apiFetch<TraceList>(`/sessions/${sessionId}/simulation/traces`);
+}
+
+export function getTrace(sessionId: string, traceId: string): Promise<TraceView> {
+  return apiFetch<TraceView>(`/sessions/${sessionId}/simulation/traces/${traceId}`);
+}
+
 /** O0-b — fire-and-forget; the server debounces repeats of the same look within 30s. */
 export function recordInvestigation(sessionId: string, kind: InvestigationKind, target?: string): Promise<void> {
   return apiFetch<void>(`/sessions/${sessionId}/simulation/investigations`, {
