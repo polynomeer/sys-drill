@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/Badge";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { RankingPanel } from "@/components/RankingPanel";
 import { CommunityHomeFeeds } from "@/components/CommunityHomeFeeds";
+import { WeeklyPuzzleCard } from "@/components/WeeklyPuzzleCard";
 
 /**
  * docs/LEARNING_COMMUNITY_PLAN.md §6.3~§6.6 (슬라이스 4~7).
@@ -82,6 +83,8 @@ export default function CommunityPage() {
 
       {/* docs/COMMUNITY_EXPANSION_PLAN.md C11 (PLAN.md Round E23) */}
       <CommunityHomeFeeds />
+      {/* docs/COMMUNITY_EXPANSION_PLAN.md C12 (PLAN.md Round E28) */}
+      <WeeklyPuzzleCard />
 
       <RankingPanel />
 

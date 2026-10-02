@@ -1203,6 +1203,64 @@ export interface FailurePatternDetail extends FailurePatternSummary {
   relatedConcepts: RelatedConceptLink[];
 }
 
+/** docs/LEARNING_EXPANSION_PLAN.md L9 (PLAN.md Round E28) — metrics only; open without login. */
+export interface PuzzlePoint {
+  second: number;
+  trafficRps: number;
+  p95LatencyMs: number;
+  errorRatePct: number;
+  dbReadLoadPct: number;
+  dbWriteLoadPct: number;
+  poolUsagePct: number;
+  cacheHitPct: number;
+  cacheLatencyMs: number;
+  queueLag: number;
+  externalLatencyMs: number;
+}
+
+export interface DiagnosticPuzzle {
+  seed: number;
+  points: PuzzlePoint[];
+  patterns: { key: string; label: string }[];
+  checks: { key: string; label: string }[];
+}
+
+export interface PuzzleResult {
+  patternCorrect: boolean | null;
+  checkCorrect: boolean | null;
+  answerPattern: string;
+  answerPatternName: string;
+  acceptedChecks: string[];
+  explanation: string;
+}
+
+export function getPuzzle(seed?: number): Promise<DiagnosticPuzzle> {
+  return apiFetch<DiagnosticPuzzle>(`/learning/puzzles${seed ? `?seed=${seed}` : ""}`);
+}
+
+export function answerPuzzle(seed: number, answer: { pattern?: string; check?: string }): Promise<PuzzleResult> {
+  return apiFetch<PuzzleResult>(`/learning/puzzles/${seed}/answer`, { method: "POST", body: JSON.stringify(answer) });
+}
+
+/** docs/COMMUNITY_EXPANSION_PLAN.md C12 — the weekly puzzle; split and reasons only after answering. */
+export interface WeeklyPuzzle {
+  week: number;
+  puzzle: DiagnosticPuzzle;
+  myChoice: string | null;
+  distribution: Record<string, number> | null;
+  total: number | null;
+  result: PuzzleResult | null;
+  reasons: { nickname: string; choice: string; reason: string }[] | null;
+}
+
+export function getWeeklyPuzzle(): Promise<WeeklyPuzzle> {
+  return apiFetch<WeeklyPuzzle>("/community/wwyd");
+}
+
+export function answerWeeklyPuzzle(input: { choice: string; reason?: string; reasonPublic: boolean }): Promise<WeeklyPuzzle> {
+  return apiFetch<WeeklyPuzzle>("/community/wwyd", { method: "POST", body: JSON.stringify(input) });
+}
+
 export function listFailurePatterns(): Promise<FailurePatternSummary[]> {
   return apiFetch<FailurePatternSummary[]>("/learning/failures");
 }

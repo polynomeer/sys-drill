@@ -59,6 +59,18 @@ export default function LearningPage() {
         <span className="text-accent">→</span>
       </Link>
 
+      {/* PLAN.md Round E28 (L9) — 진단 퍼즐 */}
+      <Link
+        href="/learning/puzzle"
+        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
+      >
+        <span>
+          <span className="block font-medium">진단 퍼즐</span>
+          <span className="block text-sm text-foreground-muted">지표만 보고 무슨 장애인지, 무엇부터 확인할지 — 5분짜리.</span>
+        </span>
+        <span className="text-accent">→</span>
+      </Link>
+
       {/* PLAN.md Round E19 (L8) — 장애 패턴 사전 */}
       <Link
         href="/learning/failures"

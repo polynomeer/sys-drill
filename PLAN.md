@@ -2143,9 +2143,13 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 **진행 중 발견한 결정 사항**: V66. 단계 = `{type, target, text}`, "밟았는가"만 보고 순서는 채점하지 않음(DRILLS_EXPANSION_PLAN M12 확정 사항). 브라우저 검증에서 WargameLive → RunbookPanel → `lib/actionLabels` → WargameLive 순환 import로 `ACTIONS_BY_DOMAIN`을 초기화 전에 읽는 오류가 났다 — 라벨 표를 첫 사용 때 만들도록 바꿨다.
 
-#### Round E28 — 진단 퍼즐 (L9) + 주간 What Would You Do? (C12)
-- [ ] 엔진 생성 퍼즐(시드), `/learning/puzzle`, 7개 장애 패턴 선택 → L8 연결
-- [ ] ISO 주차 시드 퍼즐, `wwyd_answers`, 답한 뒤 분포·공개 이유
+#### Round E28 — 진단 퍼즐 (L9) + 주간 What Would You Do? (C12) ✅ 완료 (2026-10-02)
+- [x] 엔진 생성 퍼즐(시드), `/learning/puzzle`, 7개 장애 패턴 선택 → L8 연결
+- [x] ISO 주차 시드 퍼즐, `wwyd_answers`, 답한 뒤 분포·공개 이유
+
+**완료 기준 충족**: 신규 `DiagnosticPuzzleTest`(같은 seed = 같은 퍼즐, 로그인 없이 조회·채점, 지표 부분에 도메인 이름 없음, 정답 판정, 잘못된 선택지 400, seed 1~60이 7개 도메인 모두를 냄; 주간 퍼즐은 답하기 전 분포·정답 없음, 답한 뒤 분포·공개 이유만(비공개 이유 제외), 두 번째 답 409). 격리 환경: 진단 퍼즐(지표 10칸, 큐·외부 지연은 "—") → Hot Key + DB 커넥션 풀 → "✓ 맞혔습니다"와 설명·장애 패턴 링크. Community의 "이번 주 What Would You Do?" → 외부 의존성 선택 → 내 선택 빨강·정답 초록·분포·설명.
+
+**진행 중 발견한 결정 사항** (LEARNING_EXPANSION_PLAN L9, COMMUNITY_EXPANSION_PLAN C12 확정 사항): V67. 퍼즐은 저장하지 않고 seed만으로 생성, 지표 외(로그·맵)는 이름이 곧 답이라 보여주지 않음, 시스템에 없는 지표는 "—"로 남겨 단서로 쓴다. 주간 답은 수정 불가. `/learning/puzzles/**`는 인증 인터셉터에서 제외.
 
 #### Round E29 — 오개념 감지 (L10)
 - [ ] 액션 패턴 규칙(설정), 내 학습에 오개념 카드 → 랩·Bad Fixes
