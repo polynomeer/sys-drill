@@ -92,6 +92,7 @@ class AuthWebConfig(
                 "/admin/prompt-templates", "/admin/prompt-templates/**",
                 "/admin/dashboard/**",
                 "/admin/discussions/**",
+                "/admin/writeup-comments/**",
                 "/marketplace/scenarios", "/marketplace/scenarios/**",
                 "/certifications/me",
                 "/architecture-analysis", "/architecture-analysis/**",
@@ -101,6 +102,7 @@ class AuthWebConfig(
                 "/scenarios/*/discussion",
                 "/writeups/**",
                 "/discussions/**",
+                "/writeup-comments/**",
                 "/auth/logout",
             )
             .excludePathPatterns("/sessions/*/simulation/realinfra/coupon/**", "/organizations/assessments/*")

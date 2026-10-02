@@ -289,6 +289,9 @@ class WriteupService(
     private fun versionIdsOf(scenarioId: UUID): List<UUID> =
         scenarioVersionRepository.findByScenarioIdIn(listOf(scenarioId)).mapNotNull { it.id }
 
+    /** PLAN.md Round E22 — the admin review list links a reported comment back to its writeup. */
+    fun scenarioIdOf(sessionId: UUID): UUID? = sessionRepository.findById(sessionId).orElse(null)?.let { scenarioOf(it)?.id }
+
     private fun scenarioOf(session: Session): Scenario? {
         val scenarioId = scenarioVersionRepository.findById(session.scenarioVersionId)
             .map { it.scenarioId }.orElse(null) ?: return null

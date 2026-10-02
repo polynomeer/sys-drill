@@ -1777,6 +1777,64 @@ export interface ReportedDiscussion {
   createdAt: string | null;
 }
 
+/** docs/COMMUNITY_EXPANSION_PLAN.md C10 (PLAN.md Round E22) — anchored reviews on a public writeup. */
+export type ReviewKind = "QUESTION" | "RISK" | "SUGGESTION" | "ALTERNATIVE" | "TRADEOFF";
+export type AnchorType = "NODE" | "TIMELINE" | "NONE";
+
+export interface WriteupComment {
+  id: string;
+  anchorType: AnchorType;
+  anchorRef: string | null;
+  anchorLabel: string | null;
+  kind: ReviewKind;
+  body: string;
+  authorNickname: string;
+  mine: boolean;
+  reportedByMe: boolean;
+  createdAt: string | null;
+}
+
+export interface WriteupComments {
+  comments: WriteupComment[];
+  anchors: { type: AnchorType; ref: string; label: string }[];
+}
+
+export function getWriteupComments(sessionId: string): Promise<WriteupComments> {
+  return apiFetch<WriteupComments>(`/writeups/${sessionId}/comments`);
+}
+
+export function postWriteupComment(
+  sessionId: string,
+  input: { anchorType: AnchorType; anchorRef?: string; kind: ReviewKind; body: string },
+): Promise<WriteupComments> {
+  return apiFetch<WriteupComments>(`/writeups/${sessionId}/comments`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function reportWriteupComment(commentId: string, reason?: string): Promise<void> {
+  return apiFetch<void>(`/writeup-comments/${commentId}/reports`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+
+export interface ReportedWriteupComment {
+  id: string;
+  sessionId: string;
+  scenarioId: string | null;
+  authorNickname: string;
+  anchorLabel: string | null;
+  kind: ReviewKind;
+  body: string;
+  reportCount: number;
+  hidden: boolean;
+  createdAt: string | null;
+}
+
+export function getReportedWriteupComments(): Promise<ReportedWriteupComment[]> {
+  return apiFetch<ReportedWriteupComment[]>("/admin/writeup-comments/reported");
+}
+
+export function setWriteupCommentHidden(commentId: string, hidden: boolean): Promise<ReportedWriteupComment> {
+  return apiFetch<ReportedWriteupComment>(`/admin/writeup-comments/${commentId}/hidden`, { method: "PUT", body: JSON.stringify({ hidden }) });
+}
+
 export function getReportedDiscussions(): Promise<ReportedDiscussion[]> {
   return apiFetch<ReportedDiscussion[]>("/admin/discussions/reported");
 }

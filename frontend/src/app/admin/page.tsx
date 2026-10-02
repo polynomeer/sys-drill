@@ -7,6 +7,9 @@ import {
   AdminDashboardStats,
   ApiError,
   ReportedDiscussion,
+  ReportedWriteupComment,
+  getReportedWriteupComments,
+  setWriteupCommentHidden,
   SuccessMetrics,
   getAdminDashboardStats,
   getReportedDiscussions,
@@ -68,6 +71,7 @@ export default function AdminDashboardPage() {
       {metrics && <SuccessMetricsPanel metrics={metrics} />}
 
       {stats && <ReportedDiscussionsPanel />}
+      {stats && <ReportedWriteupCommentsPanel />}
     </div>
   );
 }
@@ -110,6 +114,55 @@ function ReportedDiscussionsPanel() {
             {item.scenarioId && (
               <Link href={`/discussions/${item.scenarioId}`} className="underline underline-offset-2">
                 {item.scenarioTitle ?? "스레드"}
+              </Link>
+            )}
+            {item.hidden && <span className="text-danger">숨김</span>}
+          </div>
+          <p className="whitespace-pre-wrap text-sm">{item.body}</p>
+          <Button size="sm" variant={item.hidden ? "secondary" : "danger"} className="mt-3" onClick={() => toggle(item)}>
+            {item.hidden ? "복원" : "숨기기"}
+          </Button>
+        </Card>
+      ))}
+    </section>
+  );
+}
+
+/** PLAN.md Round E22 (C10) — reported writeup reviews, the same review → hide flow as discussions. */
+function ReportedWriteupCommentsPanel() {
+  const [items, setItems] = useState<ReportedWriteupComment[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getReportedWriteupComments()
+      .then(setItems)
+      .catch(() => setError("신고 목록을 불러오지 못했습니다."));
+  }, []);
+
+  async function toggle(item: ReportedWriteupComment) {
+    try {
+      const updated = await setWriteupCommentHidden(item.id, !item.hidden);
+      setItems((prev) => prev?.map((i) => (i.id === updated.id ? updated : i)) ?? null);
+    } catch {
+      setError("처리하지 못했습니다.");
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-lg font-semibold">신고된 풀이 리뷰</h2>
+      {error && <p className="text-sm text-danger">{error}</p>}
+      {items === null && !error && <LoadingState />}
+      {items?.length === 0 && <p className="text-sm text-foreground-muted">검토할 신고가 없습니다.</p>}
+      {items?.map((item) => (
+        <Card key={item.id} className={item.hidden ? "opacity-60" : ""}>
+          <div className="mb-1 flex flex-wrap items-baseline gap-2 text-xs text-foreground-muted">
+            <span className="font-medium text-foreground">{item.authorNickname}</span>
+            <span>신고 {item.reportCount}건</span>
+            {item.anchorLabel && <span>@ {item.anchorLabel}</span>}
+            {item.scenarioId && (
+              <Link href={`/writeups/${item.scenarioId}/${item.sessionId}`} className="underline underline-offset-2">
+                풀이
               </Link>
             )}
             {item.hidden && <span className="text-danger">숨김</span>}

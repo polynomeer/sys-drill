@@ -67,6 +67,13 @@ class SystemTopologyService(
         return traits
     }
 
+    /** PLAN.md Round E22 (C10) — the saved canvas's nodes, as anchors a review comment can point at. */
+    fun nodes(sessionId: UUID): List<CanvasNodeRef> {
+        val saved = topologyRepository.findBySessionId(sessionId) ?: return emptyList()
+        val graph = objectMapper.readValue(saved.graph, TopologyGraph::class.java)
+        return graph.nodes.mapNotNull { n -> n.id?.let { CanvasNodeRef(it, n.data.label?.ifBlank { null } ?: n.data.kind ?: it, n.data.kind) } }
+    }
+
     /**
      * docs/COMMUNITY_EXPANSION_PLAN.md C8 (PLAN.md Round E15) — the comparable shape of a saved
      * design: which node kinds it uses (connected or not — a drawn queue is a design choice even
@@ -149,6 +156,8 @@ class SystemTopologyService(
     }
 }
 
+data class CanvasNodeRef(val id: String, val label: String, val kind: String?)
+
 /** C8 — a design's comparable shape: node kinds drawn, and the topology-driven traits next to their defaults. */
 data class DesignProfile(
     val nodeKinds: Map<String, Int>,
@@ -222,7 +231,7 @@ private data class TopologyGraph(val nodes: List<TopologyNode> = emptyList(), va
 private data class TopologyNode(val id: String? = null, val data: TopologyNodeData = TopologyNodeData())
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-private data class TopologyNodeData(val kind: String? = null, val traitValues: Map<String, Double> = emptyMap())
+private data class TopologyNodeData(val kind: String? = null, val label: String? = null, val traitValues: Map<String, Double> = emptyMap())
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 private data class TopologyEdge(val source: String? = null, val target: String? = null)
