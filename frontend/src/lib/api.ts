@@ -1835,6 +1835,22 @@ export function setWriteupCommentHidden(commentId: string, hidden: boolean): Pro
   return apiFetch<ReportedWriteupComment>(`/admin/writeup-comments/${commentId}/hidden`, { method: "PUT", body: JSON.stringify({ hidden }) });
 }
 
+/** docs/COMMUNITY_EXPANSION_PLAN.md C11 (PLAN.md Round E23) — the Community home feeds. */
+export interface CommunityHome {
+  myDrills: { scenarioId: string; title: string; domain: string; writeups: number; newWriteups: number; newDiscussions: number }[];
+  activeDiscussions: {
+    scenarioId: string;
+    title: string;
+    postsThisWeek: number;
+    latest: { id: string; kind: string; excerpt: string | null; spoilerLocked: boolean }[];
+  }[];
+  notableWriteups: { sessionId: string; scenarioId: string; scenarioTitle: string; authorNickname: string | null; reviewCount: number; locked: boolean }[];
+}
+
+export function getCommunityHome(since?: string): Promise<CommunityHome> {
+  return apiFetch<CommunityHome>(`/community/home${since ? `?since=${encodeURIComponent(since)}` : ""}`);
+}
+
 export function getReportedDiscussions(): Promise<ReportedDiscussion[]> {
   return apiFetch<ReportedDiscussion[]>("/admin/discussions/reported");
 }

@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { RankingPanel } from "@/components/RankingPanel";
+import { CommunityHomeFeeds } from "@/components/CommunityHomeFeeds";
 
 /**
  * docs/LEARNING_COMMUNITY_PLAN.md §6.3~§6.6 (슬라이스 4~7).
@@ -78,6 +79,9 @@ export default function CommunityPage() {
           내 점수와 순위를 확인하고, 인증을 공유하고, 다른 사람이 만든 시나리오를 찾아보세요.
         </p>
       </div>
+
+      {/* docs/COMMUNITY_EXPANSION_PLAN.md C11 (PLAN.md Round E23) */}
+      <CommunityHomeFeeds />
 
       <RankingPanel />
 

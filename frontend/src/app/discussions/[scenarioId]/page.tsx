@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { DiscussionThread, getDiscussion } from "@/lib/api";
+import { DiscussionThread, LearningConceptSummary, getDiscussion, getLearningConcepts, listScenarios } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { DiscussionPanel } from "@/components/DiscussionPanel";
 
@@ -19,6 +19,8 @@ export default function ScenarioDiscussionPage() {
   const router = useRouter();
   const scenarioId = params.scenarioId;
   const [thread, setThread] = useState<DiscussionThread | null>(null);
+  // PLAN.md Round E23 (C11) — the concepts this scenario trains, the reverse of the concept page's discussion links.
+  const [concepts, setConcepts] = useState<LearningConceptSummary[]>([]);
 
   useEffect(() => {
     if (!getStoredToken()) {
@@ -27,6 +29,13 @@ export default function ScenarioDiscussionPage() {
     }
     // 제목만 쓰는 가벼운 조회다 — 패널이 자체 폴링으로 본문을 갱신한다.
     getDiscussion(scenarioId).then(setThread).catch(() => setThread(null));
+    Promise.all([listScenarios(), getLearningConcepts()])
+      .then(([scenarios, categories]) => {
+        const domain = scenarios.find((s) => s.id === scenarioId)?.domain;
+        if (!domain) return;
+        setConcepts(categories.flatMap((c) => c.concepts).filter((c) => c.relatedDomains?.includes(domain)));
+      })
+      .catch(() => setConcepts([]));
   }, [scenarioId, router]);
 
   return (
@@ -40,6 +49,17 @@ export default function ScenarioDiscussionPage() {
           이 시나리오의 공개 풀이 →
         </Link>
       </div>
+
+      {concepts.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-foreground-muted">이 시나리오가 다루는 개념:</span>
+          {concepts.map((c) => (
+            <Link key={c.riskKey} href={`/learning/${c.riskKey}`} className="rounded-full border border-border px-2 py-0.5 hover:border-accent">
+              {c.label}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <DiscussionPanel scenarioId={scenarioId} />
     </div>
