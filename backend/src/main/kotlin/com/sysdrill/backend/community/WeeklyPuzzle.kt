@@ -75,7 +75,8 @@ class WeeklyPuzzleService(
 ) {
     fun current(userId: UUID, now: Instant = Instant.now()): WeeklyPuzzleView {
         val week = weekOf(now)
-        val puzzle = puzzleService.puzzle(week.toLong())
+        val set = DiagnosticPuzzles.setForWeek(week)
+        val puzzle = puzzleService.puzzle(week.toLong(), set)
         val mine = repository.findByWeekAndUserId(week, userId)
             ?: return WeeklyPuzzleView(week, puzzle, null, null, null, null, null)
         val answers = repository.findByWeek(week)
@@ -85,16 +86,16 @@ class WeeklyPuzzleService(
             week = week,
             puzzle = puzzle,
             myChoice = mine.choice,
-            distribution = DiagnosticPuzzles.CHECKS.associate { c -> c.key to answers.count { it.choice == c.key } },
+            distribution = set.checks.associate { c -> c.key to answers.count { it.choice == c.key } },
             total = answers.size,
-            result = puzzleService.grade(week.toLong(), PuzzleAnswer(check = mine.choice)),
+            result = puzzleService.grade(week.toLong(), PuzzleAnswer(check = mine.choice), set),
             reasons = publicReasons.map { WwydReason(nicknames[it.userId] ?: "(알 수 없음)", it.choice, it.reason!!) },
         )
     }
 
     fun answer(userId: UUID, submit: WwydSubmit, now: Instant = Instant.now()): WeeklyPuzzleView {
-        if (DiagnosticPuzzles.CHECKS.none { it.key == submit.choice }) throw BadRequestException("알 수 없는 선택지: ${submit.choice}")
         val week = weekOf(now)
+        if (DiagnosticPuzzles.setForWeek(week).checks.none { it.key == submit.choice }) throw BadRequestException("알 수 없는 선택지: ${submit.choice}")
         if (repository.findByWeekAndUserId(week, userId) != null) throw ConflictException("이번 주 퍼즐에는 이미 답했습니다")
         try {
             repository.save(WwydAnswer(week = week, userId = userId, choice = submit.choice, reason = submit.reason?.trim()?.ifBlank { null }, reasonPublic = submit.reasonPublic))

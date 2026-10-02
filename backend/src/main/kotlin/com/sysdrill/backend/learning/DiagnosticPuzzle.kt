@@ -58,12 +58,18 @@ data class PuzzleResult(
  * and the rule engine produces the numbers. Also the weekly C12 puzzle's generator.
  */
 object DiagnosticPuzzles {
-    private val DOMAINS = listOf(
+    /**
+     * Which domains and checks a puzzle draws from. Versioned by week (LEARNING_EXPANSION_PLAN L9, follow-up):
+     * a weekly puzzle someone already answered must not change under them when a domain is added.
+     */
+    data class PuzzleSet(val domains: List<String>, val checks: List<PuzzleChoice>)
+
+    private val DOMAINS_7 = listOf(
         Engine.DOMAIN_COUPON, Engine.DOMAIN_NOTIFICATION, Engine.DOMAIN_PRODUCT_BROWSING, Engine.DOMAIN_PAYMENT,
         Engine.DOMAIN_RESERVATION, Engine.DOMAIN_BATCH_SETTLEMENT, Engine.DOMAIN_AUTOSCALING,
     )
 
-    val CHECKS = listOf(
+    private val CHECKS_7 = listOf(
         PuzzleChoice("db-pool", "DB 커넥션 풀·쓰기 부하"),
         PuzzleChoice("cache", "캐시 적중률·캐시 지연"),
         PuzzleChoice("external", "외부 의존성 응답 시간"),
@@ -72,6 +78,19 @@ object DiagnosticPuzzles {
         PuzzleChoice("reprocess", "배치 실패·재처리 범위"),
         PuzzleChoice("pods", "Pod 재시작·가용 Pod 수"),
     )
+
+    /** Until ISO week 2026-40: the seven domains the weekly puzzle launched with. */
+    val LEGACY = PuzzleSet(DOMAINS_7, CHECKS_7)
+
+    /** From ISO week 2026-41 (and every random puzzle): with the deployment domain (ADR-0049). */
+    val CURRENT = PuzzleSet(DOMAINS_7 + Engine.DOMAIN_DEPLOYMENT, CHECKS_7 + PuzzleChoice("deploy", "최근 배포·변경 이력"))
+
+    private const val DEPLOYMENT_FROM_WEEK = 202641
+
+    fun setForWeek(week: Int): PuzzleSet = if (week < DEPLOYMENT_FROM_WEEK) LEGACY else CURRENT
+
+    /** Every check any set offers — for validating an answer. */
+    val CHECKS: List<PuzzleChoice> get() = CURRENT.checks
 
     /** First things worth checking per domain — the first is the best, the rest are also fine. */
     private val ACCEPTED = mapOf(
@@ -82,6 +101,7 @@ object DiagnosticPuzzles {
         Engine.DOMAIN_RESERVATION to listOf("lock"),
         Engine.DOMAIN_BATCH_SETTLEMENT to listOf("reprocess", "external"),
         Engine.DOMAIN_AUTOSCALING to listOf("pods"),
+        Engine.DOMAIN_DEPLOYMENT to listOf("deploy"),
     )
 
     private val EXPLANATIONS = mapOf(
@@ -92,13 +112,14 @@ object DiagnosticPuzzles {
         Engine.DOMAIN_RESERVATION to "쓰기 부하와 에러가 함께 오르지만 외부·캐시는 멀쩡합니다 — 같은 자원을 두고 기다리는 락 경합입니다.",
         Engine.DOMAIN_BATCH_SETTLEMENT to "에러(중복·실패 레코드)와 재처리 대기 건수가 쌓이고 외부 API도 느립니다 — 실패한 배치가 처음부터 다시 도는 중입니다.",
         Engine.DOMAIN_AUTOSCALING to "트래픽은 감당 범위인데 에러가 크고 지연이 들쭉날쭉합니다 — 용량이 아니라 Pod 자체가 불안정(재시작·롤아웃)합니다.",
+        Engine.DOMAIN_DEPLOYMENT to "트래픽·DB·캐시는 평소와 같은데 에러만 계단처럼 오릅니다 — 인프라가 아니라 방금 나간 변경(카나리 배포)이 원인입니다.",
     )
 
-    fun domainOf(seed: Long): String = DOMAINS[Random(seed).nextInt(DOMAINS.size)]
+    fun domainOf(seed: Long, set: PuzzleSet = CURRENT): String = set.domains[Random(seed).nextInt(set.domains.size)]
 
-    fun generate(seed: Long, patternNames: Map<String, String>): DiagnosticPuzzleView {
+    fun generate(seed: Long, patternNames: Map<String, String>, set: PuzzleSet = CURRENT): DiagnosticPuzzleView {
         val random = Random(seed)
-        val domain = DOMAINS[random.nextInt(DOMAINS.size)]
+        val domain = set.domains[random.nextInt(set.domains.size)]
         fun shake(base: Int) = maxOf(1, (base * (0.6 + random.nextDouble() * 0.8)).toInt())
         val traits = DesignTraits(
             cacheTtlSeconds = shake(DesignTraits.DEFAULT_CACHE_TTL_SECONDS),
@@ -123,14 +144,14 @@ object DiagnosticPuzzles {
                     cacheHitPct = s.cacheHitRatio * 100, cacheLatencyMs = s.cacheLatencyMs, queueLag = s.queueLag, externalLatencyMs = s.externalDependencyLatencyMs,
                 )
             },
-            patterns = DOMAINS.map { PuzzleChoice(it, patternNames[it] ?: it) },
-            checks = CHECKS,
+            patterns = set.domains.map { PuzzleChoice(it, patternNames[it] ?: it) },
+            checks = set.checks,
         )
     }
 
-    fun grade(seed: Long, answer: PuzzleAnswer, patternNames: Map<String, String>): PuzzleResult {
-        if (answer.check != null && CHECKS.none { it.key == answer.check }) throw BadRequestException("알 수 없는 선택지: ${answer.check}")
-        val domain = domainOf(seed)
+    fun grade(seed: Long, answer: PuzzleAnswer, patternNames: Map<String, String>, set: PuzzleSet = CURRENT): PuzzleResult {
+        if (answer.check != null && set.checks.none { it.key == answer.check }) throw BadRequestException("알 수 없는 선택지: ${answer.check}")
+        val domain = domainOf(seed, set)
         val accepted = ACCEPTED.getValue(domain)
         return PuzzleResult(
             patternCorrect = answer.pattern?.let { it == domain },
@@ -149,8 +170,8 @@ object DiagnosticPuzzles {
 @Service
 class DiagnosticPuzzleService(private val failurePatternRepository: FailurePatternRepository) {
     fun names(): Map<String, String> = failurePatternRepository.findAll().associate { it.domain to it.name }
-    fun puzzle(seed: Long) = DiagnosticPuzzles.generate(seed, names())
-    fun grade(seed: Long, answer: PuzzleAnswer) = DiagnosticPuzzles.grade(seed, answer, names())
+    fun puzzle(seed: Long, set: DiagnosticPuzzles.PuzzleSet = DiagnosticPuzzles.CURRENT) = DiagnosticPuzzles.generate(seed, names(), set)
+    fun grade(seed: Long, answer: PuzzleAnswer, set: DiagnosticPuzzles.PuzzleSet = DiagnosticPuzzles.CURRENT) = DiagnosticPuzzles.grade(seed, answer, names(), set)
 }
 
 /** Open without login (docs/LEARNING_EXPANSION_PLAN.md L9 — a five-minute taste). */

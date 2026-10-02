@@ -28,7 +28,7 @@ class DiagnosticPuzzleTest(
         val first = mockMvc.perform(get("/learning/puzzles?seed=42")).andExpect(status().isOk).andReturn().response.contentAsString
         val again = mockMvc.perform(get("/learning/puzzles?seed=42")).andExpect(status().isOk).andReturn().response.contentAsString
         assertThat(again).isEqualTo(first)
-        assertThat(JsonPath.read<List<String>>(first, "$.patterns[*].key")).hasSize(7)
+        assertThat(JsonPath.read<List<String>>(first, "$.patterns[*].key")).hasSize(8).contains("deployment")
         assertThat(JsonPath.read<List<Any>>(first, "$.points")).hasSizeGreaterThan(5)
         assertThat(first.substringBefore("\"patterns\"")).doesNotContain("coupon", "notification", "payment") // the metrics give nothing away by name
 
@@ -42,7 +42,21 @@ class DiagnosticPuzzleTest(
             .andExpect(status().isBadRequest)
 
         // Seeds spread over every domain — the puzzle isn't stuck on one pattern.
-        assertThat((1L..60L).map { DiagnosticPuzzles.domainOf(it) }.toSet()).hasSize(7)
+        assertThat((1L..100L).map { DiagnosticPuzzles.domainOf(it) }.toSet()).hasSize(8)
+    }
+
+    @Test
+    fun `weekly puzzles keep the set they launched with — the deployment domain arrives at a week boundary`() {
+        val week40 = DiagnosticPuzzles.setForWeek(202640)
+        assertThat(week40.domains).hasSize(7).doesNotContain("deployment")
+        assertThat(week40.checks.map { it.key }).doesNotContain("deploy")
+        assertThat(DiagnosticPuzzles.setForWeek(202641).domains).contains("deployment")
+        // The same seed under the legacy set never lands on deployment.
+        assertThat((1L..100L).map { DiagnosticPuzzles.domainOf(it, week40) }).doesNotContain("deployment")
+        val deploySeed = (1L..200L).first { DiagnosticPuzzles.domainOf(it) == "deployment" }
+        val graded = DiagnosticPuzzles.grade(deploySeed, PuzzleAnswer(pattern = "deployment", check = "deploy"), emptyMap())
+        assertThat(graded.patternCorrect).isTrue()
+        assertThat(graded.checkCorrect).isTrue()
     }
 
     @Test
