@@ -1292,6 +1292,20 @@ export interface LearningPath {
   steps: LearningPathStep[];
 }
 
+/** docs/LEARNING_EXPANSION_PLAN.md L10 (PLAN.md Round E29) — read from my first incident actions, not my answers. */
+export interface MisconceptionCard {
+  key: string;
+  belief: string;
+  correction: string;
+  evidence: string;
+  labSlug: string | null;
+  failureDomain: string | null;
+}
+
+export function getMisconceptions(): Promise<MisconceptionCard[]> {
+  return apiFetch<MisconceptionCard[]>("/learning/misconceptions");
+}
+
 export function getLearningPath(): Promise<LearningPath> {
   return apiFetch<LearningPath>("/learning/path");
 }

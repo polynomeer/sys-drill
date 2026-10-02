@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LearningCategory, LearningPath, getLearningConcepts, getLearningPath } from "@/lib/api";
+import { LearningCategory, LearningPath, MisconceptionCard, getLearningConcepts, getLearningPath, getMisconceptions } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -22,6 +22,7 @@ export default function LearningPage() {
   const router = useRouter();
   const [categories, setCategories] = useState<LearningCategory[] | null>(null);
   const [path, setPath] = useState<LearningPath | null>(null);
+  const [misconceptions, setMisconceptions] = useState<MisconceptionCard[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export default function LearningPage() {
       .catch(() => setError("개념 목록을 불러오지 못했습니다."));
     // 경로는 부가 패널이다 — 실패해도 개념 목록은 그대로 보여준다.
     getLearningPath().then(setPath).catch(() => setPath(null));
+    getMisconceptions().then(setMisconceptions).catch(() => setMisconceptions([]));
   }, [router]);
 
   const totalWeakness = (categories ?? []).reduce((sum, c) => sum + c.myWeaknessCount, 0);
@@ -100,6 +102,27 @@ export default function LearningPage() {
 
       {categories && (
         <>
+          {/* PLAN.md Round E29 (L10) — what my first moves in incidents suggest I believe */}
+          {misconceptions.map((m) => (
+            <section key={m.key} className="flex flex-col gap-2 rounded-xl border border-warning/50 bg-surface p-4 text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-warning">잠재적 오해</p>
+              <p className="font-medium">“{m.belief}”</p>
+              <p className="text-xs text-foreground-muted">{m.evidence}</p>
+              <p className="text-foreground-muted">{m.correction}</p>
+              <div className="flex flex-wrap gap-3 text-xs">
+                {m.labSlug && (
+                  <Link href={`/learning/labs/${m.labSlug}`} className="underline">
+                    랩에서 직접 확인하기
+                  </Link>
+                )}
+                {m.failureDomain && (
+                  <Link href={`/learning/failures/${m.failureDomain}`} className="underline">
+                    그럴듯하지만 틀린 대응 보기
+                  </Link>
+                )}
+              </div>
+            </section>
+          ))}
           {path && <LearningPathPanel path={path} />}
           <p className="text-xs text-foreground-muted">
             {(["NOT_STARTED", "WEAK", "PRACTICED", "CONFIDENT"] as const).map((level) => (
