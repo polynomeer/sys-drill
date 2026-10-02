@@ -1394,6 +1394,9 @@ export interface DomainCertificationStatus {
   title: string;
   passed: boolean;
   bestScore: number | null;
+  /** PLAN.md Round E21 (M10) — different tail-design variants passed; never part of DrillScore. */
+  passedVariants?: number;
+  totalVariants?: number;
 }
 
 export interface CertificationStatus {

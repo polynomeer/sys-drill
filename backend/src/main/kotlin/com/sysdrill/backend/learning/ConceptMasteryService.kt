@@ -81,7 +81,7 @@ class ConceptMasteryService(
         return completed.mapNotNull { session ->
             val domain = runCatching { sessionService.getScenarioDomain(session) }.getOrNull() ?: return@mapNotNull null
             val variantKey = runCatching { missionService.state(session).followupVariantKey }.getOrNull()
-            CompletedRun(session, domain, "$domain:${variantKey ?: "base"}", flagged[session.id].orEmpty().toSet())
+            CompletedRun(session, domain, variantOf(domain, variantKey), flagged[session.id].orEmpty().toSet())
         }
     }
 
@@ -106,8 +106,18 @@ class ConceptMasteryService(
     companion object {
         const val CONFIDENT_VARIANTS = 2
 
-        /** Shared with M10 (Round E21): different variants among [runs] where [riskKey] wasn't flagged. */
+        /** A variant's identity — the pinned FOLLOWUP key, or `base` before pinning / for single-variant scenarios. */
+        fun variantOf(domain: String, followupVariantKey: String?): String = "$domain:${followupVariantKey ?: "base"}"
+
+        /**
+         * The one count behind "한 번 맞혔다고 숙련으로 치지 않는다": how many different variants among
+         * [variants] passed. L7 passes a run when the concept wasn't flagged; M10 (Round E21) when the
+         * session reached the certification passing score.
+         */
+        fun <T> distinctVariants(runs: List<T>, variant: (T) -> String, passed: (T) -> Boolean): Int =
+            runs.filter(passed).map(variant).distinct().size
+
         fun cleanVariants(runs: List<CompletedRun>, riskKey: String): Int =
-            runs.filter { riskKey !in it.flaggedRiskKeys }.map { it.variant }.distinct().size
+            distinctVariants(runs, { it.variant }) { riskKey !in it.flaggedRiskKeys }
     }
 }

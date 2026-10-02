@@ -5,6 +5,7 @@ import com.sysdrill.backend.common.web.NotFoundException
 import com.sysdrill.backend.content.ContentItemRepository
 import com.sysdrill.backend.evaluation.EvaluationRepository
 import com.sysdrill.backend.identity.UserRepository
+import com.sysdrill.backend.learning.ConceptMasteryService
 import com.sysdrill.backend.scenario.ScenarioRepository
 import com.sysdrill.backend.scenario.ScenarioVersionRepository
 import com.sysdrill.backend.session.SessionRepository
@@ -35,6 +36,9 @@ class CertificationService(
     private val submissionRepository: SubmissionRepository,
     private val evaluationRepository: EvaluationRepository,
     @Value("\${sysdrill.certification.passing-score}") private val passingScore: Int,
+    private val missionService: com.sysdrill.backend.mission.MissionService,
+    private val scenarioStepRepository: com.sysdrill.backend.scenario.ScenarioStepRepository,
+    private val objectMapper: tools.jackson.databind.ObjectMapper,
 ) {
 
     fun status(userId: UUID): CertificationStatusResponse {
@@ -63,12 +67,19 @@ class CertificationService(
 
         val scenarioById = officialScenarios.associateBy { it.id }
         val bestScoreByDomain = mutableMapOf<String, Int>()
+        data class ScoredRun(val domain: String, val variant: String, val score: Int)
+        val runs = mutableListOf<ScoredRun>()
         completedSessions.forEach { session ->
             val scenarioId = versionsById[session.scenarioVersionId]?.scenarioId ?: return@forEach
             if (scenarioId !in officialScenarioIds) return@forEach
             val domain = scenarioById[scenarioId]?.domain ?: return@forEach
             val avg = averageScore(session.id!!) ?: return@forEach
             bestScoreByDomain[domain] = maxOf(bestScoreByDomain[domain] ?: 0, avg)
+            runs += ScoredRun(domain, ConceptMasteryService.variantOf(domain, missionService.state(session).followupVariantKey), avg)
+        }
+        // M10 — the same distinct-variant count as concept mastery (L7), with "passed" = the passing score.
+        val passedVariantsByDomain = runs.groupBy { it.domain }.mapValues { (_, domainRuns) ->
+            ConceptMasteryService.distinctVariants(domainRuns, { it.variant }) { it.score >= passingScore }
         }
 
         val domainStatuses = officialScenarios.distinctBy { it.domain }.map { scenario ->
@@ -78,6 +89,8 @@ class CertificationService(
                 title = titleByScenarioId[scenario.id] ?: scenario.domain,
                 passed = (best ?: 0) >= passingScore,
                 bestScore = best,
+                passedVariants = passedVariantsByDomain[scenario.domain] ?: 0,
+                totalVariants = totalVariants(scenario.id!!),
             )
         }
 
@@ -87,5 +100,14 @@ class CertificationService(
             certified = domainStatuses.isNotEmpty() && domainStatuses.all { it.passed },
             domains = domainStatuses,
         )
+    }
+
+    /** Tail-design variants in the scenario's latest published version — `variants.size`, or 1 for a single prompt. */
+    private fun totalVariants(scenarioId: UUID): Int {
+        val version = scenarioVersionRepository.findFirstByScenarioIdAndStatusOrderByVersionNoDesc(scenarioId, "PUBLISHED") ?: return 1
+        val followup = scenarioStepRepository.findByScenarioVersionIdOrderByStepOrder(version.id!!).firstOrNull { it.stepType == "FOLLOWUP" }
+            ?: return 1
+        val variants = followup.content?.let { runCatching { objectMapper.readTree(it).get("variants") }.getOrNull() }
+        return if (variants != null && variants.isArray && variants.size() > 0) variants.size() else 1
     }
 }

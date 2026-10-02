@@ -79,6 +79,11 @@ export default function CertificationsPage() {
               </Link>
               <span className="flex items-center gap-2">
                 <span className="text-xs text-foreground-muted">{d.bestScore !== null ? `최고 ${d.bestScore}점` : "미완료"}</span>
+                {(d.passedVariants ?? 0) > 0 && (
+                  <span className="text-xs text-foreground-muted" title="서로 다른 꼬리설계 변형을 몇 개 통과했는지 — 한 번 통과로는 '신뢰'가 되지 않습니다">
+                    변형 {d.passedVariants}/{d.totalVariants ?? 1}
+                  </span>
+                )}
                 <Badge variant={d.passed ? "success" : "neutral"}>{d.passed ? "완료" : "미완료"}</Badge>
               </span>
             </li>

@@ -175,6 +175,11 @@ export default function TrackPage() {
                 <p className="mt-2 text-sm text-foreground-muted">아직 인증 전입니다. 이 트랙의 공식 Drill을 통과하면 인증됩니다.</p>
               )}
               {myDomain.bestScore !== null && <p className="mt-1 text-xs text-foreground-muted">최고 {myDomain.bestScore}점</p>}
+              {/* PLAN.md Round E21 (M10) — one pass isn't mastery: how many different tail-design variants held up. */}
+              <p className="mt-1 text-xs text-foreground-muted">
+                통과한 변형 {myDomain.passedVariants ?? 0}/{myDomain.totalVariants ?? 1}
+                {(myDomain.passedVariants ?? 0) >= 2 ? " · 신뢰" : (myDomain.passedVariants ?? 0) === 1 ? " · 다른 변형으로 한 번 더 확인해 보세요" : ""}
+              </p>
               <Link href="/certifications" className="mt-3 inline-block text-xs underline">
                 전체 인증 현황
               </Link>

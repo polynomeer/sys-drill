@@ -198,6 +198,8 @@ M1·M2·M7·M8은 시나리오 콘텐츠(INITIAL 프롬프트를 일부러 불�
 - 저장 없이 세션·제출 이력에서 계산([ADR-0011](adr/0011-derived-values-are-never-persisted.md)). 트랙 페이지와 인증 페이지에 표시하고, Learning의 개념 숙련 표시([LEARNING_EXPANSION_PLAN.md](LEARNING_EXPANSION_PLAN.md) L7)와 같은 규칙을 공유합니다.
 - **DrillScore에는 넣지 않습니다** — ADR-0042는 "도메인별 최고점"으로 반복을 무력화했는데, 신뢰도를 점수에 섞으면 반복이 다시 보상받습니다.
 
+  **확정(2026-10-02, Round E21 구현 시)**: 변형의 "통과" = 그 세션 평균 점수가 인증 통과 점수 이상(인증과 같은 기준, 공식 시나리오·채용 평가 제외 규칙도 인증 그대로). 변형의 정체성과 세기는 L7과 **같은 함수**(`ConceptMasteryService.variantOf`/`distinctVariants`) — L7은 "그 개념 미지적"을, M10은 "통과 점수"를 통과 조건으로 넘긴다. 분모는 현재 공식 버전 FOLLOWUP의 변형 수(단일 프롬프트면 1). 인증 응답의 도메인별 `passedVariants/totalVariants`로만 내려가고 `passed`·인증·DrillScore는 그대로다.
+
 ### M11 — 인시던트 상태 공지 ✦
 
 - INCIDENT 답안에 구조화 필드 `고객 공지 초안`을 추가(`We are investigating elevated latency affecting checkout…`). 평가는 **기존 INCIDENT 평가 한 번에 합쳐서** 루브릭 "커뮤니케이션(5점)"의 근거로 씁니다. 원본의 명료성·정확성·과장 여부는 평가 프롬프트의 관점 목록으로.

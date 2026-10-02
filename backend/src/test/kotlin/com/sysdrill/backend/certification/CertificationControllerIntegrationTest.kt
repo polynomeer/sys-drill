@@ -52,9 +52,10 @@ class CertificationControllerIntegrationTest(
         completeSession(userId, version.id!!, score)
     }
 
-    private fun completeSession(userId: UUID, scenarioVersionId: UUID, score: Int) {
+    private fun completeSession(userId: UUID, scenarioVersionId: UUID, score: Int, variantKey: String? = null) {
         val session = sessionRepository.save(
             Session(userId = userId, scenarioVersionId = scenarioVersionId, status = SessionStatus.COMPLETED, completedAt = Instant.now())
+                .apply { if (variantKey != null) missionState = """{"followupVariantKey":"$variantKey"}""" }
         )
         val submission = submissionRepository.save(Submission(sessionId = session.id!!, phase = "INITIAL"))
         evaluationRepository.save(Evaluation(submissionId = submission.id!!, totalScore = score, isActive = true))
@@ -137,5 +138,24 @@ class CertificationControllerIntegrationTest(
 
         mockMvc.perform(get("/certifications/me"))
             .andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `variant confidence counts different passed variants, not repeats`() {
+        val user = createUser("cert-variants")
+        val scenario = officialScenarios.first { it.domain == "coupon" }
+        val version = scenarioVersionRepository.findFirstByScenarioIdAndStatusOrderByVersionNoDesc(scenario.id!!, "PUBLISHED")!!
+        repeat(3) { completeSession(user.id!!, version.id!!, passingScore + 5, variantKey = "a") }
+        completeSession(user.id!!, version.id!!, passingScore - 20, variantKey = "b") // below the bar
+        val once = mockMvc.perform(get("/certifications/me").header("Authorization", bearerHeader(user.id!!)))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        val coupon = JsonPath.read<List<Map<String, Any?>>>(once, "$.domains").first { it["domain"] == "coupon" }
+        assertThat(coupon["passedVariants"]).isEqualTo(1)
+        assertThat(coupon["totalVariants"] as Int).isGreaterThanOrEqualTo(1)
+
+        completeSession(user.id!!, version.id!!, passingScore, variantKey = "b")
+        val twice = mockMvc.perform(get("/certifications/me").header("Authorization", bearerHeader(user.id!!)))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        assertThat(JsonPath.read<List<Map<String, Any?>>>(twice, "$.domains").first { it["domain"] == "coupon" }["passedVariants"]).isEqualTo(2)
     }
 }
