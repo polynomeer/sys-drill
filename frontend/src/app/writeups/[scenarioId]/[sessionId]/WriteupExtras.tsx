@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
+  ApiError,
   type WriteupComparison,
   type WriteupDetail,
+  createFork,
   getWriteupComparison,
   setWriteupNote,
 } from "@/lib/api";
@@ -202,6 +205,55 @@ export function ComparePanel({ sessionId }: { sessionId: string }) {
           </dl>
         </>
       )}
+    </Card>
+  );
+}
+
+/**
+ * docs/COMMUNITY_EXPANSION_PLAN.md C9 (PLAN.md Round E16) — "Fork My Run": pick a moment in
+ * this writeup's incident and take over from there. Rule-based incidents only (ADR-0046).
+ */
+export function ForkMyRunPanel({ writeup }: { writeup: WriteupDetail }) {
+  const router = useRouter();
+  const [pending, setPending] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const summary = writeup.summary;
+  if (!summary?.forkable) return null;
+
+  const steps = [{ label: "인시던트 시작 직후", seconds: 0 }, ...summary.actions.map((a, i) => ({ label: `${a} 직후`, seconds: summary.actionSeconds[i] ?? 0 }))];
+
+  async function fork(atStep: number) {
+    setPending(atStep);
+    setError(null);
+    try {
+      const created = await createFork(writeup.sessionId, atStep);
+      router.push(`/writeups/${writeup.scenarioId}/${writeup.sessionId}/fork/${created.forkId}`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "포크를 만들지 못했습니다.");
+      setPending(null);
+    }
+  }
+
+  return (
+    <Card as="section">
+      <h2 className="mb-1 text-sm font-semibold text-foreground-muted">여기서 내가 해보기</h2>
+      <p className="mb-3 text-xs text-foreground-muted">
+        이 풀이의 인시던트를 고른 시점의 상태 그대로 이어받아, 내 판단으로 대응해 봅니다. 결과는 이 풀이와 나란히 비교되고 기록에는 남지 않습니다.
+      </p>
+      <ol className="flex flex-col gap-1.5">
+        {steps.map((step, i) => (
+          <li key={i} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span>
+              <span className="mr-2 font-mono text-xs text-foreground-muted">+{formatDuration(step.seconds)}</span>
+              {step.label}
+            </span>
+            <Button size="sm" variant="secondary" onClick={() => fork(i)} disabled={pending !== null}>
+              {pending === i ? "여는 중..." : "여기서 내가 해보기"}
+            </Button>
+          </li>
+        ))}
+      </ol>
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
     </Card>
   );
 }

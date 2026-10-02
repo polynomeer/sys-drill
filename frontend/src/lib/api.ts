@@ -1504,6 +1504,10 @@ export interface WriteupDesignSummary {
   nodeKinds: Record<string, number>;
   changedTraits: { key: string; value: number; defaultValue: number }[];
   actions: string[];
+  /** PLAN.md Round E16 (C9) — seconds into the incident per action. */
+  actionSeconds: number[];
+  /** Rule-based incidents only can be forked (ADR-0046). */
+  forkable: boolean;
 }
 
 export interface CompareSide {

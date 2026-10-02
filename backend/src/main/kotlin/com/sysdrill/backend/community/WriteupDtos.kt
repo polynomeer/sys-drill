@@ -51,6 +51,10 @@ data class WriteupDesignSummary(
     val nodeKinds: Map<String, Int>,
     val changedTraits: List<TraitValue>,
     val actions: List<String>,
+    /** PLAN.md Round E16 (C9) — seconds into the incident for each action, so a reader can fork "from here". */
+    val actionSeconds: List<Long> = emptyList(),
+    /** Only rule-based incidents can be forked (ADR-0016/0046). */
+    val forkable: Boolean = false,
 )
 
 data class TraitValue(val key: String, val value: Int, val defaultValue: Int)

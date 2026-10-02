@@ -52,6 +52,7 @@ class WriteupService(
     private val postmortemService: PostmortemService,
     private val objectMapper: ObjectMapper,
     private val systemTopologyService: com.sysdrill.backend.simulation.SystemTopologyService,
+    private val simulationService: com.sysdrill.backend.simulation.SimulationService,
 ) {
 
     @Transactional
@@ -196,6 +197,8 @@ class WriteupService(
                         .filter { (k, v) -> profile!!.defaults[k] != v }
                         .map { (k, v) -> TraitValue(k, v, profile!!.defaults.getValue(k)) },
                     actions = postmortem?.actionsTimeline?.map { it.actionType }.orEmpty(),
+                    actionSeconds = postmortem?.actionsTimeline?.map { it.elapsedSeconds }.orEmpty(),
+                    forkable = runCatching { simulationService.forkSource(sessionId).engineMode == "RULE_BASED" }.getOrDefault(false),
                 )
             },
         )

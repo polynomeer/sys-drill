@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { formatDuration } from "@/lib/metrics";
-import { ComparePanel, WriteupSummaryCard } from "./WriteupExtras";
+import { ComparePanel, ForkMyRunPanel, WriteupSummaryCard } from "./WriteupExtras";
 
 const PHASE_LABELS: Record<string, string> = {
   INITIAL: "초기 설계",
@@ -79,6 +79,7 @@ export default function WriteupDetailPage() {
           {/* docs/COMMUNITY_EXPANSION_PLAN.md C8 (PLAN.md Round E15) */}
           <WriteupSummaryCard writeup={writeup} onUpdated={setWriteup} />
           {!writeup.mine && <ComparePanel sessionId={writeup.sessionId} />}
+          {!writeup.mine && <ForkMyRunPanel writeup={writeup} />}
 
           <Card as="section">
             <h2 className="mb-3 text-sm font-semibold text-foreground-muted">단계별 답안</h2>

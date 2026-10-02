@@ -1,7 +1,6 @@
 package com.sysdrill.backend.simulation
 
 import com.sysdrill.backend.auth.AuthenticatedUserId
-import com.sysdrill.backend.session.SessionAccessGuard
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
@@ -18,13 +17,21 @@ data class CreateForkRequest(val atStep: Int)
 @RestController
 class ForkController(
     private val forkService: ForkService,
-    private val sessionAccessGuard: SessionAccessGuard,
+    private val sessionRepository: com.sysdrill.backend.session.SessionRepository,
+    private val writeupService: com.sysdrill.backend.community.WriteupService,
 ) {
 
+    /**
+     * Your own session (M6), or — docs/COMMUNITY_EXPANSION_PLAN.md C9 "Fork My Run" — someone
+     * else's **public writeup** you're allowed to read: exactly the ADR-0041 gate (you completed
+     * that scenario), checked by asking for the writeup itself. A fork exposes nothing the
+     * writeup's replay doesn't already show, and it's yours alone (ADR-0046).
+     */
     @PostMapping("/sessions/{sessionId}/forks")
     @ResponseStatus(HttpStatus.CREATED)
     fun create(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID, @RequestBody request: CreateForkRequest): ForkResponse {
-        sessionAccessGuard.requireOwner(sessionId, userId)
+        val session = sessionRepository.findById(sessionId).orElseThrow { com.sysdrill.backend.common.web.NotFoundException("Session not found: $sessionId") }
+        if (session.userId != userId) writeupService.detail(sessionId, userId) // 404 if private, 403 if not completed
         return forkService.create(sessionId, userId, request.atStep)
     }
 
