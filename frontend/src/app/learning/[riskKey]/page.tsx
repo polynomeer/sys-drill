@@ -113,6 +113,42 @@ export default function LearningConceptPage() {
       ),
     },
   ];
+  // PLAN.md Round E19 (L8) — the Pattern Library's core: what goes wrong when applying it, and when not to.
+  if ((concept.badFixes?.length ?? 0) > 0 || concept.whenNotToUse) {
+    blocks.push({
+      key: "pitfalls",
+      node: (
+        <Card as="section">
+          {(concept.badFixes?.length ?? 0) > 0 && (
+            <>
+              <h2 className="mb-2 text-sm font-semibold text-foreground-muted">흔한 잘못된 대응</h2>
+              <ul className="mb-3 space-y-1 text-sm text-foreground-muted">
+                {concept.badFixes!.map((b) => (
+                  <li key={b}>✗ {b}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          {concept.whenNotToUse && (
+            <>
+              <h2 className="mb-1 text-sm font-semibold text-foreground-muted">쓰지 말아야 할 때</h2>
+              <p className="text-sm leading-relaxed text-foreground-muted">{concept.whenNotToUse}</p>
+            </>
+          )}
+          {(concept.failurePatterns?.length ?? 0) > 0 && (
+            <p className="mt-3 flex flex-wrap gap-2 text-xs">
+              <span className="text-foreground-muted">이 개념이 얽힌 장애 패턴:</span>
+              {concept.failurePatterns!.map((d) => (
+                <Link key={d} href={`/learning/failures/${d}`} className="underline">
+                  {DOMAIN_TITLES[d] ?? d}
+                </Link>
+              ))}
+            </p>
+          )}
+        </Card>
+      ),
+    });
+  }
   // docs/CODECRAFTERS_BENCHMARK.md §3.6 — self-check before the call to action.
   blocks.push({ key: "quiz", node: <ConceptQuizCard riskKey={riskKey} /> });
   if (hasTryIt) {

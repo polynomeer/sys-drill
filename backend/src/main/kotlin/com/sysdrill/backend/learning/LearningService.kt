@@ -21,6 +21,7 @@ class LearningService(
     private val objectMapper: ObjectMapper,
     private val conceptMasteryService: ConceptMasteryService,
     private val labRepository: LearningLabRepository,
+    private val failurePatternRepository: FailurePatternRepository,
 ) {
 
     fun categories(userId: UUID): List<LearningCategory> {
@@ -88,6 +89,9 @@ class LearningService(
                 labels[other]?.let { RelatedConceptLink(other, it, relation) }
             },
             labs = labRepository.findAllByOrderByDisplayOrderAsc().filter { it.riskKey == riskKey }.map { it.slug },
+            badFixes = concept.badFixes,
+            whenNotToUse = concept.whenNotToUse,
+            failurePatterns = failurePatternRepository.findAllByOrderByDisplayOrderAsc().filter { riskKey in it.relatedConcepts }.map { it.domain },
         )
     }
 

@@ -47,6 +47,11 @@ data class LearningConceptDetail(
     val relatedConcepts: List<RelatedConceptLink> = emptyList(),
     /** Labs (L5) that exercise this concept — the stage rail's Experiment/Break. */
     val labs: List<String> = emptyList(),
+    /** PLAN.md Round E19 (L8). */
+    val badFixes: List<String> = emptyList(),
+    val whenNotToUse: String = "",
+    /** Incident domains whose failure pattern lists this concept. */
+    val failurePatterns: List<String> = emptyList(),
 )
 
 data class RelatedConceptLink(val riskKey: String, val label: String, val relation: String)

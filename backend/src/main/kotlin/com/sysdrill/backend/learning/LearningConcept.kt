@@ -73,6 +73,14 @@ class LearningConcept(
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "related_concepts", nullable = false, columnDefinition = "jsonb")
     var relatedConcepts: List<Map<String, String>> = emptyList(),
+
+    /** PLAN.md Round E19 (L8) — fixes that look right but aren't, and when this pattern is the wrong tool. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "bad_fixes", nullable = false, columnDefinition = "jsonb")
+    var badFixes: List<String> = emptyList(),
+
+    @Column(name = "when_not_to_use", nullable = false)
+    var whenNotToUse: String = "",
 )
 
 interface LearningConceptRepository : JpaRepository<LearningConcept, String> {

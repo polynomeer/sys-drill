@@ -1057,6 +1057,37 @@ export interface LearningConceptDetail {
   relatedConcepts?: RelatedConceptLink[];
   /** Lab slugs (L5) for this concept. */
   labs?: string[];
+  /** PLAN.md Round E19 (L8) — fixes that look right but aren't, and when this pattern is the wrong tool. */
+  badFixes?: string[];
+  whenNotToUse?: string;
+  /** Incident domains whose failure pattern involves this concept. */
+  failurePatterns?: string[];
+}
+
+/** PLAN.md Round E19 (L8) — 장애 패턴 사전, 인시던트 도메인과 1:1. */
+export interface FailurePatternSummary {
+  domain: string;
+  name: string;
+  summary: string;
+  symptoms: string[];
+}
+
+export interface FailurePatternDetail extends FailurePatternSummary {
+  typicalMetrics: string[];
+  typicalLogs: string[];
+  commonCauses: string[];
+  badFixes: { fix: string; why: string }[];
+  mitigations: string[];
+  prevention: string[];
+  relatedConcepts: RelatedConceptLink[];
+}
+
+export function listFailurePatterns(): Promise<FailurePatternSummary[]> {
+  return apiFetch<FailurePatternSummary[]>("/learning/failures");
+}
+
+export function getFailurePattern(domain: string): Promise<FailurePatternDetail> {
+  return apiFetch<FailurePatternDetail>(`/learning/failures/${domain}`);
 }
 
 /** docs/LEARNING_COMMUNITY_PLAN.md §5.3 — 내 약점에서 파생한 학습 경로 (저장되지 않음). */

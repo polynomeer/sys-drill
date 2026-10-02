@@ -2062,9 +2062,13 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 - 최근 창 N=1, 변형 = `도메인:변형키`(이전 세션은 `base`) — LEARNING_EXPANSION_PLAN L7 확정 사항.
 - V62 엣지 26개. 지도는 3열×2단 배치와 카테고리 머리 노드, 노드 위 마우스 시 이웃만 강조.
 
-#### Round E19 — 장애 패턴 사전 · Bad Fixes (L8)
-- [ ] `failure_patterns`(도메인 키) 7개 시딩, `/learning/failures`
-- [ ] `learning_concepts.bad_fixes`, `when_not_to_use` + 25개 콘텐츠
+#### Round E19 — 장애 패턴 사전 · Bad Fixes (L8) ✅ 완료 (2026-10-02)
+- [x] `failure_patterns`(도메인 키) 7개 시딩, `/learning/failures`
+- [x] `learning_concepts.bad_fixes`, `when_not_to_use` + 25개 콘텐츠
+
+**완료 기준 충족**: 카탈로그 테스트(모든 개념에 두 필드, 패턴 도메인 = 엔진 `KNOWN_DOMAINS`, 패턴이 실제 개념만 가리킴, 잘못된 대응·로그 비어 있지 않음) + API 테스트(목록 7개, 알림 패턴의 "컨슈머만 늘리기", 없는 도메인 404, 개념 상세의 `failurePatterns`). 격리 환경에서 Learning → 장애 패턴 사전 → "Consumer Lag · 재시도 폭풍"(증상·지표·로그·원인·틀린 대응·완화·예방·관련 개념·Drill 버튼), Circuit Breaker 개념의 "흔한 잘못된 대응 / 쓰지 말아야 할 때 / 얽힌 장애 패턴".
+
+**진행 중 발견한 결정 사항**: V63. 패턴의 잘못된 대응은 `{fix, why}`, 문구는 엔진 수식과 대조, 전형적 로그는 E17 로그 템플릿과 같은 문구(LEARNING_EXPANSION_PLAN L8 확정 사항).
 
 #### Round E20 — 가정 (M7) + 제약·비용·복잡도 (M8)
 - [ ] INITIAL `content.assumptions` 선택/추가, FOLLOWUP 변형 `breaks` → 고정된 변형 기준 "깨진 가정" 표시

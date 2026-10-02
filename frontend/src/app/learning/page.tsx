@@ -59,6 +59,18 @@ export default function LearningPage() {
         <span className="text-accent">→</span>
       </Link>
 
+      {/* PLAN.md Round E19 (L8) — 장애 패턴 사전 */}
+      <Link
+        href="/learning/failures"
+        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
+      >
+        <span>
+          <span className="block font-medium">장애 패턴 사전</span>
+          <span className="block text-sm text-foreground-muted">인시던트 7개의 증상·지표·로그와 그럴듯하지만 틀린 대응(Bad Fixes).</span>
+        </span>
+        <span className="text-accent">→</span>
+      </Link>
+
       {/* docs/LEARNING_EXPANSION_PLAN.md §5 — 랩: 읽는 대신 값을 바꿔 보는 곳 */}
       <Link
         href="/learning/labs"

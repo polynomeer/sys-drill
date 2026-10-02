@@ -92,4 +92,23 @@ class LearningConceptCatalogTest(
             next[from].orEmpty().any { it == target || (seen.add(it) && reaches(it, target, seen)) }
         assertThat(seeded.keys.filter { reaches(it, it) }).describedAs("선행 관계 순환").isEmpty()
     }
+
+    @Autowired
+    lateinit var failurePatternRepository: FailurePatternRepository
+
+    @Test
+    fun `개념마다 잘못된 대응과 쓰지 말아야 할 때가 있다`() {
+        assertThat(seeded.values.filter { it.badFixes.isEmpty() || it.whenNotToUse.isBlank() }.map { it.riskKey })
+            .describedAs("bad_fixes/when_not_to_use가 빈 개념").isEmpty()
+    }
+
+    @Test
+    fun `장애 패턴은 인시던트 도메인과 1대1이고 실제 개념만 가리킨다`() {
+        val patterns = failurePatternRepository.findAll()
+        assertThat(patterns.map { it.domain }).containsExactlyInAnyOrderElementsOf(
+            com.sysdrill.backend.simulation.RuleBasedSimulationEngine.KNOWN_DOMAINS
+        )
+        assertThat(patterns.flatMap { it.relatedConcepts }.filter { it !in seeded.keys }).describedAs("없는 개념").isEmpty()
+        assertThat(patterns.filter { it.badFixes.isEmpty() || it.typicalLogs.isEmpty() }.map { it.domain }).isEmpty()
+    }
 }

@@ -62,4 +62,25 @@ class LearningConceptListApiTest(
         assertThat(JsonPath.read<List<String>>(detail, "$.relatedConcepts[?(@.riskKey == 'MISSING_IDEMPOTENCY')].relation")).containsExactly("PREREQUISITE")
         assertThat(JsonPath.read<String>(detail, "$.mastery")).isEqualTo("NOT_STARTED")
     }
+
+    @Test
+    fun `failure patterns list seven domains and a detail carries bad fixes and concept links`() {
+        val userId = userRepository.save(
+            User(email = "fail-${UUID.randomUUID()}@example.com", passwordHash = "hash", nickname = "fail")
+        ).id!!
+        val list = mockMvc.perform(get("/learning/failures").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        assertThat(JsonPath.read<List<String>>(list, "$[*].domain")).hasSize(7).startsWith("coupon")
+
+        val detail = mockMvc.perform(get("/learning/failures/notification").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        assertThat(JsonPath.read<List<String>>(detail, "$.badFixes[*].fix")).contains("컨슈머만 늘리기")
+        assertThat(JsonPath.read<List<String>>(detail, "$.relatedConcepts[*].riskKey")).contains("MISSING_CIRCUIT_BREAKER")
+        mockMvc.perform(get("/learning/failures/nope").header("Authorization", bearerHeader(userId))).andExpect(status().isNotFound)
+
+        val concept = mockMvc.perform(get("/learning/concepts/MISSING_CIRCUIT_BREAKER").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        assertThat(JsonPath.read<List<String>>(concept, "$.badFixes")).isNotEmpty()
+        assertThat(JsonPath.read<List<String>>(concept, "$.failurePatterns")).contains("notification", "payment")
+    }
 }
