@@ -19,6 +19,17 @@ data class MissionState(
     val slo: SloTargets? = null,
     /** O5 (PLAN.md Round E12) — alert rules, evaluated over the incident's time series. */
     val alertRules: List<AlertRule> = emptyList(),
+    /**
+     * O7 (PLAN.md Round E26) — what was switched on before the incident "deployed". Null for a
+     * session that never saw the readiness step (older ones, API-only starts): everything on.
+     */
+    val readiness: Readiness? = null,
+)
+
+data class Readiness(
+    val structuredLogging: Boolean = true,
+    val tracing: Boolean = true,
+    val confirmedAt: java.time.Instant? = null,
 )
 
 /** docs/DRILLS_EXPANSION_PLAN.md M3 — what "healthy" means for this system, set before the incident. */

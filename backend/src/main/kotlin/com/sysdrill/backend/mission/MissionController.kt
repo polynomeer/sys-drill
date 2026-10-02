@@ -17,6 +17,7 @@ import java.util.UUID
 class MissionController(
     private val missionService: MissionService,
     private val costEstimateService: CostEstimateService,
+    private val readinessService: ReadinessService,
     private val sessionAccessGuard: SessionAccessGuard,
 ) {
 
@@ -86,5 +87,22 @@ class MissionController(
     fun costEstimate(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): CostEstimateResponse {
         sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
         return costEstimateService.estimate(sessionId)
+    }
+
+    /** O7 (PLAN.md Round E26) — the pre-incident readiness check. */
+    @GetMapping("/readiness")
+    fun readiness(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): ReadinessResponse {
+        sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
+        return readinessService.get(sessionId)
+    }
+
+    @PutMapping("/readiness")
+    fun confirmReadiness(
+        @PathVariable sessionId: UUID,
+        @AuthenticatedUserId userId: UUID,
+        @RequestBody request: ConfirmReadinessRequest,
+    ): ReadinessResponse {
+        sessionAccessGuard.requireOwner(sessionId, userId)
+        return readinessService.confirm(sessionId, request)
     }
 }

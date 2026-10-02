@@ -929,6 +929,21 @@ export function resolveIncident(sessionId: string): Promise<RecoveryReport> {
   return apiFetch<RecoveryReport>(`/sessions/${sessionId}/simulation/resolve`, { method: "POST" });
 }
 
+/** docs/OBSERVABILITY_UI_PLAN.md O7 (PLAN.md Round E26) — the pre-incident readiness check. */
+export interface Readiness {
+  items: { key: string; label: string; checked: boolean; auto: boolean }[];
+  confirmed: boolean;
+  locked: boolean;
+}
+
+export function getReadiness(sessionId: string): Promise<Readiness> {
+  return apiFetch<Readiness>(`/sessions/${sessionId}/readiness`);
+}
+
+export function confirmReadiness(sessionId: string, input: { structuredLogging: boolean; tracing: boolean }): Promise<Readiness> {
+  return apiFetch<Readiness>(`/sessions/${sessionId}/readiness`, { method: "PUT", body: JSON.stringify(input) });
+}
+
 export function getOpsConfig(sessionId: string): Promise<OpsConfig> {
   return apiFetch<OpsConfig>(`/sessions/${sessionId}/ops`);
 }

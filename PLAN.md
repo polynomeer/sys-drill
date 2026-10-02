@@ -2129,8 +2129,12 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 **진행 중 발견한 결정 사항**: 세션 태그(`sysdrill.session_id`)는 이미 DB 관측 스팬에 붙어 있어 계측 추가 없음. 합성은 로그 줄의 trace id에서만, 루트 = 그 시점 p95(OBSERVABILITY_UI_PLAN O6 확정 사항). Traces 탭 이벤트 `observe_tab_traces`, 트레이스 열람은 `OPEN_TRACE` 조사 기록.
 
-#### Round E26 — Production Readiness · 관측 품질 (O7)
-- [ ] 인시던트 직전 체크(알림·SLO·구조화 로그·트레이싱), 트레이싱 미활성 시 트레이스 탭 "No data", 관측 품질 규칙 판정을 평가 프롬프트 사전 점검으로
+#### Round E26 — Production Readiness · 관측 품질 (O7) ✅ 완료 (2026-10-02)
+- [x] 인시던트 직전 체크(알림·SLO·구조화 로그·트레이싱), 트레이싱 미활성 시 트레이스 탭 "No data", 관측 품질 규칙 판정을 평가 프롬프트 사전 점검으로
+
+**완료 기준 충족**: 신규 `ReadinessIntegrationTest`(알림 규칙 자동 체크·SLO 미체크, 끈 채로 배포 → 인시던트 후 변경 409·locked, 트레이스 없음+"트레이싱이 비활성" 문구, 로그가 `app`·trace id 없음, 프롬프트 섹션에 규칙 수·끈 스위치·열어본 화면). 격리 환경: 인시던트 단계 진입 시 "배포 전 준비" 화면 → 추천 알림 규칙 추가하자 ✓로 바뀜 → 구조화 로그만 켜고 배포 → (쿠폰은 이어서 실전 인프라 선택) → Traces 탭 "No data — 배포 시 트레이싱이 비활성이었습니다".
+
+**진행 중 발견한 결정 사항**: `mission_state.readiness`, 두 스위치 기본 꺼짐, 기록 없는 세션은 전부 켜진 것으로(OBSERVABILITY_UI_PLAN O7 확정 사항). 준비 화면에 Alerts 편집기를 그대로 둬 같은 자리에서 규칙·SLO를 채운다. 실전 인프라 선택 화면은 준비 화면 다음.
 
 #### Round E27 — 개인 Runbook (M12)
 - [ ] `user_runbooks`, 포스트모템에서 작성·수정, 다음 같은 도메인 인시던트에서 조사 이벤트와 대조

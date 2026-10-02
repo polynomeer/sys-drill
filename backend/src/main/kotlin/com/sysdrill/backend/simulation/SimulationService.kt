@@ -419,9 +419,12 @@ class SimulationService(
         val series = getSeries(sessionId, now)
         val start = series.incidentStartedAt ?: return emptyList()
         val domain = series.domain ?: return emptyList()
-        return LogGenerator.generate(domain, sessionId.toString(), start, series.points.map { it.first }, series.actions)
+        val lines = LogGenerator.generate(domain, sessionId.toString(), start, series.points.map { it.first }, series.actions)
             .filter { !it.at.isAfter(now) }
             .takeLast(LOG_MAX_LINES)
+        // PLAN.md Round E26 (O7) — deployed without structured logging: plain text lines, no service or trace field to filter on.
+        val structured = sessionRepository.findById(sessionId).map { missionService.state(it).readiness?.structuredLogging ?: true }.orElse(true)
+        return if (structured) lines else lines.map { it.copy(service = "app", message = "${it.service} ${it.message}", traceId = null) }
     }
 
     /**

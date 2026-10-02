@@ -12,6 +12,7 @@ import {
   applySimulationAction,
   InvestigationKind,
   getCostEstimate,
+  getReadiness,
   getSimulationLogs,
   getSimulationSeries,
   getSimulationState,
@@ -34,6 +35,7 @@ import { ServiceMap } from "./ServiceMap";
 import { AlertsView } from "./AlertsView";
 import { RecoveryCard } from "./RecoveryCard";
 import { TracesView } from "./TracesView";
+import { ReadinessGate } from "./ReadinessGate";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
 import { trackEvent } from "@/lib/events";
 
@@ -289,6 +291,15 @@ export function WargameLive({
   // ever show this pre-start gate; every other domain keeps auto-starting
   // immediately, unchanged. A spectator never sees this gate — only the owner starts the incident.
   const [awaitingStartChoice, setAwaitingStartChoice] = useState(isOwner && REAL_INFRA_DOMAINS.has(domain));
+  // PLAN.md Round E26 (O7) — the owner goes through the readiness check once before the incident starts.
+  // null = still asking the server; false = done (or a spectator, or the incident already ran).
+  const [readinessPending, setReadinessPending] = useState<boolean | null>(isOwner ? null : false);
+  useEffect(() => {
+    if (!isOwner) return;
+    getReadiness(sessionId)
+      .then((r) => setReadinessPending(!(r.confirmed || r.locked)))
+      .catch(() => setReadinessPending(false));
+  }, [sessionId, isOwner]);
   const [realInfraChoice, setRealInfraChoice] = useState(false);
   // Phase 3-B — Traffic Lab: only coupon's real-infra pilot honors these
   // (NotificationLoadRunner takes no rate/duration parameter at all).
@@ -345,13 +356,13 @@ export function WargameLive({
   }, [sessionId, domain, isOwner, pushLog, initialTraits, refreshLogs]);
 
   useEffect(() => {
-    if (awaitingStartChoice) return;
+    if (awaitingStartChoice || readinessPending !== false) return;
     // Data fetch on mount, not a cascading render loop.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshState();
     const timer = setInterval(refreshState, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [refreshState, awaitingStartChoice]);
+  }, [refreshState, awaitingStartChoice, readinessPending]);
 
   // The real-infra gate used to re-show on every reload even for an incident that was already
   // running (startIncident is idempotent, so a second click was harmless but pointless). Skip it
@@ -426,6 +437,13 @@ export function WargameLive({
     } finally {
       setApplying(null);
     }
+  }
+
+  if (readinessPending === null) {
+    return <p className="text-sm text-foreground-muted">시뮬레이션을 준비하는 중...</p>;
+  }
+  if (readinessPending) {
+    return <ReadinessGate sessionId={sessionId} onDone={() => setReadinessPending(false)} />;
   }
 
   if (awaitingStartChoice) {

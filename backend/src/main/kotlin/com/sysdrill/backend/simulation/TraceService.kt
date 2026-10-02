@@ -42,6 +42,8 @@ data class TraceView(val traceId: String, val source: String, val at: Instant, v
 @Service
 class TraceService(
     private val simulationService: SimulationService,
+    private val sessionRepository: com.sysdrill.backend.session.SessionRepository,
+    private val missionService: com.sysdrill.backend.mission.MissionService,
     private val objectMapper: ObjectMapper,
     @Value("\${sysdrill.tracing.jaeger-query-url:http://localhost:16686}") jaegerQueryUrl: String,
     @Value("\${spring.application.name:backend}") private val serviceName: String,
@@ -52,6 +54,8 @@ class TraceService(
     fun list(sessionId: UUID, now: Instant = Instant.now()): TraceList {
         val series = simulationService.getSeries(sessionId, now)
         if (series.incidentStartedAt == null) return TraceList(SYNTHETIC, available = false, traces = emptyList())
+        // PLAN.md Round E26 (O7) — tracing switched off at "deploy": there is simply nothing to look at.
+        if (!tracingOn(sessionId)) return TraceList(SYNTHETIC, available = false, traces = emptyList(), note = TRACING_OFF)
         if (series.engineMode == EngineMode.REAL_INFRA.name) return jaegerList(sessionId)
         val lines = simulationService.getLogs(sessionId, now).filter { it.traceId != null }
         val traces = lines.distinctBy { it.traceId }.takeLast(MAX_TRACES).asReversed().mapNotNull { line ->
@@ -63,6 +67,7 @@ class TraceService(
     }
 
     fun get(sessionId: UUID, traceId: String, now: Instant = Instant.now()): TraceView {
+        if (!tracingOn(sessionId)) throw NotFoundException("Trace not found: $traceId")
         val series = simulationService.getSeries(sessionId, now)
         if (series.engineMode == EngineMode.REAL_INFRA.name) return jaegerTrace(traceId)
         val line = simulationService.getLogs(sessionId, now).lastOrNull { it.traceId == traceId }
@@ -71,6 +76,9 @@ class TraceService(
         val spans = SyntheticTraces.spans(series.domain.orEmpty(), point, line.level == "ERROR")
         return TraceView(traceId, SYNTHETIC, line.at, spans.first().durationMs, spans)
     }
+
+    private fun tracingOn(sessionId: UUID): Boolean =
+        sessionRepository.findById(sessionId).map { missionService.state(it).readiness?.tracing ?: true }.orElse(true)
 
     private fun nearest(series: SimulationSeries, at: Instant): TelemetryPoint? =
         series.points.map { it.first }.filter { !it.at.isAfter(at) }.maxByOrNull { it.at } ?: series.points.firstOrNull()?.first
@@ -125,6 +133,7 @@ class TraceService(
         const val JAEGER = "JAEGER"
         const val SYNTHETIC = "SYNTHETIC"
         const val SESSION_TAG = "sysdrill.session_id"
+        const val TRACING_OFF = "배포 시 트레이싱이 비활성이었습니다."
         private const val MAX_TRACES = 20
         private val TRACE_ID = Regex("^[0-9a-f]{8,32}$")
     }
