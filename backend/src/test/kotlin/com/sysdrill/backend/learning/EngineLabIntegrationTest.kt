@@ -45,11 +45,11 @@ class EngineLabIntegrationTest(
     private fun runOk(slug: String, body: String): String = run(slug, body).andExpect(status().isOk).andReturn().response.contentAsString
 
     @Test
-    fun `all seven domains have a lab, each with the incident's defaults on its knobs`() {
+    fun `every official domain has a lab, each with the incident's defaults on its knobs`() {
         val list = mockMvc.perform(get("/learning/labs").header("Authorization", bearerHeader(user)))
             .andExpect(status().isOk).andReturn().response.contentAsString
         assertThat(JsonPath.read<List<String>>(list, "$[?(@.kind == 'ENGINE')].domain")).containsExactlyInAnyOrder(
-            "coupon", "notification", "product-browsing", "payment", "reservation", "batch-settlement", "autoscaling",
+            "coupon", "notification", "product-browsing", "payment", "reservation", "batch-settlement", "autoscaling", "deployment",
         )
         val view = mockMvc.perform(get("/learning/labs/engine-coupon-bottleneck/engine").header("Authorization", bearerHeader(user)))
             .andExpect(status().isOk).andReturn().response.contentAsString
@@ -79,5 +79,16 @@ class EngineLabIntegrationTest(
         run("engine-coupon-bottleneck", """{"traits":{"cacheTtlSeconds":9999}}""").andExpect(status().isBadRequest)
         run("engine-coupon-bottleneck", """{"traits":{"rateLimitEnabled":"yes"}}""").andExpect(status().isBadRequest)
         run("capacity-feed", "{}").andExpect(status().isNotFound) // not an engine lab
+    }
+
+    @Test
+    fun `the canary lab doubles failures with each step and rollback returns to baseline`() {
+        fun errorRate(body: String) = JsonPath.read<Double>(runOk("engine-canary-rollout", body), "$.errorRate")
+        val start = errorRate("""{"traits":{"canaryStartPercent":10,"rolloutPromotions":0},"incidentActive":true}""")
+        val twoSteps = errorRate("""{"traits":{"canaryStartPercent":10,"rolloutPromotions":2},"incidentActive":true}""")
+        assertThat(start).isCloseTo(0.001 + 0.10 * 0.6, delta)
+        assertThat(twoSteps).isCloseTo(0.001 + 0.40 * 0.6, delta)
+        assertThat(errorRate("""{"traits":{"rolloutPromotions":2,"rolledBack":true},"incidentActive":true}""")).isCloseTo(0.001, delta)
+        run("engine-canary-rollout", """{"traits":{"autoRollbackErrorPct":5},"incidentActive":true}""").andExpect(status().isBadRequest)
     }
 }

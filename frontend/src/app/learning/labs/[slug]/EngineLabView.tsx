@@ -21,6 +21,7 @@ const METRIC_META: Partial<Record<keyof SystemState, { label: string; format: (v
   trafficRps: { label: "트래픽", format: (v) => `${v.toFixed(0)}/s` },
   p95LatencyMs: { label: "P95 지연", format: formatMs },
   errorRate: { label: "에러율", format: formatPercent },
+  availability: { label: "가용성", format: formatPercent },
   dbReadLoad: { label: "DB 읽기 사용률", format: formatPercent },
   dbWriteLoad: { label: "DB 쓰기 사용률", format: formatPercent },
   connectionPoolUsage: { label: "커넥션 풀 사용률", format: formatPercent },
