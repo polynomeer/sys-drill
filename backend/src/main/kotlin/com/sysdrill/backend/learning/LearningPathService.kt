@@ -2,17 +2,10 @@ package com.sysdrill.backend.learning
 
 import com.sysdrill.backend.common.readIntMap
 import com.sysdrill.backend.content.ContentItemRepository
-import com.sysdrill.backend.evaluation.EvaluationRepository
-import com.sysdrill.backend.evaluation.EvaluationRiskFlagRepository
 import com.sysdrill.backend.evaluation.RuleEvaluator
 import com.sysdrill.backend.identity.SkillProfileRepository
 import com.sysdrill.backend.identity.weakestCategory
 import com.sysdrill.backend.scenario.ScenarioRepository
-import com.sysdrill.backend.session.Session
-import com.sysdrill.backend.session.SessionRepository
-import com.sysdrill.backend.session.SessionService
-import com.sysdrill.backend.session.SessionStatus
-import com.sysdrill.backend.submission.SubmissionRepository
 import java.util.UUID
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -35,11 +28,7 @@ import tools.jackson.databind.ObjectMapper
 class LearningPathService(
     private val conceptRepository: LearningConceptRepository,
     private val skillProfileRepository: SkillProfileRepository,
-    private val sessionRepository: SessionRepository,
-    private val sessionService: SessionService,
-    private val submissionRepository: SubmissionRepository,
-    private val evaluationRepository: EvaluationRepository,
-    private val riskFlagRepository: EvaluationRiskFlagRepository,
+    private val conceptMasteryService: ConceptMasteryService,
     private val scenarioRepository: ScenarioRepository,
     private val contentItemRepository: ContentItemRepository,
     private val objectMapper: ObjectMapper,
@@ -60,12 +49,13 @@ class LearningPathService(
             .map { it.key }
 
         val concepts = conceptRepository.findAllById(targetKeys).associateBy { it.riskKey }
-        val history = loadHistory(userId)
+        val history = conceptMasteryService.history(userId)
         val titles = domainTitles()
 
         val steps = targetKeys.mapNotNull { riskKey ->
             val concept = concepts[riskKey] ?: return@mapNotNull null
-            val (status, evidence) = statusOf(concept, history, titles)
+            val mastery = conceptMasteryService.masteryOf(concept, history)
+            val (status, evidence) = statusOf(concept, mastery, titles)
             LearningPathStep(
                 riskKey = riskKey,
                 label = concept.label,
@@ -75,6 +65,7 @@ class LearningPathService(
                 evidence = evidence,
                 relatedDomains = concept.relatedDomains,
                 relatedChallenges = concept.relatedChallenges,
+                mastery = mastery.level,
             )
         }
 
@@ -91,64 +82,27 @@ class LearningPathService(
     }
 
     /**
-     * 완료 세션을 도메인별로 최신순으로 모으고, 각 세션에서 지적받은 riskKey 집합을 붙인다.
-     * 세션 단위 조회를 N번 하지 않도록 제출 → 평가 → 리스크 플래그를 한 번씩 일괄로 읽는다.
-     */
-    private fun loadHistory(userId: UUID): DomainHistory {
-        val completed = sessionRepository.findByUserIdOrderByStartedAtDesc(userId)
-            .filter { it.status == SessionStatus.COMPLETED }
-        if (completed.isEmpty()) return DomainHistory(emptyMap())
-
-        val sessionIds = completed.mapNotNull { it.id }
-        val submissions = submissionRepository.findBySessionIdIn(sessionIds)
-        val evaluations = evaluationRepository
-            .findBySubmissionIdInAndIsActiveTrue(submissions.mapNotNull { it.id })
-        val sessionIdBySubmissionId = submissions.mapNotNull { s -> s.id?.let { it to s.sessionId } }.toMap()
-        val flags = riskFlagRepository.findByEvaluationIdIn(evaluations.mapNotNull { it.id })
-        val sessionIdByEvaluationId = evaluations.mapNotNull { e ->
-            e.id?.let { it to sessionIdBySubmissionId[e.submissionId] }
-        }.mapNotNull { (evalId, sessionId) -> sessionId?.let { evalId to it } }.toMap()
-
-        val flaggedKeysBySessionId = flags
-            .mapNotNull { flag -> sessionIdByEvaluationId[flag.evaluationId]?.let { it to flag.riskKey } }
-            .groupBy({ it.first }, { it.second })
-            .mapValues { (_, keys) -> keys.toSet() }
-
-        // findByUserIdOrderByStartedAtDesc 가 최신순이므로 각 도메인의 첫 항목이 최신 완료 세션이다.
-        val byDomain = mutableMapOf<String, MutableList<CompletedRun>>()
-        completed.forEach { session ->
-            val domain = runCatching { sessionService.getScenarioDomain(session) }.getOrNull() ?: return@forEach
-            byDomain.getOrPut(domain) { mutableListOf() }
-                .add(CompletedRun(session, flaggedKeysBySessionId[session.id] ?: emptySet()))
-        }
-        return DomainHistory(byDomain)
-    }
-
-    /**
-     * 상태 판정 규칙(기획서 §5.3):
-     * - 관련 도메인 완료 이력 없음 → NOT_STARTED
-     * - 가장 최근 완료 세션에서 이 riskKey 를 또 지적받음 → IN_PROGRESS
-     * - 지적이 없었음 → ADDRESSED
+     * 상태 판정 규칙(기획서 §5.3) — PLAN.md Round E18부터 [ConceptMasteryService] 의 4단계에서 파생한다:
+     * - 미시작 → NOT_STARTED
+     * - 약점(가장 최근 관련 세션에서 또 지적) → IN_PROGRESS
+     * - 연습함·신뢰(가장 최근 관련 세션에서 미지적) → ADDRESSED
      *
      * 최근 1회만 보는 것은 의도다. 누적 카운트로 판정하면 한 번 지적받은 개념은
      * 영원히 "미해결"로 남아, 실제로 고친 사용자에게 경로가 갱신되지 않는다.
      */
     private fun statusOf(
         concept: LearningConcept,
-        history: DomainHistory,
+        mastery: ConceptMastery,
         titles: Map<String, String>,
     ): Pair<LearningStepStatus, String> {
         fun title(domain: String) = titles[domain] ?: domain
 
-        val runs = concept.relatedDomains.flatMap { history.byDomain[it].orEmpty() }
-        if (runs.isEmpty()) {
+        if (mastery.level == MasteryLevel.NOT_STARTED) {
             val domains = concept.relatedDomains.joinToString(" · ") { title(it) }.ifBlank { "관련 시나리오" }
             return LearningStepStatus.NOT_STARTED to "$domains 완료 이력이 없습니다."
         }
-        val latest = runs.maxBy { it.session.startedAt }
-        val domain = runCatching { sessionService.getScenarioDomain(latest.session) }.getOrNull()
-        val where = domain?.let { "가장 최근 ${title(it)} 세션" } ?: "가장 최근 완료 세션"
-        return if (concept.riskKey in latest.flaggedRiskKeys) {
+        val where = mastery.latestDomain?.let { "가장 최근 ${title(it)} 세션" } ?: "가장 최근 완료 세션"
+        return if (mastery.level == MasteryLevel.WEAK) {
             LearningStepStatus.IN_PROGRESS to "$where 에서 다시 지적받았습니다."
         } else {
             LearningStepStatus.ADDRESSED to "$where 에서는 지적되지 않았습니다."
@@ -176,7 +130,4 @@ class LearningPathService(
         steps = emptyList(),
     )
 
-    private data class CompletedRun(val session: Session, val flaggedRiskKeys: Set<String>)
-
-    private class DomainHistory(val byDomain: Map<String, List<CompletedRun>>)
 }

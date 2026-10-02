@@ -65,6 +65,14 @@ class LearningConcept(
 
     @Column(name = "display_order", nullable = false)
     var displayOrder: Int = 0,
+
+    /**
+     * PLAN.md Round E18 (L7) — knowledge-map edges as `[{key, relation}]`. PREREQUISITE: `key`
+     * comes before this concept. RELATED: undirected, stored on one side only.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "related_concepts", nullable = false, columnDefinition = "jsonb")
+    var relatedConcepts: List<Map<String, String>> = emptyList(),
 )
 
 interface LearningConceptRepository : JpaRepository<LearningConcept, String> {

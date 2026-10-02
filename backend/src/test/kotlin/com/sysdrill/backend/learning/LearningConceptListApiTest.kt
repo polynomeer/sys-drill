@@ -44,4 +44,22 @@ class LearningConceptListApiTest(
         val minutes = JsonPath.read<List<Int>>(response, "$[*].concepts[?(@.riskKey == '${expected.riskKey}')].readingMinutes")
         assertThat(minutes.single()).isEqualTo(expected.readingMinutes()).isGreaterThanOrEqualTo(1)
     }
+
+    @Test
+    fun `the knowledge map has every concept with mastery, and a concept lists its neighbours`() {
+        val userId = userRepository.save(
+            User(email = "map-${UUID.randomUUID()}@example.com", passwordHash = "hash", nickname = "map")
+        ).id!!
+
+        val map = mockMvc.perform(get("/learning/map").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        assertThat(JsonPath.read<List<String>>(map, "$.nodes[*].riskKey")).hasSize(conceptRepository.count().toInt())
+        assertThat(JsonPath.read<List<String>>(map, "$.nodes[*].mastery").toSet()).containsExactly("NOT_STARTED")
+        assertThat(JsonPath.read<List<String>>(map, "$.edges[?(@.source == 'MISSING_IDEMPOTENCY')].target")).contains("MISSING_PAYMENT_IDEMPOTENCY")
+
+        val detail = mockMvc.perform(get("/learning/concepts/MISSING_PAYMENT_IDEMPOTENCY").header("Authorization", bearerHeader(userId)))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        assertThat(JsonPath.read<List<String>>(detail, "$.relatedConcepts[?(@.riskKey == 'MISSING_IDEMPOTENCY')].relation")).containsExactly("PREREQUISITE")
+        assertThat(JsonPath.read<String>(detail, "$.mastery")).isEqualTo("NOT_STARTED")
+    }
 }

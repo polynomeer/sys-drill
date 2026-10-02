@@ -1006,6 +1006,27 @@ export interface LearningConceptSummary {
   relatedDomains?: string[];
   /** Server-estimated reading time of the full concept (minutes, ≥ 1). */
   readingMinutes?: number;
+  /** PLAN.md Round E18 (L7) — derived from Drill results only. */
+  mastery?: MasteryLevel;
+}
+
+/** PLAN.md Round E18 (L7) — 미시작 / 약점 / 연습함 / 신뢰. */
+export type MasteryLevel = "NOT_STARTED" | "WEAK" | "PRACTICED" | "CONFIDENT";
+
+export interface RelatedConceptLink {
+  riskKey: string;
+  label: string;
+  /** PREREQUISITE: comes before this one. NEXT: this one unlocks it. RELATED: undirected. */
+  relation: "PREREQUISITE" | "NEXT" | "RELATED";
+}
+
+export interface KnowledgeMap {
+  nodes: { riskKey: string; label: string; category: string; categoryLabel: string; mastery: MasteryLevel }[];
+  edges: { source: string; target: string; relation: "PREREQUISITE" | "RELATED" }[];
+}
+
+export function getKnowledgeMap(): Promise<KnowledgeMap> {
+  return apiFetch<KnowledgeMap>("/learning/map");
 }
 
 export interface LearningCategory {
@@ -1030,6 +1051,12 @@ export interface LearningConceptDetail {
   relatedChallenges: string[];
   myWeaknessCount: number;
   readingMinutes?: number;
+  mastery?: MasteryLevel;
+  /** Different variants where this concept wasn't flagged (2+ = 신뢰). */
+  cleanVariants?: number;
+  relatedConcepts?: RelatedConceptLink[];
+  /** Lab slugs (L5) for this concept. */
+  labs?: string[];
 }
 
 /** docs/LEARNING_COMMUNITY_PLAN.md §5.3 — 내 약점에서 파생한 학습 경로 (저장되지 않음). */
@@ -1045,6 +1072,7 @@ export interface LearningPathStep {
   evidence: string;
   relatedDomains: string[];
   relatedChallenges: string[];
+  mastery?: MasteryLevel;
 }
 
 export interface LearningPath {

@@ -32,6 +32,10 @@ class LearningController(
         learningService.categories(userId)
 
     /** docs/LEARNING_COMMUNITY_PLAN.md §5.3 — 내 약점에서 파생한 학습 경로. 저장하지 않는다. */
+    /** PLAN.md Round E18 (L7) — the knowledge map. */
+    @GetMapping("/map")
+    fun map(@AuthenticatedUserId userId: UUID): KnowledgeMap = learningService.map(userId)
+
     @GetMapping("/path")
     fun path(@AuthenticatedUserId userId: UUID): LearningPath = learningPathService.forUser(userId)
 

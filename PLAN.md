@@ -2051,9 +2051,16 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 - 차트 구간 드래그 → 로그 범위는 보류하고 알림 "조사하기"(발화 −1분~+2분)로 먼저 연결했다(OBSERVABILITY_UI_PLAN 확정 사항).
 - 함께 고친 기존 테스트 문제: `SessionControllerIntegrationTest`가 공식 쿠폰 단계 콘텐츠를 `[1,2,3]`으로 덮어쓰고 복원하지 않아 이후 같은 DB를 쓰는 테스트가 깨졌다(복원 추가). `PostmortemControllerIntegrationTest`는 분당 평가 제한·공유 큐 지연으로 실패해 제한 상향과 대기 30초.
 
-#### Round E18 — 개념 숙련 · 지식 맵 (L7)
-- [ ] 숙련 4단계 파생(변형 수는 M10과 같은 함수 — E21과 공유하므로 여기서 먼저 만든다), 학습 경로 상태와 통합
-- [ ] `learning_concepts.related_concepts` + 25개 엣지 시딩, `/learning/map`(@xyflow), 개념 페이지 단계 레일
+#### Round E18 — 개념 숙련 · 지식 맵 (L7) ✅ 완료 (2026-10-02)
+- [x] 숙련 4단계 파생(변형 수는 M10과 같은 함수 — E21과 공유하므로 여기서 먼저 만든다), 학습 경로 상태와 통합
+- [x] `learning_concepts.related_concepts` + 25개 엣지 시딩, `/learning/map`(@xyflow), 개념 페이지 단계 레일
+
+**완료 기준 충족**: 신규 `ConceptMasteryTest`(무관 도메인은 미시작, 최근 지적은 앞선 통과와 무관하게 약점, 같은 변형 반복은 연습함, 다른 변형 2개(도메인 간 포함)는 신뢰) + 카탈로그 엣지 테스트(없는 키·고립·선행 순환 없음) + `/learning/map`·개념 상세 API 테스트 + 기존 학습 경로 테스트 통과. 격리 환경에서 쿠폰 1회 완료 → 지도(약점 2·연습함 5·미시작 18) → 결제 멱등성 개념 페이지의 단계 레일(이해→실험→적용→검증: 미시작)과 "먼저 볼 개념: 멱등성 처리".
+
+**진행 중 발견한 결정 사항**:
+- `ConceptMasteryService`가 이력 조회(`history`)와 판정(`masteryOf`), 변형 세기(`cleanVariants`, E21 M10 공유)를 한곳에 둔다. 학습 경로는 자기 이력 조회·판정 코드를 지우고 이것을 쓴다.
+- 최근 창 N=1, 변형 = `도메인:변형키`(이전 세션은 `base`) — LEARNING_EXPANSION_PLAN L7 확정 사항.
+- V62 엣지 26개. 지도는 3열×2단 배치와 카테고리 머리 노드, 노드 위 마우스 시 이웃만 강조.
 
 #### Round E19 — 장애 패턴 사전 · Bad Fixes (L8)
 - [ ] `failure_patterns`(도메인 키) 7개 시딩, `/learning/failures`

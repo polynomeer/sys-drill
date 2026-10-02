@@ -76,4 +76,20 @@ class LearningConceptCatalogTest(
 
         assertThat(unknown).describedAs("존재하지 않는 도메인을 가리키는 개념").isEmpty()
     }
+
+    @Test
+    fun `지식 맵 엣지는 실제 개념을 가리키고 모든 개념이 연결되며 선행 관계에 순환이 없다`() {
+        val refs = seeded.values.flatMap { c -> c.relatedConcepts.map { Triple(c.riskKey, it["key"], it["relation"]) } }
+        assertThat(refs.filter { it.second !in seeded.keys }).describedAs("없는 개념을 가리키는 엣지").isEmpty()
+        assertThat(refs.map { it.third }.toSet()).isSubsetOf("PREREQUISITE", "RELATED")
+
+        val connected = refs.flatMap { listOf(it.first, it.second) }.toSet()
+        assertThat(seeded.keys - connected).describedAs("지도에서 고립된 개념 — V62 같은 시드로 엣지를 추가하세요").isEmpty()
+
+        // PREREQUISITE: key → concept. A cycle would make "먼저 볼 개념" meaningless.
+        val next = refs.filter { it.third == "PREREQUISITE" }.groupBy({ it.second!! }, { it.first })
+        fun reaches(from: String, target: String, seen: MutableSet<String> = mutableSetOf()): Boolean =
+            next[from].orEmpty().any { it == target || (seen.add(it) && reaches(it, target, seen)) }
+        assertThat(seeded.keys.filter { reaches(it, it) }).describedAs("선행 관계 순환").isEmpty()
+    }
 }

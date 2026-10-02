@@ -19,11 +19,15 @@ class LearningService(
     private val conceptRepository: LearningConceptRepository,
     private val skillProfileRepository: SkillProfileRepository,
     private val objectMapper: ObjectMapper,
+    private val conceptMasteryService: ConceptMasteryService,
+    private val labRepository: LearningLabRepository,
 ) {
 
     fun categories(userId: UUID): List<LearningCategory> {
         val weaknesses = weaknessCounts(userId)
-        return conceptRepository.findAllByOrderByCategoryAscDisplayOrderAscLabelAsc()
+        val all = conceptRepository.findAllByOrderByCategoryAscDisplayOrderAscLabelAsc()
+        val mastery = conceptMasteryService.masteryByRiskKey(userId, all)
+        return all
             .groupBy { it.category }
             .map { (category, concepts) ->
                 LearningCategory(
@@ -37,6 +41,7 @@ class LearningService(
                             myWeaknessCount = weaknesses[it.riskKey] ?: 0,
                             relatedDomains = it.relatedDomains,
                             readingMinutes = it.readingMinutes(),
+                            mastery = mastery[it.riskKey]?.level ?: MasteryLevel.NOT_STARTED,
                         )
                     },
                     myWeaknessCount = concepts.sumOf { weaknesses[it.riskKey] ?: 0 },
@@ -49,6 +54,9 @@ class LearningService(
     fun detail(riskKey: String, userId: UUID): LearningConceptDetail {
         val concept = conceptRepository.findById(riskKey)
             .orElseThrow { NotFoundException("No learning concept for $riskKey") }
+        val all = conceptRepository.findAll()
+        val labels = all.associate { it.riskKey to it.label }
+        val mastery = conceptMasteryService.masteryOf(concept, conceptMasteryService.history(userId))
         return LearningConceptDetail(
             riskKey = concept.riskKey,
             category = concept.category,
@@ -64,13 +72,55 @@ class LearningService(
             readingMinutes = concept.readingMinutes(),
             relatedChallenges = concept.relatedChallenges,
             myWeaknessCount = weaknessCounts(userId)[riskKey] ?: 0,
+            mastery = mastery.level,
+            cleanVariants = mastery.cleanVariants,
+            relatedConcepts = edges(all).mapNotNull { edge ->
+                val other = when (riskKey) {
+                    edge.source -> edge.target
+                    edge.target -> edge.source
+                    else -> return@mapNotNull null
+                }
+                val relation = when {
+                    edge.relation == RELATED -> RELATED
+                    edge.target == riskKey -> "PREREQUISITE" // the other one comes first
+                    else -> "NEXT" // this one unlocks the other
+                }
+                labels[other]?.let { RelatedConceptLink(other, it, relation) }
+            },
+            labs = labRepository.findAllByOrderByDisplayOrderAsc().filter { it.riskKey == riskKey }.map { it.slug },
         )
+    }
+
+    /** PLAN.md Round E18 (L7) — every concept as a node with my mastery, plus the seeded edges. */
+    fun map(userId: UUID): KnowledgeMap {
+        val all = conceptRepository.findAllByOrderByCategoryAscDisplayOrderAscLabelAsc()
+        val mastery = conceptMasteryService.masteryByRiskKey(userId, all)
+        return KnowledgeMap(
+            nodes = all.map {
+                KnowledgeMapNode(it.riskKey, it.label, it.category, categoryLabel(it.category), mastery[it.riskKey]?.level ?: MasteryLevel.NOT_STARTED)
+            },
+            edges = edges(all),
+        )
+    }
+
+    /** Stored per concept as `[{key, relation}]`; a PREREQUISITE edge points from the prerequisite to the concept. */
+    private fun edges(concepts: List<LearningConcept>): List<KnowledgeMapEdge> {
+        val known = concepts.map { it.riskKey }.toSet()
+        return concepts.flatMap { concept ->
+            concept.relatedConcepts.mapNotNull { ref ->
+                val other = ref["key"]?.takeIf { it in known } ?: return@mapNotNull null
+                if (ref["relation"] == "PREREQUISITE") KnowledgeMapEdge(other, concept.riskKey, "PREREQUISITE")
+                else KnowledgeMapEdge(concept.riskKey, other, RELATED)
+            }
+        }
     }
 
     private fun weaknessCounts(userId: UUID): Map<String, Int> =
         objectMapper.readIntMap(skillProfileRepository.findByUserId(userId)?.weaknesses)
 
     companion object {
+        private const val RELATED = "RELATED"
+
         /**
          * 프론트의 `skillCategoryLabels.ts` 와 같은 값. 카테고리 슬러그는
          * `RuleEvaluator.categoryByRiskKey` 가 정하고, 사람이 읽을 이름만 여기서 붙인다.

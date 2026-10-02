@@ -144,6 +144,13 @@ Learning을 강의·문서 모음이 아니라 **"지식 체계 + 실험실 + �
 - **개념 페이지의 단계 레일**: 원본의 Knowledge Node 7단계(Understand → Visualize → Experiment → Implement → Break → Apply → Verify) 중 **이 개념에 실제로 있는 것만** 표시합니다 — Understand(블록) · Experiment/Break(L5 랩) · Implement(L4 Build 단계) · Apply(Drill) · Verify(숙련 상태). 없는 단계를 빈 칸으로 두지 않습니다.
 - 원본의 거대한 토픽 트리(Networking, Security, CDN…)는 만들지 않습니다. 지도는 **채점 엔진이 아는 25개 개념**의 지도입니다 — 채점과 무관한 노드는 숙련을 파생할 근거가 없습니다.
 
+  **확정(2026-10-02, Round E18 구현 시)**:
+  - "최근 N개"는 **N=1(가장 최근 관련 세션)**. 기존 학습 경로가 최근 1회만 보는 이유(고친 사용자가 몇 판 더 "약점"으로 남지 않게)가 그대로 유효하고, "한 번 맞힌 것"에 대한 방어는 창 크기가 아니라 변형 수(2개 이상)가 맡는다. 경로의 3상태는 4단계에서 사상한다: 미시작→NOT_STARTED, 약점→IN_PROGRESS, 연습함·신뢰→ADDRESSED.
+  - 변형의 정체성은 `도메인:꼬리설계 변형 키`(Round E10에서 FOLLOWUP 진입 시 고정되는 키). 그 이전 세션과 변형이 하나뿐인 시나리오는 `도메인:base` 하나로 친다 — 과거 이력이 신뢰를 부풀리지 않는 보수적 선택. 다른 도메인에서 통과한 것도 다른 변형으로 센다(개념은 여러 도메인에 걸친다).
+  - 엣지는 `learning_concepts.related_concepts`에 `[{key, relation}]`로, PREREQUISITE는 **의존하는 개념 쪽**에(key → 이 개념), RELATED는 한쪽에만 저장한다(V62, 선행 14 + 연관 12). 카탈로그 테스트가 고립 개념 없음·없는 키 없음·선행 순환 없음을 강제한다.
+  - 지도 배치는 카테고리 6개를 3열×2단으로 — 6열을 한 줄에 놓으면 화면 폭에 맞출 때 글자가 읽히지 않는다.
+  - 단계 레일은 이해(블록을 끝까지 읽음) → 실험(랩) → 구현(Build) → 적용(Drill, 관련 세션 완료 시 ✓) → 검증(숙련 4단계, 통과한 변형 수). "Break"는 별도 단계가 아니라 엔진 랩에 포함돼 있어 따로 두지 않는다.
+
 ### L8 — 장애 패턴 사전 + Bad Fixes
 
 - 지금 개념 25개는 "설계 리스크"(멱등성 누락, 동시성 제어 누락…)입니다. 원본의 Failure Encyclopedia는 **장애 패턴**(Cache Stampede, Consumer Lag, Connection Exhaustion…)이라 축이 다릅니다.

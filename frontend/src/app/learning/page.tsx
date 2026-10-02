@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { LearningPathPanel } from "@/components/LearningPathPanel";
 import { DESIGN_GUIDANCE_BY_DOMAIN, DOMAIN_TITLES, INCIDENT_GUIDANCE } from "@/lib/designGuidance";
+import { MASTERY_META } from "@/lib/mastery";
 
 /**
  * docs/LEARNING_COMMUNITY_PLAN.md §5.2 (슬라이스 2).
@@ -46,6 +47,18 @@ export default function LearningPage() {
         </p>
       </div>
 
+      {/* PLAN.md Round E18 (L7) — 25개 개념의 지도 */}
+      <Link
+        href="/learning/map"
+        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
+      >
+        <span>
+          <span className="block font-medium">지식 맵</span>
+          <span className="block text-sm text-foreground-muted">채점 엔진이 아는 25개 개념과 선행 관계 — 내 숙련 상태가 노드에 표시됩니다.</span>
+        </span>
+        <span className="text-accent">→</span>
+      </Link>
+
       {/* docs/LEARNING_EXPANSION_PLAN.md §5 — 랩: 읽는 대신 값을 바꿔 보는 곳 */}
       <Link
         href="/learning/labs"
@@ -64,6 +77,14 @@ export default function LearningPage() {
       {categories && (
         <>
           {path && <LearningPathPanel path={path} />}
+          <p className="text-xs text-foreground-muted">
+            {(["NOT_STARTED", "WEAK", "PRACTICED", "CONFIDENT"] as const).map((level) => (
+              <span key={level} className="mr-3">
+                {MASTERY_META[level].symbol} {MASTERY_META[level].label}
+              </span>
+            ))}
+            — 숙련은 훈련 결과에서만 파생합니다(읽기만으로는 바뀌지 않음).
+          </p>
           {totalWeakness > 0 && (
             <p className="text-xs text-foreground-muted">
               아래 개념 목록은 약점이 많은 역량부터 정렬했습니다 (총 {totalWeakness}회 지적).
@@ -87,7 +108,14 @@ export default function LearningPage() {
                     <Link key={concept.riskKey} href={`/learning/${concept.riskKey}`} className="block">
                       <Card className="h-full transition-colors hover:border-accent">
                         <div className="mb-1 flex items-baseline justify-between gap-2">
-                          <h3 className="font-medium">{concept.label}</h3>
+                          <h3 className="font-medium">
+                            {concept.mastery && (
+                              <span className="mr-1.5" title={`${MASTERY_META[concept.mastery].label} — ${MASTERY_META[concept.mastery].hint}`} aria-label={MASTERY_META[concept.mastery].label}>
+                                {MASTERY_META[concept.mastery].symbol}
+                              </span>
+                            )}
+                            {concept.label}
+                          </h3>
                           {concept.myWeaknessCount > 0 && (
                             <span className="shrink-0 text-xs text-danger">{concept.myWeaknessCount}회 놓침</span>
                           )}

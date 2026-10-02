@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Button } from "@/components/ui/Button";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
+import { MASTERY_META } from "@/lib/mastery";
 
 /**
  * docs/LEARNING_COMMUNITY_PLAN.md §5.2 / §5.4 — 개념 상세.
@@ -193,6 +194,39 @@ export default function LearningConceptPage() {
           읽는 데 약 {concept.readingMinutes ?? 1}분 · {shown} / {blocks.length} 블록
         </p>
         <p className="mt-3 leading-relaxed">{concept.summary}</p>
+        <StageRail
+          stages={[
+            { label: "이해", done: done, href: undefined },
+            ...(labs.length > 0 ? [{ label: "실험", done: false, href: `/learning/labs/${labs[0].slug}` }] : []),
+            ...(concept.relatedChallenges.length > 0 ? [{ label: "구현", done: false, href: `/bridge?challenge=${concept.relatedChallenges[0]}` }] : []),
+            ...(relatedScenarios.length > 0
+              ? [{ label: "적용", done: (concept.mastery ?? "NOT_STARTED") !== "NOT_STARTED", href: `/drills/${relatedScenarios[0].id}` }]
+              : []),
+          ]}
+          mastery={concept.mastery ?? "NOT_STARTED"}
+          cleanVariants={concept.cleanVariants ?? 0}
+        />
+        {(concept.relatedConcepts?.length ?? 0) > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            {(["PREREQUISITE", "NEXT", "RELATED"] as const).map((relation) => {
+              const links = concept.relatedConcepts!.filter((r) => r.relation === relation);
+              if (links.length === 0) return null;
+              return (
+                <span key={relation} className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-foreground-muted">{RELATION_LABELS[relation]}</span>
+                  {links.map((r) => (
+                    <Link key={r.riskKey} href={`/learning/${r.riskKey}`} className="rounded-full border border-border px-2 py-0.5 hover:border-accent">
+                      {r.label}
+                    </Link>
+                  ))}
+                </span>
+              );
+            })}
+            <Link href="/learning/map" className="text-foreground-muted underline">
+              지식 맵
+            </Link>
+          </div>
+        )}
       </div>
 
       {blocks.slice(0, shown).map((block) => (
@@ -209,5 +243,50 @@ function PracticeStep({ title, hint, children }: { title: string; hint: string; 
       <p className="mb-2 text-xs text-foreground-muted">{hint}</p>
       <div className="flex flex-wrap gap-2">{children}</div>
     </li>
+  );
+}
+
+const RELATION_LABELS = { PREREQUISITE: "먼저 볼 개념", NEXT: "이어서", RELATED: "함께 볼 개념" } as const;
+
+/**
+ * PLAN.md Round E18 (docs/LEARNING_EXPANSION_PLAN.md L7) — the Knowledge Node stages this concept
+ * actually has (no empty slots), ending in Verify = mastery derived from Drill results.
+ */
+function StageRail({
+  stages,
+  mastery,
+  cleanVariants,
+}: {
+  stages: { label: string; done: boolean; href?: string }[];
+  mastery: import("@/lib/api").MasteryLevel;
+  cleanVariants: number;
+}) {
+  const meta = MASTERY_META[mastery];
+  return (
+    <ol aria-label="학습 단계" className="mt-4 flex flex-wrap items-center gap-1.5 text-xs">
+      {stages.map((stage, i) => (
+        <li key={stage.label} className="flex items-center gap-1.5">
+          {i > 0 && <span className="text-foreground-muted">→</span>}
+          {stage.href ? (
+            <Link href={stage.href} className={`rounded-full border px-2.5 py-0.5 hover:border-accent ${stage.done ? "border-success/50 text-success" : "border-border"}`}>
+              {stage.done ? "✓ " : ""}
+              {stage.label}
+            </Link>
+          ) : (
+            <span className={`rounded-full border px-2.5 py-0.5 ${stage.done ? "border-success/50 text-success" : "border-border"}`}>
+              {stage.done ? "✓ " : ""}
+              {stage.label}
+            </span>
+          )}
+        </li>
+      ))}
+      <li className="flex items-center gap-1.5">
+        <span className="text-foreground-muted">→</span>
+        <span className="rounded-full border border-border px-2.5 py-0.5" title={meta.hint}>
+          검증: {meta.symbol} {meta.label}
+          {cleanVariants > 0 && <span className="text-foreground-muted"> · 변형 {cleanVariants}개 통과</span>}
+        </span>
+      </li>
+    </ol>
   );
 }

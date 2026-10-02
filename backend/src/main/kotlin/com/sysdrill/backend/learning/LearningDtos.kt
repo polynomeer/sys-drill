@@ -14,6 +14,8 @@ data class LearningConceptSummary(
     val relatedDomains: List<String> = emptyList(),
     /** docs/CODECRAFTERS_BENCHMARK.md §3.6 — estimated reading time of the full concept, see [LearningConcept.readingMinutes]. */
     val readingMinutes: Int = 1,
+    /** PLAN.md Round E18 (L7) — derived from Drill results only; reading never changes it. */
+    val mastery: MasteryLevel = MasteryLevel.NOT_STARTED,
 )
 
 data class LearningCategory(
@@ -39,7 +41,29 @@ data class LearningConceptDetail(
     val relatedChallenges: List<String>,
     val myWeaknessCount: Int,
     val readingMinutes: Int = 1,
+    /** PLAN.md Round E18 (L7). */
+    val mastery: MasteryLevel = MasteryLevel.NOT_STARTED,
+    val cleanVariants: Int = 0,
+    val relatedConcepts: List<RelatedConceptLink> = emptyList(),
+    /** Labs (L5) that exercise this concept — the stage rail's Experiment/Break. */
+    val labs: List<String> = emptyList(),
 )
+
+data class RelatedConceptLink(val riskKey: String, val label: String, val relation: String)
+
+/** PLAN.md Round E18 (L7) — the knowledge map: 25 concepts and their edges, with my mastery on each node. */
+data class KnowledgeMap(val nodes: List<KnowledgeMapNode>, val edges: List<KnowledgeMapEdge>)
+
+data class KnowledgeMapNode(
+    val riskKey: String,
+    val label: String,
+    val category: String,
+    val categoryLabel: String,
+    val mastery: MasteryLevel,
+)
+
+/** [relation] PREREQUISITE (source before target) or RELATED. */
+data class KnowledgeMapEdge(val source: String, val target: String, val relation: String)
 
 /** 학습 경로의 한 단계 상태 — 전부 기존 이력에서 파생한다(ADR-0011). */
 enum class LearningStepStatus {
@@ -64,6 +88,8 @@ data class LearningPathStep(
     val evidence: String,
     val relatedDomains: List<String>,
     val relatedChallenges: List<String>,
+    /** PLAN.md Round E18 — the 4-level mastery [status] is derived from. */
+    val mastery: MasteryLevel = MasteryLevel.NOT_STARTED,
 )
 
 data class LearningPath(
