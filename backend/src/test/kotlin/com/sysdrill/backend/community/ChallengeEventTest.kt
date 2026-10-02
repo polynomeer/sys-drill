@@ -75,15 +75,18 @@ class ChallengeEventTest(
         run(slow, start.plusSeconds(60), 80, resolvedAfter = 900)
         run(outside, start.minusSeconds(600), 99, resolvedAfter = 100)
 
-        val live = service.board(eventId, fast)
-        assertThat(live.entries.map { it.nickname }).containsExactly("빠른", "느린")
-        assertThat(live.entries[0].resolvedSeconds).isEqualTo(400)
-        assertThat(live.entries[0].writeupSessionId).isNull() // no spoilers while it runs
-        assertThat(live.entries[0].mine).isTrue()
+        // Other tests also complete deployment runs in this shared database — look only at this test's people.
+        val ours = setOf("빠른", "느린", "밖")
+        val live = service.board(eventId, fast).entries.filter { it.nickname in ours }
+        assertThat(live.map { it.nickname }).containsExactly("빠른", "느린")
+        assertThat(live[0].resolvedSeconds).isEqualTo(400)
+        assertThat(live[0].writeupSessionId).isNull() // no spoilers while it runs
+        assertThat(live[0].mine).isTrue()
 
-        val after = service.board(eventId, fast, now = Instant.now().plusSeconds(7200))
-        assertThat(after.debriefOpen).isTrue()
-        assertThat(after.entries[0].writeupSessionId).isNotNull()
-        assertThat(after.entries[1].writeupSessionId).isNull() // private run
+        val afterBoard = service.board(eventId, fast, now = Instant.now().plusSeconds(7200))
+        val after = afterBoard.entries.filter { it.nickname in ours }
+        assertThat(afterBoard.debriefOpen).isTrue()
+        assertThat(after[0].writeupSessionId).isNotNull()
+        assertThat(after[1].writeupSessionId).isNull() // private run
     }
 }

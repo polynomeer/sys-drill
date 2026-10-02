@@ -27,7 +27,9 @@ class ScenarioControllerIntegrationTest(@Autowired val mockMvc: MockMvc) {
         mockMvc.perform(get("/scenarios/$COUPON_SCENARIO_ID"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.domain").value("coupon"))
-            .andExpect(jsonPath("$.baseRequirements.nonFunctional.totalCoupons").value(10000))
+            .andExpect(jsonPath("$.baseRequirements.functional[0]").value("상품 조회"))
+            // ADR-0048 / Round E24 — v2's clarifying questions reveal the numbers, so the overview hides them.
+            .andExpect(jsonPath("$.baseRequirements.nonFunctional.totalCoupons").doesNotExist())
     }
 
     @Test
