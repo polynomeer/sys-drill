@@ -1,5 +1,6 @@
 "use client";
 
+import { ReactionBar } from "@/components/ReactionBar";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { DiscussionKind, DiscussionMessage, DiscussionThread } from "@/lib/api";
@@ -299,12 +300,14 @@ export function DiscussionPanel({ scenarioId, compact = false }: { scenarioId: s
             <li key={message.id} className="py-3">
               <MessageHeader message={message} onReport={report} />
               <MessageBody message={message} scenarioId={scenarioId} />
+              {!message.spoilerLocked && <ReactionBar targetType="DISCUSSION" targetId={message.id} initial={message.reactions} mine={message.mine} />}
               {repliesOf(message.id).length > 0 && (
                 <ul className="mt-2 flex flex-col gap-2 border-l-2 border-border pl-3">
                   {repliesOf(message.id).map((reply) => (
                     <li key={reply.id}>
                       <MessageHeader message={reply} onReport={report} />
                       <MessageBody message={reply} scenarioId={scenarioId} />
+                      {!reply.spoilerLocked && <ReactionBar targetType="DISCUSSION" targetId={reply.id} initial={reply.reactions} mine={reply.mine} />}
                     </li>
                   ))}
                 </ul>

@@ -1901,6 +1901,8 @@ export interface DiscussionMessage {
   containsSpoiler: boolean;
   /** Spoiler post and the viewer hasn't completed the scenario — `body` is empty. */
   spoilerLocked: boolean;
+  /** PLAN.md Round E32 (C14). */
+  reactions?: ReactionSummary | null;
 }
 
 export type DiscussionKind = "QUESTION" | "DESIGN" | "RESPONSE" | "INSIGHT";
@@ -1967,6 +1969,7 @@ export interface WriteupComment {
   mine: boolean;
   reportedByMe: boolean;
   createdAt: string | null;
+  reactions?: ReactionSummary | null;
 }
 
 export interface WriteupComments {
@@ -2055,6 +2058,30 @@ export function getChallengeBoard(eventId: string): Promise<ChallengeBoard> {
 
 export function createChallengeEvent(input: { title: string; scenarioId: string; startsAt: string; endsAt: string }): Promise<ChallengeEventSummary> {
   return apiFetch<ChallengeEventSummary>("/admin/events", { method: "POST", body: JSON.stringify(input) });
+}
+
+/** docs/COMMUNITY_EXPANSION_PLAN.md C14 (PLAN.md Round E32) — typed reactions; reputation is their per-domain sum. */
+export type ReactionKind = "HELPFUL" | "INSIGHT" | "GOOD_TRADEOFF";
+
+export interface ReactionSummary {
+  counts: Partial<Record<ReactionKind, number>>;
+  mine: ReactionKind[];
+}
+
+export function toggleReaction(targetType: "DISCUSSION" | "WRITEUP_COMMENT", targetId: string, kind: ReactionKind): Promise<ReactionSummary> {
+  return apiFetch<ReactionSummary>("/community/reactions", { method: "POST", body: JSON.stringify({ targetType, targetId, kind }) });
+}
+
+export interface DomainReputation {
+  domain: string;
+  helpful: number;
+  insight: number;
+  goodTradeoff: number;
+  total: number;
+}
+
+export function getReputation(userId: string): Promise<DomainReputation[]> {
+  return apiFetch<DomainReputation[]>(`/community/users/${userId}/reputation`);
 }
 
 export function getReportedDiscussions(): Promise<ReportedDiscussion[]> {

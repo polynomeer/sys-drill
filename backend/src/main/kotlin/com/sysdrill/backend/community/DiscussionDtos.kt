@@ -33,6 +33,8 @@ data class DiscussionMessage(
     val containsSpoiler: Boolean = false,
     /** 스포일러 글인데 viewer 가 시나리오를 완료하지 않았다 — [body]가 비어 있다. */
     val spoilerLocked: Boolean = false,
+    /** PLAN.md Round E32 (C14). */
+    val reactions: ReactionSummary? = null,
 )
 
 /**

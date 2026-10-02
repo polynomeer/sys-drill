@@ -1,5 +1,7 @@
 "use client";
 
+import { ReputationList } from "@/components/ReactionBar";
+import { type DomainReputation, getReputation } from "@/lib/api";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -139,6 +141,9 @@ export default function ProfilePage() {
       </div>
 
       <PreferencesCard />
+
+      {/* PLAN.md Round E32 (C14) — what my posts earned, per domain; never part of Drill Score */}
+      {certification && <ReputationCard userId={certification.userId} />}
 
       <Card as="section">
         <div className="mb-3 flex items-center justify-between">
@@ -321,5 +326,19 @@ export default function ProfilePage() {
         )}
       </Card>
     </div>
+  );
+}
+
+function ReputationCard({ userId }: { userId: string }) {
+  const [items, setItems] = useState<DomainReputation[] | null>(null);
+  useEffect(() => {
+    getReputation(userId).then(setItems).catch(() => setItems([]));
+  }, [userId]);
+  if (!items) return null;
+  return (
+    <Card as="section">
+      <h2 className="mb-2 text-sm font-semibold text-foreground-muted">분야별 평판</h2>
+      <ReputationList items={items} />
+    </Card>
   );
 }

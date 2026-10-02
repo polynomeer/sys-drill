@@ -40,6 +40,7 @@ class DiscussionService(
     private val reportRepository: ScenarioDiscussionReportRepository,
     private val writeupService: WriteupService,
     private val assessmentSessions: AssessmentSessions,
+    private val reactionService: ReactionService,
 ) {
 
     fun thread(scenarioId: UUID, viewerId: UUID): DiscussionThread {
@@ -188,6 +189,7 @@ class DiscussionService(
             .toSet()
         val quoted = quotedWriteups(messages, completedByMe)
         val visibleIds = messages.mapNotNull { it.id }.toSet()
+        val reactions = reactionService.summaries(ReactionTarget.DISCUSSION, visibleIds, viewerId)
 
         return messages.map { message ->
             val mine = message.authorUserId == viewerId
@@ -207,6 +209,7 @@ class DiscussionService(
                 kind = message.kind,
                 containsSpoiler = message.containsSpoiler,
                 spoilerLocked = spoilerLocked,
+                reactions = reactions[message.id],
             )
         }
     }

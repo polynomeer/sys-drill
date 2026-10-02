@@ -52,6 +52,7 @@ class WriteupCommentReport(
 interface WriteupCommentRepository : JpaRepository<WriteupComment, UUID> {
     fun findBySessionIdOrderByCreatedAtAsc(sessionId: UUID): List<WriteupComment>
     fun findBySessionIdInAndHiddenAtIsNull(sessionIds: Collection<UUID>): List<WriteupComment>
+    fun findByAuthorUserId(authorUserId: UUID): List<WriteupComment>
 }
 
 interface WriteupCommentReportCount {
@@ -95,6 +96,8 @@ data class WriteupCommentView(
     val mine: Boolean,
     val reportedByMe: Boolean,
     val createdAt: Instant?,
+    /** PLAN.md Round E32 (C14). */
+    val reactions: ReactionSummary? = null,
 )
 
 data class WriteupCommentsResponse(val comments: List<WriteupCommentView>, val anchors: List<CommentAnchor>)
@@ -120,6 +123,7 @@ class WriteupCommentService(
     private val systemTopologyService: SystemTopologyService,
     private val simulationService: SimulationService,
     private val userRepository: UserRepository,
+    private val reactionService: ReactionService,
 ) {
     /** Same gate as reading the writeup (ADR-0041, private → 404, not completed → 403). */
     fun list(sessionId: UUID, viewerId: UUID): WriteupCommentsResponse {
@@ -127,6 +131,7 @@ class WriteupCommentService(
         val comments = repository.findBySessionIdOrderByCreatedAtAsc(sessionId).filter { it.hiddenAt == null }
         val nicknames = userRepository.findAllById(comments.map { it.authorUserId }.distinct()).associate { it.id to it.nickname }
         val reported = reportRepository.findByReporterUserIdAndCommentIdIn(viewerId, comments.mapNotNull { it.id }).map { it.commentId }.toSet()
+        val reactions = reactionService.summaries(ReactionTarget.WRITEUP_COMMENT, comments.mapNotNull { it.id }, viewerId)
         return WriteupCommentsResponse(
             comments = comments.map {
                 WriteupCommentView(
@@ -140,6 +145,7 @@ class WriteupCommentService(
                     mine = it.authorUserId == viewerId,
                     reportedByMe = it.id in reported,
                     createdAt = it.createdAt,
+                    reactions = reactions[it.id],
                 )
             },
             anchors = anchors(sessionId),

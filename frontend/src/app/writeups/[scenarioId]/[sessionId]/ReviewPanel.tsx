@@ -11,6 +11,7 @@ import {
   reportWriteupComment,
 } from "@/lib/api";
 import { withActionLabels } from "@/lib/actionLabels";
+import { ReactionBar } from "@/components/ReactionBar";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -134,6 +135,7 @@ export function ReviewPanel({ sessionId }: { sessionId: string }) {
                 ))}
             </div>
             <p className="whitespace-pre-wrap">{c.body}</p>
+            <ReactionBar targetType="WRITEUP_COMMENT" targetId={c.id} initial={c.reactions} mine={c.mine} />
           </li>
         ))}
       </ul>
