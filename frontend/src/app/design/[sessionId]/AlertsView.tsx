@@ -43,8 +43,8 @@ export function AlertsView({
   sessionId: string;
   series: SimulationSeries | null;
   isOwner: boolean;
-  /** Jump to the Metrics tab — the start of an investigation. */
-  onInvestigate: () => void;
+  /** PLAN.md Round E17 — open the logs around this alert (the start of an investigation). */
+  onInvestigate: (alert: AlertEvent) => void;
 }) {
   const [ops, setOps] = useState<OpsConfig | null>(null);
   const [draft, setDraft] = useState<RuleDraft>({ metric: "errorRatePct", op: ">", threshold: 5, forSeconds: 60, severity: "WARN" });
@@ -115,7 +115,7 @@ export function AlertsView({
                   </span>
                 )}
                 {a.falseAlarm && <span className="text-xs text-warning">정상 구간에서 발화(과민)</span>}
-                <Button size="sm" variant="ghost" onClick={onInvestigate}>
+                <Button size="sm" variant="ghost" onClick={() => onInvestigate(a)}>
                   조사하기
                 </Button>
               </li>

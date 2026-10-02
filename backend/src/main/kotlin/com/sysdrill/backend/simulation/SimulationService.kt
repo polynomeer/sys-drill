@@ -61,9 +61,13 @@ data class SimulationSeries(
     val points: List<Pair<TelemetryPoint, HealthStatus>>,
     /** PLAN.md Round E12 (O5) — alerts and SLO judged over these same points. */
     val observability: ObservabilitySummary? = null,
+    /** PLAN.md Round E17 (O4) — what the log generator needs; not part of the API response. */
+    val domain: String? = null,
+    val actions: List<TimedAction> = emptyList(),
 )
 
 private const val SERIES_LEAD_SECONDS = 60L
+private const val LOG_MAX_LINES = 500
 private const val SERIES_TAIL_AFTER_RESOLVE_SECONDS = 120L
 private const val SERIES_MIN_STEP_SECONDS = 5L
 private const val SERIES_MAX_POINTS = 120
@@ -385,23 +389,39 @@ class SimulationService(
             val steps = getTimeline(sessionId)
             val points = steps.map { TelemetryPoint(it.appliedAt, it.systemState, it.systemState.level, backlog = 0) }
             val withNow = if (points.isNotEmpty() && points.last().at.isBefore(now)) points + points.last().copy(at = now) else points
-            return SimulationSeries(engineMode, start, resolvedAt, withNow.zip(TelemetrySampler.classify(withNow, start)), observabilityOf(sessionId, withNow, start))
+            val realDomain = sessionRepository.findById(sessionId).map { resolveDomain(it.scenarioVersionId) }.orElse(null)
+            return SimulationSeries(engineMode, start, resolvedAt, withNow.zip(TelemetrySampler.classify(withNow, start)), observabilityOf(sessionId, withNow, start), realDomain, timedActions(events))
         }
 
         val session = sessionRepository.findById(sessionId).orElseThrow { NotFoundException("Session not found: $sessionId") }
         val domain = resolveDomain(session.scenarioVersionId)
         val traits = systemTopologyService.deriveDesignTraits(sessionId, domain) ?: DesignTraits()
-        val actions = events
-            .filter { it.actionType != INCIDENT_STARTED }
-            .mapNotNull { event ->
-                runCatching { SimulationActionType.valueOf(event.actionType) }.getOrNull()?.let { TimedAction(event.createdAt!!, it) }
-            }
+        val actions = timedActions(events)
         val from = start.minusSeconds(SERIES_LEAD_SECONDS)
         val to = listOfNotNull(maxOf(now, start), start.plus(SERIES_MAX_SPAN), resolvedAt?.plusSeconds(SERIES_TAIL_AFTER_RESOLVE_SECONDS)).min()
         val spanSeconds = java.time.Duration.between(from, to).seconds
         val stepSeconds = maxOf(SERIES_MIN_STEP_SECONDS, Math.ceilDiv(spanSeconds, SERIES_MAX_POINTS.toLong()))
         val points = TelemetrySampler.sample(domain, traits, start, actions, from, to, java.time.Duration.ofSeconds(stepSeconds))
-        return SimulationSeries(engineMode, start, resolvedAt, points.zip(TelemetrySampler.classify(points, start)), observabilityOf(sessionId, points, start))
+        return SimulationSeries(engineMode, start, resolvedAt, points.zip(TelemetrySampler.classify(points, start)), observabilityOf(sessionId, points, start), domain, actions)
+    }
+
+    private fun timedActions(events: List<AppliedAction>): List<TimedAction> = events
+        .filter { it.actionType != INCIDENT_STARTED }
+        .mapNotNull { event ->
+            runCatching { SimulationActionType.valueOf(event.actionType) }.getOrNull()?.let { TimedAction(event.createdAt!!, it) }
+        }
+
+    /**
+     * PLAN.md Round E17 (docs/OBSERVABILITY_UI_PLAN.md O4) — server logs derived from the same
+     * series the charts show, so the two never disagree. The newest [LOG_MAX_LINES] lines.
+     */
+    fun getLogs(sessionId: UUID, now: Instant = Instant.now()): List<LogLine> {
+        val series = getSeries(sessionId, now)
+        val start = series.incidentStartedAt ?: return emptyList()
+        val domain = series.domain ?: return emptyList()
+        return LogGenerator.generate(domain, sessionId.toString(), start, series.points.map { it.first }, series.actions)
+            .filter { !it.at.isAfter(now) }
+            .takeLast(LOG_MAX_LINES)
     }
 
     /**

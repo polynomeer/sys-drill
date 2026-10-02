@@ -10,11 +10,14 @@ import {
   SystemState,
   TimelineStep,
   applySimulationAction,
+  InvestigationKind,
+  getSimulationLogs,
   getSimulationSeries,
   getSimulationState,
   getSimulationTimeline,
   listChatMessages,
   postChatMessage,
+  recordInvestigation,
   startIncident,
 } from "@/lib/api";
 import { formatMs, formatPercent, utilizationColorClass, utilizationStatus } from "@/lib/metrics";
@@ -23,7 +26,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Gauge } from "@/components/ui/Gauge";
 import { Input } from "@/components/ui/Input";
-import { LogEntry, LogLevel, LogViewer } from "./LogViewer";
+import { LogEntry, LogLevel, LogViewer, LogWindow } from "./LogViewer";
 import { MissionControlBar } from "./MissionControlBar";
 import { GoldenSignals, RecentChanges, SeriesCharts } from "./ObserveViews";
 import { ServiceMap } from "./ServiceMap";
@@ -234,11 +237,9 @@ const REAL_INFRA_START_EVENT: Record<string, string> = {
   notification: "실전 인프라 인시던트 시작: 실제 Kafka 토픽·컨슈머 그룹, 실제 프로듀서/컨슈머로 지표를 측정합니다.",
 };
 
-/** PLAN.md UI/UX 리뉴얼 Round 3 — EventStream/Timeline are merged into
- * one client-side log below (see LogViewer.tsx), seeded once from the
- * backend's `GET .../simulation/timeline` (previously unused) and then
- * appended to on real state-level changes. Actions and the incident event
- * text are keyed by scenario domain (PLAN.md step 11). */
+/** PLAN.md UI/UX 리뉴얼 Round 3 merged EventStream/Timeline into one log; since Round E17 (O4)
+ * that log is the server's generated logs plus the director's narration lines. Actions and the
+ * incident event text are keyed by scenario domain (PLAN.md step 11). */
 export function WargameLive({
   sessionId,
   domain,
@@ -261,7 +262,11 @@ export function WargameLive({
   const [steps, setSteps] = useState<TimelineStep[]>([]);
   const [tab, setTab] = useState<ObserveTab>("overview");
   const [appliedActions, setAppliedActions] = useState<Set<SimulationActionType>>(new Set());
+  // The director's narration (client) — everything else in the Logs tab is the server's (O4).
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [serverLogs, setServerLogs] = useState<LogEntry[]>([]);
+  const [logWindow, setLogWindow] = useState<LogWindow | null>(null);
+  const tabRef = useRef<ObserveTab>("overview");
   const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState<SimulationActionType | null>(null);
   const [notStarted, setNotStarted] = useState(false);
@@ -281,9 +286,25 @@ export function WargameLive({
 
   const pushLog = useCallback(
     (message: string, forState: SystemState) => {
-      setLogs((prev) => [...prev, { time: new Date(), level: forState.level, service: domain, message }]);
+      setLogs((prev) => [...prev, { time: new Date(), level: forState.level, service: "director", message }]);
     },
-    [domain],
+    [],
+  );
+
+  const refreshLogs = useCallback(() => {
+    getSimulationLogs(sessionId)
+      .then((lines) =>
+        setServerLogs(lines.map((l) => ({ time: new Date(l.at), level: l.level, service: l.service, message: l.message, traceId: l.traceId }))),
+      )
+      .catch(() => undefined);
+  }, [sessionId]);
+
+  /** O0-b — what the learner looked at; owner only, never blocks the UI. */
+  const look = useCallback(
+    (kind: InvestigationKind, target?: string) => {
+      if (isOwner) recordInvestigation(sessionId, kind, target).catch(() => undefined);
+    },
+    [sessionId, isOwner],
   );
 
   const refreshState = useCallback(async () => {
@@ -293,11 +314,8 @@ export function WargameLive({
       setNotStarted(false);
       // ADR-0045 — the curve comes from the server so reloads and spectators see the same series.
       getSimulationSeries(sessionId).then(setSeries).catch(() => undefined);
-      const level = current.level;
-      if (lastLevelRef.current !== null && lastLevelRef.current !== level) {
-        pushLog(`지표 상태 변화: ${lastLevelRef.current} → ${level}`, current);
-      }
-      lastLevelRef.current = level;
+      if (tabRef.current === "logs") refreshLogs();
+      lastLevelRef.current = current.level;
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         if (!isOwner) {
@@ -313,7 +331,7 @@ export function WargameLive({
         }
       }
     }
-  }, [sessionId, domain, isOwner, pushLog, initialTraits]);
+  }, [sessionId, domain, isOwner, pushLog, initialTraits, refreshLogs]);
 
   useEffect(() => {
     if (awaitingStartChoice) return;
@@ -348,37 +366,14 @@ export function WargameLive({
     [sessionId],
   );
 
-  // Seed the log viewer once from the incident's real timeline (previously unused endpoint) instead of starting blank.
+  // Load the change history once the incident exists (the Logs tab itself is server-generated — O4).
   useEffect(() => {
     if (!state || timelineSeededRef.current) return;
     timelineSeededRef.current = true;
     getSimulationTimeline(sessionId)
-      .then((steps) => {
-        setSteps(steps);
-        if (steps.length === 0) return;
-        // Only seed if nothing has been live-appended yet (a returning/spectating
-        // viewer with an empty panel) — otherwise this fetch, which races the
-        // startIncident call that also flips `state` from null, would overwrite
-        // the just-pushed live incident-start line (AI 4역할 Slice 4's narration,
-        // or the static fallback before it) with the terser stored
-        // AppliedAction.effect ("인시던트 시작") the instant it resolves. Found
-        // during Director live verification — this bug already existed for the
-        // static-string line, just went unnoticed since both said something similar.
-        setLogs((prev) =>
-          prev.length > 0
-            ? prev
-            : steps.map((step) => ({
-                time: new Date(step.appliedAt),
-                level: step.systemState.level,
-                service: domain,
-                message: step.label,
-              })),
-        );
-      })
-      .catch(() => {
-        // best-effort — the panel still works with only live-appended entries
-      });
-  }, [state, sessionId, domain]);
+      .then(setSteps)
+      .catch(() => undefined);
+  }, [state, sessionId]);
 
   async function handleManualStart() {
     started.current = true;
@@ -414,7 +409,7 @@ export function WargameLive({
       getSimulationSeries(sessionId).then(setSeries).catch(() => undefined);
       lastLevelRef.current = updated.level;
       setAppliedActions((prev) => new Set(prev).add(actionType));
-      pushLog(`조치 적용: ${ACTIONS.find((a) => a.type === actionType)?.label}`, updated);
+      if (tabRef.current === "logs") refreshLogs();
     } catch {
       setError("조치를 적용하지 못했습니다.");
     } finally {
@@ -488,8 +483,15 @@ export function WargameLive({
 
   function selectTab(next: ObserveTab) {
     setTab(next);
-    if (next !== "overview") trackEvent(`observe_tab_${next}`);
+    tabRef.current = next;
+    if (next === "logs") refreshLogs();
+    if (next !== "overview") {
+      trackEvent(`observe_tab_${next}`);
+      look("OPEN_PANEL", next);
+    }
   }
+
+  const logEntries = [...logs, ...serverLogs].sort((a, b) => a.time.getTime() - b.time.getTime());
 
   return (
     <div className="flex flex-col gap-4">
@@ -504,7 +506,7 @@ export function WargameLive({
       />
 
       <div role="tablist" aria-label="Observe" className="flex gap-1 overflow-x-auto border-b border-border text-sm">
-        {OBSERVE_TABS.filter((t) => t.key !== "logs" || isOwner).map((t) => (
+        {OBSERVE_TABS.map((t) => (
           <button
             key={t.key}
             type="button"
@@ -525,16 +527,35 @@ export function WargameLive({
         </div>
       )}
       {tab === "alerts" && (
-        <AlertsView sessionId={sessionId} series={series} isOwner={isOwner} onInvestigate={() => selectTab("metrics")} />
+        <AlertsView
+          sessionId={sessionId}
+          series={series}
+          isOwner={isOwner}
+          onInvestigate={(alert) => {
+            const firedAt = new Date(alert.firedAt).getTime();
+            setLogWindow({ from: new Date(firedAt - 60_000), to: new Date(firedAt + 120_000), label: `알림: ${alert.label}` });
+            selectTab("logs");
+          }}
+        />
       )}
-      {tab === "map" && <ServiceMap sessionId={sessionId} domain={domain} latest={latestPoint} />}
+      {tab === "map" && (
+        <ServiceMap sessionId={sessionId} domain={domain} latest={latestPoint} onInspect={(label) => look("INSPECT_NODE", label)} />
+      )}
       {tab === "metrics" && (
         <div className="flex flex-col gap-4">
           <MetricsPanel state={shownState} domain={domain} />
           {series && incidentStartedAt && <SeriesCharts points={series.points} incidentStartedAt={incidentStartedAt} steps={steps} />}
         </div>
       )}
-      {tab === "logs" && isOwner && <LogViewer entries={logs} />}
+      {tab === "logs" && (
+        <LogViewer
+          entries={logEntries}
+          window={logWindow}
+          onClearWindow={() => setLogWindow(null)}
+          onShowMetrics={() => selectTab("metrics")}
+          onQuery={(q) => look("QUERY_LOGS", q)}
+        />
+      )}
       {tab === "changes" && incidentStartedAt && <RecentChanges steps={steps} incidentStartedAt={incidentStartedAt} />}
 
       <div className="grid gap-4 md:grid-cols-2">

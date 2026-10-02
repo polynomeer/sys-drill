@@ -45,7 +45,11 @@ data class PostmortemResponse(
     val recoveryStatus: String? = null,
     val residualBacklog: Long = 0,
     val integrity: List<com.sysdrill.backend.simulation.IntegrityCheck> = emptyList(),
+    /** PLAN.md Round E17 (O0-b) — what the learner looked at, relative to the incident start (negative = before). */
+    val investigations: List<PostmortemInvestigation> = emptyList(),
 )
+
+data class PostmortemInvestigation(val kind: String, val target: String?, val elapsedSeconds: Long)
 
 data class SavePostmortemRequest(
     @field:NotBlank val rootCause: String,

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController
 class SimulationController(
     private val simulationService: SimulationService,
     private val sessionAccessGuard: SessionAccessGuard,
+    private val investigationService: InvestigationService,
 ) {
 
     @PostMapping("/incident")
@@ -75,5 +76,24 @@ class SimulationController(
     fun getTimeline(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): List<TimelineStepResponse> {
         sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
         return simulationService.getTimeline(sessionId).map(TimelineStepResponse::from)
+    }
+
+    /** PLAN.md Round E17 (O4) — server logs generated from the series; spectators too. */
+    @GetMapping("/logs")
+    fun getLogs(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): List<LogLine> {
+        sessionAccessGuard.requireOwnerOrSpectator(sessionId, userId)
+        return simulationService.getLogs(sessionId)
+    }
+
+    /** PLAN.md Round E17 (O0-b) — "what did I look at"; owner only, fire-and-forget. */
+    @PostMapping("/investigations")
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    fun recordInvestigation(
+        @PathVariable sessionId: UUID,
+        @AuthenticatedUserId userId: UUID,
+        @Valid @RequestBody request: RecordInvestigationRequest,
+    ) {
+        sessionAccessGuard.requireOwner(sessionId, userId)
+        investigationService.record(sessionId, request.kind, request.target)
     }
 }

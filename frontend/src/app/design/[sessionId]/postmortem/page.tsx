@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ApiError, Benchmark, Postmortem, getBenchmark, getPostmortem, savePostmortem } from "@/lib/api";
+import { ApiError, Benchmark, Postmortem, PostmortemInvestigation, getBenchmark, getPostmortem, savePostmortem } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { formatDuration, formatMs, formatPercent } from "@/lib/metrics";
 import { Button } from "@/components/ui/Button";
@@ -210,12 +210,22 @@ export default function PostmortemPage() {
             )}
 
             <ul className="mt-4 flex flex-col gap-1 border-t border-border pt-3 text-xs text-foreground-muted  dark:text-foreground-muted">
-              {postmortem.actionsTimeline.map((action, i) => (
-                <li key={i}>
-                  +{formatDuration(action.elapsedSeconds)} — {action.label}
-                </li>
-              ))}
+              {[
+                ...postmortem.actionsTimeline.map((a) => ({ at: a.elapsedSeconds, look: false, text: a.label })),
+                ...(postmortem.investigations ?? []).map((v) => ({ at: v.elapsedSeconds, look: true, text: investigationLabel(v) })),
+              ]
+                .sort((a, b) => a.at - b.at)
+                .map((row, i) => (
+                  <li key={i} className={row.look ? "opacity-70" : "text-foreground"}>
+                    {row.at < 0 ? "-" : "+"}
+                    {formatDuration(Math.abs(row.at))} — {row.look ? "🔍 " : ""}
+                    {row.text}
+                  </li>
+                ))}
             </ul>
+            {(postmortem.investigations?.length ?? 0) > 0 && (
+              <p className="mt-2 text-xs text-foreground-muted">🔍 표시는 조치 전후에 무엇을 보고 판단했는지(조사 기록)입니다. 점수에는 반영되지 않습니다.</p>
+            )}
           </>
         )}
       </Card>
@@ -314,4 +324,20 @@ export default function PostmortemPage() {
         )}
     </div>
   );
+}
+
+const PANEL_LABELS: Record<string, string> = { map: "서비스 맵", metrics: "지표", alerts: "알림", logs: "로그", changes: "변경 이력" };
+
+/** PLAN.md Round E17 (O0-b) — one investigation as a timeline line. */
+function investigationLabel(v: PostmortemInvestigation): string {
+  switch (v.kind) {
+    case "OPEN_PANEL":
+      return `${PANEL_LABELS[v.target ?? ""] ?? v.target ?? ""} 탭 열람`;
+    case "INSPECT_NODE":
+      return `서비스 맵에서 ${v.target ?? ""} 확인`;
+    case "QUERY_LOGS":
+      return `로그 검색 "${v.target ?? ""}"`;
+    case "OPEN_TRACE":
+      return `트레이스 ${v.target ?? ""} 열람`;
+  }
 }

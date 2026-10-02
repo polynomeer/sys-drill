@@ -48,6 +48,7 @@ class PostmortemService(
     private val llmClient: LlmClient,
     private val coachResultParser: PostmortemCoachResultParser,
     private val objectMapper: ObjectMapper,
+    private val investigationService: com.sysdrill.backend.simulation.InvestigationService,
 ) {
 
     /**
@@ -102,6 +103,11 @@ class PostmortemService(
             recoveryStatus = recovery?.status,
             residualBacklog = recovery?.backlog ?: 0,
             integrity = recovery?.integrity.orEmpty(),
+            investigations = incidentStart?.let { start ->
+                investigationService.list(sessionId).map {
+                    PostmortemInvestigation(it.kind, it.target, Duration.between(start.appliedAt, it.createdAt).seconds)
+                }
+            }.orEmpty(),
         )
     }
 

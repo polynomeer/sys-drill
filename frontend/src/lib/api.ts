@@ -290,6 +290,16 @@ export interface Postmortem {
   recoveryStatus: "RECOVERED" | "PARTIAL" | "NOT_RECOVERED" | null;
   residualBacklog: number;
   integrity: IntegrityCheck[];
+  /** PLAN.md Round E17 (O0-b) — what was looked at; seconds from the incident start (negative = before). */
+  investigations: PostmortemInvestigation[];
+}
+
+export type InvestigationKind = "OPEN_PANEL" | "INSPECT_NODE" | "QUERY_LOGS" | "OPEN_TRACE";
+
+export interface PostmortemInvestigation {
+  kind: InvestigationKind;
+  target: string | null;
+  elapsedSeconds: number;
 }
 
 export interface SavePostmortemRequest {
@@ -899,6 +909,27 @@ export function updateAlertRules(
 /** PLAN.md Round E4/E5 — a minute before the incident through now, ≤120 points, nothing stored server-side. */
 export function getSimulationSeries(sessionId: string): Promise<SimulationSeries> {
   return apiFetch<SimulationSeries>(`/sessions/${sessionId}/simulation/series`);
+}
+
+/** PLAN.md Round E17 (O4) — server logs generated from the same series the charts show. */
+export interface SimulationLogLine {
+  at: string;
+  level: "INFO" | "WARN" | "ERROR";
+  service: string;
+  message: string;
+  traceId: string | null;
+}
+
+export function getSimulationLogs(sessionId: string): Promise<SimulationLogLine[]> {
+  return apiFetch<SimulationLogLine[]>(`/sessions/${sessionId}/simulation/logs`);
+}
+
+/** O0-b — fire-and-forget; the server debounces repeats of the same look within 30s. */
+export function recordInvestigation(sessionId: string, kind: InvestigationKind, target?: string): Promise<void> {
+  return apiFetch<void>(`/sessions/${sessionId}/simulation/investigations`, {
+    method: "POST",
+    body: JSON.stringify({ kind, target }),
+  });
 }
 
 export function getPostmortem(sessionId: string): Promise<Postmortem> {
