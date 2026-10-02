@@ -805,6 +805,52 @@ export interface OpsConfig {
   metrics: { key: string; label: string; unit: string }[];
 }
 
+/** docs/DRILLS_EXPANSION_PLAN.md M6 (ADR-0046) — a fork: Redis-only, 1h, never a session. */
+export interface Fork {
+  forkId: string;
+  sourceSessionId: string;
+  domain: string;
+  atStep: number;
+  forkedAtSeconds: number;
+  prefixActions: string[];
+  actions: string[];
+  state: SystemState;
+}
+
+export interface ForkSide {
+  actions: string[];
+  recoveredAtSeconds: number | null;
+  impactSeconds: number;
+  finalErrorRate: number;
+  finalBacklog: number;
+}
+
+export interface ForkComparison {
+  horizonSeconds: number;
+  original: ForkSide;
+  fork: ForkSide;
+}
+
+export function createFork(sessionId: string, atStep: number): Promise<Fork> {
+  return apiFetch<Fork>(`/sessions/${sessionId}/forks`, { method: "POST", body: JSON.stringify({ atStep }) });
+}
+
+export function getFork(forkId: string): Promise<Fork> {
+  return apiFetch<Fork>(`/forks/${forkId}`);
+}
+
+export function getForkSeries(forkId: string): Promise<SimulationSeries> {
+  return apiFetch<SimulationSeries>(`/forks/${forkId}/series`);
+}
+
+export function applyForkAction(forkId: string, actionType: SimulationActionType): Promise<Fork> {
+  return apiFetch<Fork>(`/forks/${forkId}/actions`, { method: "POST", body: JSON.stringify({ actionType }) });
+}
+
+export function getForkComparison(forkId: string): Promise<ForkComparison> {
+  return apiFetch<ForkComparison>(`/forks/${forkId}/comparison`);
+}
+
 /** docs/DRILLS_EXPANSION_PLAN.md M5 — mitigation vs recovery. */
 export interface IntegrityCheck {
   key: string;

@@ -6,7 +6,7 @@ status: accepted
 
 리플레이의 임의 시점에서 "여기서 다르게 해보기"(내 세션 — [DRILLS_EXPANSION_PLAN.md](../DRILLS_EXPANSION_PLAN.md) M6)와 "여기서 내가 해보기"(남의 공개 풀이 — [COMMUNITY_EXPANSION_PLAN.md](../COMMUNITY_EXPANSION_PLAN.md) C9)를 제공한다.
 
-**포크는 `sessions`·`applied_actions` 행을 만들지 않는다.** Redis `fork:{id}`(1시간 TTL)에 도메인, 원본의 기준 trait, 분기 시점까지의 액션 접두부, 포크 이후 액션만 저장하고, 상태는 규칙 기반 엔진으로 매번 재계산한다. 실제 인프라 세션은 포크할 수 없다(스냅샷 기반이라 재계산 불가 — [ADR-0016](0016-incident-replay-snapshots-only-for-real-infra.md)). 같은 결정의 일부로, 이미 있던 "완료 후 샌드박스" 액션이 원래 타임라인에 표시 없이 쌓이던 문제를 `parameters.sandbox=true` 표식과 MTTR·벤치마크·시계열 제외로 고친다.
+**포크는 `sessions`·`applied_actions` 행을 만들지 않는다.** Redis `fork:{id}`(1시간 TTL)에 도메인, 원본의 기준 trait, 분기 시점까지의 액션 접두부, 포크 이후 액션만 저장하고, 상태는 규칙 기반 엔진으로 매번 재계산한다. 실제 인프라 세션은 포크할 수 없다(스냅샷 기반이라 재계산 불가 — [ADR-0016](0016-incident-replay-snapshots-only-for-real-infra.md)). 같은 결정의 일부로, 이미 있던 "완료 후 샌드박스" 액션이 원래 타임라인에 표시 없이 쌓이던 문제를 고친다 — **세션 완료 시각 이후의 액션은 샌드박스로 보고** 리플레이·MTTR·벤치마크·시계열에서 뺀다(구현 시 표식 대신 이 규칙을 택했다: 표식은 이미 쌓인 행을 구분하지 못하지만 완료 시각 규칙은 과거 데이터까지 정리한다). "샌드박스에서 계속 실험하기"는 이제 마지막 단계에서 포크를 만든다.
 
 **이유**: 대안은 포크마다 새 세션(또는 세션 복제)을 만드는 것이었다. 그러면 포크가 세션 상태 머신·리포트·평가 큐·Drill Score·인증·벤치마크·최근 완료자·알림의 모든 집계에 "이건 진짜 훈련이 아님"이라는 예외를 하나씩 추가해야 한다 — 채용 평가 세션 하나를 빼는 데 9개 기능을 손댄 선례([ADR-0043](0043-assessment-sessions-stay-out-of-community-and-public-aggregates.md))가 그 비용을 보여준다. 기존 샌드박스처럼 같은 세션에 이어 쌓는 방식은 원래 기록을 오염시킨다(실제로 MTTR이 오염되고 있었다). 포크는 "비교해 보고 버리는" 용도라 영속할 이유가 없다.
 

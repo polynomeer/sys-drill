@@ -48,7 +48,8 @@ class DiscussionThreadingTest(
 
     private fun newScenario(): Pair<UUID, UUID> {
         val content = contentItemRepository.save(ContentItem(type = "SCENARIO", title = "스레드 테스트 ${UUID.randomUUID()}"))
-        val scenario = scenarioRepository.save(Scenario(contentId = content.id!!, domain = "coupon"))
+        // A creator keeps it out of the official pool (Drill Score, certification) — other tests count that pool.
+        val scenario = scenarioRepository.save(Scenario(contentId = content.id!!, domain = "coupon", creatorUserId = newUser()))
         val v1 = scenarioVersionRepository.save(ScenarioVersion(scenarioId = scenario.id!!, versionNo = 1, status = "PUBLISHED"))
         return scenario.id!! to v1.id!!
     }

@@ -50,6 +50,8 @@ data class IncidentStartResult(
     val narration: String? = null,
 )
 
+data class ForkSource(val engineMode: String, val domain: String, val baseTraits: DesignTraits, val timeline: List<TimelineStep>)
+
 /** PLAN.md Round E4 — [SimulationService.getSeries]'s result: each point paired with its health status. */
 data class SimulationSeries(
     val engineMode: String,
@@ -313,7 +315,7 @@ class SimulationService(
     fun getTimeline(sessionId: UUID): List<TimelineStep> {
         requireSessionExists(sessionId)
         // The resolution marker isn't a step of the replay (and has no real-infra snapshot) — see [resolve].
-        val events = appliedActionRepository.findBySessionIdOrderByCreatedAtAsc(sessionId).filter { it.actionType != INCIDENT_RESOLVED }
+        val events = incidentEvents(sessionId).filter { it.actionType != INCIDENT_RESOLVED }
         if (events.isEmpty()) return emptyList()
 
         val firstSnapshot = readSnapshot(events.first())
@@ -372,7 +374,7 @@ class SimulationService(
      */
     fun getSeries(sessionId: UUID, now: Instant = Instant.now()): SimulationSeries {
         requireSessionExists(sessionId)
-        val events = appliedActionRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)
+        val events = incidentEvents(sessionId)
         val startEvent = events.firstOrNull { it.actionType == INCIDENT_STARTED }
             ?: return SimulationSeries(EngineMode.RULE_BASED.name, null, points = emptyList())
         val start = startEvent.createdAt!!
@@ -481,6 +483,34 @@ class SimulationService(
             symptomsOk = symptomsOk,
             backlog = point.backlog,
             integrity = integrity,
+        )
+    }
+
+    /**
+     * ADR-0046 — the session's incident record without sandbox actions. "Keep experimenting after
+     * completion" used to append to the same applied_actions with no marker, which shifted MTTR,
+     * the replay and the community benchmark. Anything applied after the session completed is
+     * sandbox by definition — a rule that also cleans up rows recorded before this fix.
+     * (New post-completion experiments go to forks instead and never touch this table.)
+     */
+    private fun incidentEvents(sessionId: UUID): List<AppliedAction> {
+        val completedAt = sessionRepository.findById(sessionId).map { it.completedAt }.orElse(null)
+        return appliedActionRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)
+            .filter { completedAt == null || !it.createdAt!!.isAfter(completedAt) }
+    }
+
+    /** ADR-0046 — what a fork copies: the engine, starting traits and the replay steps. */
+    fun forkSource(sessionId: UUID): ForkSource {
+        val session = sessionRepository.findById(sessionId).orElseThrow { NotFoundException("Session not found: $sessionId") }
+        val timeline = getTimeline(sessionId)
+        if (timeline.isEmpty()) throw com.sysdrill.backend.common.web.ConflictException("인시던트를 시작한 세션만 포크할 수 있습니다")
+        val startEvent = incidentEvents(sessionId).first { it.actionType == INCIDENT_STARTED }
+        val domain = resolveDomain(session.scenarioVersionId)
+        return ForkSource(
+            engineMode = readSnapshot(startEvent)?.engineMode ?: EngineMode.RULE_BASED.name,
+            domain = domain,
+            baseTraits = systemTopologyService.deriveDesignTraits(sessionId, domain) ?: DesignTraits(),
+            timeline = timeline,
         )
     }
 

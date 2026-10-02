@@ -61,6 +61,8 @@ class MissionClarificationTest(
             Scenario(
                 contentId = content.id!!,
                 domain = "coupon",
+                // A creator keeps it out of the official pool (Drill Score, certification) — other tests count that pool.
+                creatorUserId = newUser(),
                 baseRequirements = """{"functional":["쿠폰 발급"],"nonFunctional":{"targetUsers":1000000,"totalCoupons":100000}}""",
             )
         )

@@ -9,6 +9,8 @@ import {
   SessionResponse,
   SessionStatus,
   advanceSession,
+  createFork,
+  getSimulationTimeline,
   getFeedback,
   getMentorHint,
   getSession,
@@ -89,16 +91,11 @@ export default function DesignWorkspacePage() {
   const [hints, setHints] = useState<string[] | null>(null);
   const [hintLoading, setHintLoading] = useState(false);
   const [hintError, setHintError] = useState<string | null>(null);
-  // System Sandbox — the simulation endpoints (startIncident/applyAction/getState)
-  // have no SessionStatus check at all (confirmed by reading SimulationService),
-  // so reopening WargameLive for an already-COMPLETED incident session just works
-  // unmodified: it resumes the cached state if the 6h Redis TTL hasn't expired, or
-  // re-seeds a fresh one from the session's saved SystemTopology if it has —
-  // exactly WargameLive's existing 404-recovery path for a normal live incident.
-  // Deliberately NOT wired into submit/advance/SessionStateMachine — those stay
-  // COMPLETED-terminal so re-experimenting here can never re-grade the session or
-  // skew CertificationService's per-session average.
-  const [sandboxOpen, setSandboxOpen] = useState(false);
+  // ADR-0046 (PLAN.md Round E14) — "keep experimenting after completion" used to reopen WargameLive
+  // on the completed session, appending sandbox actions to the same applied_actions with no marker
+  // (they shifted MTTR, the replay and the benchmark). It now forks from the last step instead:
+  // same experiment, but in Redis, never touching the record.
+  const [forking, setForking] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -517,13 +514,31 @@ export default function DesignWorkspacePage() {
                   <div className="flex gap-2">
                     <Button href={`/report/${sessionId}`}>리포트 보기</Button>
                     {isIncident && (
-                      <Button variant="secondary" onClick={() => setSandboxOpen((open) => !open)}>
-                        {sandboxOpen ? "샌드박스 닫기" : "샌드박스에서 계속 실험하기"}
+                      <Button
+                        variant="secondary"
+                        disabled={forking}
+                        onClick={async () => {
+                          setForking(true);
+                          try {
+                            const steps = await getSimulationTimeline(sessionId);
+                            const fork = await createFork(sessionId, Math.max(0, steps.length - 1));
+                            router.push(`/design/${sessionId}/forks/${fork.forkId}`);
+                          } catch (err) {
+                            setError(err instanceof ApiError ? err.message : "실험 공간을 열지 못했습니다.");
+                            setForking(false);
+                          }
+                        }}
+                      >
+                        {forking ? "여는 중..." : "샌드박스에서 계속 실험하기"}
+                      </Button>
+                    )}
+                    {isIncident && (
+                      <Button variant="ghost" href={`/design/${sessionId}/replay`}>
+                        리플레이에서 시점 골라 다르게 해보기
                       </Button>
                     )}
                   </div>
                 </Card>
-                {isIncident && sandboxOpen && <WargameLive sessionId={sessionId} domain={domain} isOwner initialTraits={{}} />}
               </>
             )}
 

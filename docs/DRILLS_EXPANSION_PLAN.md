@@ -216,7 +216,7 @@ M1·M2·M7·M8은 시나리오 콘텐츠(INITIAL 프롬프트를 일부러 불�
 | 인시던트 종료 | 지금은 종료 개념이 없다(Redis 6시간 TTL뿐). M5가 `INCIDENT_RESOLVED` 표식 행을 `INCIDENT_STARTED`와 같은 방식으로 `applied_actions`에 남긴다 |
 | 정합성 점검 (M5, 2026-10-02 구현 시 변경) | batch-settlement는 엔진의 `errorRate`가 곧 불일치 비율이고 `queueLag`가 재처리 레코드 수라 **엔진 자신의 숫자로 "중복 반영 N건"**을 낸다. payment·reservation은 초안처럼 "재시도 수"를 세려면 도메인 함수의 private 계수(`PARTIAL_FAILURE_WASTE_FACTOR` 등)를 밖으로 복제해야 해서(ADR-0045가 지키려는 경계) **위험 구간의 길이**만 낸다 — "멱등 재시도 없이 인시던트 N초, 그동안의 재시도는 대사 필요". 수정 조치가 선언 전에 들어갔으면 항목은 통과로 보되, 그 전 구간의 대사 필요는 문구로 남긴다 |
 | 포크 (M6) | `POST /sessions/{id}/forks {atStep}` → Redis `fork:{id}`(1시간 TTL)에 도메인 · 기준 trait · 액션 접두부 저장, 이후 `GET/POST /forks/{id}/…`. 규칙 기반만 — [ADR-0046](adr/0046-forks-are-ephemeral-redis-state-not-sessions.md) |
-| 샌드박스 오염 수정 (M6) | 완료 후 샌드박스 액션을 `parameters.sandbox=true`로 표시하고 MTTR·벤치마크·시계열에서 제외 |
+| 샌드박스 오염 수정 (M6, 구현 시 변경) | 표식 대신 **세션 완료 시각 이후의 액션은 샌드박스**로 보고 MTTR·벤치마크·시계열·리플레이에서 제외 — 이미 쌓인 행까지 정리된다. "샌드박스에서 계속 실험하기"는 마지막 단계 포크로 바꿔 더는 기록에 쓰지 않는다 |
 | 비용 단가표 (M8) | 노드 kind별 월 단가는 Kotlin 설정 상수(관리자 CRUD 없음, ADR-0006 정신 — 코드 리뷰를 거친 설정). 모든 금액에 "추정치" |
 | Runbook (M12) | `user_runbooks(user_id, domain, steps jsonb, updated_at)`, `unique(user_id, domain)` |
 | M9 Deploy 도메인 | 착수 시 영향 목록(KNOWN_DOMAINS · 인증 공식 도메인 · DrillScore 상한 · 트랙 · 개념 `relatedDomains` · `TOPOLOGY_FIELDS`/`NODE_TRAIT_CONFIG` · 액션 enum)을 PLAN.md에 먼저 적고 ADR을 쓴다 |

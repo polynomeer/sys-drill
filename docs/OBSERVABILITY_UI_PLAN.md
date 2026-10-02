@@ -195,7 +195,7 @@ GET /sessions/{id}/simulation/series?from=&to=&step=10s
 | 에러 버짓 (M3) | 월 버짓 = 30일 × (1 − 가용성 목표). 소진량 = 인시던트 구간 Σ 에러율·dt(완전 장애 환산 초), burn rate = 인시던트 평균 에러율 ÷ 허용 에러율. multi-window burn-rate는 보류 그대로 |
 | 조사 행위 기록 (O0-b) | `investigation_events(id, session_id, kind, target, created_at)` + `POST /sessions/{id}/investigations`(소유자만). 같은 `kind+target`은 30초 안에 한 번만 기록(탭을 오가며 생기는 잡음 제거) |
 | 로그 템플릿 (O4) | 도메인별 로그 문구는 Kotlin 상수(SimulationService의 액션 설명 문구와 같은 자리). 시드·시각·컴포넌트로 결정되는 해시로 빈도를 정해 같은 세션은 항상 같은 로그를 본다 |
-| 샌드박스 액션 | **기존 버그**: 완료 후 샌드박스에서 적용한 액션이 같은 `applied_actions`에 표시 없이 쌓여 리플레이·MTTR(=마지막 액션)·벤치마크를 오염시킨다. `parameters.sandbox=true`로 표시하고 MTTR·시계열·벤치마크에서 제외 — Drill M6 라운드에서 함께 고친다 |
+| 샌드박스 액션 | **기존 버그**: 완료 후 샌드박스에서 적용한 액션이 같은 `applied_actions`에 표시 없이 쌓여 리플레이·MTTR(=마지막 액션)·벤치마크를 오염시킨다. 세션 완료 시각 이후의 액션을 샌드박스로 보고 MTTR·시계열·벤치마크·리플레이에서 제외(과거 데이터까지 정리됨), "샌드박스에서 계속 실험하기"는 포크로 — Drill M6(Round E14)에서 고침 |
 | 트레이스 1차 (O6) | real-infra coupon 스팬을 Jaeger HTTP API로 세션 ID 태그 조회. 태그가 실제로 붙는지 라운드 시작 시 확인하고, 없으면 계측에 태그를 먼저 추가 |
 | 성공 지표 | 화면 이벤트는 기존 익명 일별 카운터(`product_event_counts`, `POST /events`)에 이름만 추가, DB 파생 지표는 `SuccessMetricsService`에 추가 — 관리자 "성공 지표" 패널 재사용 |
 

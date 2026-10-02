@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { TimelineStep, getSession, getSimulationTimeline } from "@/lib/api";
+import { ApiError, TimelineStep, createFork, getSession, getSimulationTimeline } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { MetricsPanel } from "../WargameLive";
 import { Button } from "@/components/ui/Button";
@@ -19,6 +19,9 @@ export default function IncidentReplayPage() {
   const sessionId = params.sessionId;
 
   const [domain, setDomain] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const [forking, setForking] = useState(false);
+  const [forkError, setForkError] = useState<string | null>(null);
   const [steps, setSteps] = useState<TimelineStep[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -34,6 +37,7 @@ export default function IncidentReplayPage() {
     Promise.all([getSession(sessionId), getSimulationTimeline(sessionId)])
       .then(([session, timeline]) => {
         setDomain(session.domain);
+        setIsOwner(session.isOwner);
         setSteps(timeline);
       })
       .catch(() => setError("리플레이 타임라인을 불러오지 못했습니다."));
@@ -151,6 +155,31 @@ export default function IncidentReplayPage() {
           </Button>
         </div>
       </Card>
+
+      {/* docs/DRILLS_EXPANSION_PLAN.md M6 (PLAN.md Round E14) — Counterfactual Replay from this step. */}
+      {isOwner && (
+        <Card as="section" className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-foreground-muted">이 시점에서 다른 조치를 했다면 어땠을까요? 기록은 바뀌지 않습니다.</p>
+          <Button
+            size="sm"
+            onClick={async () => {
+              setForking(true);
+              setForkError(null);
+              try {
+                const fork = await createFork(sessionId, currentIndex);
+                router.push(`/design/${sessionId}/forks/${fork.forkId}`);
+              } catch (err) {
+                setForkError(err instanceof ApiError ? err.message : "포크를 만들지 못했습니다.");
+                setForking(false);
+              }
+            }}
+            disabled={forking}
+          >
+            {forking ? "포크 만드는 중..." : "여기서 다르게 해보기"}
+          </Button>
+          {forkError && <p className="w-full text-xs text-danger">{forkError}</p>}
+        </Card>
+      )}
 
       <MetricsPanel state={step.systemState} domain={domain} />
     </div>

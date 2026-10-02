@@ -82,6 +82,7 @@ class AuthWebConfig(
         registry.addInterceptor(authInterceptor)
             .addPathPatterns(
                 "/sessions", "/sessions/**",
+                "/forks/**",
                 "/submissions/**",
                 "/build-challenges/**", "/build-submissions/**",
                 "/skill-profile",

@@ -44,7 +44,7 @@ const OBSERVE_TABS: { key: ObserveTab; label: string }[] = [
 ];
 
 type ActionCategory = "scale" | "cache" | "traffic" | "config";
-type ActionDef = { type: SimulationActionType; label: string; effect: string; category: ActionCategory };
+export type ActionDef = { type: SimulationActionType; label: string; effect: string; category: ActionCategory };
 
 /** SysDrill_UIUX_Design_Plan.docx §7 대응 액션 카테고리 — 새 백엔드 액션 타입을
  * 발명하지 않고(PLAN.md UI/UX 리뉴얼 Round 3 스코프 아웃 참고) 기존 21종을
@@ -56,7 +56,7 @@ const CATEGORY_META: Record<ActionCategory, { label: string; icon: LucideIcon }>
   config: { label: "설정", icon: Settings },
 };
 
-const ACTIONS_BY_DOMAIN: Record<string, ActionDef[]> = {
+export const ACTIONS_BY_DOMAIN: Record<string, ActionDef[]> = {
   coupon: [
     {
       type: "STRENGTHEN_RATE_LIMIT",
