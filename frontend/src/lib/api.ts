@@ -1469,6 +1469,8 @@ export interface WriteupSummary {
   completedAt?: string | null;
   sharedAt?: string | null;
   mine: boolean;
+  /** PLAN.md Round E15 (C8) — structural distance from my design (0 same … 1 nothing shared); null without canvases. */
+  distance?: number | null;
 }
 
 export interface WriteupPhase {
@@ -1493,6 +1495,43 @@ export interface WriteupDetail {
   preventionItems: string[];
   mttdSeconds?: number | null;
   mttrSeconds?: number | null;
+  /** PLAN.md Round E15 (C8) — the author's note; the summary is generated. */
+  note?: string | null;
+  summary?: WriteupDesignSummary | null;
+}
+
+export interface WriteupDesignSummary {
+  nodeKinds: Record<string, number>;
+  changedTraits: { key: string; value: number; defaultValue: number }[];
+  actions: string[];
+}
+
+export interface CompareSide {
+  sessionId: string;
+  averageScore: number | null;
+  mttrSeconds: number | null;
+  nodeKinds: Record<string, number>;
+  traits: Record<string, number>;
+  actions: string[];
+}
+
+export interface WriteupComparison {
+  mine: CompareSide | null;
+  theirs: CompareSide;
+  onlyMine: string[];
+  onlyTheirs: string[];
+  shared: string[];
+  traitDiffs: { key: string; mine: number; theirs: number }[];
+  largestDifference: string | null;
+  distance: number | null;
+}
+
+export function getWriteupComparison(sessionId: string): Promise<WriteupComparison> {
+  return apiFetch<WriteupComparison>(`/writeups/${sessionId}/compare`);
+}
+
+export function setWriteupNote(sessionId: string, note: string): Promise<WriteupDetail> {
+  return apiFetch<WriteupDetail>(`/sessions/${sessionId}/writeup-note`, { method: "PUT", body: JSON.stringify({ note }) });
 }
 
 /** locked 는 오류가 아니라 정상 상태다 — 미완료자에게 "먼저 직접 풀어보세요"를 띄운다. */
@@ -1519,8 +1558,9 @@ export function setSessionVisibility(
   });
 }
 
-export function listWriteups(scenarioId: string): Promise<WriteupList> {
-  return apiFetch<WriteupList>(`/scenarios/${scenarioId}/writeups`);
+/** `sort`: different (default when you drew a canvas) / score / recent. */
+export function listWriteups(scenarioId: string, sort?: "different" | "score" | "recent"): Promise<WriteupList> {
+  return apiFetch<WriteupList>(`/scenarios/${scenarioId}/writeups${sort ? `?sort=${sort}` : ""}`);
 }
 
 export function getWriteup(sessionId: string): Promise<WriteupDetail> {

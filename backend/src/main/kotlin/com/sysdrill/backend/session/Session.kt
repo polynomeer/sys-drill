@@ -74,6 +74,10 @@ class Session(
     @Column(name = "mission_state", columnDefinition = "jsonb", nullable = false)
     var missionState: String = "{}",
 
+    /** PLAN.md Round E15 (C8) — the author's note on a shared writeup; everything else is summarised automatically. */
+    @Column(name = "writeup_note")
+    var writeupNote: String? = null,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant? = null,

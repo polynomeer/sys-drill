@@ -51,6 +51,7 @@ class WriteupService(
     private val userRepository: UserRepository,
     private val postmortemService: PostmortemService,
     private val objectMapper: ObjectMapper,
+    private val systemTopologyService: com.sysdrill.backend.simulation.SystemTopologyService,
 ) {
 
     @Transactional
@@ -79,7 +80,15 @@ class WriteupService(
     fun visibility(sessionId: UUID, userId: UUID): SessionVisibilityResponse =
         sessionAccessGuard.requireOwner(sessionId, userId).toVisibilityResponse()
 
-    fun listForScenario(scenarioId: UUID, viewerId: UUID): WriteupListResponse {
+    @Transactional
+    fun setNote(sessionId: UUID, userId: UUID, note: String?): WriteupDetail {
+        val session = sessionAccessGuard.requireOwner(sessionId, userId)
+        session.writeupNote = note?.trim()?.ifBlank { null }
+        sessionRepository.save(session)
+        return detail(sessionId, userId)
+    }
+
+    fun listForScenario(scenarioId: UUID, viewerId: UUID, sort: String? = null): WriteupListResponse {
         val scenario = scenarioRepository.findById(scenarioId)
             .orElseThrow { NotFoundException("Scenario not found: $scenarioId") }
         val versionIds = versionIdsOf(scenarioId)
@@ -102,12 +111,23 @@ class WriteupService(
 
         val scores = averageScores(shared.mapNotNull { it.id })
         val nicknames = nicknamesOf(shared)
+        // docs/COMMUNITY_EXPANSION_PLAN.md C8 — "나와 다른 순" is the default when the viewer has a canvas
+        // to compare against; popularity is never the default (the plan's guard against a popularity vote).
+        val myProfile = bestOwnSession(viewerId, versionIds, scenario.domain)?.let { systemTopologyService.designProfile(it.id!!, scenario.domain) }
+        val distances = if (myProfile == null) emptyMap() else shared.mapNotNull { session ->
+            systemTopologyService.designProfile(session.id!!, scenario.domain)?.let { session.id!! to myProfile.distanceTo(it) }
+        }.toMap()
+        val ordered = when (sort ?: if (myProfile != null) "different" else "recent") {
+            "different" -> shared.sortedWith(compareByDescending<Session> { distances[it.id] ?: -1.0 }.thenByDescending { it.sharedAt })
+            "score" -> shared.sortedByDescending { scores[it.id] ?: -1 }
+            else -> shared
+        }
         return WriteupListResponse(
             scenarioId = scenarioId,
             scenarioTitle = titleOf(scenario),
             locked = false,
             count = shared.size,
-            writeups = shared.map { session ->
+            writeups = ordered.map { session ->
                 WriteupSummary(
                     sessionId = session.id!!,
                     authorNickname = if (session.sharedAnonymously) null else nicknames[session.userId],
@@ -116,6 +136,7 @@ class WriteupService(
                     completedAt = session.completedAt,
                     sharedAt = session.sharedAt,
                     mine = session.userId == viewerId,
+                    distance = distances[session.id],
                 )
             },
         )
@@ -167,6 +188,71 @@ class WriteupService(
             preventionItems = postmortem?.preventionItems ?: emptyList(),
             mttdSeconds = postmortem?.mttdSeconds,
             mttrSeconds = postmortem?.mttrSeconds,
+            note = session.writeupNote,
+            summary = systemTopologyService.designProfile(sessionId, scenario.domain).let { profile ->
+                WriteupDesignSummary(
+                    nodeKinds = profile?.nodeKinds.orEmpty(),
+                    changedTraits = profile?.traits.orEmpty()
+                        .filter { (k, v) -> profile!!.defaults[k] != v }
+                        .map { (k, v) -> TraitValue(k, v, profile!!.defaults.getValue(k)) },
+                    actions = postmortem?.actionsTimeline?.map { it.actionType }.orEmpty(),
+                )
+            },
+        )
+    }
+
+    /**
+     * docs/COMMUNITY_EXPANSION_PLAN.md C8 (PLAN.md Round E15) — the viewer's own best session vs
+     * this writeup, as structural differences between the two canvases. Same gate as [detail]
+     * (ADR-0041), which also guarantees the viewer has a session of their own to compare.
+     */
+    fun compare(sessionId: UUID, viewerId: UUID): WriteupComparison {
+        val theirsDetail = detail(sessionId, viewerId)
+        val domain = theirsDetail.domain
+        val versionIds = versionIdsOf(theirsDetail.scenarioId)
+        val theirs = sideOf(sessionId, domain, theirsDetail.averageScore, theirsDetail.mttrSeconds)
+        val mine = bestOwnSession(viewerId, versionIds, domain)?.takeIf { it.id != sessionId }?.let { own ->
+            val pm = runCatching { postmortemService.get(own.id!!) }.getOrNull()
+            sideOf(own.id!!, domain, averageScores(listOf(own.id!!))[own.id], pm?.mttrSeconds)
+        }
+        val mineKinds = mine?.nodeKinds?.keys.orEmpty()
+        val theirKinds = theirs.nodeKinds.keys
+        val diffs = (mine?.traits?.keys.orEmpty() intersect theirs.traits.keys).map { k ->
+            TraitDiff(k, mine!!.traits.getValue(k), theirs.traits.getValue(k))
+        }.filter { it.mine != it.theirs }
+        val largest = diffs.maxByOrNull { kotlin.math.abs(it.mine - it.theirs).toDouble() / maxOf(it.mine, it.theirs, 1) }?.key
+        val myProfile = mine?.let { systemTopologyService.designProfile(it.sessionId, domain) }
+        val theirProfile = systemTopologyService.designProfile(sessionId, domain)
+        return WriteupComparison(
+            mine = mine,
+            theirs = theirs,
+            onlyMine = (mineKinds - theirKinds).sorted(),
+            onlyTheirs = (theirKinds - mineKinds).sorted(),
+            shared = (mineKinds intersect theirKinds).sorted(),
+            traitDiffs = diffs,
+            largestDifference = largest,
+            distance = if (myProfile != null && theirProfile != null) myProfile.distanceTo(theirProfile) else null,
+        )
+    }
+
+    private fun sideOf(sessionId: UUID, domain: String, score: Int?, mttr: Long?): CompareSide {
+        val profile = systemTopologyService.designProfile(sessionId, domain)
+        val actions = runCatching { postmortemService.get(sessionId).actionsTimeline.map { it.actionType } }.getOrDefault(emptyList())
+        return CompareSide(sessionId, score, mttr, profile?.nodeKinds.orEmpty(), profile?.traits.orEmpty(), actions)
+    }
+
+    /**
+     * The viewer's completed session to compare against: one with a canvas if any (a design
+     * without one has nothing structural to compare), then the highest score, then the latest.
+     * Assessment sessions count — ADR-0043's exception for "did you do it yourself".
+     */
+    private fun bestOwnSession(userId: UUID, versionIds: Collection<UUID>, domain: String? = null): Session? {
+        val own = sessionRepository.findByUserIdAndScenarioVersionIdInAndStatus(userId, versionIds, SessionStatus.COMPLETED)
+        if (own.isEmpty()) return null
+        val scores = averageScores(own.mapNotNull { it.id })
+        val hasCanvas = if (domain == null) emptySet() else own.filter { systemTopologyService.designProfile(it.id!!, domain) != null }.mapNotNull { it.id }.toSet()
+        return own.maxWithOrNull(
+            compareBy<Session> { it.id in hasCanvas }.thenBy { scores[it.id] ?: -1 }.thenBy { it.completedAt },
         )
     }
 

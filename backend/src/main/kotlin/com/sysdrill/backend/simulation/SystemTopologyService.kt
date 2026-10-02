@@ -68,6 +68,37 @@ class SystemTopologyService(
     }
 
     /**
+     * docs/COMMUNITY_EXPANSION_PLAN.md C8 (PLAN.md Round E15) — the comparable shape of a saved
+     * design: which node kinds it uses (connected or not — a drawn queue is a design choice even
+     * if it was left dangling) and the domain's topology-driven trait values. Null with no canvas.
+     */
+    fun designProfile(sessionId: UUID, domain: String): DesignProfile? {
+        val saved = topologyRepository.findBySessionId(sessionId) ?: return null
+        val graph = objectMapper.readValue(saved.graph, TopologyGraph::class.java)
+        val kinds = graph.nodes.mapNotNull { it.data.kind }.groupingBy { it }.eachCount()
+        val traits = deriveDesignTraits(sessionId, domain) ?: DesignTraits()
+        val defaults = DesignTraits()
+        val fieldKeys = TOPOLOGY_FIELDS[domain].orEmpty().values.flatten().map { it.key }
+        return DesignProfile(
+            nodeKinds = kinds,
+            traits = fieldKeys.associateWith { traitValue(traits, it) },
+            defaults = fieldKeys.associateWith { traitValue(defaults, it) },
+        )
+    }
+
+    private fun traitValue(traits: DesignTraits, key: String): Int = when (key) {
+        "cacheTtlSeconds" -> traits.cacheTtlSeconds
+        "dbPoolSize" -> traits.dbPoolSize
+        "consumerCount" -> traits.consumerCount
+        "readReplicaCount" -> traits.readReplicaCount
+        "dispatcherWorkers" -> traits.dispatcherWorkers
+        "holdTimeoutSeconds" -> traits.holdTimeoutSeconds
+        "chunkSize" -> traits.chunkSize
+        "podReplicas" -> traits.podReplicas
+        else -> 0
+    }
+
+    /**
      * Whether [domain]'s saved topology has at least one connected node
      * explicitly setting [fieldKey] — [deriveDesignTraits]'s return value
      * alone can't distinguish "user explicitly set this to the rule-based
@@ -115,6 +146,32 @@ class SystemTopologyService(
 
     companion object {
         const val EMPTY_GRAPH = """{"nodes":[],"edges":[]}"""
+    }
+}
+
+/** C8 — a design's comparable shape: node kinds drawn, and the topology-driven traits next to their defaults. */
+data class DesignProfile(
+    val nodeKinds: Map<String, Int>,
+    val traits: Map<String, Int>,
+    val defaults: Map<String, Int>,
+) {
+    /**
+     * 0 (same) … 1 (nothing in common): half from the node-kind sets (Jaccard distance), half from
+     * the trait values (mean of |a−b| / max(a, b)). Deliberately simple — it only has to rank
+     * "different from mine" above "like mine", not measure design quality.
+     */
+    fun distanceTo(other: DesignProfile): Double {
+        val a = nodeKinds.keys
+        val b = other.nodeKinds.keys
+        val union = (a + b).size
+        val kindDistance = if (union == 0) 0.0 else 1.0 - (a intersect b).size.toDouble() / union
+        val keys = traits.keys intersect other.traits.keys
+        val traitDistance = if (keys.isEmpty()) 0.0 else keys.map { k ->
+            val x = traits.getValue(k).toDouble()
+            val y = other.traits.getValue(k).toDouble()
+            if (maxOf(x, y) == 0.0) 0.0 else kotlin.math.abs(x - y) / maxOf(x, y)
+        }.average()
+        return 0.5 * kindDistance + 0.5 * traitDistance
     }
 }
 

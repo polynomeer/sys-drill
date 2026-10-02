@@ -32,9 +32,27 @@ class WriteupController(
     ): SessionVisibilityResponse = writeupService.setVisibility(sessionId, userId, request)
 
     /** 잠겨 있어도 200 — 이유는 [WriteupListResponse] 주석 참고. */
+    /** `sort`: different (default when you drew a canvas) / score / recent. */
     @GetMapping("/scenarios/{scenarioId}/writeups")
-    fun listForScenario(@PathVariable scenarioId: UUID, @AuthenticatedUserId userId: UUID): WriteupListResponse =
-        writeupService.listForScenario(scenarioId, userId)
+    fun listForScenario(
+        @PathVariable scenarioId: UUID,
+        @AuthenticatedUserId userId: UUID,
+        @org.springframework.web.bind.annotation.RequestParam(required = false) sort: String?,
+    ): WriteupListResponse =
+        writeupService.listForScenario(scenarioId, userId, sort)
+
+    /** PLAN.md Round E15 (C8) — the viewer's own design vs this writeup's. Same ADR-0041 gate as the detail. */
+    @GetMapping("/writeups/{sessionId}/compare")
+    fun compare(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): WriteupComparison =
+        writeupService.compare(sessionId, userId)
+
+    /** C8 — the author's note (owner only). */
+    @PutMapping("/sessions/{sessionId}/writeup-note")
+    fun setNote(
+        @PathVariable sessionId: UUID,
+        @AuthenticatedUserId userId: UUID,
+        @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody request: WriteupNoteRequest,
+    ): WriteupDetail = writeupService.setNote(sessionId, userId, request.note)
 
     @GetMapping("/writeups/{sessionId}")
     fun detail(@PathVariable sessionId: UUID, @AuthenticatedUserId userId: UUID): WriteupDetail =

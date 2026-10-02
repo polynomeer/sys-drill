@@ -25,16 +25,18 @@ export default function WriteupListPage() {
   const [list, setList] = useState<WriteupList | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  // docs/COMMUNITY_EXPANSION_PLAN.md C8 — the server defaults to "different from mine" when I drew a canvas.
+  const [sort, setSort] = useState<"different" | "score" | "recent" | undefined>(undefined);
 
   useEffect(() => {
     if (!getStoredToken()) {
       router.replace("/onboarding");
       return;
     }
-    listWriteups(scenarioId)
+    listWriteups(scenarioId, sort)
       .then(setList)
       .catch(() => setError("풀이 목록을 불러오지 못했습니다."));
-  }, [scenarioId, router]);
+  }, [scenarioId, router, sort]);
 
   async function handleStart() {
     if (starting) return;
@@ -80,7 +82,28 @@ export default function WriteupListPage() {
         <Card as="section">
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-sm font-semibold">{list.count}편</h2>
-            <span className="text-xs text-foreground-muted">최근 공개순</span>
+            <span className="flex gap-1" role="group" aria-label="정렬">
+              {(
+                [
+                  ["different", "나와 다른 순"],
+                  ["score", "점수순"],
+                  ["recent", "최신순"],
+                ] as const
+              ).map(([key, label]) => {
+                const active = sort === key || (sort === undefined && key === (list.writeups.some((w) => w.distance != null) ? "different" : "recent"));
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setSort(key)}
+                    aria-pressed={active}
+                    className={`rounded-full border px-2.5 py-0.5 text-xs ${active ? "border-accent text-accent" : "border-border text-foreground-muted"}`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </span>
           </div>
           {list.writeups.length === 0 ? (
             <p className="text-sm text-foreground-muted">
@@ -98,8 +121,9 @@ export default function WriteupListPage() {
                       {writeup.anonymous ? "익명" : (writeup.authorNickname ?? "알 수 없음")}
                       {writeup.mine && <Badge variant="accent">내 풀이</Badge>}
                     </span>
-                    <span className="text-xs tabular-nums text-foreground-muted">
-                      {typeof writeup.averageScore === "number" ? `평균 ${writeup.averageScore}점` : "점수 없음"}
+                    <span className="flex gap-3 text-xs tabular-nums text-foreground-muted">
+                      {typeof writeup.distance === "number" && !writeup.mine && <span>구조 차이 {Math.round(writeup.distance * 100)}%</span>}
+                      <span>{typeof writeup.averageScore === "number" ? `평균 ${writeup.averageScore}점` : "점수 없음"}</span>
                     </span>
                   </Link>
                 </li>

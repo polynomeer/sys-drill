@@ -123,6 +123,9 @@ interface SessionRepository : JpaRepository<Session, UUID> {
     ): List<Session>
 
     /** 슬라이스 6 (docs/adr/0041) — 열람 자격 검사. 버전은 가리지 않는다(WriteupService 주석 참고). */
+    /** PLAN.md Round E15 (C8) — a viewer's own completed sessions of a scenario, to compare against a writeup. */
+    fun findByUserIdAndScenarioVersionIdInAndStatus(userId: UUID, scenarioVersionIds: Collection<UUID>, status: SessionStatus): List<Session>
+
     fun existsByUserIdAndScenarioVersionIdInAndStatus(
         userId: UUID,
         scenarioVersionIds: Collection<UUID>,

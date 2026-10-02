@@ -13,6 +13,8 @@ data class WriteupSummary(
     val completedAt: Instant?,
     val sharedAt: Instant?,
     val mine: Boolean,
+    /** PLAN.md Round E15 (C8) — distance from the viewer's own design (0 same … 1 nothing shared); null without canvases. */
+    val distance: Double? = null,
 )
 
 data class WriteupPhase(
@@ -39,6 +41,51 @@ data class WriteupDetail(
     val preventionItems: List<String>,
     val mttdSeconds: Long?,
     val mttrSeconds: Long?,
+    /** PLAN.md Round E15 (C8) — the author's own words; the summary below is generated. */
+    val note: String? = null,
+    val summary: WriteupDesignSummary? = null,
+)
+
+/** C8 — the automatic summary card: what was drawn, which settings moved, and what was done in the incident. */
+data class WriteupDesignSummary(
+    val nodeKinds: Map<String, Int>,
+    val changedTraits: List<TraitValue>,
+    val actions: List<String>,
+)
+
+data class TraitValue(val key: String, val value: Int, val defaultValue: Int)
+
+/** C8 — one side of "my design vs theirs". */
+data class CompareSide(
+    val sessionId: UUID,
+    val averageScore: Int?,
+    val mttrSeconds: Long?,
+    val nodeKinds: Map<String, Int>,
+    val traits: Map<String, Int>,
+    val actions: List<String>,
+)
+
+data class TraitDiff(val key: String, val mine: Int, val theirs: Int)
+
+/**
+ * C8 — structural differences, computed from the two saved canvases (no LLM). `mine` is the
+ * viewer's best completed session in the same scenario; null when the viewer never drew one.
+ */
+data class WriteupComparison(
+    val mine: CompareSide?,
+    val theirs: CompareSide,
+    val onlyMine: List<String>,
+    val onlyTheirs: List<String>,
+    val shared: List<String>,
+    val traitDiffs: List<TraitDiff>,
+    /** The trait with the largest relative difference — the first place to look. */
+    val largestDifference: String?,
+    val distance: Double?,
+)
+
+data class WriteupNoteRequest(
+    @field:jakarta.validation.constraints.Size(max = 2000)
+    val note: String? = null,
 )
 
 /**
