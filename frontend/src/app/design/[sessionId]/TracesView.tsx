@@ -123,3 +123,18 @@ function Waterfall({ trace, onShowService }: { trace: TraceView; onShowService?:
     </div>
   );
 }
+
+/**
+ * O6 (follow-up) — which Service Map node kind a span's service runs on. Canvas labels are free text,
+ * so the match is by kind; external dependencies are named explicitly (a "payment-gateway" is the PG,
+ * not an API gateway).
+ */
+export function mapKindOfService(service: string): string {
+  const s = service.toLowerCase();
+  if (["notification-provider", "payment-gateway", "settlement-api"].includes(s)) return "external";
+  if (s.includes("db")) return "db";
+  if (s.includes("redis") || s.includes("cache")) return "cache";
+  if (s.includes("kafka") || s.includes("queue") || s.includes("outbox")) return "queue";
+  if (s.includes("ingress") || s.includes("gateway") || s.includes("balancer")) return "gateway";
+  return "service";
+}

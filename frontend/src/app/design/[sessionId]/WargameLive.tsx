@@ -34,7 +34,7 @@ import { GoldenSignals, RecentChanges, SeriesCharts } from "./ObserveViews";
 import { ServiceMap } from "./ServiceMap";
 import { AlertsView } from "./AlertsView";
 import { RecoveryCard } from "./RecoveryCard";
-import { TracesView } from "./TracesView";
+import { TracesView, mapKindOfService } from "./TracesView";
 import { ReadinessGate } from "./ReadinessGate";
 import { RunbookLiveCard } from "@/components/RunbookPanel";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
@@ -295,6 +295,8 @@ export function WargameLive({
   const [serverLogs, setServerLogs] = useState<LogEntry[]>([]);
   const [logWindow, setLogWindow] = useState<LogWindow | null>(null);
   const [selectedTrace, setSelectedTrace] = useState<string | null>(null);
+  // O6 follow-up — the node kind a clicked span points at; the counter remounts the map so it reselects.
+  const [mapFocus, setMapFocus] = useState<{ kind: string; n: number } | null>(null);
   const tabRef = useRef<ObserveTab>("overview");
   // PLAN.md Round E20 (M8) — "+월 $240(추정)" on scale-out actions; empty when the scenario has no constraints.
   const [actionCost, setActionCost] = useState<Record<string, number>>({});
@@ -578,7 +580,10 @@ export function WargameLive({
             type="button"
             role="tab"
             aria-selected={tab === t.key}
-            onClick={() => selectTab(t.key)}
+            onClick={() => {
+              if (t.key === "map") setMapFocus(null); // a plain tab click starts unfocused
+              selectTab(t.key);
+            }}
             className={`-mb-px shrink-0 border-b-2 px-3 py-2 ${tab === t.key ? "border-accent text-foreground" : "border-transparent text-foreground-muted hover:text-foreground"}`}
           >
             {t.label}
@@ -605,7 +610,14 @@ export function WargameLive({
         />
       )}
       {tab === "map" && (
-        <ServiceMap sessionId={sessionId} domain={domain} latest={latestPoint} onInspect={(label) => look("INSPECT_NODE", label)} />
+        <ServiceMap
+          key={mapFocus?.n ?? 0}
+          sessionId={sessionId}
+          domain={domain}
+          latest={latestPoint}
+          focusKind={mapFocus?.kind ?? null}
+          onInspect={(label) => look("INSPECT_NODE", label)}
+        />
       )}
       {tab === "metrics" && (
         <div className="flex flex-col gap-4">
@@ -634,7 +646,15 @@ export function WargameLive({
         />
       )}
       {tab === "traces" && (
-        <TracesView sessionId={sessionId} selected={selectedTrace} onSelect={openTrace} onShowService={() => selectTab("map")} />
+        <TracesView
+          sessionId={sessionId}
+          selected={selectedTrace}
+          onSelect={openTrace}
+          onShowService={(service) => {
+            setMapFocus((prev) => ({ kind: mapKindOfService(service), n: (prev?.n ?? 0) + 1 }));
+            selectTab("map");
+          }}
+        />
       )}
       {tab === "changes" && incidentStartedAt && <RecentChanges steps={steps} incidentStartedAt={incidentStartedAt} />}
 

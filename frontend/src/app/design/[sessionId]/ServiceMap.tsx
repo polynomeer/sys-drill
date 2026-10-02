@@ -227,12 +227,15 @@ export function ServiceMap({
   domain,
   latest,
   onInspect,
+  focusKind,
 }: {
   sessionId: string;
   domain: string;
   latest: SeriesPoint | null;
   /** O0-b — called when the learner opens a node's detail (recorded as an investigation). */
   onInspect?: (nodeLabel: string) => void;
+  /** O6 (follow-up) — opened from a trace span: preselect the first node of this kind. */
+  focusKind?: string | null;
 }) {
   const [spec, setSpec] = useState<{ spec: Spec; drawn: boolean } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -252,6 +255,8 @@ export function ServiceMap({
   }, [sessionId, fallback]);
 
   const modeled = useMemo(() => MODELED[domain] ?? MODELED.coupon, [domain]);
+  // A click wins; until then a trace span's kind picks the node.
+  const activeId = selectedId ?? (focusKind ? (spec?.spec.nodes.find((n) => n.kind === focusKind)?.id ?? null) : null);
 
   const { nodes, edges } = useMemo(() => {
     if (!spec || !latest) return { nodes: [] as Node<MapNodeData>[], edges: [] as Edge[] };
@@ -268,7 +273,7 @@ export function ServiceMap({
           severity: severityOf(n.kind, latest.state, latest.backlog, modeled),
           measured: fields.length > 0,
         },
-        selected: n.id === selectedId,
+        selected: n.id === activeId,
       };
     });
     const flowEdges: Edge[] = spec.spec.edges.map(([source, target]) => ({
@@ -279,10 +284,10 @@ export function ServiceMap({
       style: { stroke: "var(--border)" },
     }));
     return { nodes: flowNodes, edges: flowEdges };
-  }, [spec, latest, modeled, selectedId]);
+  }, [spec, latest, modeled, activeId]);
 
   if (!spec || !latest) return null;
-  const selected = nodes.find((n) => n.id === selectedId);
+  const selected = nodes.find((n) => n.id === activeId);
 
   return (
     <div className="flex flex-col gap-3">
