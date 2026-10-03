@@ -2227,6 +2227,22 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## 나머지 5개 Build 과제에 Java·Kotlin·Go 판 추가 ✅ 완료 (2026-10-03)
+
+사용자 요청("나머지 과제들도 Java, Kotlin, Go 판 추가해줘"). queue·circuit-breaker·distributed-lock·retry-backoff·event-bus × 3언어 = 15개 판. 이제 6개 과제 모두 Python·Java·Kotlin·Go 판이 있다(rate-limiter는 TypeScript까지 25개).
+
+- [x] 과제별 서브에이전트 5개가 병렬로 포팅 — 공통 규칙(rate-limiter-{java,kotlin,go} 관례 그대로, 같은 시나리오 수치·실패 메시지, 표준 라이브러리만, 동시성 단계는 시작 게이트 + 워커 예외를 main으로 전달)과 SandboxExecutor와 똑같은 채점 스크립트를 주고, 스텁 전 단계 실패 / 모범 답안 3회 연속 전 단계 통과를 실제 샌드박스로 확인하게 했다
+- [x] 스텁은 Python판처럼 전부 TODO(rate-limiter의 "주석 풀기" 1단계는 없음). 메시지 없는 Python assert 몇 개에는 메시지를 붙였다(그대로면 `RESULT:FAIL:`만 찍힘)
+- [x] `V73` — 15개 챌린지를 `challenges/` 파일에서 생성. 스테이지 제목·학습 포인트는 V13–V18 그대로, spec 속 Python 이름(`CircuitOpenError`, `max_attempts` 등)만 각 언어 이름으로
+- [x] 모범 답안 `backend/src/test/resources/build-solutions/<slug>/` + `BuildLanguageVariantsIntegrationTest` — 15개 판 각각 "스텁은 전부 실패, 모범 답안은 전부 통과"를 실제 파이프라인으로(약 10분)
+- [x] **Kotlin 샌드박스 메모리 384m → 512m** — 병렬 검증 중 kotlinc가 384m에서 매번 cgroup OOM(`OOMKilled=true`)으로 죽었다. 처음 측정 때 통과한 값이 경계선이었던 것. ADR-0051에 정정 기록
+
+**완료 기준 충족**: `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.build.*"` 57/57(신규 변형 통합 테스트 15개 포함), `BuildStarterCodeTest`가 25개 판의 DB 스텁 = 파일을 고정.
+
+**알려진 한계(Python판에서 물려받음)**: 동시성 단계(queue 4, event-bus 4, distributed-lock 4)는 Go에서 락 없는 구현을 거의 잡지 못한다 — 0.5 CPU에서 임계 구역이 너무 짧다(`go run -race`로는 경쟁이 보임). Java/Kotlin은 대체로 잡지만 매번은 아니다. retry-backoff 3단계는 지터를 빼도 통과한다(지수 지연 값들이 이미 서로 달라서 "지연이 다양한가" 검사가 무력) — Python판도 같다. 판별력을 올리려면 네 언어를 함께 바꿔야 해서 이번 범위에서 뺐다.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
