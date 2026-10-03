@@ -54,7 +54,7 @@ export default function LearningConceptPage() {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-3xl p-8">
+      <div className="mx-auto w-full max-w-7xl p-8">
         <p className="text-sm text-danger">{error}</p>
         <Link href="/learning" className="mt-3 inline-block text-sm underline">
           Learning으로
@@ -62,7 +62,7 @@ export default function LearningConceptPage() {
       </div>
     );
   }
-  if (!concept) return <div className="mx-auto max-w-3xl p-8"><LoadingState /></div>;
+  if (!concept) return <div className="mx-auto w-full max-w-7xl p-8"><LoadingState /></div>;
 
   const relatedScenarios = scenarios.filter((s) => concept.relatedDomains.includes(s.domain) && !s.creatorNickname);
   const hasTryIt = labs.length > 0 || relatedScenarios.length > 0 || concept.relatedChallenges.length > 0;
@@ -212,6 +212,43 @@ export default function LearningConceptPage() {
       onDone={markRead}
       onContinue={() => setRevealed((n) => n + 1)}
       onExpandAll={() => setRevealed(Number.MAX_SAFE_INTEGER)}
+      aside={
+        <Card className="flex flex-col gap-4">
+          <StageRail
+            stages={[
+              { label: "이해", done: done, href: undefined },
+              ...(labs.length > 0 ? [{ label: "실험", done: false, href: `/learning/labs/${labs[0].slug}` }] : []),
+              ...(concept.relatedChallenges.length > 0 ? [{ label: "구현", done: false, href: `/bridge?challenge=${concept.relatedChallenges[0]}` }] : []),
+              ...(relatedScenarios.length > 0
+                ? [{ label: "적용", done: (concept.mastery ?? "NOT_STARTED") !== "NOT_STARTED", href: `/drills/${relatedScenarios[0].id}` }]
+                : []),
+            ]}
+            mastery={concept.mastery ?? "NOT_STARTED"}
+            cleanVariants={concept.cleanVariants ?? 0}
+          />
+          {(concept.relatedConcepts?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              {(["PREREQUISITE", "NEXT", "RELATED"] as const).map((relation) => {
+                const links = concept.relatedConcepts!.filter((r) => r.relation === relation);
+                if (links.length === 0) return null;
+                return (
+                  <span key={relation} className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-foreground-muted">{RELATION_LABELS[relation]}</span>
+                    {links.map((r) => (
+                      <Link key={r.riskKey} href={`/learning/${r.riskKey}`} className="rounded-full border border-border px-2 py-0.5 hover:border-accent">
+                        {r.label}
+                      </Link>
+                    ))}
+                  </span>
+                );
+              })}
+              <Link href="/learning/map" className="text-foreground-muted underline">
+                지식 맵
+              </Link>
+            </div>
+          )}
+        </Card>
+      }
     >
       <div>
         <Link href="/learning" className="text-sm text-foreground-muted hover:text-foreground">
@@ -229,40 +266,7 @@ export default function LearningConceptPage() {
         <p className="mt-1 text-xs text-foreground-muted">
           읽는 데 약 {concept.readingMinutes ?? 1}분 · {shown} / {blocks.length} 블록
         </p>
-        <p className="mt-3 leading-relaxed">{concept.summary}</p>
-        <StageRail
-          stages={[
-            { label: "이해", done: done, href: undefined },
-            ...(labs.length > 0 ? [{ label: "실험", done: false, href: `/learning/labs/${labs[0].slug}` }] : []),
-            ...(concept.relatedChallenges.length > 0 ? [{ label: "구현", done: false, href: `/bridge?challenge=${concept.relatedChallenges[0]}` }] : []),
-            ...(relatedScenarios.length > 0
-              ? [{ label: "적용", done: (concept.mastery ?? "NOT_STARTED") !== "NOT_STARTED", href: `/drills/${relatedScenarios[0].id}` }]
-              : []),
-          ]}
-          mastery={concept.mastery ?? "NOT_STARTED"}
-          cleanVariants={concept.cleanVariants ?? 0}
-        />
-        {(concept.relatedConcepts?.length ?? 0) > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            {(["PREREQUISITE", "NEXT", "RELATED"] as const).map((relation) => {
-              const links = concept.relatedConcepts!.filter((r) => r.relation === relation);
-              if (links.length === 0) return null;
-              return (
-                <span key={relation} className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-foreground-muted">{RELATION_LABELS[relation]}</span>
-                  {links.map((r) => (
-                    <Link key={r.riskKey} href={`/learning/${r.riskKey}`} className="rounded-full border border-border px-2 py-0.5 hover:border-accent">
-                      {r.label}
-                    </Link>
-                  ))}
-                </span>
-              );
-            })}
-            <Link href="/learning/map" className="text-foreground-muted underline">
-              지식 맵
-            </Link>
-          </div>
-        )}
+        <p className="mt-3 max-w-[72ch] leading-relaxed">{concept.summary}</p>
       </div>
 
       {blocks.slice(0, shown).map((block) => (
@@ -299,7 +303,7 @@ function StageRail({
 }) {
   const meta = MASTERY_META[mastery];
   return (
-    <ol aria-label="학습 단계" className="mt-4 flex flex-wrap items-center gap-1.5 text-xs">
+    <ol aria-label="학습 단계" className="flex flex-wrap items-center gap-1.5 text-xs">
       {stages.map((stage, i) => (
         <li key={stage.label} className="flex items-center gap-1.5">
           {i > 0 && <span className="text-foreground-muted">→</span>}

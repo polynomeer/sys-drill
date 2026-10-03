@@ -42,22 +42,24 @@ export default function PuzzlePage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 sm:p-8">
       <div>
         <Link href="/learning" className="text-sm text-foreground-muted hover:text-foreground">
           ← Learning
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">진단 퍼즐</h1>
-        <p className="mt-1 text-sm text-foreground-muted">
+        <p className="mt-1 max-w-[72ch] text-sm text-foreground-muted">
           운영 중인 시스템에서 장애가 시작됐습니다(점선 = 시작 시점). 지표만 보고 무슨 일인지, 무엇부터 확인할지 골라 보세요. 기록되지 않습니다.
         </p>
       </div>
       {error && <p className="text-sm text-danger">{error}</p>}
       {!puzzle && !error && <LoadingState />}
       {puzzle && (
-        <>
-          <PuzzleCharts points={puzzle.points} />
-          <Card as="section" className="flex flex-col gap-3 text-sm">
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6">
+          <div className="min-w-0">
+            <PuzzleCharts points={puzzle.points} />
+          </div>
+          <Card as="section" className="flex min-w-0 flex-col gap-3 text-sm lg:sticky lg:top-6">
             <h2 className="font-semibold">무슨 일이 일어나고 있나요?</h2>
             <Choices options={puzzle.patterns} value={pattern} onChange={setPattern} disabled={!!result} result={result ? [result.answerPattern] : null} />
             <h2 className="font-semibold">가장 먼저 무엇을 확인하겠습니까?</h2>
@@ -83,7 +85,7 @@ export default function PuzzlePage() {
               </div>
             )}
           </Card>
-        </>
+        </div>
       )}
     </div>
   );

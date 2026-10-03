@@ -31,7 +31,7 @@ export default function LabPage() {
   }, [router, slug]);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
       <Link href="/learning/labs" className="text-sm text-foreground-muted hover:text-foreground">
         ← 랩 목록
       </Link>

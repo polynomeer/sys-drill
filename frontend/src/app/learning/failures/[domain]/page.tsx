@@ -30,72 +30,78 @@ export default function FailurePatternPage() {
       .catch(() => setScenario(null));
   }, [domain, router]);
 
-  if (error) return <p className="mx-auto max-w-3xl p-8 text-sm text-danger">{error}</p>;
-  if (!pattern) return <div className="mx-auto max-w-3xl p-8"><LoadingState /></div>;
+  if (error) return <p className="mx-auto w-full max-w-7xl p-8 text-sm text-danger">{error}</p>;
+  if (!pattern) return <div className="mx-auto w-full max-w-7xl p-8"><LoadingState /></div>;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-8">
       <div>
         <Link href="/learning/failures" className="text-sm text-foreground-muted hover:text-foreground">
           ← 장애 패턴 사전
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">{pattern.name}</h1>
-        <p className="mt-2 leading-relaxed">{pattern.summary}</p>
+        <p className="mt-2 max-w-[72ch] leading-relaxed">{pattern.summary}</p>
       </div>
 
-      <Section title="증상">
-        <List items={pattern.symptoms} />
-      </Section>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Section title="전형적 지표">
-          <List items={pattern.typicalMetrics} />
-        </Section>
-        <Section title="전형적 로그">
-          <ul className="flex flex-col gap-1 font-mono text-xs text-foreground-muted">
-            {pattern.typicalLogs.map((l) => (
-              <li key={l} className="break-words">
-                {l}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      </div>
-      <Section title="흔한 원인">
-        <List items={pattern.commonCauses} />
-      </Section>
-      <Card as="section" className="border-danger/40">
-        <h2 className="mb-2 text-sm font-semibold">그럴듯하지만 틀린 대응</h2>
-        <ul className="flex flex-col gap-2 text-sm">
-          {pattern.badFixes.map((b) => (
-            <li key={b.fix}>
-              <span className="font-medium">✗ {b.fix}</span>
-              <p className="text-foreground-muted">{b.why}</p>
-            </li>
-          ))}
-        </ul>
-      </Card>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Section title="완화 (지금)">
-          <List items={pattern.mitigations} ordered />
-        </Section>
-        <Section title="예방 (다음 설계)">
-          <List items={pattern.prevention} />
-        </Section>
-      </div>
-      <Section title="관련 개념">
-        <div className="flex flex-wrap gap-2 text-sm">
-          {pattern.relatedConcepts.map((c) => (
-            <Link key={c.riskKey} href={`/learning/${c.riskKey}`} className="rounded-full border border-border px-2.5 py-0.5 hover:border-accent">
-              {c.label}
-            </Link>
-          ))}
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6">
+        <div className="flex min-w-0 flex-col gap-4">
+          <Section title="증상">
+            <List items={pattern.symptoms} />
+          </Section>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Section title="전형적 지표">
+              <List items={pattern.typicalMetrics} />
+            </Section>
+            <Section title="전형적 로그">
+              <ul className="flex flex-col gap-1 font-mono text-xs text-foreground-muted">
+                {pattern.typicalLogs.map((l) => (
+                  <li key={l} className="break-words">
+                    {l}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          </div>
+          <Section title="흔한 원인">
+            <List items={pattern.commonCauses} />
+          </Section>
+          <Card as="section" className="border-danger/40">
+            <h2 className="mb-2 text-sm font-semibold">그럴듯하지만 틀린 대응</h2>
+            <ul className="flex flex-col gap-2 text-sm">
+              {pattern.badFixes.map((b) => (
+                <li key={b.fix}>
+                  <span className="font-medium">✗ {b.fix}</span>
+                  <p className="text-foreground-muted">{b.why}</p>
+                </li>
+              ))}
+            </ul>
+          </Card>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Section title="완화 (지금)">
+              <List items={pattern.mitigations} ordered />
+            </Section>
+            <Section title="예방 (다음 설계)">
+              <List items={pattern.prevention} />
+            </Section>
+          </div>
         </div>
-      </Section>
-      {scenario && (
-        <Button href={`/drills/${scenario.id}`} className="self-start">
-          이 장애를 직접 대응해 보기 →
-        </Button>
-      )}
+        <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-6">
+          <Section title="관련 개념">
+            <div className="flex flex-wrap gap-2 text-sm">
+              {pattern.relatedConcepts.map((c) => (
+                <Link key={c.riskKey} href={`/learning/${c.riskKey}`} className="rounded-full border border-border px-2.5 py-0.5 hover:border-accent">
+                  {c.label}
+                </Link>
+              ))}
+            </div>
+          </Section>
+          {scenario && (
+            <Button href={`/drills/${scenario.id}`} className="self-start lg:self-stretch">
+              이 장애를 직접 대응해 보기 →
+            </Button>
+          )}
+        </aside>
+      </div>
     </div>
   );
 }

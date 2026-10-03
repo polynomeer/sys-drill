@@ -51,7 +51,7 @@ export default function WriteupDetailPage() {
   }, [scenarioId, sessionId, router]);
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-xl font-semibold">공개된 풀이</h1>
         <Link href={`/writeups/${scenarioId}`} className="text-sm underline">
@@ -63,72 +63,76 @@ export default function WriteupDetailPage() {
       {!writeup && !error && <LoadingState />}
 
       {writeup && (
-        <>
-          <Card className="flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-              <p className="text-sm text-foreground-muted">{writeup.scenarioTitle}</p>
-              <p className="flex flex-wrap items-baseline gap-2 font-medium">
-                {writeup.anonymous ? "익명" : (writeup.authorNickname ?? "알 수 없음")}
-                {writeup.mine && <Badge variant="accent">내 풀이</Badge>}
-              </p>
-            </div>
-            <span className="text-sm tabular-nums text-foreground-muted">
-              {typeof writeup.averageScore === "number" ? `평균 ${writeup.averageScore}점` : "점수 없음"}
-            </span>
-          </Card>
-
-          {/* docs/COMMUNITY_EXPANSION_PLAN.md C8 (PLAN.md Round E15) */}
-          <WriteupSummaryCard writeup={writeup} onUpdated={setWriteup} />
-          {!writeup.mine && <ComparePanel sessionId={writeup.sessionId} />}
-          {!writeup.mine && <ForkMyRunPanel writeup={writeup} />}
-          {/* docs/COMMUNITY_EXPANSION_PLAN.md C10 (PLAN.md Round E22) */}
-          <ReviewPanel sessionId={writeup.sessionId} />
-
-          <Card as="section">
-            <h2 className="mb-3 text-sm font-semibold text-foreground-muted">단계별 답안</h2>
-            <ul className="flex flex-col gap-4">
-              {writeup.phases.map((phase, i) => (
-                <li key={i} className="border-t border-border pt-4 first:border-t-0 first:pt-0">
-                  <div className="mb-2 flex items-baseline justify-between gap-2">
-                    <span className="text-sm font-medium">{PHASE_LABELS[phase.phase] ?? phase.phase}</span>
-                    <span className="font-mono text-sm">{phase.score ?? "-"} / 100</span>
-                  </div>
-                  <p className="whitespace-pre-wrap text-sm">{phase.answer ?? "(답안 없음)"}</p>
-                  {phase.topRisks.length > 0 && (
-                    <ul className="mt-2 list-inside list-disc text-xs text-foreground-muted">
-                      {phase.topRisks.map((risk, j) => (
-                        <li key={j}>{risk}</li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </Card>
-
-          {(writeup.rootCause || writeup.preventionItems.length > 0) && (
-            <Card as="section">
-              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-sm font-semibold text-foreground-muted">포스트모템</h2>
-                {(writeup.mttdSeconds != null || writeup.mttrSeconds != null) && (
-                  <span className="text-xs text-foreground-muted">
-                    {writeup.mttdSeconds != null && `MTTD ${formatDuration(writeup.mttdSeconds)}`}
-                    {writeup.mttdSeconds != null && writeup.mttrSeconds != null && " · "}
-                    {writeup.mttrSeconds != null && `MTTR ${formatDuration(writeup.mttrSeconds)}`}
-                  </span>
-                )}
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+          <div className="flex min-w-0 flex-col gap-6">
+            <Card className="flex flex-wrap items-baseline justify-between gap-2">
+              <div>
+                <p className="text-sm text-foreground-muted">{writeup.scenarioTitle}</p>
+                <p className="flex flex-wrap items-baseline gap-2 font-medium">
+                  {writeup.anonymous ? "익명" : (writeup.authorNickname ?? "알 수 없음")}
+                  {writeup.mine && <Badge variant="accent">내 풀이</Badge>}
+                </p>
               </div>
-              {writeup.rootCause && <p className="whitespace-pre-wrap text-sm">{writeup.rootCause}</p>}
-              {writeup.preventionItems.length > 0 && (
-                <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-foreground-muted">
-                  {writeup.preventionItems.map((item, i) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              )}
+              <span className="text-sm tabular-nums text-foreground-muted">
+                {typeof writeup.averageScore === "number" ? `평균 ${writeup.averageScore}점` : "점수 없음"}
+              </span>
             </Card>
-          )}
-        </>
+            {/* docs/COMMUNITY_EXPANSION_PLAN.md C8 (PLAN.md Round E15) */}
+            <WriteupSummaryCard writeup={writeup} onUpdated={setWriteup} />
+            {!writeup.mine && <ComparePanel sessionId={writeup.sessionId} />}
+
+            <Card as="section">
+              <h2 className="mb-3 text-sm font-semibold text-foreground-muted">단계별 답안</h2>
+              <ul className="flex flex-col gap-4">
+                {writeup.phases.map((phase, i) => (
+                  <li key={i} className="border-t border-border pt-4 first:border-t-0 first:pt-0">
+                    <div className="mb-2 flex items-baseline justify-between gap-2">
+                      <span className="text-sm font-medium">{PHASE_LABELS[phase.phase] ?? phase.phase}</span>
+                      <span className="font-mono text-sm">{phase.score ?? "-"} / 100</span>
+                    </div>
+                    <p className="max-w-[72ch] whitespace-pre-wrap text-sm">{phase.answer ?? "(답안 없음)"}</p>
+                    {phase.topRisks.length > 0 && (
+                      <ul className="mt-2 list-inside list-disc text-xs text-foreground-muted">
+                        {phase.topRisks.map((risk, j) => (
+                          <li key={j}>{risk}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+
+            {(writeup.rootCause || writeup.preventionItems.length > 0) && (
+              <Card as="section">
+                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-foreground-muted">포스트모템</h2>
+                  {(writeup.mttdSeconds != null || writeup.mttrSeconds != null) && (
+                    <span className="text-xs text-foreground-muted">
+                      {writeup.mttdSeconds != null && `MTTD ${formatDuration(writeup.mttdSeconds)}`}
+                      {writeup.mttdSeconds != null && writeup.mttrSeconds != null && " · "}
+                      {writeup.mttrSeconds != null && `MTTR ${formatDuration(writeup.mttrSeconds)}`}
+                    </span>
+                  )}
+                </div>
+                {writeup.rootCause && <p className="max-w-[72ch] whitespace-pre-wrap text-sm">{writeup.rootCause}</p>}
+                {writeup.preventionItems.length > 0 && (
+                  <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-foreground-muted">
+                    {writeup.preventionItems.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+            )}
+          </div>
+
+          <aside className="flex min-w-0 flex-col gap-4">
+            {!writeup.mine && <ForkMyRunPanel writeup={writeup} />}
+            {/* docs/COMMUNITY_EXPANSION_PLAN.md C10 (PLAN.md Round E22) */}
+            <ReviewPanel sessionId={writeup.sessionId} />
+          </aside>
+        </div>
       )}
     </div>
   );

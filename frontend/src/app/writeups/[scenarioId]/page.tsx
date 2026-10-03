@@ -51,7 +51,7 @@ export default function WriteupListPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">공개된 풀이</h1>
         {list && <p className="mt-1 text-sm text-foreground-muted">{list.scenarioTitle}</p>}
@@ -61,7 +61,7 @@ export default function WriteupListPage() {
       {!list && !error && <LoadingState />}
 
       {list?.locked && (
-        <Card as="section">
+        <Card as="section" className="max-w-3xl">
           <h2 className="mb-2 text-sm font-semibold">먼저 직접 풀어보세요</h2>
           <p className="mb-3 text-sm text-foreground-muted">
             {list.count > 0
@@ -79,8 +79,8 @@ export default function WriteupListPage() {
       )}
 
       {list && !list.locked && (
-        <Card as="section">
-          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <section className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-sm font-semibold">{list.count}편</h2>
             <span className="flex gap-1" role="group" aria-label="정렬">
               {(
@@ -106,31 +106,33 @@ export default function WriteupListPage() {
             </span>
           </div>
           {list.writeups.length === 0 ? (
-            <p className="text-sm text-foreground-muted">
-              아직 공개된 풀이가 없습니다. 리포트 화면에서 내 풀이를 첫 번째로 공개해보세요.
-            </p>
+            <Card>
+              <p className="text-sm text-foreground-muted">
+                아직 공개된 풀이가 없습니다. 리포트 화면에서 내 풀이를 첫 번째로 공개해보세요.
+              </p>
+            </Card>
           ) : (
-            <ul className="divide-y divide-border">
+            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {list.writeups.map((writeup) => (
-                <li key={writeup.sessionId} className="py-2">
+                <Card as="li" key={writeup.sessionId}>
                   <Link
                     href={`/writeups/${scenarioId}/${writeup.sessionId}`}
-                    className="flex flex-wrap items-baseline justify-between gap-2 text-sm hover:underline"
+                    className="flex h-full flex-col gap-2 text-sm hover:underline"
                   >
                     <span className="flex flex-wrap items-baseline gap-2">
                       {writeup.anonymous ? "익명" : (writeup.authorNickname ?? "알 수 없음")}
                       {writeup.mine && <Badge variant="accent">내 풀이</Badge>}
                     </span>
-                    <span className="flex gap-3 text-xs tabular-nums text-foreground-muted">
+                    <span className="flex flex-wrap gap-3 text-xs tabular-nums text-foreground-muted">
                       {typeof writeup.distance === "number" && !writeup.mine && <span>구조 차이 {Math.round(writeup.distance * 100)}%</span>}
                       <span>{typeof writeup.averageScore === "number" ? `평균 ${writeup.averageScore}점` : "점수 없음"}</span>
                     </span>
                   </Link>
-                </li>
+                </Card>
               ))}
             </ul>
           )}
-        </Card>
+        </section>
       )}
     </div>
   );

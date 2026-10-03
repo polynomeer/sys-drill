@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { DiscussionThread, LearningConceptSummary, getDiscussion, getLearningConcepts, listScenarios } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { DiscussionPanel } from "@/components/DiscussionPanel";
+import { Card } from "@/components/ui/Card";
 
 /**
  * docs/LEARNING_COMMUNITY_PLAN.md §6.5 / ADR-0040 — 시나리오별 토론 페이지.
@@ -39,29 +40,36 @@ export default function ScenarioDiscussionPage() {
   }, [scenarioId, router]);
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold">토론</h1>
-          {thread && <p className="mt-1 text-sm text-foreground-muted">{thread.scenarioTitle}</p>}
-        </div>
-        <Link href={`/writeups/${scenarioId}`} className="text-sm underline">
-          이 시나리오의 공개 풀이 →
-        </Link>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
+      <div>
+        <h1 className="text-2xl font-semibold">토론</h1>
+        {thread && <p className="mt-1 text-sm text-foreground-muted">{thread.scenarioTitle}</p>}
       </div>
 
-      {concepts.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="text-foreground-muted">이 시나리오가 다루는 개념:</span>
-          {concepts.map((c) => (
-            <Link key={c.riskKey} href={`/learning/${c.riskKey}`} className="rounded-full border border-border px-2 py-0.5 hover:border-accent">
-              {c.label}
-            </Link>
-          ))}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+        <div className="min-w-0">
+          <DiscussionPanel scenarioId={scenarioId} />
         </div>
-      )}
 
-      <DiscussionPanel scenarioId={scenarioId} />
+        <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-6">
+          <Card className="flex flex-col gap-3">
+            <Link href={`/writeups/${scenarioId}`} className="text-sm underline">
+              이 시나리오의 공개 풀이 →
+            </Link>
+
+            {concepts.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-foreground-muted">이 시나리오가 다루는 개념:</span>
+                {concepts.map((c) => (
+                  <Link key={c.riskKey} href={`/learning/${c.riskKey}`} className="rounded-full border border-border px-2 py-0.5 hover:border-accent">
+                    {c.label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </Card>
+        </aside>
+      </div>
     </div>
   );
 }
