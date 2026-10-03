@@ -110,6 +110,7 @@ scripts/                      run.sh · run-tests-isolated.sh · cleanup-stale-k
 1. `challenges/<slug>/`에 스켈레톤(`<name>.py`), `stages/stageN_test.py`, `README.md`, `submit.sh`를 만듭니다. 기존 `rate-limiter`를 복사해서 시작하세요. 각 stage 테스트는 `RESULT:PASS` / `RESULT:FAIL:<이유>`를 stdout에 찍고 exit code로 결과를 알립니다.
 2. 같은 내용을 **시드 마이그레이션**으로 등록합니다 (`V<N>__seed_<slug>_challenge.sql`) — 서버 채점은 파일시스템이 아니라 DB의 스크립트를 씁니다.
 3. 채점은 `python:3.12-slim` 컨테이너에서 `--network none`으로 돌아가므로 stage 테스트는 표준 라이브러리만 써야 합니다 ([ADR-0007](adr/0007-docker-sandboxed-build-execution.md), [ADR-0008](adr/0008-python-for-build-challenges.md)).
+4. 다른 언어 판은 `<slug>-ts` / `-java` / `-kotlin` / `-go` 별도 챌린지로 둡니다(`challenges/rate-limiter-*` 참고). 언어별 이미지·실행 명령·자원 한도는 `SandboxExecutor`의 `languageRuntimes`에 있고, Kotlin·Go 이미지는 `docker compose --profile sandbox-images build`로 한 번 빌드해 둬야 합니다 ([ADR-0051](adr/0051-compiled-language-sandboxes-get-own-images-and-limits.md)).
 
 ## 7. 공유 로컬 인프라 주의점
 

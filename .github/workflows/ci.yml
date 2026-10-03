@@ -25,6 +25,11 @@ jobs:
       - name: Start infrastructure
         run: docker compose up -d
 
+      # Kotlin·Go 채점 샌드박스 이미지(ADR-0051) — 공식 이미지가 아니라 sandbox/ 의
+      # Dockerfile 로 만든다. SandboxExecutorCompiledLanguagesTest 와 Build 통합 테스트가 쓴다.
+      - name: Build sandbox images
+        run: docker compose --profile sandbox-images build
+
       - name: Wait for Postgres
         run: |
           for i in $(seq 1 30); do

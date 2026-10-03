@@ -33,6 +33,9 @@ data class SandboxResult(val passed: Boolean, val output: String)
 class SandboxExecutor(
     @Value("\${sysdrill.build.sandbox-image}") private val pythonImage: String,
     @Value("\${sysdrill.build.sandbox-image-typescript}") private val typescriptImage: String,
+    @Value("\${sysdrill.build.sandbox-image-java}") private val javaImage: String,
+    @Value("\${sysdrill.build.sandbox-image-kotlin}") private val kotlinImage: String,
+    @Value("\${sysdrill.build.sandbox-image-go}") private val goImage: String,
     @Value("\${sysdrill.build.timeout-seconds}") private val timeoutSeconds: Long,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -51,6 +54,32 @@ class SandboxExecutor(
                 typescriptImage,
                 "run_test.ts",
                 listOf("node", "--experimental-strip-types", "run_test.ts"),
+            ),
+            // 컴파일 언어는 매 단계 컨테이너 안에서 컴파일부터 한다. /work 가 읽기 전용이라
+            // 산출물은 /tmp 로 보내고, 컴파일 시간은 [LanguageRuntime.compileSeconds] 로 따로 준다.
+            "java" to LanguageRuntime(
+                javaImage,
+                "RunTest.java",
+                listOf("sh", "-c", "javac -d /tmp/classes *.java && java -cp /tmp/classes RunTest"),
+                compileSeconds = 5,
+            ),
+            // kotlinc 는 128m 에서 OOM 으로 죽고 0.5 CPU 에서는 컴파일만 7초가 걸린다 — 이 언어만
+            // 한도를 올린다. 측정치와 근거는 ADR-0051, 이미지는 sandbox/kotlin/Dockerfile.
+            "kotlin" to LanguageRuntime(
+                kotlinImage,
+                "RunTest.kt",
+                listOf("sh", "-c", "kotlinc -nowarn *.kt -d /tmp/run.jar && java -cp /tmp/run.jar:\$KOTLIN_STDLIB RunTest"),
+                cpus = "1.0",
+                memory = "384m",
+                compileSeconds = 10,
+            ),
+            // `_test.go` 로 끝나는 파일은 `go run` 이 받지 않는다. 이미지에 표준 라이브러리 빌드
+            // 캐시를 미리 채워 둔 이유는 sandbox/go/Dockerfile.
+            "go" to LanguageRuntime(
+                goImage,
+                "run_stage.go",
+                listOf("sh", "-c", "go run *.go"),
+                compileSeconds = 5,
             ),
         )
     }
@@ -76,8 +105,8 @@ class SandboxExecutor(
             "--name", containerName,
             "--label", "$OWNER_LABEL=$OWNER_LABEL_VALUE",
             "--network", "none",
-            "--cpus", "0.5",
-            "--memory", "128m",
+            "--cpus", runtime.cpus,
+            "--memory", runtime.memory,
             "--pids-limit", "64",
             "-v", "$workDir:/work:ro",
             "-w", "/work",
@@ -85,7 +114,7 @@ class SandboxExecutor(
             // 여기서 도는 것은 신뢰할 수 없는 제출 코드다. `timeout` 은 기본적으로
             // SIGTERM 만 보내므로, 그것을 무시하는 세 줄이면 이 제한을 그냥 통과한다.
             // --kill-after 가 그 뒤에 SIGKILL 을 보낸다.
-            "timeout", "--kill-after=${KILL_AFTER_SECONDS}s", timeoutSeconds.toString(),
+            "timeout", "--kill-after=${KILL_AFTER_SECONDS}s", runtime.deadlineSeconds().toString(),
             *runtime.runCommand.toTypedArray(),
         ).redirectErrorStream(true).start()
 
@@ -104,9 +133,9 @@ class SandboxExecutor(
         }.apply { isDaemon = true; start() }
 
         return try {
-            val finished = process.waitFor(timeoutSeconds + GRACE_SECONDS, TimeUnit.SECONDS)
+            val finished = process.waitFor(runtime.deadlineSeconds() + GRACE_SECONDS, TimeUnit.SECONDS)
             if (!finished) {
-                SandboxResult(passed = false, output = "sandbox timed out after ${timeoutSeconds}s")
+                SandboxResult(passed = false, output = "sandbox timed out after ${runtime.deadlineSeconds()}s")
             } else {
                 // 프로세스가 끝나도 마지막 줄이 아직 스레드에 남아 있을 수 있다.
                 drain.join(DRAIN_JOIN_MILLIS)
@@ -137,7 +166,17 @@ class SandboxExecutor(
         }.onFailure { log.warn("Failed to remove sandbox container {}: {}", containerName, it.message) }
     }
 
-    private data class LanguageRuntime(val image: String, val testFileName: String, val runCommand: List<String>)
+    /** 실행 시간 한도 = 설정된 테스트 시간 + 컴파일 언어가 매번 치르는 컴파일 시간. */
+    private fun LanguageRuntime.deadlineSeconds() = timeoutSeconds + compileSeconds
+
+    private data class LanguageRuntime(
+        val image: String,
+        val testFileName: String,
+        val runCommand: List<String>,
+        val cpus: String = "0.5",
+        val memory: String = "128m",
+        val compileSeconds: Long = 0,
+    )
 
     companion object {
         /** 호스트에서 사람이 봤을 때 출처가 드러나야 한다. */

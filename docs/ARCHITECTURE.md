@@ -84,7 +84,7 @@ GET /build-submissions/{id}  (프론트 폴링)
 | Primary DB | PostgreSQL 16 | 테이블 29개. JSONB를 가변 스키마 영역에 사용. QueryDSL/jOOQ는 도입하지 않음 — JPA + 파생 쿼리로 충분 |
 | Cache/Queue | Redis 7 | Job Queue, 세션 시뮬레이션 상태(TTL 6h), auth rate limit |
 | AI | Anthropic Claude API | 5개 역할 프롬프트를 DB에서 버전 관리. 키 미설정 시 오프라인 스텁으로 폴백 |
-| Build Runner | Docker (`python:3.12-slim`) | `docker run` CLI 직접 호출 — Testcontainers 미사용([ADR-0007](adr/0007-docker-sandboxed-build-execution.md)/[0008](adr/0008-python-for-build-challenges.md)) |
+| Build Runner | Docker (`python:3.12-slim`, `node:22-slim`, `eclipse-temurin:25-jdk`, 자체 빌드 Kotlin·Go 이미지) | `docker run` CLI 직접 호출 — Testcontainers 미사용([ADR-0007](adr/0007-docker-sandboxed-build-execution.md)/[0008](adr/0008-python-for-build-challenges.md)/[0051](adr/0051-compiled-language-sandboxes-get-own-images-and-limits.md)) |
 | 실제 인프라 시뮬레이션 | Kafka 3.9(KRaft), Toxiproxy 2.9, k6 | **시뮬레이션 대상**으로서의 인프라(§7) |
 | Observability | OpenTelemetry → Jaeger(OTLP), Spring Actuator, Sentry | 실제 인프라 구간 추적용. Prometheus/Grafana는 **(미구현)** |
 | 인증 | 자체 JWT(java-jwt HMAC), Google OAuth, 조직 RBAC | SSO/SAML은 **(미구현)** |
@@ -534,7 +534,7 @@ AI 평가가 핵심 비동기 경로이므로 API 지표만으로는 운영 상�
 ```
 docker compose:  postgres:16  redis:7  kafka:3.9(KRaft)  toxiproxy:2.9  jaeger:all-in-one
 호스트 프로세스:  backend (bootRun, 8081)   frontend (next dev, 3000)
-일회성 컨테이너:  python:3.12-slim (채점)   grafana/k6 (부하)
+일회성 컨테이너:  python:3.12-slim 외 언어별 채점 이미지   grafana/k6 (부하)
 ```
 
 `./scripts/run.sh` 하나로 전부 기동하며, 포트 충돌 시 자동으로 우회한다. 백엔드는 **호스트 JVM 프로세스**라서 Toxiproxy·k6·Jaeger에 `localhost`로 접근한다 — 이 전제가 포트 공개 설정과 테스트 격리 스크립트의 구조를 결정한다.

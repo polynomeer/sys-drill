@@ -146,14 +146,20 @@ sysdrill:
     # (`node --experimental-strip-types`)만으로 컴파일 없이 .ts를 바로 실행 가능해
     # npm install/네트워크 없이도 --network none 샌드박스와 호환된다.
     sandbox-image-typescript: ${BUILD_SANDBOX_IMAGE_TS:node:22-slim}
+    # Java·Kotlin·Go 판(ADR-0051). Java는 공식 JDK 이미지 그대로지만 Kotlin(공식
+    # 컴파일러 이미지가 없음)과 Go(표준 라이브러리 빌드 캐시가 필요)는 sandbox/ 의
+    # Dockerfile로 빌드한다: `docker compose --profile sandbox-images build`.
+    sandbox-image-java: ${BUILD_SANDBOX_IMAGE_JAVA:eclipse-temurin:25-jdk}
+    sandbox-image-kotlin: ${BUILD_SANDBOX_IMAGE_KOTLIN:sysdrill/sandbox-kotlin:2.4.20}
+    sandbox-image-go: ${BUILD_SANDBOX_IMAGE_GO:sysdrill/sandbox-go:1.25}
     timeout-seconds: ${BUILD_TIMEOUT_SECONDS:10}
     # docs/COMMERCIALIZATION.md — how many BuildRunnerWorker threads run
     # concurrently. Unlike evaluation's worker-concurrency above, this is a
     # direct resource dial, not just a throughput one: each thread blocks on
-    # its own `docker run` (--cpus 0.5 --memory 128m), so this many threads
-    # means up to that many containers running at once. Default of 2 reserves
-    # at most ~1 CPU / 256MB for sandboxes -- raise only alongside host
-    # capacity.
+    # its own `docker run` (--cpus 0.5 --memory 128m; Kotlin --cpus 1.0
+    # --memory 384m), so this many threads means up to that many containers
+    # running at once. Default of 2 reserves at most ~2 CPU / 768MB for
+    # sandboxes -- raise only alongside host capacity.
     worker-concurrency: ${BUILD_WORKER_CONCURRENCY:2}
     # docs/COMMERCIALIZATION.md — not an LLM call, but a real docker sandbox
     # run per stage; had no rate limit of any kind before this.

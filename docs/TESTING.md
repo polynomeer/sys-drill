@@ -105,6 +105,6 @@ CI 러너는 전용이라 격리 스크립트가 필요 없습니다 — 격리 
 `challenges/<slug>/stages/stageN_test.py`는 두 곳에서 같은 파일이 실행됩니다:
 
 - **사용자 로컬** — `PYTHONPATH=. python3 stages/stage1_test.py`. 빠른 피드백용.
-- **서버 채점** — DB에 시드된 같은 스크립트를 `python:3.12-slim` 컨테이너에서 `--network none`, CPU 0.5, 128MB, 10초 제한으로 실행. `RESULT:PASS`/`RESULT:FAIL:<이유>` 출력과 exit code로 판정.
+- **서버 채점** — DB에 시드된 같은 스크립트를 `python:3.12-slim` 컨테이너에서 `--network none`, CPU 0.5, 128MB, 10초 제한으로 실행. `RESULT:PASS`/`RESULT:FAIL:<이유>` 출력과 exit code로 판정. 다른 언어 판은 그 언어의 이미지에서 같은 방식으로 돌고, 컴파일 언어는 컴파일 시간을 더 받으며 Kotlin만 CPU 1.0 / 384MB다([ADR-0051](adr/0051-compiled-language-sandboxes-get-own-images-and-limits.md)).
 
-`BuildRunnerWorker`/`SandboxExecutor` 자체의 테스트는 [`build/`](../backend/src/test/kotlin/com/sysdrill/backend/build/)에 있으며 실제 Docker 데몬이 필요합니다.
+`BuildRunnerWorker`/`SandboxExecutor` 자체의 테스트는 [`build/`](../backend/src/test/kotlin/com/sysdrill/backend/build/)에 있으며 실제 Docker 데몬이 필요합니다. Kotlin·Go 채점 테스트는 저장소에서 빌드하는 샌드박스 이미지도 필요합니다 — 처음 한 번 `docker compose --profile sandbox-images build`(CI는 매번 빌드).

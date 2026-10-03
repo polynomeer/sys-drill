@@ -98,5 +98,18 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
 
+  # Build Mode 채점 샌드박스 이미지 (ADR-0051). 띄우는 서비스가 아니라 이미지를 만들어 두는
+  # 항목이다 — SandboxExecutor 가 채점마다 `docker run` 한다. 프로필이 붙어 있어
+  # `docker compose up` 에는 끼지 않는다: `docker compose --profile sandbox-images build`.
+  sandbox-kotlin:
+    profiles: [sandbox-images]
+    image: sysdrill/sandbox-kotlin:2.4.20
+    build: ./sandbox/kotlin
+
+  sandbox-go:
+    profiles: [sandbox-images]
+    image: sysdrill/sandbox-go:1.25
+    build: ./sandbox/go
+
 volumes:
   sysdrill_postgres_data:
