@@ -2259,6 +2259,22 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## Build 과제 추가 — Cache · Idempotency Layer (4개 언어) ✅ 완료 (2026-10-03)
+
+사용자 요청("build drill 문제를 늘려줘"). 무엇을 늘릴지는 [PRD §7.1](docs/PRD.md)의 초기 Build 과제 목록에서 아직 없던 둘로 정했다 — 둘 다 기존 Drill 도메인의 워게임 액션으로 이어진다(Cache → 상품 조회 `ENABLE_SINGLE_FLIGHT`·`INCREASE_CACHE_TTL`, Idempotency → 결제 `ENABLE_IDEMPOTENT_PG_RETRY`). 이제 8개 과제 × Python·Java·Kotlin·Go(+rate-limiter TS) = 33개 판.
+
+- [x] Python 원본을 먼저 직접 써서 스펙을 고정 — 스텁·4단계·README·submit.sh·모범 답안(`build-solutions/<slug>/`). 각 단계가 노리는 잘못된 구현이 그 단계에서 떨어지는지 실측:
+  - Cache: TTL / LRU / **single-flight**(8스레드 동시 miss → 로더 1회, 느린 로더라 결정적으로 판별) / invalidation + hit ratio. 잘못된 구현 — 만료 무시 → 1단계, FIFO → 2단계, single-flight 없음 → 3단계(8회 로드)
+  - Idempotency: 결과 재생 / 키 재사용 충돌 / **처리 중 중복은 기다리지 말고 거절**(이중 결제가 가장 많이 나는 지점) / 실패는 저장 안 함 + 보존 기간. 잘못된 구현 — 충돌 검사 없음 → 2단계, 실행 중 락 보유 → 3단계(제한 시간 대기로 "막혔다" 판정, 샌드박스 타임아웃까지 가지 않음), 진행 중 표시 없음 → 3단계(이중 결제), 실패 저장 → 4단계
+- [x] Java·Kotlin·Go 포팅은 과제별 서브에이전트 2개 — 같은 잘못된 구현들이 세 언어 모두에서 같은 단계에서 떨어지는 것까지 확인(Go는 `-race` 아래 모범 답안 경쟁 없음)
+- [x] `V75` — 8개 챌린지(파일에서 생성) + 학습 개념 4개의 "직접 구현하기" 링크(멱등성 처리·결제 멱등성 → idempotency, 캐시 정책 분리·Single-flight → cache). MISSING_IDEMPOTENCY는 맞는 과제가 없어 rate-limiter만 걸려 있었다
+- [x] `/bridge` 과제 목록에 두 과제(카탈로그에서 언어를 읽으므로 그 외 코드 변경 없음), `LearningConceptCatalogTest`에 "개념이 가리키는 Build 과제가 실제 slug인가" 검사 추가
+- [x] `BuildLanguageVariantsIntegrationTest`에 8개 판(Python 원본 포함) 추가
+
+**메모**: 검증 중 호스트 load average가 20~29(다른 프로젝트 컨테이너)라 Kotlin/Go 단계가 가끔 10초대까지 늘었다 — 같은 테스트가 부하가 낮을 때는 4~5초(컴파일이 대부분).
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
