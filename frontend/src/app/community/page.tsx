@@ -74,7 +74,7 @@ export default function CommunityPage() {
     .sort((a, b) => (b.completedCount ?? 0) - (a.completedCount ?? 0));
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">Community</h1>
         <p className="mt-1 text-sm text-foreground-muted">
@@ -82,107 +82,116 @@ export default function CommunityPage() {
         </p>
       </div>
 
-      {/* docs/COMMUNITY_EXPANSION_PLAN.md C13 (PLAN.md Round E31) */}
-      <ChallengeEventsCard />
-      {/* docs/COMMUNITY_EXPANSION_PLAN.md C11 (PLAN.md Round E23) */}
-      <CommunityHomeFeeds />
-      {/* docs/COMMUNITY_EXPANSION_PLAN.md C12 (PLAN.md Round E28) */}
-      <WeeklyPuzzleCard />
+      {/* 왼쪽은 함께 보는 소식(챌린지·퍼즐·토론·시나리오), 오른쪽은 내 기록(점수·랭킹·공개 프로필). */}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+        <div className="flex flex-col gap-6">
+          {/* docs/COMMUNITY_EXPANSION_PLAN.md C13 (PLAN.md Round E31) */}
+          <ChallengeEventsCard />
+          {/* docs/COMMUNITY_EXPANSION_PLAN.md C12 (PLAN.md Round E28) */}
+          <WeeklyPuzzleCard />
+          {/* docs/COMMUNITY_EXPANSION_PLAN.md C11 (PLAN.md Round E23) */}
+          <CommunityHomeFeeds />
 
-      <RankingPanel />
+          <div className="grid gap-6 md:grid-cols-2 md:items-start">
+              <Card as="section">
+                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="text-sm font-semibold">공개 시나리오</h2>
+                  <Link href="/marketplace" className="text-xs underline">
+                    전체 보기 · 내 시나리오 공개하기
+                  </Link>
+                </div>
+                {scenarios === null ? (
+                  <LoadingState />
+                ) : ranked.length === 0 ? (
+                  <p className="text-sm text-foreground-muted">
+                    아직 공개된 시나리오가 없습니다. 직접 만들어 공개하면 여기에 표시됩니다.
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {ranked.slice(0, 8).map((scenario) => (
+                      <li key={scenario.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                        <span className="flex flex-wrap items-center gap-2">
+                          {scenario.title}
+                          {scenario.difficulty && <Badge>{scenario.difficulty}</Badge>}
+                          {scenario.creatorNickname && (
+                            <span className="text-xs text-foreground-muted">by {scenario.creatorNickname}</span>
+                          )}
+                        </span>
+                        <span className="text-xs text-foreground-muted">
+                          {(scenario.completedCount ?? 0) > 0
+                            ? `완료 ${scenario.completedCount}명${
+                                typeof scenario.averageScore === "number" ? ` · 평균 ${scenario.averageScore}점` : ""
+                              }`
+                            : "아직 완료한 사람이 없습니다"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
 
-      <Card as="section">
-        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-sm font-semibold">내 공개 프로필</h2>
-          {certification && (
-            <span className="text-xs text-foreground-muted">
-              인증 통과 {passedCount} / {certification.domains.length} 도메인
-            </span>
-          )}
+              <Card as="section">
+                <h2 className="mb-2 text-sm font-semibold">토론</h2>
+                <p className="mb-3 text-sm text-foreground-muted">
+                  질문은 시나리오 안에서 합니다 — 내 답안과 받은 지적이 함께 있는 곳이라야 &ldquo;왜 이 설계가
+                  감점인가&rdquo;를 제대로 물을 수 있기 때문입니다.
+                </p>
+                {officialScenarios === null ? (
+                  <LoadingState />
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {officialScenarios.slice(0, 6).map((scenario) => (
+                      <li key={scenario.id} className="py-2">
+                        <Link
+                          href={`/discussions/${scenario.id}`}
+                          className="flex flex-wrap items-center justify-between gap-2 text-sm hover:underline"
+                        >
+                          <span className="flex flex-wrap items-center gap-2">
+                            {scenario.title}
+                            {scenario.difficulty && <Badge>{scenario.difficulty}</Badge>}
+                          </span>
+                          <span className="text-xs text-foreground-muted">스레드 열기 →</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+          </div>
         </div>
-        {!certification ? (
-          <p className="text-sm text-foreground-muted">인증 현황을 불러오지 못했습니다.</p>
-        ) : (
-          <>
-            <p className="mb-3 text-sm text-foreground-muted">
-              로그인 없이 누구나 볼 수 있는 검증 페이지입니다. 약점 프로필과 실패 이력은 포함되지 않습니다.
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button href={`/certifications/${certification.userId}`} size="sm" variant="secondary">
-                내 프로필 보기
-              </Button>
-              <Button size="sm" variant="secondary" onClick={copyProfileUrl}>
-                {copied ? "복사됨 ✓" : "공유 링크 복사"}
-              </Button>
-            </div>
-          </>
-        )}
-      </Card>
 
-      <Card as="section">
-        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-sm font-semibold">공개 시나리오</h2>
-          <Link href="/marketplace" className="text-xs underline">
-            전체 보기 · 내 시나리오 공개하기
-          </Link>
-        </div>
-        {scenarios === null ? (
-          <LoadingState />
-        ) : ranked.length === 0 ? (
-          <p className="text-sm text-foreground-muted">
-            아직 공개된 시나리오가 없습니다. 직접 만들어 공개하면 여기에 표시됩니다.
-          </p>
-        ) : (
-          <ul className="divide-y divide-border">
-            {ranked.slice(0, 8).map((scenario) => (
-              <li key={scenario.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                <span className="flex flex-wrap items-center gap-2">
-                  {scenario.title}
-                  {scenario.difficulty && <Badge>{scenario.difficulty}</Badge>}
-                  {scenario.creatorNickname && (
-                    <span className="text-xs text-foreground-muted">by {scenario.creatorNickname}</span>
-                  )}
-                </span>
+        <aside className="flex flex-col gap-6">
+          <RankingPanel />
+
+          <Card as="section">
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-sm font-semibold">내 공개 프로필</h2>
+              {certification && (
                 <span className="text-xs text-foreground-muted">
-                  {(scenario.completedCount ?? 0) > 0
-                    ? `완료 ${scenario.completedCount}명${
-                        typeof scenario.averageScore === "number" ? ` · 평균 ${scenario.averageScore}점` : ""
-                      }`
-                    : "아직 완료한 사람이 없습니다"}
+                  인증 통과 {passedCount} / {certification.domains.length} 도메인
                 </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      <Card as="section">
-        <h2 className="mb-2 text-sm font-semibold">토론</h2>
-        <p className="mb-3 text-sm text-foreground-muted">
-          질문은 시나리오 안에서 합니다 — 내 답안과 받은 지적이 함께 있는 곳이라야 &ldquo;왜 이 설계가
-          감점인가&rdquo;를 제대로 물을 수 있기 때문입니다.
-        </p>
-        {officialScenarios === null ? (
-          <LoadingState />
-        ) : (
-          <ul className="divide-y divide-border">
-            {officialScenarios.slice(0, 6).map((scenario) => (
-              <li key={scenario.id} className="py-2">
-                <Link
-                  href={`/discussions/${scenario.id}`}
-                  className="flex flex-wrap items-center justify-between gap-2 text-sm hover:underline"
-                >
-                  <span className="flex flex-wrap items-center gap-2">
-                    {scenario.title}
-                    {scenario.difficulty && <Badge>{scenario.difficulty}</Badge>}
-                  </span>
-                  <span className="text-xs text-foreground-muted">스레드 열기 →</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+              )}
+            </div>
+            {!certification ? (
+              <p className="text-sm text-foreground-muted">인증 현황을 불러오지 못했습니다.</p>
+            ) : (
+              <>
+                <p className="mb-3 text-sm text-foreground-muted">
+                  로그인 없이 누구나 볼 수 있는 검증 페이지입니다. 약점 프로필과 실패 이력은 포함되지 않습니다.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button href={`/certifications/${certification.userId}`} size="sm" variant="secondary">
+                    내 프로필 보기
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={copyProfileUrl}>
+                    {copied ? "복사됨 ✓" : "공유 링크 복사"}
+                  </Button>
+                </div>
+              </>
+            )}
+          </Card>
+        </aside>
+      </div>
     </div>
   );
 }
