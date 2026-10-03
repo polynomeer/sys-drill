@@ -85,3 +85,14 @@ Phase B(반응형 레이아웃), Phase C(핵심 루프 화면 리디자인), Pha
 ## 다음 — 학습 루프 구조 개선 (2026-09-30)
 
 디자인 시스템과 개별 화면 완성도 다음 단계로, CodeCrafters를 벤치마킹해 카탈로그 → Drill 개요 → 단계별 진행 → 피드백 → 공유로 이어지는 학습 루프 자체를 재구성하는 개선안을 [CODECRAFTERS_BENCHMARK.md](CODECRAFTERS_BENCHMARK.md)에 정리했다.
+
+## 앱 테마 — 보기 설정으로서의 테마 (2026-10-03)
+
+리디자인 시안(1~3차) 검토 결과, 사용자는 **화면 구조·IA·용어·컨셉은 그대로 두고 색과 디자인 요소만** 바꾸기를 원했고, 게임 계열 시안 넷(Quest, Arcade, RPG, Tactical)을 고를 수 있는 테마로 넣기로 했다. 지금의 다크 네이비도 그중 하나("기본")로 남는다.
+
+- **테마가 바꾸는 것**: 색 토큰(`--background` … `--danger`), 모서리 반경(Tailwind `rounded-*`가 읽는 `--radius-*`), 제목용 서체(`--font-display`)·고정폭 서체, 그리고 테마별 장식 몇 가지 — 주 버튼과 패널의 그림자(Quest의 두툼한 바닥 그림자, Arcade의 딱딱한 픽셀 그림자), 패널 테두리(RPG의 이중 창 테두리, Tactical의 모서리 괄호), 배경 격자(Arcade·Tactical).
+- **테마가 바꾸지 않는 것**: 레이아웃, 컴포넌트 구조, 문구와 용어("Drill", "장애 대응" 등을 "스테이지", "보스"로 바꾸지 않는다), 기능. 차트의 시리즈 색과 서비스 맵·다이어그램의 노드 종류 색은 데이터 인코딩이라 테마와 무관하게 고정한다(다이어그램은 이미 자체 캔버스 테마가 있다).
+- **구현**: `<html data-theme="…">` 하나로 전환한다. 토큰은 전부 `globals.css`에 테마별 블록으로 두고, 패널 장식은 `Card`/`Button`의 클래스 훅과 `bg-surface` + `border` 조합(직접 마크업한 패널들)에 건다. 선택은 캔버스 테마와 같은 **뷰어별 보기 설정**이라 서버에 저장하지 않고 localStorage(`sysdrill:app-theme`)에만 둔다. 첫 화면이 기본 테마로 번쩍였다 바뀌지 않도록, `<head>`의 짧은 인라인 스크립트가 그려지기 전에 `data-theme`을 세팅한다.
+- **선택 위치**: 로그인 여부와 무관하게 모든 화면에 있는 푸터의 "테마" 선택.
+- **서체**: 테마 전용 서체(Do Hyeon, Silkscreen, Gowun Batang, Orbitron, Share Tech Mono, JetBrains Mono)는 미리 받지 않는다(`preload: false`) — 해당 테마를 고른 사람만 내려받는다. Silkscreen·Orbitron은 라틴 전용이라 한글은 본문 서체(Noto Sans KR)로 대체된다.
+- 모든 테마는 다크 계열이다 — "라이트 모드 없음"이라는 기존 원칙은 그대로다.
