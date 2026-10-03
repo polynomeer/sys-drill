@@ -23,8 +23,9 @@ import java.util.UUID
 
 /**
  * V73 — the Java/Kotlin/Go ports of queue, circuit-breaker, distributed-lock,
- * retry-backoff and event-bus. Each port's stage tests were written fresh in that
- * language, so this pins both directions through the real pipeline: the shipped
+ * retry-backoff and event-bus — and V75's cache and idempotency in all four
+ * languages. Each port's stage tests were written fresh in that language, so
+ * this pins both directions through the real pipeline: the shipped
  * stub (challenges/<slug>/) fails every stage, and a model answer
  * (src/test/resources/build-solutions/<slug>/) passes every stage — a stage test
  * that can't be passed, or that passes an empty stub, fails here.
@@ -90,6 +91,8 @@ class BuildLanguageVariantsIntegrationTest(
         @JvmStatic
         fun variants(): List<String> =
             listOf("queue", "circuit-breaker", "distributed-lock", "retry-backoff", "event-bus")
-                .flatMap { family -> listOf("java", "kotlin", "go").map { "$family-$it" } }
+                .flatMap { family -> listOf("java", "kotlin", "go").map { "$family-$it" } } +
+                // V75 — new challenges carry a model answer for their Python original too.
+                listOf("cache", "idempotency").flatMap { family -> listOf(family) + listOf("java", "kotlin", "go").map { "$family-$it" } }
     }
 }

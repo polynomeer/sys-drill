@@ -1,5 +1,5 @@
 /**
- * PLAN.md Round E2 (docs/LEARNING_EXPANSION_PLAN.md L4-b) — Build 챌린지 7개를
+ * PLAN.md Round E2 (docs/LEARNING_EXPANSION_PLAN.md L4-b) — Build 과제 전부를
  * `/bridge` 하나에서 푼다. 같은 과제의 언어별 판(rate-limiter / rate-limiter-ts / -java …)은
  * 하나의 "과제"로 묶고, 각 과제를 그 메커니즘이 실제로 쓰이는 시뮬레이션 도메인에
  * 연결한다 — 근거는 그 도메인의 워게임 액션이다(`SimulationActionType`).
@@ -42,6 +42,8 @@ export const CHALLENGE_FAMILIES: ChallengeFamily[] = [
   { family: "retry-backoff", title: "Retry / Backoff", domain: "notification" }, // ADJUST_RETRY_BACKOFF
   { family: "distributed-lock", title: "Distributed Lock", domain: "reservation" }, // ENABLE_FINE_GRAINED_LOCKING
   { family: "event-bus", title: "Event Bus", domain: "payment" }, // outbox dispatcher (ADD_DISPATCHER_WORKERS)
+  { family: "cache", title: "Cache", domain: "product-browsing" }, // ENABLE_SINGLE_FLIGHT, INCREASE_CACHE_TTL
+  { family: "idempotency", title: "Idempotency Layer", domain: "payment" }, // ENABLE_IDEMPOTENT_PG_RETRY
 ];
 
 /** `rate-limiter-ts` → `rate-limiter`. 언어별 판은 slug 접미사로만 구분된다(V44·V72). */
