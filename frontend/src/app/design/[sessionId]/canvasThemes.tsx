@@ -3,13 +3,14 @@
 import type { CSSProperties, ReactNode } from "react";
 import { BackgroundVariant } from "@xyflow/react";
 import { Database, Globe, Layers, Monitor, Network, Server, Zap, type LucideIcon } from "lucide-react";
+import type { AppThemeId } from "@/lib/appTheme";
 
 /**
  * Canvas visual themes — purely a per-viewer display preference. A theme only
  * changes how nodes/edges/background are drawn; the graph itself (and its
  * Mermaid serialization, per ADR-0036) is identical across themes.
  */
-export type CanvasThemeId = "classic" | "icon" | "blueprint" | "neon" | "terminal" | "sticky";
+export type CanvasThemeId = "app" | "classic" | "icon" | "blueprint" | "neon" | "terminal" | "sticky";
 
 export type NodeVisual = { kindLabel: string; color: string; Icon: LucideIcon };
 
@@ -46,6 +47,15 @@ const DEFAULT_FIELDS: FieldClasses = {
 };
 
 export const CANVAS_THEMES: CanvasTheme[] = [
+  {
+    // Follows the app theme: every color, radius, display font and panel
+    // decoration (Quest drop shadow, Arcade thick border, RPG frame, Tactical
+    // corner brackets) comes from the `[data-theme]` tokens via `.ui-card`.
+    id: "app",
+    label: "앱 테마",
+    surface: { background: "var(--background)", patternColor: "var(--border)", variant: BackgroundVariant.Dots, gap: 20, edgeColor: "var(--foreground-muted)", colorScheme: "dark" },
+    fields: DEFAULT_FIELDS,
+  },
   {
     id: "classic",
     label: "Classic",
@@ -103,8 +113,18 @@ export const CANVAS_THEMES: CanvasTheme[] = [
   },
 ];
 
+export const AUTO_CANVAS_THEME: CanvasThemeId = "app";
+
 export function canvasThemeById(id: string | null): CanvasTheme {
   return CANVAS_THEMES.find((t) => t.id === id) ?? CANVAS_THEMES[0];
+}
+
+/** The app-theme canvas swaps dots for the same grid lines Arcade and Tactical draw behind the page. */
+export function canvasSurface(theme: CanvasTheme, appTheme: AppThemeId): CanvasSurface {
+  if (theme.id === "app" && (appTheme === "arcade" || appTheme === "tactical")) {
+    return { ...theme.surface, variant: BackgroundVariant.Lines, gap: 32 };
+  }
+  return theme.surface;
 }
 
 /** Small deterministic tilt (−2°..2°) so sticky notes look hand-placed but don't jitter between renders. */
@@ -135,6 +155,20 @@ export function ThemedNodeBody({
   const { kindLabel, color, Icon } = visual;
 
   switch (themeId) {
+    case "app":
+      return (
+        <div
+          className="ui-card rounded-xl border border-border bg-surface px-3 py-2 text-foreground"
+          style={{ borderTop: `3px solid ${color}`, minWidth: 128 }}
+        >
+          <p className="mb-1 flex items-center gap-1.5 font-display text-[10px] uppercase tracking-wide" style={{ color }}>
+            <Icon size={12} />
+            {kindLabel}
+          </p>
+          {editor}
+        </div>
+      );
+
     case "icon":
       return (
         <div className="flex w-[136px] flex-col items-center gap-1.5">

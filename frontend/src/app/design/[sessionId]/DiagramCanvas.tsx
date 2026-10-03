@@ -23,7 +23,8 @@ import {
 import "@xyflow/react/dist/style.css";
 import { loadCanvasDraft, loadCanvasTheme, saveCanvasDraft, saveCanvasTheme } from "@/lib/localSession";
 import { getSystemTopology, saveSystemTopology } from "@/lib/api";
-import { CANVAS_THEMES, KIND_ICONS, ThemedNodeBody, canvasThemeById } from "./canvasThemes";
+import { useThemeChoice } from "@/lib/useAppTheme";
+import { AUTO_CANVAS_THEME, CANVAS_THEMES, KIND_ICONS, ThemedNodeBody, canvasSurface, canvasThemeById } from "./canvasThemes";
 
 type NodeKind = "client" | "gateway" | "service" | "db" | "cache" | "queue" | "cdn";
 
@@ -225,13 +226,10 @@ export function DiagramCanvas({
   const [edges, setEdges] = useState<Edge[]>(() => loadInitialGraph(sessionId).edges);
   const placementCounterRef = useRef(0);
   const traitConfigForDomain = useMemo(() => NODE_TRAIT_CONFIG[domain] ?? {}, [domain]);
-  const [theme, setTheme] = useState(() => canvasThemeById(loadCanvasTheme()));
-
-  function selectTheme(themeId: string) {
-    const next = canvasThemeById(themeId);
-    setTheme(next);
-    saveCanvasTheme(next.id);
-  }
+  // Defaults to the app-theme canvas; a hand pick holds until the app theme changes.
+  const { appTheme, themeId, selectTheme } = useThemeChoice(AUTO_CANVAS_THEME, loadCanvasTheme, saveCanvasTheme);
+  const theme = canvasThemeById(themeId);
+  const surface = canvasSurface(theme, appTheme);
 
   const commit = useCallback(
     (nextNodes: Node<CanvasNodeData>[], nextEdges: Edge[]) => {
@@ -400,7 +398,7 @@ export function DiagramCanvas({
       <div
         className="h-[360px] overflow-hidden rounded-lg border border-border"
         data-canvas-theme={theme.id}
-        style={{ colorScheme: theme.surface.colorScheme, background: theme.surface.background }}
+        style={{ colorScheme: surface.colorScheme, background: surface.background }}
       >
         <CanvasThemeContext.Provider value={theme}>
           <ReactFlow
@@ -414,12 +412,12 @@ export function DiagramCanvas({
             connectionMode={ConnectionMode.Loose}
             connectionRadius={36}
             isValidConnection={(c) => c.source !== c.target}
-            defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, color: theme.surface.edgeColor } }}
+            defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, color: surface.edgeColor } }}
             deleteKeyCode={["Backspace", "Delete"]}
             fitView
             proOptions={{ hideAttribution: true }}
           >
-            <Background color={theme.surface.patternColor} variant={theme.surface.variant} gap={theme.surface.gap} />
+            <Background color={surface.patternColor} variant={surface.variant} gap={surface.gap} />
             <Controls showInteractive={false} />
           </ReactFlow>
         </CanvasThemeContext.Provider>

@@ -319,3 +319,11 @@ body {
 [data-canvas-theme] .react-flow:has(.react-flow__connection) .react-flow__handle {
   opacity: 1;
 }
+
+/* The app-theme canvas: edges and handles take the active [data-theme] tokens. */
+[data-canvas-theme="app"] .react-flow {
+  --xy-edge-stroke: var(--foreground-muted);
+  --xy-edge-stroke-width: 1.5;
+  --xy-handle-background-color: var(--accent);
+  --xy-handle-border-color: var(--background);
+}

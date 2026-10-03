@@ -147,39 +147,48 @@ export function markConceptRead(riskKey: string): void {
   }
 }
 
+/** A display theme the viewer picked by hand, remembered together with the app theme it was picked under. */
+export type ThemeChoice = { id: string; appTheme: string };
+
+/**
+ * The app theme is stored with the pick so that switching app themes falls
+ * back to that theme's own matching default (see useThemeChoice) instead of
+ * keeping a stale pick.
+ */
+function saveThemeChoice(key: string, choice: ThemeChoice | null): void {
+  if (choice) window.localStorage.setItem(key, JSON.stringify(choice));
+  else window.localStorage.removeItem(key);
+}
+
+function loadThemeChoice(key: string): ThemeChoice | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) ?? "null") as ThemeChoice | null;
+    return parsed && typeof parsed.id === "string" && typeof parsed.appTheme === "string" ? parsed : null;
+  } catch {
+    // A pre-app-theme plain id — treat as no pick, so the app theme's default applies.
+    return null;
+  }
+}
+
 const CANVAS_THEME_KEY = "sysdrill:canvas-theme";
 
 /** Per-viewer display preference for the design canvas — not part of the graph or the submitted answer. */
-export function saveCanvasTheme(themeId: string): void {
-  window.localStorage.setItem(CANVAS_THEME_KEY, themeId);
+export function saveCanvasTheme(choice: ThemeChoice | null): void {
+  saveThemeChoice(CANVAS_THEME_KEY, choice);
 }
 
-export function loadCanvasTheme(): string | null {
-  return window.localStorage.getItem(CANVAS_THEME_KEY);
+export function loadCanvasTheme(): ThemeChoice | null {
+  return loadThemeChoice(CANVAS_THEME_KEY);
 }
 
 const EDITOR_THEME_KEY = "sysdrill:editor-theme";
 
-/** A code-editor theme the viewer picked by hand, remembered together with the app theme it was picked under. */
-export type EditorThemeChoice = { id: string; appTheme: string };
-
-/**
- * Per-viewer display preference for the Build-mode code editor. The app theme
- * is stored with the pick so that switching app themes falls back to that
- * theme's own editor (see bridge/page.tsx) instead of keeping a stale pick.
- */
-export function saveEditorTheme(choice: EditorThemeChoice | null): void {
-  if (choice) window.localStorage.setItem(EDITOR_THEME_KEY, JSON.stringify(choice));
-  else window.localStorage.removeItem(EDITOR_THEME_KEY);
+/** Per-viewer display preference for the Build-mode code editor. */
+export function saveEditorTheme(choice: ThemeChoice | null): void {
+  saveThemeChoice(EDITOR_THEME_KEY, choice);
 }
 
-export function loadEditorTheme(): EditorThemeChoice | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(EDITOR_THEME_KEY) ?? "null") as EditorThemeChoice | null;
-    return parsed && typeof parsed.id === "string" && typeof parsed.appTheme === "string" ? parsed : null;
-  } catch {
-    // A pre-app-theme plain id — treat as no pick, so the app theme's editor applies.
-    return null;
-  }
+export function loadEditorTheme(): ThemeChoice | null {
+  return loadThemeChoice(EDITOR_THEME_KEY);
 }
