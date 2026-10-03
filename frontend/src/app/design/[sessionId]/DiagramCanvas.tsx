@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   Controls,
@@ -18,8 +18,9 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { loadCanvasDraft, saveCanvasDraft } from "@/lib/localSession";
+import { loadCanvasDraft, loadCanvasTheme, saveCanvasDraft, saveCanvasTheme } from "@/lib/localSession";
 import { getSystemTopology, saveSystemTopology } from "@/lib/api";
+import { CANVAS_THEMES, KIND_ICONS, ThemedNodeBody, canvasThemeById } from "./canvasThemes";
 
 type NodeKind = "client" | "gateway" | "service" | "db" | "cache" | "queue" | "cdn";
 
@@ -108,33 +109,27 @@ export function serializeToMermaid(nodes: Node<CanvasNodeData>[], edges: Edge[])
   return lines.join("\n");
 }
 
-function CanvasNode({ data }: NodeProps<Node<CanvasFlowNodeData>>) {
+/** NODE_TYPES must stay referentially stable for React Flow, so the active theme reaches nodes through context rather than node data. */
+const CanvasThemeContext = createContext(CANVAS_THEMES[0]);
+
+function CanvasNode({ id, data }: NodeProps<Node<CanvasFlowNodeData>>) {
+  const theme = useContext(CanvasThemeContext);
   const meta = NODE_KIND_META[data.kind];
-  return (
-    <div
-      className="rounded-lg border-2 px-3 py-2 text-xs font-medium text-foreground shadow-sm"
-      style={{ borderColor: meta.color, background: "var(--surface-elevated)", minWidth: 120 }}
-    >
-      <Handle type="target" position={Position.Top} />
-      <p className="mb-1 text-[10px] uppercase tracking-wide" style={{ color: meta.color }}>
-        {meta.label}
-      </p>
-      <input
-        className="nodrag w-full bg-transparent text-sm font-semibold text-foreground outline-none"
-        value={data.label}
-        onChange={(e) => data.onLabelChange(e.target.value)}
-      />
+  const { fields } = theme;
+  const editor = (
+    <>
+      <input className={fields.label} value={data.label} onChange={(e) => data.onLabelChange(e.target.value)} />
       {data.traitConfig.length > 0 && (
-        <div className="nodrag mt-2 flex flex-col gap-1 border-t border-border pt-2">
+        <div className={`nodrag mt-2 flex flex-col gap-1 pt-2 ${fields.traitDivider}`}>
           {data.traitConfig.map((field) => (
-            <label key={field.key} className="flex items-center justify-between gap-2 text-[10px] text-foreground-muted">
+            <label key={field.key} className={fields.traitRow}>
               <span>{field.label}</span>
               <input
                 type="number"
                 min={field.min}
                 max={field.max}
                 step={field.step}
-                className="w-16 rounded border border-border bg-transparent px-1 py-0.5 text-right text-foreground outline-none"
+                className={fields.traitInput}
                 value={data.traitValues?.[field.key] ?? field.default}
                 onChange={(e) => data.onTraitChange(field.key, Number(e.target.value))}
               />
@@ -142,8 +137,19 @@ function CanvasNode({ data }: NodeProps<Node<CanvasFlowNodeData>>) {
           ))}
         </div>
       )}
+    </>
+  );
+  return (
+    <>
+      <Handle type="target" position={Position.Top} />
+      <ThemedNodeBody
+        themeId={theme.id}
+        nodeId={id}
+        visual={{ kindLabel: meta.label, color: meta.color, Icon: KIND_ICONS[data.kind] }}
+        editor={editor}
+      />
       <Handle type="source" position={Position.Bottom} />
-    </div>
+    </>
   );
 }
 
@@ -198,6 +204,13 @@ export function DiagramCanvas({
   const [edges, setEdges] = useState<Edge[]>(() => loadInitialGraph(sessionId).edges);
   const placementCounterRef = useRef(0);
   const traitConfigForDomain = useMemo(() => NODE_TRAIT_CONFIG[domain] ?? {}, [domain]);
+  const [theme, setTheme] = useState(() => canvasThemeById(loadCanvasTheme()));
+
+  function selectTheme(themeId: string) {
+    const next = canvasThemeById(themeId);
+    setTheme(next);
+    saveCanvasTheme(next.id);
+  }
 
   const commit = useCallback(
     (nextNodes: Node<CanvasNodeData>[], nextEdges: Edge[]) => {
@@ -330,7 +343,7 @@ export function DiagramCanvas({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         {PALETTE.map((kind) => (
           <button
             key={kind}
@@ -342,22 +355,44 @@ export function DiagramCanvas({
             + {NODE_KIND_META[kind].label}
           </button>
         ))}
+        <div className="ml-auto flex items-center gap-1" role="radiogroup" aria-label="캔버스 테마">
+          {CANVAS_THEMES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="radio"
+              aria-checked={t.id === theme.id}
+              onClick={() => selectTheme(t.id)}
+              className={`rounded-md px-2 py-1 text-[11px] ${
+                t.id === theme.id ? "bg-surface-elevated text-foreground" : "text-foreground-muted hover:text-foreground"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="h-[360px] overflow-hidden rounded-lg border border-border bg-surface" style={{ colorScheme: "dark" }}>
-        <ReactFlow
-          nodes={nodesWithHandlers}
-          edges={edges}
-          nodeTypes={NODE_TYPES}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          deleteKeyCode={["Backspace", "Delete"]}
-          fitView
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background color="var(--border)" gap={16} />
-          <Controls showInteractive={false} />
-        </ReactFlow>
+      <div
+        className="h-[360px] overflow-hidden rounded-lg border border-border"
+        data-canvas-theme={theme.id}
+        style={{ colorScheme: theme.surface.colorScheme, background: theme.surface.background }}
+      >
+        <CanvasThemeContext.Provider value={theme}>
+          <ReactFlow
+            nodes={nodesWithHandlers}
+            edges={edges}
+            nodeTypes={NODE_TYPES}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            deleteKeyCode={["Backspace", "Delete"]}
+            fitView
+            proOptions={{ hideAttribution: true }}
+          >
+            <Background color={theme.surface.patternColor} variant={theme.surface.variant} gap={theme.surface.gap} />
+            <Controls showInteractive={false} />
+          </ReactFlow>
+        </CanvasThemeContext.Provider>
       </div>
       {nodes.length === 0 && (
         <p className="text-xs text-foreground-muted">

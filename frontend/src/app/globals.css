@@ -52,3 +52,69 @@ body {
   --xy-controls-button-border-color: var(--border);
   --xy-controls-box-shadow: 0 0 0 1px var(--border);
 }
+
+/* Design canvas themes (canvasThemes.tsx) — node chrome lives in TSX; edges,
+   handles and controls are React Flow internals, so they're themed here off
+   the wrapper's data-canvas-theme. */
+[data-canvas-theme="blueprint"] .react-flow {
+  --xy-edge-stroke: #e0f2fe;
+  --xy-edge-stroke-width: 1.5;
+  --xy-handle-background-color: #0d3b66;
+  --xy-handle-border-color: #e0f2fe;
+}
+[data-canvas-theme="blueprint"] .react-flow__edge-path {
+  stroke-dasharray: 6 4;
+}
+
+[data-canvas-theme="neon"] .react-flow {
+  --xy-edge-stroke: #22d3ee;
+  --xy-edge-stroke-width: 2;
+  --xy-handle-background-color: #22d3ee;
+  --xy-handle-border-color: #05060a;
+}
+[data-canvas-theme="neon"] .react-flow__edge-path {
+  filter: drop-shadow(0 0 4px #22d3ee);
+  stroke-dasharray: 10 6;
+  animation: canvas-edge-flow 0.8s linear infinite;
+}
+
+[data-canvas-theme="terminal"] .react-flow {
+  --xy-edge-stroke: #22c55e;
+  --xy-edge-stroke-width: 1;
+  --xy-handle-background-color: #22c55e;
+  --xy-handle-border-color: #060a06;
+  --xy-controls-button-background-color: #050805;
+  --xy-controls-button-background-color-hover: #0f2a0f;
+  --xy-controls-button-color: #22c55e;
+  --xy-controls-button-color-hover: #86efac;
+  --xy-controls-button-border-color: #14532d;
+  --xy-controls-box-shadow: 0 0 0 1px #14532d;
+}
+[data-canvas-theme="terminal"] .react-flow__edge-path {
+  stroke-dasharray: 2 4;
+}
+
+[data-canvas-theme="sticky"] .react-flow {
+  --xy-edge-stroke: #475569;
+  --xy-edge-stroke-width: 2;
+  --xy-handle-background-color: #475569;
+  --xy-handle-border-color: #f4efe3;
+  --xy-controls-button-background-color: #fffdf6;
+  --xy-controls-button-background-color-hover: #ede6d4;
+  --xy-controls-button-color: #475569;
+  --xy-controls-button-color-hover: #1e293b;
+  --xy-controls-button-border-color: #d4ccb8;
+  --xy-controls-box-shadow: 0 1px 4px rgba(60, 50, 30, 0.2);
+}
+
+@keyframes canvas-edge-flow {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-canvas-theme="neon"] .react-flow__edge-path {
+    animation: none;
+  }
+}

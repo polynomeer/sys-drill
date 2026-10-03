@@ -146,3 +146,14 @@ export function markConceptRead(riskKey: string): void {
     // storage unavailable (private mode, quota) — the page just won't remember
   }
 }
+
+const CANVAS_THEME_KEY = "sysdrill:canvas-theme";
+
+/** Per-viewer display preference for the design canvas — not part of the graph or the submitted answer. */
+export function saveCanvasTheme(themeId: string): void {
+  window.localStorage.setItem(CANVAS_THEME_KEY, themeId);
+}
+
+export function loadCanvasTheme(): string | null {
+  return window.localStorage.getItem(CANVAS_THEME_KEY);
+}
