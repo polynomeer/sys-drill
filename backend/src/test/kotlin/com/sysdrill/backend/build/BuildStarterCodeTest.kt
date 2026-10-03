@@ -38,8 +38,9 @@ class BuildStarterCodeTest(
         val list = mockMvc.perform(get("/build-challenges").header("Authorization", token))
             .andExpect(status().isOk).andReturn().response.contentAsString
         val slugs: List<String> = JsonPath.read(list, "$[*].slug")
-        assertThat(slugs).containsExactlyInAnyOrder(
-            "rate-limiter", "rate-limiter-ts", "rate-limiter-java", "rate-limiter-kotlin", "rate-limiter-go", "queue", "circuit-breaker", "distributed-lock", "retry-backoff", "event-bus",
+        val families = listOf("rate-limiter", "queue", "circuit-breaker", "distributed-lock", "retry-backoff", "event-bus")
+        assertThat(slugs).containsExactlyInAnyOrderElementsOf(
+            families.flatMap { f -> listOf(f, "$f-java", "$f-kotlin", "$f-go") } + "rate-limiter-ts",
         )
         val stageCounts: List<Int> = JsonPath.read(list, "$[*].stageCount")
         assertThat(stageCounts).allMatch { it > 0 }

@@ -193,7 +193,7 @@ sequenceDiagram
 | 백엔드 | Kotlin 179 파일 · 패키지 19개(도메인 17 + 공통·도구 2) · Flyway 마이그레이션 44개 · REST 엔드포인트 67개 |
 | 테스트 | 테스트 클래스 60개 · 테스트 297개 (단위 + 실제 compose 스택 대상 통합 + real-infra 파일럿 범위 단언) |
 | 프론트엔드 | 페이지 30개 · TypeScript/TSX 54 파일 |
-| 콘텐츠 | 시나리오 도메인 7개 (쿠폰·알림·상품조회·결제·예약·배치정산·오토스케일링) · Build 과제 10개 (Rate Limiter는 Python·TypeScript·Java·Kotlin·Go 5종 · Queue · Circuit Breaker · Distributed Lock · Retry/Backoff · Event Bus) |
+| 콘텐츠 | 시나리오 도메인 7개 (쿠폰·알림·상품조회·결제·예약·배치정산·오토스케일링) · Build 과제 6종 × 언어별 판 25개 (Rate Limiter · Queue · Circuit Breaker · Distributed Lock · Retry/Backoff · Event Bus — 각각 Python·Java·Kotlin·Go, Rate Limiter는 TypeScript까지) |
 | 문서 | PRD · 아키텍처 · 로드맵 · ADR 42건 · UX 전략 · 상용화 계획 |
 
 ## Quick Start
@@ -228,6 +228,8 @@ cd challenges/rate-limiter
 python3 -c "import sys; sys.path.insert(0, '.'); exec(open('stages/stage1_test.py').read())"   # 로컬 검증
 SYSDRILL_USER_ID=<온보딩에서 발급된 ID> ./submit.sh                                         # 서버 채점
 ```
+
+Java·Kotlin·Go 판은 `challenges/<과제>-java`, `-kotlin`, `-go` 디렉터리에 있고, 각 README에 로컬 실행 명령이 있습니다.
 
 ### 테스트
 

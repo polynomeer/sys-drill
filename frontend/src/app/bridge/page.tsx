@@ -122,7 +122,7 @@ export default function BridgePage() {
 
   const slug = slugFor(family, language);
   const scenario = findBridgeScenario(scenarios, family);
-  /** Languages this challenge actually ships in (rate-limiter has TypeScript/Java/Kotlin/Go twins, the rest are Python only). */
+  /** Languages this challenge actually ships in (every challenge has Java/Kotlin/Go twins; only rate-limiter also has TypeScript). */
   const familyLanguages: Language[] = catalog
     .filter((c) => familyOf(c.slug) === family)
     .map((c) => toBuildLanguage(c.language));
