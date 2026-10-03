@@ -38,7 +38,7 @@ class BuildStarterCodeTest(
         val list = mockMvc.perform(get("/build-challenges").header("Authorization", token))
             .andExpect(status().isOk).andReturn().response.contentAsString
         val slugs: List<String> = JsonPath.read(list, "$[*].slug")
-        val families = listOf("rate-limiter", "queue", "circuit-breaker", "distributed-lock", "retry-backoff", "event-bus", "cache", "idempotency")
+        val families = listOf("rate-limiter", "queue", "circuit-breaker", "distributed-lock", "retry-backoff", "event-bus", "cache", "idempotency", "consistent-hashing", "outbox")
         assertThat(slugs).containsExactlyInAnyOrderElementsOf(
             families.flatMap { f -> listOf(f, "$f-java", "$f-kotlin", "$f-go") } + "rate-limiter-ts",
         )

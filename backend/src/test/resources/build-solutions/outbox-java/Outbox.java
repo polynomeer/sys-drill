@@ -1,0 +1,275 @@
+/*
+ * Model answer for Build your own Transactional Outbox (Java) — used by BuildLanguageVariantsIntegrationTest.
+ *
+ * SysDrill Build Mode — Build your own Transactional Outbox (Java)
+ *
+ * Implement OrderService, OutboxRelay and InventoryConsumer below across 4
+ * stages (see README.md). Database, Transaction and Broker are provided and
+ * complete — don't change them; the stage tests drive their failure hooks.
+ * Keep the class and method names as-is. Submit by running ./submit.sh once
+ * you're ready.
+ *
+ * 채점 샌드박스는 이 파일과 테스트 파일을 함께 javac로 컴파일합니다(Java 25,
+ * 표준 라이브러리만). 테스트가 같은 패키지에서 부르므로 package 선언은 넣지 마세요.
+ */
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/** Names shared by the whole outbox (the file's public type). */
+public final class Outbox {
+    /** The event type placeOrder() writes to the outbox. */
+    public static final String ORDER_PLACED = "OrderPlaced";
+
+    private Outbox() {}
+}
+
+class DatabaseException extends RuntimeException {
+    DatabaseException(String message) {
+        super(message);
+    }
+}
+
+class BrokerException extends RuntimeException {
+    BrokerException(String message) {
+        super(message);
+    }
+}
+
+/**
+ * An outbox event — what the relay hands to the broker and the broker hands
+ * to consumers. Immutable; the payload is copied on the way in. Whether it's
+ * been published is a column of the outbox row, kept inside Database (see
+ * pendingEvents()), not part of the event itself.
+ */
+record Event(String id, String type, Map<String, Object> payload) {
+    Event {
+        payload = Map.copyOf(payload);
+    }
+}
+
+/**
+ * Provided — a tiny in-memory database with all-or-nothing transactions.
+ *
+ * Tables: orders (orderId -> amount) and the outbox (event rows with a
+ * published flag, oldest first). Changes made through a Transaction only
+ * become visible on commit(); a failed commit applies nothing.
+ */
+class Database {
+    private static final class OutboxRow {
+        final Event event;
+        boolean published;
+
+        OutboxRow(Event event) {
+            this.event = event;
+        }
+    }
+
+    private final Map<String, Integer> orders = new LinkedHashMap<>();
+    private final List<OutboxRow> outbox = new ArrayList<>();
+    private int commits = 0;
+    private int nextEvent = 1;
+    private boolean failNextCommit = false;
+    private boolean failNextMark = false;
+
+    public Transaction begin() {
+        return new Transaction(this);
+    }
+
+    /** The orders table (a copy). */
+    public Map<String, Integer> orders() {
+        return new LinkedHashMap<>(orders);
+    }
+
+    /** Every committed outbox event, published or not, oldest first. */
+    public List<Event> outbox() {
+        List<Event> events = new ArrayList<>();
+        for (OutboxRow row : outbox) events.add(row.event);
+        return events;
+    }
+
+    /** How many transactions have committed. */
+    public int commits() {
+        return commits;
+    }
+
+    /** Committed outbox events not yet marked published, oldest first. */
+    public List<Event> pendingEvents(int limit) {
+        List<Event> pending = new ArrayList<>();
+        for (OutboxRow row : outbox) {
+            if (pending.size() >= limit) break;
+            if (!row.published) pending.add(row.event);
+        }
+        return pending;
+    }
+
+    public void markPublished(String eventId) {
+        if (failNextMark) {
+            failNextMark = false;
+            throw new DatabaseException("connection lost while marking the event published");
+        }
+        for (OutboxRow row : outbox) {
+            if (row.event.id().equals(eventId)) {
+                row.published = true;
+                return;
+            }
+        }
+        throw new DatabaseException("no outbox event " + eventId);
+    }
+
+    // test hooks
+    public void failNextCommit() {
+        failNextCommit = true;
+    }
+
+    public void failNextMarkPublished() {
+        failNextMark = true;
+    }
+
+    // used by Transaction
+    int nextEventNumber() {
+        return nextEvent;
+    }
+
+    void apply(Map<String, Integer> newOrders, List<Event> newEvents) {
+        if (failNextCommit) {
+            failNextCommit = false;
+            throw new DatabaseException("commit failed");
+        }
+        orders.putAll(newOrders);
+        for (Event event : newEvents) outbox.add(new OutboxRow(event));
+        nextEvent += newEvents.size();
+        commits++;
+    }
+}
+
+/** Provided — stages writes and applies them all at once on commit(). */
+class Transaction {
+    private final Database db;
+    private final Map<String, Integer> orders = new HashMap<>();
+    private final List<Event> events = new ArrayList<>();
+    private boolean done = false;
+
+    Transaction(Database db) {
+        this.db = db;
+    }
+
+    public void insertOrder(String orderId, int amount) {
+        orders.put(orderId, amount);
+    }
+
+    /** Stage an outbox event; returns the id it will have once committed. */
+    public String insertEvent(String eventType, Map<String, Object> payload) {
+        String eventId = "evt-" + (db.nextEventNumber() + events.size());
+        events.add(new Event(eventId, eventType, payload));
+        return eventId;
+    }
+
+    public void commit() {
+        if (done) throw new DatabaseException("transaction already finished");
+        done = true;
+        db.apply(orders, events);
+    }
+
+    public void rollback() {
+        done = true;
+    }
+}
+
+/** Provided — a message broker (think Kafka) that consumers read from. */
+class Broker {
+    private final List<Event> published = new ArrayList<>();
+    private boolean failNext = false;
+
+    /** Every event delivered, in order — duplicates included (a copy). */
+    public List<Event> published() {
+        return new ArrayList<>(published);
+    }
+
+    public void publish(Event event) {
+        if (failNext) {
+            failNext = false;
+            throw new BrokerException("broker unavailable");
+        }
+        published.add(event);
+    }
+
+    // test hook
+    public void failNextPublish() {
+        failNext = true;
+    }
+}
+
+class OrderService {
+    private final Database db;
+    private final Broker broker;
+
+    OrderService(Database db, Broker broker) {
+        this.db = db;
+        this.broker = broker;
+    }
+
+    public void placeOrder(String orderId, int amount) {
+        Transaction tx = db.begin();
+        try {
+            tx.insertOrder(orderId, amount);
+            tx.insertEvent(Outbox.ORDER_PLACED, Map.of("order_id", orderId, "amount", amount));
+            tx.commit();
+        } catch (RuntimeException e) {
+            tx.rollback();
+            throw e;
+        }
+    }
+}
+
+class OutboxRelay {
+    private final Database db;
+    private final Broker broker;
+
+    OutboxRelay(Database db, Broker broker) {
+        this.db = db;
+        this.broker = broker;
+    }
+
+    public int runOnce() {
+        return runOnce(100);
+    }
+
+    public int runOnce(int batchSize) {
+        int published = 0;
+        for (Event event : db.pendingEvents(batchSize)) {
+            try {
+                broker.publish(event);
+            } catch (BrokerException e) {
+                break; // leave it (and everything after it) for the next run
+            }
+            db.markPublished(event.id()); // only after the broker has it
+            published++;
+        }
+        return published;
+    }
+}
+
+/** Consumes OrderPlaced events and reserves stock for them. */
+class InventoryConsumer {
+    private int stock;
+    private final Set<String> seen = new HashSet<>();
+
+    InventoryConsumer(int stock) {
+        this.stock = stock;
+    }
+
+    public int stock() {
+        return stock;
+    }
+
+    public void handle(Event event) {
+        if (!seen.add(event.id())) return; // a redelivery — already applied
+        stock -= (Integer) event.payload().get("amount");
+    }
+}

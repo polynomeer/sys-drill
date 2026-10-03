@@ -44,6 +44,8 @@ export const CHALLENGE_FAMILIES: ChallengeFamily[] = [
   { family: "event-bus", title: "Event Bus", domain: "payment" }, // outbox dispatcher (ADD_DISPATCHER_WORKERS)
   { family: "cache", title: "Cache", domain: "product-browsing" }, // ENABLE_SINGLE_FLIGHT, INCREASE_CACHE_TTL
   { family: "idempotency", title: "Idempotency Layer", domain: "payment" }, // ENABLE_IDEMPOTENT_PG_RETRY
+  { family: "consistent-hashing", title: "Consistent Hashing", domain: "product-browsing" }, // no action — Hot Key 분산 concept
+  { family: "outbox", title: "Transactional Outbox", domain: "payment" }, // payment's outbox backlog (ADD_DISPATCHER_WORKERS)
 ];
 
 /** `rate-limiter-ts` → `rate-limiter`. 언어별 판은 slug 접미사로만 구분된다(V44·V72). */
