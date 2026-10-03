@@ -1,5 +1,6 @@
 package com.sysdrill.backend.learning
 
+import com.sysdrill.backend.build.BuildChallengeRepository
 import com.sysdrill.backend.evaluation.RuleEvaluator
 import com.sysdrill.backend.simulation.SimulationActionType
 import org.assertj.core.api.Assertions.assertThat
@@ -19,6 +20,7 @@ import org.springframework.boot.test.context.SpringBootTest
 @SpringBootTest
 class LearningConceptCatalogTest(
     @Autowired val conceptRepository: LearningConceptRepository,
+    @Autowired val buildChallengeRepository: BuildChallengeRepository,
 ) {
 
     private val seeded by lazy { conceptRepository.findAll().associateBy { it.riskKey } }
@@ -63,6 +65,16 @@ class LearningConceptCatalogTest(
             .filterNot { (_, action) -> action in valid }
 
         assertThat(unknown).describedAs("존재하지 않는 액션을 가리키는 개념").isEmpty()
+    }
+
+    @Test
+    fun `연결된 Build 과제는 실제 챌린지 slug 다`() {
+        // 개념 페이지의 "직접 구현하기" 버튼이 /bridge?challenge=<slug> 로 간다 — 오타면 깨진 링크가 된다.
+        val valid = buildChallengeRepository.findAll().map { it.slug }.toSet()
+        val unknown = seeded.values.flatMap { c -> c.relatedChallenges.map { c.riskKey to it } }
+            .filterNot { (_, slug) -> slug in valid }
+
+        assertThat(unknown).describedAs("존재하지 않는 Build 과제를 가리키는 개념").isEmpty()
     }
 
     @Test
