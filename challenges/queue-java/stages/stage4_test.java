@@ -30,13 +30,13 @@ class RunTest {
 
     static void run() throws Throwable {
         Queue q = new Queue(5.0, 3);
-        for (int i = 0; i < 20; i++) q.enqueue(i);
+        for (int i = 0; i < 1000; i++) q.enqueue(i);
 
         List<Integer> received = Collections.synchronizedList(new ArrayList<>());
         AtomicReference<Throwable> failure = new AtomicReference<>();
         CountDownLatch startGate = new CountDownLatch(1);
         List<Thread> threads = new ArrayList<>();
-        for (int t = 0; t < 5; t++) {
+        for (int t = 0; t < 8; t++) {
             threads.add(new Thread(() -> {
                 try {
                     startGate.await();
@@ -55,11 +55,11 @@ class RunTest {
         for (Thread t : threads) t.join();
         if (failure.get() != null) throw failure.get();
 
-        check(received.size() == 20, "expected 20 deliveries, got " + received.size());
+        check(received.size() == 1000, "expected 1000 deliveries, got " + received.size());
         List<Integer> sorted = new ArrayList<>(received);
         Collections.sort(sorted);
         List<Integer> expected = new ArrayList<>();
-        for (int i = 0; i < 20; i++) expected.add(i);
+        for (int i = 0; i < 1000; i++) expected.add(i);
         check(sorted.equals(expected), "each message should be delivered exactly once across concurrent consumers");
     }
 }

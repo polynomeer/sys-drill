@@ -2,7 +2,7 @@
 
 SysDrill Build Mode 과제입니다. `EventBus.kt`의 `TODO`를 채워 4개 스테이지를 통과시키세요.
 
-이 챌린지는 [`challenges/event-bus/`](../event-bus/)의 Python 버전과 같은 4개 스테이지를 다룹니다. 채점 샌드박스는 이 파일과 테스트 파일을 함께 `kotlinc`(Kotlin 2.4, JDK 21)로 컴파일한 뒤 실행합니다. Kotlin 표준 라이브러리와 JDK만 쓸 수 있고(kotlinx.coroutines 등 외부 의존성 없음), 테스트가 같은 패키지에서 클래스를 부르므로 `package` 선언은 넣지 마세요. 단계마다 컴파일부터 하므로 채점 한 번에 30초 안팎이 걸립니다. `poll`이 돌려주는 `Event` data class(`id`, `payload`)도 이 파일 안에 함께 있고, 꺼낼 이벤트가 없으면 `null`을 돌려줍니다. stage 4는 스레드 5개가 한 구독자를 동시에 `poll`해 같은 이벤트가 두 번 나가거나 사라지지 않는지 봅니다.
+이 챌린지는 [`challenges/event-bus/`](../event-bus/)의 Python 버전과 같은 4개 스테이지를 다룹니다. 채점 샌드박스는 이 파일과 테스트 파일을 함께 `kotlinc`(Kotlin 2.4, JDK 21)로 컴파일한 뒤 실행합니다. Kotlin 표준 라이브러리와 JDK만 쓸 수 있고(kotlinx.coroutines 등 외부 의존성 없음), 테스트가 같은 패키지에서 클래스를 부르므로 `package` 선언은 넣지 마세요. 단계마다 컴파일부터 하므로 채점 한 번에 30초 안팎이 걸립니다. `poll`이 돌려주는 `Event` data class(`id`, `payload`)도 이 파일 안에 함께 있고, 꺼낼 이벤트가 없으면 `null`을 돌려줍니다. stage 4는 스레드 8개가 이벤트 1000개를 한 구독자에서 동시에 `poll`해 같은 이벤트가 두 번 나가거나 사라지지 않는지 봅니다.
 
 ## 스테이지
 

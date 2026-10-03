@@ -4,7 +4,7 @@ SysDrill Build Mode 과제입니다. `DistributedLock.kt`의 `TODO`를 채워 4�
 
 이 챌린지는 [`challenges/distributed-lock/`](../distributed-lock/)의 Python 버전과 같은 4개 스테이지를 다룹니다. 채점 샌드박스는 이 파일과 테스트 파일을 함께 `kotlinc`(Kotlin 2.4, JDK 21)로 컴파일한 뒤 실행합니다. Kotlin 표준 라이브러리와 JDK만 쓸 수 있고(kotlinx.coroutines 등 외부 의존성 없음), 테스트가 같은 패키지에서 클래스를 부르므로 `package` 선언은 넣지 마세요. 단계마다 컴파일부터 하므로 채점 한 번에 30초 안팎이 걸립니다.
 
-Python 버전에서 "토큰 또는 `None`"이던 반환값은 `Long?`(획득 실패 시 `null`)입니다. 같은 `LockStore` 객체를 여러 `DistributedLock`에 넘기는 것이 "여러 인스턴스가 같은 외부 락 서비스(Redis 등)를 바라보는" 상황의 흉내입니다 — stage 4는 스레드 20개가 같은 키로 `acquire`를 동시에 불러 정확히 하나만 성공하는지 봅니다.
+Python 버전에서 "토큰 또는 `None`"이던 반환값은 `Long?`(획득 실패 시 `null`)입니다. 같은 `LockStore` 객체를 여러 `DistributedLock`에 넘기는 것이 "여러 인스턴스가 같은 외부 락 서비스(Redis 등)를 바라보는" 상황의 흉내입니다 — stage 4는 새 키 200개마다 스레드 8개가 `acquire`를 동시에 불러, 매번 정확히 하나만 성공하는지 봅니다.
 
 ## 스테이지
 
@@ -13,7 +13,7 @@ Python 버전에서 "토큰 또는 `None`"이던 반환값은 `Long?`(획득 실
 | 1 | mutual exclusion | 기본 상호 배제 — 동시에 두 소유자가 같은 락을 가질 수 없다 |
 | 2 | lease/TTL 만료 | release 없이도 lease가 지나면 락이 풀려야 하는 이유 |
 | 3 | fencing token | 오래 멈췄다 깨어난 소유자(GC pause 등)가 새 소유자의 락에 영향을 주면 안 되는 이유 |
-| 4 | 동시성 (스레드 20개 동시 acquire) | 여러 요청이 동시에 acquire를 시도해도 정확히 하나만 성공 |
+| 4 | 동시성 (키 200개 × 스레드 8개 동시 acquire) | 여러 요청이 동시에 acquire를 시도해도 정확히 하나만 성공 |
 
 각 스테이지의 테스트는 `stages/`에 있습니다. 로컬에서 직접 실행해 확인할 수 있습니다.
 

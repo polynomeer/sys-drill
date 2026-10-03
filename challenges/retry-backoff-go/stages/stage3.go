@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"time"
 )
 
@@ -37,7 +38,9 @@ func expect(condition bool, format string, args ...any) {
 	}
 }
 
-func stage() {
+// recordDelays is one full run of a policy that always fails: the 5 delays it
+// asked to sleep between 6 attempts.
+func recordDelays() []time.Duration {
 	var recordedDelays []time.Duration
 	alwaysFail := func() (any, error) {
 		return nil, errors.New("boom")
@@ -49,13 +52,20 @@ func stage() {
 	if _, err := policy.Execute(alwaysFail); err != nil && !errors.Is(err, ErrRetryExhausted) {
 		panic(err)
 	}
+	return recordedDelays
+}
 
-	expect(len(recordedDelays) == 5, "expected 5 delays between 6 attempts, got %d", len(recordedDelays))
-	distinct := map[time.Duration]bool{}
-	for i, d := range recordedDelays {
-		limit := min(10*time.Second, 10*time.Millisecond*time.Duration(1<<i))
-		expect(0 <= d && d <= limit, "delay %d = %v should be within [0, %v] (exponential backoff cap)", i, d, limit)
-		distinct[d] = true
+func stage() {
+	first := recordDelays()
+	second := recordDelays()
+	for _, recordedDelays := range [][]time.Duration{first, second} {
+		expect(len(recordedDelays) == 5, "expected 5 delays between 6 attempts, got %d", len(recordedDelays))
+		for i, d := range recordedDelays {
+			limit := min(10*time.Second, 10*time.Millisecond*time.Duration(1<<i))
+			expect(0 <= d && d <= limit, "delay %d = %v should be within [0, %v] (exponential backoff cap)", i, d, limit)
+		}
 	}
-	expect(len(distinct) > 1, "jitter should make delays vary, not all be identical")
+	// Plain exponential delays (10ms, 20ms, 40ms, …) already all differ from each other, so
+	// "they vary" proves nothing — jitter means two runs don't wait the same amounts.
+	expect(!slices.Equal(first, second), "jitter should randomize the delays, but two runs waited exactly the same: %v", first)
 }

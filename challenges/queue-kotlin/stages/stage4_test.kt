@@ -30,12 +30,12 @@ fun expect(condition: Boolean, message: String) {
 
 fun stage() {
     val q = Queue(visibilityTimeoutSeconds = 5.0, maxRetries = 3)
-    for (i in 0 until 20) q.enqueue(i)
+    for (i in 0 until 1000) q.enqueue(i)
 
     val received = Collections.synchronizedList(mutableListOf<Int>())
     val failure = AtomicReference<Throwable>()
     val startGate = CountDownLatch(1)
-    val threads = (1..5).map {
+    val threads = (1..8).map {
         thread {
             try {
                 startGate.await()
@@ -52,6 +52,6 @@ fun stage() {
     threads.forEach { it.join() }
     failure.get()?.let { throw it }
 
-    expect(received.size == 20, "expected 20 deliveries, got ${received.size}")
-    expect(received.sorted() == (0 until 20).toList(), "each message should be delivered exactly once across concurrent consumers")
+    expect(received.size == 1000, "expected 1000 deliveries, got ${received.size}")
+    expect(received.sorted() == (0 until 1000).toList(), "each message should be delivered exactly once across concurrent consumers")
 }

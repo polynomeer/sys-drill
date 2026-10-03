@@ -38,34 +38,45 @@ func expect(condition bool, format string, args ...any) {
 	}
 }
 
+const (
+	rounds     = 200
+	contenders = 8
+)
+
+// One round of 8 simultaneous acquires can easily come out right by luck — the
+// check-then-claim window is tiny — so the race is replayed on 200 fresh keys.
 func stage() {
 	store := NewLockStore()
-	var successes atomic.Int64
-	var wg sync.WaitGroup
-	var once sync.Once
-	var crashed any
-	startGate := make(chan struct{})
-	for i := 0; i < 20; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			// A panic in a goroutine would kill the process before main can report it.
-			defer func() {
-				if r := recover(); r != nil {
-					once.Do(func() { crashed = r })
+	for round := 0; round < rounds; round++ {
+		key := fmt.Sprintf("resource-%d", round)
+		var successes atomic.Int64
+		var wg sync.WaitGroup
+		var once sync.Once
+		var crashed any
+		startGate := make(chan struct{})
+		for i := 0; i < contenders; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				// A panic in a goroutine would kill the process before main can report it.
+				defer func() {
+					if r := recover(); r != nil {
+						once.Do(func() { crashed = r })
+					}
+				}()
+				lock := NewDistributedLock(key, store, 5*time.Second)
+				<-startGate
+				if _, ok := lock.Acquire(fmt.Sprintf("owner-%d", i)); ok {
+					successes.Add(1)
 				}
 			}()
-			lock := NewDistributedLock("resource-1", store, 5*time.Second)
-			<-startGate
-			if _, ok := lock.Acquire(fmt.Sprintf("owner-%d", i)); ok {
-				successes.Add(1)
-			}
-		}()
+		}
+		close(startGate)
+		wg.Wait()
+		if crashed != nil {
+			panic(crashed)
+		}
+		expect(successes.Load() == 1, "round %d: expected exactly 1 successful acquire among %d concurrent attempts, got %d",
+			round, contenders, successes.Load())
 	}
-	close(startGate)
-	wg.Wait()
-	if crashed != nil {
-		panic(crashed)
-	}
-	expect(successes.Load() == 1, "expected exactly 1 successful acquire among 20 concurrent attempts, got %d", successes.Load())
 }

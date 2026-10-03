@@ -30,13 +30,13 @@ class RunTest {
     static void run() throws Throwable {
         EventBus bus = new EventBus();
         String sub = bus.subscribe("orders");
-        for (int i = 0; i < 20; i++) bus.publish("orders", i);
+        for (int i = 0; i < 1000; i++) bus.publish("orders", i);
 
         List<Object> received = Collections.synchronizedList(new ArrayList<>());
         AtomicReference<Throwable> failure = new AtomicReference<>();
         CountDownLatch start = new CountDownLatch(1);
         List<Thread> threads = new ArrayList<>();
-        for (int t = 0; t < 5; t++) {
+        for (int t = 0; t < 8; t++) {
             threads.add(new Thread(() -> {
                 try {
                     start.await();
@@ -55,12 +55,12 @@ class RunTest {
         for (Thread t : threads) t.join();
         if (failure.get() != null) throw failure.get();
 
-        check(received.size() == 20, "expected 20 deliveries, got " + received.size());
+        check(received.size() == 1000, "expected 1000 deliveries, got " + received.size());
         List<Integer> sorted = new ArrayList<>();
         for (Object p : received) sorted.add((Integer) p);
         Collections.sort(sorted);
         List<Integer> expected = new ArrayList<>();
-        for (int i = 0; i < 20; i++) expected.add(i);
+        for (int i = 0; i < 1000; i++) expected.add(i);
         check(sorted.equals(expected), "each event should be delivered exactly once across concurrent pollers");
     }
 }

@@ -41,7 +41,7 @@ func expect(condition bool, format string, args ...any) {
 func stage() {
 	bus := NewEventBus(5*time.Second, 3)
 	sub := bus.Subscribe("orders")
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 1000; i++ {
 		bus.Publish("orders", i)
 	}
 
@@ -51,7 +51,7 @@ func stage() {
 	var once sync.Once
 	var crashed any
 	start := make(chan struct{})
-	for g := 0; g < 5; g++ {
+	for g := 0; g < 8; g++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -79,9 +79,9 @@ func stage() {
 		panic(crashed)
 	}
 
-	expect(len(received) == 20, "expected 20 deliveries, got %d", len(received))
+	expect(len(received) == 1000, "expected 1000 deliveries, got %d", len(received))
 	slices.Sort(received)
-	expected := make([]int, 20)
+	expected := make([]int, 1000)
 	for i := range expected {
 		expected[i] = i
 	}

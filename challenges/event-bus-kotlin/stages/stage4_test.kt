@@ -30,12 +30,12 @@ fun expect(condition: Boolean, message: String) {
 fun stage() {
     val bus = EventBus()
     val sub = bus.subscribe("orders")
-    for (i in 0 until 20) bus.publish("orders", i)
+    for (i in 0 until 1000) bus.publish("orders", i)
 
     val received = Collections.synchronizedList(mutableListOf<Any?>())
     val failure = AtomicReference<Throwable>()
     val start = CountDownLatch(1)
-    val threads = (1..5).map {
+    val threads = (1..8).map {
         thread {
             try {
                 start.await()
@@ -52,6 +52,6 @@ fun stage() {
     threads.forEach { it.join() }
     failure.get()?.let { throw it }
 
-    expect(received.size == 20, "expected 20 deliveries, got ${received.size}")
-    expect(received.map { it as Int }.sorted() == (0 until 20).toList(), "each event should be delivered exactly once across concurrent pollers")
+    expect(received.size == 1000, "expected 1000 deliveries, got ${received.size}")
+    expect(received.map { it as Int }.sorted() == (0 until 1000).toList(), "each event should be delivered exactly once across concurrent pollers")
 }
