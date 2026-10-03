@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
-import { oneDark } from "@codemirror/theme-one-dark";
 import { Lock } from "lucide-react";
 import {
   ApiError,
@@ -25,9 +24,12 @@ import {
 import {
   getStoredToken,
   loadBuildDraft,
+  loadEditorTheme,
   saveBuildDraft,
   saveBuildSubmissionId,
+  saveEditorTheme,
 } from "@/lib/localSession";
+import { EDITOR_THEMES, editorThemeById } from "@/lib/editorThemes";
 import { BridgeProgress } from "@/components/BridgeProgress";
 import { StageList, type Stage } from "@/components/StageList";
 import { Button } from "@/components/ui/Button";
@@ -102,6 +104,7 @@ export default function BridgePage() {
   const [error, setError] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState(false);
   const [mode, setMode] = useState<"web" | "local">("web");
+  const [editorTheme, setEditorTheme] = useState(() => editorThemeById(loadEditorTheme()));
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const slug = slugFor(family, language);
@@ -399,6 +402,26 @@ export default function BridgePage() {
                   {label}
                 </button>
               ))}
+              {mode === "web" && (
+                <label className="ml-auto flex items-center gap-1.5 self-center text-xs text-foreground-muted">
+                  테마
+                  <select
+                    className="rounded border border-border bg-surface px-2 py-1 text-xs text-foreground"
+                    value={editorTheme.id}
+                    onChange={(e) => {
+                      const next = editorThemeById(e.target.value);
+                      setEditorTheme(next);
+                      saveEditorTheme(next.id);
+                    }}
+                  >
+                    {EDITOR_THEMES.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
 
             {mode === "local" ? (
@@ -419,7 +442,7 @@ export default function BridgePage() {
                   value={sourceCode}
                   onChange={handleSourceChange}
                   height="420px"
-                  theme={oneDark}
+                  theme={editorTheme.extension}
                   extensions={language === "python" ? PYTHON_EXTENSIONS : TS_EXTENSIONS}
                   className="overflow-hidden rounded-lg border border-border text-sm"
                   basicSetup={{ tabSize: 4 }}

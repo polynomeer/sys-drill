@@ -157,3 +157,15 @@ export function saveCanvasTheme(themeId: string): void {
 export function loadCanvasTheme(): string | null {
   return window.localStorage.getItem(CANVAS_THEME_KEY);
 }
+
+const EDITOR_THEME_KEY = "sysdrill:editor-theme";
+
+/** Per-viewer display preference for the Build-mode code editor. */
+export function saveEditorTheme(themeId: string): void {
+  window.localStorage.setItem(EDITOR_THEME_KEY, themeId);
+}
+
+export function loadEditorTheme(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(EDITOR_THEME_KEY);
+}
