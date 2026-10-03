@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { isFullBleed } from "@/lib/fullBleed";
 import { Menu } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Avatar } from "@/components/ui/Avatar";
@@ -31,11 +32,6 @@ const ACCOUNT_LINKS = [
   { href: "/organizations", label: "조직" },
   { href: "/architecture-analysis", label: "아키텍처 분석" },
 ];
-
-/** Drill workspaces (Build `/bridge`, a Design/Incident session) run edge to edge; the header follows so its logo lines up with the page. */
-function isFullBleed(pathname: string): boolean {
-  return pathname.startsWith("/bridge") || /^\/design\/[^/]+$/.test(pathname);
-}
 
 function isActive(pathname: string, href: string): boolean {
   // Drill overview and domain track pages belong to the Drills tab.
