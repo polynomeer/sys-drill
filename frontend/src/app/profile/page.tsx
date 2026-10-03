@@ -180,7 +180,7 @@ export default function ProfilePage() {
             <RadarChart data={radarData} outerRadius="60%" margin={{ top: 12, right: 32, bottom: 12, left: 32 }}>
               <PolarGrid stroke="var(--border)" />
               <PolarAngleAxis dataKey="domain" tick={{ fill: "var(--foreground-muted)", fontSize: 11 }} />
-              <Radar dataKey="score" stroke="#2f80ff" fill="#2f80ff" fillOpacity={0.35} />
+              <Radar dataKey="score" stroke="var(--accent)" fill="var(--accent)" fillOpacity={0.35} />
             </RadarChart>
           </ResponsiveContainer>
         </Card>

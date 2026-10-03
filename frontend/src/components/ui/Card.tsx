@@ -10,7 +10,7 @@ export function Card({
 }) {
   return (
     <Component
-      className={`rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/30 hover:bg-surface-elevated ${className}`}
+      className={`ui-card rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/30 hover:bg-surface-elevated ${className}`}
     >
       {children}
     </Component>

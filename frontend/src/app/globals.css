@@ -1,12 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  /* SysDrill_UIUX_Design_Plan.docx §3 — dark navy console theme, the
-     product's only theme (no light mode): background/surface/surface-elevated
-     form the layering used by Card/Header/panels, foreground/foreground-muted
-     are primary/secondary text, accent is the single blue used for primary
-     actions, and success/warning/danger are the status vocabulary shared by
-     Badge/MetricCard/Alert across Design/Build/Incident modes. */
+  /* SysDrill_UIUX_Design_Plan.docx §3 — dark navy console theme ("기본"):
+     background/surface/surface-elevated form the layering used by
+     Card/Header/panels, foreground/foreground-muted are primary/secondary
+     text, accent is the single color used for primary actions, and
+     success/warning/danger are the status vocabulary shared by
+     Badge/MetricCard/Alert across Design/Build/Incident modes.
+     docs/UX_STRATEGY.md "앱 테마" — the other themes below override these
+     same tokens on <html data-theme>; every theme is dark (no light mode). */
   --background: #08111f;
   --surface: #0f1b2b;
   --surface-elevated: #132238;
@@ -18,6 +20,109 @@
   --success: #34d399;
   --warning: #f59e0b;
   --danger: #ef4444;
+
+  --app-radius-sm: 0.25rem;
+  --app-radius-md: 0.375rem;
+  --app-radius-lg: 0.5rem;
+  --app-radius-xl: 0.75rem;
+  --app-radius-2xl: 1rem;
+  --app-font-display: var(--font-noto-sans-kr);
+  --app-font-mono: var(--font-geist-mono);
+}
+
+[data-theme="quest"] {
+  --background: #14102e;
+  --surface: #1f1a45;
+  --surface-elevated: #2a2457;
+  --border: #2f2963;
+  --foreground: #ffffff;
+  --foreground-muted: #b9b3e6;
+  --accent: #6e4bff;
+  --accent-foreground: #ffffff;
+  --success: #3df5b0;
+  --warning: #ffc24b;
+  --danger: #ff6b8a;
+
+  --app-radius-sm: 0.375rem;
+  --app-radius-md: 0.625rem;
+  --app-radius-lg: 0.875rem;
+  --app-radius-xl: 1.25rem;
+  --app-radius-2xl: 1.75rem;
+  --app-font-display: var(--font-do-hyeon), var(--font-noto-sans-kr);
+  --app-font-mono: var(--font-jetbrains-mono);
+  --app-panel-shadow: 0 5px 0 #0b0820;
+  --app-primary-shadow: 0 4px 0 #4b32c9;
+}
+
+[data-theme="arcade"] {
+  --background: #0b0b1a;
+  --surface: #15153a;
+  --surface-elevated: #1e1e4a;
+  --border: #33335a;
+  --foreground: #ffffff;
+  --foreground-muted: #b8b8d8;
+  --accent: #33e1ff;
+  --accent-foreground: #0b0b1a;
+  --success: #39ff88;
+  --warning: #ffe600;
+  --danger: #ff3e6c;
+
+  --app-radius-sm: 0;
+  --app-radius-md: 0;
+  --app-radius-lg: 0;
+  --app-radius-xl: 0;
+  --app-radius-2xl: 0;
+  --app-font-display: var(--font-silkscreen), var(--font-noto-sans-kr);
+  --app-font-mono: var(--font-jetbrains-mono);
+  --app-panel-shadow: 4px 4px 0 0 #000000;
+  --app-primary-shadow: 4px 4px 0 0 #ff3ea5;
+}
+
+[data-theme="rpg"] {
+  --background: #1a1530;
+  --surface: #101836;
+  --surface-elevated: #1e2a55;
+  --border: #3a4270;
+  --foreground: #f2f0fa;
+  --foreground-muted: #a9a3c9;
+  --accent: #f5c451;
+  --accent-foreground: #1a1530;
+  --success: #5be37d;
+  --warning: #ff9f43;
+  --danger: #ff5a5a;
+
+  --app-radius-sm: 0.25rem;
+  --app-radius-md: 0.375rem;
+  --app-radius-lg: 0.5rem;
+  --app-radius-xl: 0.625rem;
+  --app-radius-2xl: 0.75rem;
+  --app-font-display: var(--font-gowun-batang), var(--font-noto-sans-kr);
+  --app-font-mono: var(--font-jetbrains-mono);
+  /* The window frame: a gap in the window's own color, then a light outline. */
+  --app-panel-shadow: 0 0 0 3px var(--surface), 0 0 0 5px #d8d4ee;
+  --app-primary-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--accent);
+}
+
+[data-theme="tactical"] {
+  --background: #061317;
+  --surface: #0b2026;
+  --surface-elevated: #0f2c33;
+  --border: #134049;
+  --foreground: #d8f3f1;
+  --foreground-muted: #7fa9a6;
+  --accent: #3cf0e0;
+  --accent-foreground: #061317;
+  --success: #9dff5c;
+  --warning: #ffb020;
+  --danger: #ff4d5e;
+
+  --app-radius-sm: 0;
+  --app-radius-md: 0.125rem;
+  --app-radius-lg: 0.125rem;
+  --app-radius-xl: 0.125rem;
+  --app-radius-2xl: 0.25rem;
+  --app-font-display: var(--font-orbitron), var(--font-noto-sans-kr);
+  --app-font-mono: var(--font-share-tech-mono);
 }
 
 @theme inline {
@@ -33,13 +138,93 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --font-sans: var(--font-noto-sans-kr);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: var(--app-font-mono);
+  --font-display: var(--app-font-display);
+  --radius-sm: var(--app-radius-sm);
+  --radius-md: var(--app-radius-md);
+  --radius-lg: var(--app-radius-lg);
+  --radius-xl: var(--app-radius-xl);
+  --radius-2xl: var(--app-radius-2xl);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), "Pretendard", "Noto Sans KR", Arial, sans-serif;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--app-font-display), "Pretendard", "Noto Sans KR", sans-serif;
+  }
+}
+
+/* ---- docs/UX_STRATEGY.md "앱 테마" — per-theme decoration ----
+   Panels are the Card component plus the hand-written `border bg-surface`
+   boxes across pages; form fields and Buttons share that pair, so they're
+   excluded. Only decoration lives here — never layout. It sits in the
+   components layer so a page's own utilities (a dropdown's shadow-lg, say)
+   still win over a theme's default. */
+@layer base {
+  [data-theme="quest"] :is(h1, h2, h3) {
+    /* Do Hyeon ships one weight; a synthesized bold smears it. */
+    font-synthesis-weight: none;
+  }
+  [data-theme="tactical"] :is(h1, h2, h3) {
+    letter-spacing: 0.02em;
+  }
+}
+
+@layer components {
+  :where(.ui-card, .bg-surface.border:not(input, textarea, select, button, .ui-btn)) {
+    box-shadow: var(--app-panel-shadow, none);
+  }
+  .ui-btn-primary {
+    box-shadow: var(--app-primary-shadow, none);
+  }
+
+  [data-theme="quest"] .ui-btn-primary:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #4b32c9;
+  }
+  [data-theme="arcade"] .ui-btn-primary:active:not(:disabled) {
+    transform: translate(4px, 4px);
+    box-shadow: none;
+  }
+
+  /* Tactical: HUD corner brackets (top-left, bottom-right) and chamfered primary buttons. */
+  [data-theme="tactical"] :where(.ui-card, .bg-surface.border:not(input, textarea, select, button, .ui-btn)) {
+    --bracket: color-mix(in srgb, var(--accent) 70%, transparent);
+    background-image:
+      linear-gradient(var(--bracket), var(--bracket)), linear-gradient(var(--bracket), var(--bracket)),
+      linear-gradient(var(--bracket), var(--bracket)), linear-gradient(var(--bracket), var(--bracket));
+    background-repeat: no-repeat;
+    background-size: 14px 2px, 2px 14px, 14px 2px, 2px 14px;
+    background-position: top left, top left, bottom right, bottom right;
+  }
+  [data-theme="tactical"] .ui-btn-primary {
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  }
+}
+
+/* These two must beat the `.border` / `.border-border` utilities themselves, so they stay unlayered. */
+[data-theme="arcade"] .border {
+  border-width: 2px;
+}
+[data-theme="rpg"] :where(.ui-card, .bg-surface.border:not(input, textarea, select, button, .ui-btn)) {
+  /* The frame is drawn by --app-panel-shadow; the 1px border blends into the window. */
+  border-color: var(--surface);
+}
+
+[data-theme="arcade"] body {
+  background-image: linear-gradient(#15153a 1px, transparent 1px), linear-gradient(90deg, #15153a 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+[data-theme="tactical"] body {
+  background-image: linear-gradient(#0c2329 1px, transparent 1px), linear-gradient(90deg, #0c2329 1px, transparent 1px);
+  background-size: 64px 64px;
 }
 
 /* React Flow's default Controls are white buttons; map them onto the

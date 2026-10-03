@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isFullBleed } from "@/lib/fullBleed";
+import { ThemeSelect } from "@/components/ThemeSelect";
 
 /**
  * docs/COMMUNITY_EXPANSION_PLAN.md C7 (PLAN.md Round E3) — 학습 커뮤니티(시나리오별 토론)와
@@ -26,6 +27,7 @@ export function AppFooter() {
         >
           제품 피드백 ↗
         </a>
+        <ThemeSelect />
       </div>
     </footer>
   );

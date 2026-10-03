@@ -5,7 +5,7 @@ type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "md" | "sm";
 
 const VARIANT_CLASSES: Record<Variant, string> = {
-  primary: "bg-accent text-accent-foreground hover:bg-accent/90",
+  primary: "ui-btn-primary bg-accent text-accent-foreground hover:bg-accent/90",
   secondary: "border border-border bg-surface text-foreground hover:border-accent/50",
   ghost: "text-foreground-muted underline hover:text-foreground",
   danger: "text-danger underline hover:text-danger/80",
@@ -45,7 +45,7 @@ export function Button({
   target,
   ...rest
 }: LinkButtonProps | (NativeButtonProps & { href?: undefined; target?: undefined })) {
-  const base = "inline-flex items-center justify-center rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+  const base = "ui-btn inline-flex items-center justify-center rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
   const classes = `${base} ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${className}`;
 
   if (href !== undefined) {
