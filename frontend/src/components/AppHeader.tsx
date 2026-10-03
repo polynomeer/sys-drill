@@ -32,6 +32,11 @@ const ACCOUNT_LINKS = [
   { href: "/architecture-analysis", label: "아키텍처 분석" },
 ];
 
+/** Drill workspaces (Build `/bridge`, a Design/Incident session) run edge to edge; the header follows so its logo lines up with the page. */
+function isFullBleed(pathname: string): boolean {
+  return pathname.startsWith("/bridge") || /^\/design\/[^/]+$/.test(pathname);
+}
+
 function isActive(pathname: string, href: string): boolean {
   // Drill overview and domain track pages belong to the Drills tab.
   if (href === "/marketplace") return ["/marketplace", "/drills", "/tracks"].some((p) => pathname.startsWith(p));
@@ -88,7 +93,7 @@ export function AppHeader() {
 
   return (
     <header className="border-b border-border bg-background">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3">
+      <div className={`mx-auto flex items-center justify-between gap-4 px-6 py-3 ${isFullBleed(pathname) ? "max-w-none md:px-8" : "max-w-7xl"}`}>
         <Link href={loggedIn ? "/dashboard" : "/"} className="flex shrink-0 items-center gap-2 font-semibold">
           <svg viewBox="0 0 32 32" width="22" height="22" className="rounded" aria-hidden>
             <rect width="32" height="32" rx="7" fill="#2f80ff" />

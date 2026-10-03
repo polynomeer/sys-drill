@@ -307,7 +307,7 @@ export default function BridgePage() {
   const busy = runState !== "idle";
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
+    <div className="mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 p-6 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">{challenge?.title ?? "Build"}</h1>
