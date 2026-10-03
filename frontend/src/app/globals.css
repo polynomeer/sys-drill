@@ -41,3 +41,14 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), "Pretendard", "Noto Sans KR", Arial, sans-serif;
 }
+
+/* React Flow's default Controls are white buttons; map them onto the
+   console theme tokens so zoom/fit-view blend with the canvas surface. */
+.react-flow {
+  --xy-controls-button-background-color: var(--surface-elevated);
+  --xy-controls-button-background-color-hover: var(--border);
+  --xy-controls-button-color: var(--foreground-muted);
+  --xy-controls-button-color-hover: var(--foreground);
+  --xy-controls-button-border-color: var(--border);
+  --xy-controls-box-shadow: 0 0 0 1px var(--border);
+}
