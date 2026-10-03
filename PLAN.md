@@ -2275,6 +2275,18 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## Build 과제 추가 — Consistent Hashing · Transactional Outbox (4개 언어) ✅ 완료 (2026-10-04)
+
+사용자 요청("Consistent Hashing이랑 Outbox도 추가해줘"). Cache·Idempotency와 같은 절차 — Python 원본을 직접 써서 스펙을 고정하고, 각 단계가 노리는 잘못된 구현이 그 단계에서 떨어지는지 실측한 뒤, Java·Kotlin·Go 포팅은 과제별 서브에이전트 2개. 이제 10개 과제 × 4개 언어(+rate-limiter TS) = 41개 판.
+
+- [x] Consistent Hashing(→ 상품 조회, Hot Key 분산 개념 — 대응 워게임 액션은 없다): ring lookup / minimal remapping / virtual nodes / 서로 다른 노드의 복제본. 해시 함수(MD5 앞 4바이트)를 스텁에 제공해 네 언어의 링이 같은 값을 쓴다(언어 기본 문자열 해시는 비슷한 문자열이 몰린다). 잘못된 구현 — modulo → 2단계(키 5074개가 옛 노드끼리 이동), 노드당 점 하나 → 3단계(1.3%~27.7% 편중), 복제본 중복 → 4단계
+  - 2단계는 처음에 "옮겨 간 비율 10~40%"도 봤는데, 가상 노드 없는 올바른 링도 3%만 옮겨 2단계에서 떨어졌다 — 3단계가 가르칠 내용을 앞질러 벌하는 것이라, 2단계는 "어디로 옮겨 가는가"만 본다
+- [x] Transactional Outbox(→ 결제의 outbox backlog, 트랜잭션 경계 분리 개념): 한 트랜잭션 / relay / 브로커 실패 / idempotent consumer. 트랜잭션 DB와 브로커는 장애 훅과 함께 스텁에 제공. 잘못된 구현 — dual write·두 트랜잭션 → 1단계, 건너뛰기·먼저 표시·예외 던지기 → 3단계, 중복 제거 없음 → 4단계
+  - 포팅 에이전트가 찾은 틈: 브로커 오류를 삼키는 dual write는 1단계를 통과했다(유일한 발행 시도가 브로커 장애 중이라) → 브로커가 정상인 새 DB/브로커로 한 번 더 확인, 네 언어 모두 반영
+- [x] `V76` — 8개 챌린지 + 학습 개념 링크(Hot Key 분산 → consistent-hashing, 트랜잭션 경계 분리 → outbox, Idempotent Consumer에 outbox 추가)
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
