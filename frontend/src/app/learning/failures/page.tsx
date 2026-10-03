@@ -28,7 +28,7 @@ export default function FailurePatternsPage() {
   }, [router]);
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
       <div>
         <Link href="/learning" className="text-sm text-foreground-muted hover:text-foreground">
           ← Learning

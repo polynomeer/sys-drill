@@ -35,7 +35,7 @@ export default function CertificationVerificationPage() {
   if (error || !status) return <p className="p-8 text-sm text-danger">{error ?? "인증 현황을 불러오지 못했습니다."}</p>;
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">{status.nickname}님의 SysDrill 인증 현황</h1>
         <p className="mt-1 text-sm text-foreground-muted">공개 검증 페이지 — 로그인 없이 누구나 확인할 수 있습니다.</p>

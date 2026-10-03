@@ -74,7 +74,7 @@ export default function CommunityPage() {
     .sort((a, b) => (b.completedCount ?? 0) - (a.completedCount ?? 0));
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">Community</h1>
         <p className="mt-1 text-sm text-foreground-muted">

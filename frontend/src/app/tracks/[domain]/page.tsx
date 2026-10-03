@@ -64,7 +64,7 @@ export default function TrackPage() {
 
   if (!title) {
     return (
-      <div className="mx-auto max-w-7xl p-8">
+      <div className="mx-auto w-full max-w-7xl p-8">
         <p className="text-sm text-danger">존재하지 않는 트랙입니다.</p>
         <Link href="/tracks" className="mt-2 inline-block text-sm underline">
           트랙 목록으로

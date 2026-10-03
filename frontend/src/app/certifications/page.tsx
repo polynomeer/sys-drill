@@ -44,7 +44,7 @@ export default function CertificationsPage() {
   const passedCount = status.domains.filter((d) => d.passed).length;
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">SysDrill Certified Incident Responder</h1>
         <p className="mt-1 text-sm text-foreground-muted">
@@ -55,7 +55,7 @@ export default function CertificationsPage() {
       {error && <p className="text-sm text-danger">{error}</p>}
 
       {/* 위쪽은 전체 진행 요약과 공개 검증 링크, 아래는 도메인별 카드 그리드. */}
-      <div className="grid gap-6 md:grid-cols-2 md:items-start">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:items-start">
         <Card as="section">
           <div className="mb-3 flex items-center justify-between">
             <div>
@@ -97,7 +97,7 @@ export default function CertificationsPage() {
         )}
       </div>
 
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {status.domains.map((d) => (
           <Card as="li" key={d.domain} className="flex flex-col gap-3 text-sm">
             <div className="flex items-start justify-between gap-2">

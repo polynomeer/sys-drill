@@ -4,7 +4,7 @@ import { Alert } from "@/components/ui/Alert";
 /** docs/COMMERCIALIZATION.md — placeholder content pending legal review; the page shell (route, versioning, consent link target) is real. */
 export default function PrivacyPolicyPage() {
   return (
-    <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 p-8">
+    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-8">
       {/* 컨테이너는 헤더와 같은 폭, 법률 문구는 읽기 좋은 줄 길이로 왼쪽 정렬. */}
       <div className="flex max-w-[72ch] flex-col gap-6">
         <div>

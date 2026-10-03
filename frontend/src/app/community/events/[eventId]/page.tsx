@@ -29,12 +29,12 @@ export default function ChallengeEventPage() {
       .catch(() => setError("챌린지를 찾을 수 없습니다."));
   }, [eventId, router]);
 
-  if (error) return <p className="mx-auto max-w-7xl p-8 text-sm text-danger">{error}</p>;
-  if (!board) return <div className="mx-auto max-w-7xl p-8"><LoadingState /></div>;
+  if (error) return <p className="mx-auto w-full max-w-7xl p-8 text-sm text-danger">{error}</p>;
+  if (!board) return <div className="mx-auto w-full max-w-7xl p-8"><LoadingState /></div>;
   const { event } = board;
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
       <div>
         <Link href="/community" className="text-sm text-foreground-muted hover:text-foreground">
           ← Community
