@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import CodeMirror from "@uiw/react-codemirror";
+import CodeMirror, { type Extension } from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
+import { java } from "@codemirror/lang-java";
+import { go } from "@codemirror/lang-go";
+import { StreamLanguage } from "@codemirror/language";
+import { kotlin } from "@codemirror/legacy-modes/mode/clike";
 import { Lock } from "lucide-react";
 import {
   ApiError,
@@ -42,7 +46,10 @@ import {
   CHALLENGE_FAMILIES,
   familyInfo,
   familyOf,
+  languageLabel,
+  languageOfSlug,
   slugFor,
+  toBuildLanguage,
 } from "@/lib/buildChallenges";
 
 const LOCAL_WATCH_INTERVAL_MS = 3000;
@@ -50,8 +57,14 @@ const POLL_INTERVAL_MS = 1000;
 
 // Module-scope so the array identity is stable across renders — CodeMirror
 // reconfigures its extensions whenever this reference changes.
-const PYTHON_EXTENSIONS = [python()];
-const TS_EXTENSIONS = [javascript({ typescript: true })];
+// Kotlin has no first-party CodeMirror 6 package, so it uses the legacy clike stream mode.
+const EDITOR_EXTENSIONS: Record<Language, Extension[]> = {
+  python: [python()],
+  typescript: [javascript({ typescript: true })],
+  java: [java()],
+  kotlin: [StreamLanguage.define(kotlin)],
+  go: [go()],
+};
 
 type PageState = "loading" | "ready" | "error";
 type RunState = "idle" | "submitting" | "grading";
@@ -109,10 +122,10 @@ export default function BridgePage() {
 
   const slug = slugFor(family, language);
   const scenario = findBridgeScenario(scenarios, family);
-  /** Languages this challenge actually ships in (rate-limiter has a TypeScript twin, the rest are Python only). */
+  /** Languages this challenge actually ships in (rate-limiter has TypeScript/Java/Kotlin/Go twins, the rest are Python only). */
   const familyLanguages: Language[] = catalog
     .filter((c) => familyOf(c.slug) === family)
-    .map((c) => (c.language === "typescript" ? "typescript" : "python"));
+    .map((c) => toBuildLanguage(c.language));
 
   const stopPolling = useCallback(() => {
     if (pollTimer.current) {
@@ -173,19 +186,19 @@ export default function BridgePage() {
     }
     // docs/CODECRAFTERS_BENCHMARK.md §3.4 — open in the learner's preferred language (default Python).
     const preferred = getMyPreferences()
-      .then((p): Language => (p.preferredLanguage === "TYPESCRIPT" ? "typescript" : "python"))
+      .then((p): Language => (p.preferredLanguage ? toBuildLanguage(p.preferredLanguage.toLowerCase()) : "python"))
       .catch((): Language => "python");
     Promise.all([listScenarios(), listBuildChallenges(), preferred])
       .then(async ([nextScenarios, nextCatalog, preferredLanguage]) => {
         setScenarios(nextScenarios);
         setCatalog(nextCatalog);
         // PLAN.md Round E2 — `?challenge=<slug>` (from a concept page or a track) picks the challenge;
-        // an explicit `-ts` slug also picks the language, otherwise the preference applies where it exists.
+        // an explicit language slug (`-ts`, `-go`, …) also picks the language, otherwise the preference applies where it exists.
         const requested = requestedChallenge();
         const known = nextCatalog.some((c) => c.slug === requested) ? requested : null;
         const nextFamily = known ? familyOf(known) : "rate-limiter";
         const available = nextCatalog.filter((c) => familyOf(c.slug) === nextFamily).map((c) => c.slug);
-        const wanted = known?.endsWith("-ts") ? "typescript" : preferredLanguage;
+        const wanted = known && known !== familyOf(known) ? languageOfSlug(known) : preferredLanguage;
         const nextLanguage: Language = available.includes(slugFor(nextFamily, wanted)) ? wanted : "python";
         setFamily(nextFamily);
         setLanguage(nextLanguage);
@@ -379,7 +392,7 @@ export default function BridgePage() {
                   onClick={() => handleLanguageChange(lang)}
                   disabled={busy}
                 >
-                  {lang === "python" ? "Python" : "TypeScript"}
+                  {languageLabel(lang)}
                 </Button>
               ))}
               <span className="ml-auto font-mono text-xs text-foreground-muted">{challenge.sourceFileName}</span>
@@ -443,7 +456,7 @@ export default function BridgePage() {
                   onChange={handleSourceChange}
                   height="420px"
                   theme={editorTheme.extension}
-                  extensions={language === "python" ? PYTHON_EXTENSIONS : TS_EXTENSIONS}
+                  extensions={EDITOR_EXTENSIONS[language]}
                   className="overflow-hidden rounded-lg border border-border text-sm"
                   basicSetup={{ tabSize: 4 }}
                   editable={!busy}

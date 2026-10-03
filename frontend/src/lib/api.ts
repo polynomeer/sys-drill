@@ -1396,7 +1396,7 @@ export function markNotificationsSeen(): Promise<void> {
 }
 
 /** docs/CODECRAFTERS_BENCHMARK.md §3.4 — optional onboarding answers; each drives exactly one UI default. */
-export type PreferredLanguage = "PYTHON" | "TYPESCRIPT";
+export type PreferredLanguage = "PYTHON" | "TYPESCRIPT" | "JAVA" | "KOTLIN" | "GO";
 export type TrainingGoal = "INTERVIEW" | "SKILLS" | "TEAM";
 
 export interface UserPreferences {

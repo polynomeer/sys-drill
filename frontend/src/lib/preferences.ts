@@ -4,6 +4,9 @@ import type { PreferredLanguage, TrainingGoal } from "@/lib/api";
 export const LANGUAGE_OPTIONS: { value: PreferredLanguage; label: string }[] = [
   { value: "PYTHON", label: "Python" },
   { value: "TYPESCRIPT", label: "TypeScript" },
+  { value: "JAVA", label: "Java" },
+  { value: "KOTLIN", label: "Kotlin" },
+  { value: "GO", label: "Go" },
 ];
 
 export const GOAL_OPTIONS: { value: TrainingGoal; label: string; hint: string }[] = [
