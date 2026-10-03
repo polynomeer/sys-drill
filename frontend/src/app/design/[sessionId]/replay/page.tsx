@@ -70,7 +70,7 @@ export default function IncidentReplayPage() {
 
   if (error) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 p-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-8">
         <p className="text-sm text-danger">{error}</p>
       </div>
     );
@@ -78,7 +78,7 @@ export default function IncidentReplayPage() {
 
   if (!domain || !steps) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 p-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-8">
         <LoadingState />
       </div>
     );
@@ -86,7 +86,7 @@ export default function IncidentReplayPage() {
 
   if (steps.length === 0) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 p-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-8">
         <p className="text-sm text-foreground-muted">이 세션은 인시던트를 시작하지 않아 리플레이할 타임라인이 없습니다.</p>
       </div>
     );
@@ -95,7 +95,7 @@ export default function IncidentReplayPage() {
   const step = steps[currentIndex];
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 p-8">
+    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-8">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">인시던트 리플레이</h1>
         <Link href={`/report/${sessionId}`} className="text-sm underline">

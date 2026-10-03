@@ -141,7 +141,7 @@ export default function ReportPage() {
   const headlineScore = report?.averageScore ?? null;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
+    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-8">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">세션 리포트</h1>
         <div className="flex items-center gap-3">
@@ -164,126 +164,131 @@ export default function ReportPage() {
       {error && <p className="text-sm text-danger">{error}</p>}
 
       {report && (
-        <>
-          <CompletionCard sessionId={sessionId} averageScore={report.averageScore} />
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+          {/* Side column: headline score, comparison and next steps. First in DOM so it leads on mobile. */}
+          <aside className="flex min-w-0 flex-col gap-6 lg:col-start-2 lg:row-start-1">
+            <CompletionCard sessionId={sessionId} averageScore={report.averageScore} />
 
-          <Card className="flex flex-wrap items-center gap-6">
-            {headlineScore !== null && (
-              <Gauge label="평균 점수" value={headlineScore / 100} status={scoreStatus(headlineScore)} size={120} />
+            <Card className="flex flex-wrap items-center gap-6">
+              {headlineScore !== null && (
+                <Gauge label="평균 점수" value={headlineScore / 100} status={scoreStatus(headlineScore)} size={120} />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-foreground-muted">총평</p>
+                <p className="text-sm">{report.summary ?? "-"}</p>
+              </div>
+            </Card>
+
+            {benchmark && (
+              <Card as="section">
+                <div className="mb-1 flex items-baseline justify-between">
+                  <h2 className="text-sm font-semibold text-foreground-muted">커뮤니티 비교</h2>
+                  <span className="text-xs text-foreground-muted">같은 시나리오 완료 {benchmark.sampleSize}명</span>
+                </div>
+                <div className="divide-y divide-border">
+                  <BenchmarkRow label="세션 평균 점수" metric={benchmark.score} format={(v) => `${v}점`} />
+                  <BenchmarkRow label="MTTD (최초 대응까지)" metric={benchmark.mttdSeconds} format={formatDuration} />
+                  <BenchmarkRow label="MTTR (마지막 조치까지)" metric={benchmark.mttrSeconds} format={formatDuration} />
+                </div>
+              </Card>
             )}
-            <div className="min-w-0 flex-1">
-              <p className="text-sm text-foreground-muted">총평</p>
-              <p className="text-sm">{report.summary ?? "-"}</p>
-            </div>
-          </Card>
 
-          {benchmark && (
+            {report.buildSummary && (
+              <Card as="section">
+                <h2 className="mb-1 text-sm font-semibold text-foreground-muted">Build — {report.buildSummary.challengeTitle}</h2>
+                <p className="text-2xl font-semibold">
+                  {report.buildSummary.score ?? 0} / {report.buildSummary.totalStages}
+                </p>
+              </Card>
+            )}
+
+            <ShareWriteupCard sessionId={sessionId} />
+
+            {recommended && (
+              <Card className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm text-foreground-muted">다음 추천 Drill</p>
+                  <p className="font-medium">{recommended.title}</p>
+                </div>
+                <Button onClick={handleStartRecommended} disabled={startingRecommended} size="sm">
+                  {startingRecommended ? "시작하는 중..." : "시작"}
+                </Button>
+              </Card>
+            )}
+          </aside>
+
+          <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
             <Card as="section">
-              <div className="mb-1 flex items-baseline justify-between">
-                <h2 className="text-sm font-semibold text-foreground-muted">커뮤니티 비교</h2>
-                <span className="text-xs text-foreground-muted">같은 시나리오 완료 {benchmark.sampleSize}명</span>
-              </div>
-              <div className="divide-y divide-border">
-                <BenchmarkRow label="세션 평균 점수" metric={benchmark.score} format={(v) => `${v}점`} />
-                <BenchmarkRow label="MTTD (최초 대응까지)" metric={benchmark.mttdSeconds} format={formatDuration} />
-                <BenchmarkRow label="MTTR (마지막 조치까지)" metric={benchmark.mttrSeconds} format={formatDuration} />
-              </div>
-            </Card>
-          )}
-
-          {report.buildSummary && (
-            <Card as="section">
-              <h2 className="mb-1 text-sm font-semibold text-foreground-muted">Build — {report.buildSummary.challengeTitle}</h2>
-              <p className="text-2xl font-semibold">
-                {report.buildSummary.score ?? 0} / {report.buildSummary.totalStages}
-              </p>
-            </Card>
-          )}
-
-          <Card as="section">
-            <h2 className="mb-3 text-sm font-semibold text-foreground-muted">단계별 결과</h2>
-            <ul className="flex flex-col gap-4">
-              {report.timelineFeedback.map((entry) => (
-                <li key={entry.submissionId} className="border-t border-border pt-4 first:border-t-0 first:pt-0">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-sm font-medium">
-                      {PHASE_LABELS[entry.phase] ?? entry.phase}
-                      {entry.onTime === false && <Badge variant="danger">시간 초과</Badge>}
-                      {entry.onTime === true && <Badge variant="success">시간 내 제출</Badge>}
-                    </span>
-                    <span className="font-mono text-sm">{entry.totalScore ?? "-"} / 100</span>
-                  </div>
-                  {feedbackBySubmission[entry.submissionId] ? (
-                    <FeedbackDetail feedback={feedbackBySubmission[entry.submissionId]} />
-                  ) : (
-                    entry.topRisks.length > 0 && (
-                      <ul className="list-inside list-disc text-xs text-foreground-muted">
-                        {entry.topRisks.map((risk, i) => (
-                          <li key={i}>{risk}</li>
-                        ))}
-                      </ul>
-                    )
-                  )}
-                </li>
-              ))}
-            </ul>
-          </Card>
-
-          {clarifications?.available && <RequirementsDiscovery data={clarifications} />}
-
-          {estimation?.results && (
-            <Card as="section">
-              <div className="mb-1 flex items-baseline justify-between">
-                <h2 className="text-sm font-semibold text-foreground-muted">규모 추정</h2>
-                <span className="font-mono text-sm">
-                  적중 {estimation.results.filter((r) => r.onTarget).length} / {estimation.results.length}
-                </span>
-              </div>
-              <p className="mb-1 text-xs text-foreground-muted">실제 값의 0.5~2배 안이면 적중입니다.</p>
-              <ul>
-                {estimation.results.map((r, i) => (
-                  <EstimateResultRow key={r.key} label={estimation.fields[i]?.label ?? r.key} unit={estimation.fields[i]?.unit ?? ""} result={r} />
-                ))}
-              </ul>
-              <Link href="/learning/labs" className="mt-2 inline-block text-xs text-accent hover:underline">
-                Capacity Lab에서 규모 추정 연습하기 →
-              </Link>
-            </Card>
-          )}
-
-          <MissedConcepts
-            riskKeys={Object.values(feedbackBySubmission).flatMap((f) => f.riskFlags.map((flag) => flag.riskKey))}
-            isConcept={concepts.isConcept}
-            label={concepts.label}
-          />
-
-          {report.improvementGuide.length > 0 && (
-            <Card as="section">
-              <h2 className="mb-2 text-sm font-semibold text-foreground-muted">다음에 시도해볼 것</h2>
-              <ul className="list-inside list-disc space-y-1 text-sm">
-                {report.improvementGuide.map((item, i) => (
-                  <li key={i}>{item}</li>
+              <h2 className="mb-3 text-sm font-semibold text-foreground-muted">단계별 결과</h2>
+              <ul className="flex flex-col gap-4">
+                {report.timelineFeedback.map((entry) => (
+                  <li key={entry.submissionId} className="border-t border-border pt-4 first:border-t-0 first:pt-0">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="flex items-center gap-2 text-sm font-medium">
+                        {PHASE_LABELS[entry.phase] ?? entry.phase}
+                        {entry.onTime === false && <Badge variant="danger">시간 초과</Badge>}
+                        {entry.onTime === true && <Badge variant="success">시간 내 제출</Badge>}
+                      </span>
+                      <span className="font-mono text-sm">{entry.totalScore ?? "-"} / 100</span>
+                    </div>
+                    {feedbackBySubmission[entry.submissionId] ? (
+                      <FeedbackDetail feedback={feedbackBySubmission[entry.submissionId]} />
+                    ) : (
+                      entry.topRisks.length > 0 && (
+                        <ul className="list-inside list-disc text-xs text-foreground-muted">
+                          {entry.topRisks.map((risk, i) => (
+                            <li key={i}>{risk}</li>
+                          ))}
+                        </ul>
+                      )
+                    )}
+                  </li>
                 ))}
               </ul>
             </Card>
-          )}
 
-          <ShareWriteupCard sessionId={sessionId} />
+            {clarifications?.available && <RequirementsDiscovery data={clarifications} />}
 
-          {scenarioId && <DiscussionPanel scenarioId={scenarioId} compact />}
+            {estimation?.results && (
+              <Card as="section">
+                <div className="mb-1 flex items-baseline justify-between">
+                  <h2 className="text-sm font-semibold text-foreground-muted">규모 추정</h2>
+                  <span className="font-mono text-sm">
+                    적중 {estimation.results.filter((r) => r.onTarget).length} / {estimation.results.length}
+                  </span>
+                </div>
+                <p className="mb-1 text-xs text-foreground-muted">실제 값의 0.5~2배 안이면 적중입니다.</p>
+                <ul>
+                  {estimation.results.map((r, i) => (
+                    <EstimateResultRow key={r.key} label={estimation.fields[i]?.label ?? r.key} unit={estimation.fields[i]?.unit ?? ""} result={r} />
+                  ))}
+                </ul>
+                <Link href="/learning/labs" className="mt-2 inline-block text-xs text-accent hover:underline">
+                  Capacity Lab에서 규모 추정 연습하기 →
+                </Link>
+              </Card>
+            )}
 
-          {recommended && (
-            <Card className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-foreground-muted">다음 추천 Drill</p>
-                <p className="font-medium">{recommended.title}</p>
-              </div>
-              <Button onClick={handleStartRecommended} disabled={startingRecommended} size="sm">
-                {startingRecommended ? "시작하는 중..." : "시작"}
-              </Button>
-            </Card>
-          )}
-        </>
+            <MissedConcepts
+              riskKeys={Object.values(feedbackBySubmission).flatMap((f) => f.riskFlags.map((flag) => flag.riskKey))}
+              isConcept={concepts.isConcept}
+              label={concepts.label}
+            />
+
+            {report.improvementGuide.length > 0 && (
+              <Card as="section">
+                <h2 className="mb-2 text-sm font-semibold text-foreground-muted">다음에 시도해볼 것</h2>
+                <ul className="list-inside list-disc space-y-1 text-sm">
+                  {report.improvementGuide.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+
+            {scenarioId && <DiscussionPanel scenarioId={scenarioId} compact />}
+          </div>
+        </div>
       )}
     </div>
   );

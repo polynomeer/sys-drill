@@ -321,7 +321,7 @@ export default function DesignWorkspacePage() {
   const showSplit = session && view !== "loading" && view !== "error" && view !== "spectating";
 
   return (
-    <div className={`mx-auto flex min-h-screen w-full flex-col gap-6 p-6 md:p-8 ${showSplit ? "max-w-none" : "max-w-3xl"}`}>
+    <div className={`mx-auto flex min-h-screen w-full flex-col gap-6 p-6 md:p-8 ${showSplit ? "max-w-none" : "max-w-7xl"}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">
           {isIncident ? "Wargame Live" : "System Design Workspace"}

@@ -91,7 +91,7 @@ export default function PostmortemPage() {
 
   if (loadError) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 p-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-8">
         <p className="text-sm text-danger">{loadError}</p>
       </div>
     );
@@ -99,39 +99,20 @@ export default function PostmortemPage() {
 
   if (loading || !postmortem) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 p-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-8">
         <LoadingState />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
+    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-8">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">포스트모템</h1>
         <Link href={`/report/${sessionId}`} className="text-sm underline">
           리포트로
         </Link>
       </div>
-
-      {benchmark && postmortem.actionsTimeline.length > 0 && (
-        <Card as="section">
-          <div className="mb-1 flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-foreground-muted">커뮤니티 비교</h2>
-            <span className="text-xs text-foreground-muted">
-              같은 시나리오 완료 {benchmark.sampleSize}명
-            </span>
-          </div>
-          <p className="mb-2 text-xs text-foreground-muted">
-            같은 시나리오 버전을 완료한 세션만 비교합니다 — 버전이 다르면 인시던트가 달라집니다.
-          </p>
-          <div className="divide-y divide-border">
-            <BenchmarkRow label="MTTD (최초 대응까지)" metric={benchmark.mttdSeconds} format={formatDuration} />
-            <BenchmarkRow label="MTTR (마지막 조치까지)" metric={benchmark.mttrSeconds} format={formatDuration} />
-            <BenchmarkRow label="세션 평균 점수" metric={benchmark.score} format={(v) => `${v}점`} />
-          </div>
-        </Card>
-      )}
 
       <Card as="section">
         <h2 className="mb-3 text-sm font-semibold text-foreground-muted">인시던트 요약 (자동 계산)</h2>
@@ -232,103 +213,128 @@ export default function PostmortemPage() {
         )}
       </Card>
 
-      <ChangeReviewCard sessionId={sessionId} />
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        <aside className="flex min-w-0 flex-col gap-6 lg:col-start-2 lg:row-start-1">
+          {benchmark && postmortem.actionsTimeline.length > 0 && (
+            <Card as="section">
+              <div className="mb-1 flex items-baseline justify-between">
+                <h2 className="text-sm font-semibold text-foreground-muted">커뮤니티 비교</h2>
+                <span className="text-xs text-foreground-muted">
+                  같은 시나리오 완료 {benchmark.sampleSize}명
+                </span>
+              </div>
+              <p className="mb-2 text-xs text-foreground-muted">
+                같은 시나리오 버전을 완료한 세션만 비교합니다 — 버전이 다르면 인시던트가 달라집니다.
+              </p>
+              <div className="divide-y divide-border">
+                <BenchmarkRow label="MTTD (최초 대응까지)" metric={benchmark.mttdSeconds} format={formatDuration} />
+                <BenchmarkRow label="MTTR (마지막 조치까지)" metric={benchmark.mttrSeconds} format={formatDuration} />
+                <BenchmarkRow label="세션 평균 점수" metric={benchmark.score} format={(v) => `${v}점`} />
+              </div>
+            </Card>
+          )}
 
-      {/* docs/DRILLS_EXPANSION_PLAN.md M12 (PLAN.md Round E27) */}
-      {postmortem.actionsTimeline.length > 0 && <RunbookPanel sessionId={sessionId} suggestions={runbookSuggestions(postmortem)} />}
+          <ChangeReviewCard sessionId={sessionId} />
 
-      <Card as="section" className="flex flex-col gap-4">
-        <h2 className="text-sm font-semibold text-foreground-muted">직접 작성</h2>
+          {/* docs/DRILLS_EXPANSION_PLAN.md M12 (PLAN.md Round E27) */}
+          {postmortem.actionsTimeline.length > 0 && <RunbookPanel sessionId={sessionId} suggestions={runbookSuggestions(postmortem)} />}
+        </aside>
 
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">근본 원인</span>
-          <textarea
-            value={rootCause}
-            onChange={(e) => setRootCause(e.target.value)}
-            rows={3}
-            className="rounded border border-border p-2 text-sm  "
-            placeholder="지표 변화의 근본 원인을 서술하세요."
-          />
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">임시 완화 조치 (한 줄에 하나씩)</span>
-          <textarea
-            value={mitigationText}
-            onChange={(e) => setMitigationText(e.target.value)}
-            rows={3}
-            className="rounded border border-border p-2 font-mono text-xs  "
-            placeholder="당장 상황을 막았지만 근본 해결은 아닌 조치"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">근본 해결 조치 (한 줄에 하나씩)</span>
-          <textarea
-            value={rootFixText}
-            onChange={(e) => setRootFixText(e.target.value)}
-            rows={3}
-            className="rounded border border-border p-2 font-mono text-xs  "
-            placeholder="원인 자체를 없앤 조치 (지금 적용했거나 앞으로 적용할 것)"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">재발 방지 액션 아이템 (한 줄에 하나씩)</span>
-          <textarea
-            value={preventionText}
-            onChange={(e) => setPreventionText(e.target.value)}
-            rows={3}
-            className="rounded border border-border p-2 font-mono text-xs  "
-            placeholder="같은 장애가 재발하지 않도록 만들 구조적 개선"
-          />
-        </label>
-
-        <div className="flex items-center gap-3">
-          <Button variant="secondary" onClick={handleSave} disabled={saving || rootCause.trim().length === 0}>
-            {saving ? "저장하는 중..." : "저장"}
-          </Button>
-          {savedJustNow && <span className="text-sm text-success">저장됨</span>}
-          {saveError && <span className="text-sm text-danger">{saveError}</span>}
-        </div>
-      </Card>
-
-      {postmortem.saved &&
-        (postmortem.coachStrengths.length > 0 || postmortem.coachGaps.length > 0 || postmortem.coachFollowupQuestions.length > 0) && (
+        <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
           <Card as="section" className="flex flex-col gap-4">
-            <h2 className="text-sm font-semibold text-foreground-muted">AI 코치 피드백</h2>
-            {postmortem.coachStrengths.length > 0 && (
-              <div>
-                <p className="mb-1 text-sm font-medium">잘한 점</p>
-                <ul className="list-disc space-y-1 pl-5 text-sm text-foreground-muted">
-                  {postmortem.coachStrengths.map((item, i) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {postmortem.coachGaps.length > 0 && (
-              <div>
-                <p className="mb-1 text-sm font-medium">보완할 점</p>
-                <ul className="list-disc space-y-1 pl-5 text-sm text-foreground-muted">
-                  {postmortem.coachGaps.map((item, i) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {postmortem.coachFollowupQuestions.length > 0 && (
-              <div>
-                <p className="mb-1 text-sm font-medium">추가로 생각해볼 질문</p>
-                <ul className="list-disc space-y-1 pl-5 text-sm text-foreground-muted">
-                  {postmortem.coachFollowupQuestions.map((item, i) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            <h2 className="text-sm font-semibold text-foreground-muted">직접 작성</h2>
+
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium">근본 원인</span>
+              <textarea
+                value={rootCause}
+                onChange={(e) => setRootCause(e.target.value)}
+                rows={3}
+                className="rounded border border-border p-2 text-sm  "
+                placeholder="지표 변화의 근본 원인을 서술하세요."
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium">임시 완화 조치 (한 줄에 하나씩)</span>
+              <textarea
+                value={mitigationText}
+                onChange={(e) => setMitigationText(e.target.value)}
+                rows={3}
+                className="rounded border border-border p-2 font-mono text-xs  "
+                placeholder="당장 상황을 막았지만 근본 해결은 아닌 조치"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium">근본 해결 조치 (한 줄에 하나씩)</span>
+              <textarea
+                value={rootFixText}
+                onChange={(e) => setRootFixText(e.target.value)}
+                rows={3}
+                className="rounded border border-border p-2 font-mono text-xs  "
+                placeholder="원인 자체를 없앤 조치 (지금 적용했거나 앞으로 적용할 것)"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium">재발 방지 액션 아이템 (한 줄에 하나씩)</span>
+              <textarea
+                value={preventionText}
+                onChange={(e) => setPreventionText(e.target.value)}
+                rows={3}
+                className="rounded border border-border p-2 font-mono text-xs  "
+                placeholder="같은 장애가 재발하지 않도록 만들 구조적 개선"
+              />
+            </label>
+
+            <div className="flex items-center gap-3">
+              <Button variant="secondary" onClick={handleSave} disabled={saving || rootCause.trim().length === 0}>
+                {saving ? "저장하는 중..." : "저장"}
+              </Button>
+              {savedJustNow && <span className="text-sm text-success">저장됨</span>}
+              {saveError && <span className="text-sm text-danger">{saveError}</span>}
+            </div>
           </Card>
-        )}
+
+          {postmortem.saved &&
+            (postmortem.coachStrengths.length > 0 || postmortem.coachGaps.length > 0 || postmortem.coachFollowupQuestions.length > 0) && (
+              <Card as="section" className="flex flex-col gap-4">
+                <h2 className="text-sm font-semibold text-foreground-muted">AI 코치 피드백</h2>
+                {postmortem.coachStrengths.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-sm font-medium">잘한 점</p>
+                    <ul className="list-disc space-y-1 pl-5 text-sm text-foreground-muted">
+                      {postmortem.coachStrengths.map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {postmortem.coachGaps.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-sm font-medium">보완할 점</p>
+                    <ul className="list-disc space-y-1 pl-5 text-sm text-foreground-muted">
+                      {postmortem.coachGaps.map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {postmortem.coachFollowupQuestions.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-sm font-medium">추가로 생각해볼 질문</p>
+                    <ul className="list-disc space-y-1 pl-5 text-sm text-foreground-muted">
+                      {postmortem.coachFollowupQuestions.map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </Card>
+            )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -116,7 +116,7 @@ export default function DrillOverviewPage() {
 
   if (!scenario) {
     return (
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 p-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-8">
         <Alert variant="danger">{error ?? "Drill 정보를 불러오지 못했습니다."}</Alert>
         <Button href="/marketplace" variant="secondary" className="self-start">
           Drill 목록으로
@@ -139,7 +139,7 @@ export default function DrillOverviewPage() {
   const prereq = loggedIn && needsPrereq(scenario.difficulty, completedTiers(sessions));
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 p-8">
       <header className="flex flex-col gap-4 border-b border-border pb-8">
         {/* Official scenarios are listed on Home; the Drills tab lists only user-published ones. */}
         <Link
@@ -180,12 +180,12 @@ export default function DrillOverviewPage() {
         {error && <p className="text-sm text-danger">{error}</p>}
       </header>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
         <div className="flex min-w-0 flex-col gap-8">
           {scenario.initialPrompt && (
             <section className="flex flex-col gap-3">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-muted">문제</h2>
-              <p className="leading-relaxed">{scenario.initialPrompt}</p>
+              <p className="max-w-[72ch] leading-relaxed">{scenario.initialPrompt}</p>
               {(functional.length > 0 || nonFunctional.length > 0) && (
                 <div className="grid gap-4 rounded-xl border border-border bg-surface p-4 text-sm sm:grid-cols-2">
                   {functional.length > 0 && (
@@ -235,7 +235,7 @@ export default function DrillOverviewPage() {
                 <span className="mr-2 inline-block text-foreground-muted transition-transform group-open:rotate-90">›</span>
                 어떻게 진행되나요?
               </summary>
-              <p className="mt-2 pl-5 text-sm text-foreground-muted">
+              <p className="mt-2 max-w-[72ch] pl-5 text-sm text-foreground-muted">
                 단계마다 답안을 제출하면 AI가 7개 루브릭 항목으로 채점하고 잘한 점·놓친 점·꼬리질문을 돌려줍니다. 피드백을
                 확인한 뒤 다음 단계로 넘어가며, 다음 단계의 조건은 그때 공개됩니다.
                 {hasIncident && " 마지막 장애 대응 단계는 실시간 시뮬레이션에서 대응 액션을 직접 실행합니다."}
@@ -246,7 +246,7 @@ export default function DrillOverviewPage() {
                 <span className="mr-2 inline-block text-foreground-muted transition-transform group-open:rotate-90">›</span>
                 선수 지식이 필요한가요?
               </summary>
-              <p className="mt-2 pl-5 text-sm text-foreground-muted">
+              <p className="mt-2 max-w-[72ch] pl-5 text-sm text-foreground-muted">
                 {prereq
                   ? "아직 더 쉬운 난이도의 Drill을 완료하지 않았습니다. 막히지 않으려면 쉬운 난이도부터 풀어보는 것을 추천합니다 — 강제는 아닙니다."
                   : "백엔드 API·데이터베이스·캐시의 기본 개념이면 충분합니다. 부족한 개념은 피드백의 '놓친 점'과 Learning 탭에서 채울 수 있습니다."}
@@ -260,7 +260,7 @@ export default function DrillOverviewPage() {
           </section>
         </div>
 
-        <aside className="flex flex-col gap-4">
+        <aside className="flex min-w-0 flex-col gap-4">
           {/* docs/CODECRAFTERS_BENCHMARK.md §3.8 — this overview is public, so its URL is the invite. No referral tracking. */}
           <Card>
             <p className="text-xs font-semibold uppercase tracking-wide text-foreground-muted">함께 풀기</p>

@@ -94,7 +94,7 @@ export function ForkView({
 
   if (error && !fork) {
     return (
-      <div className="mx-auto flex max-w-3xl flex-col gap-3 p-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 p-8">
         <p className="text-sm text-danger">{error}</p>
         <Link href={backHref} className="text-sm underline">
           {backLabel}
@@ -102,7 +102,7 @@ export function ForkView({
       </div>
     );
   }
-  if (!fork) return <div className="mx-auto max-w-3xl p-8"><LoadingState /></div>;
+  if (!fork) return <div className="mx-auto w-full max-w-7xl p-8"><LoadingState /></div>;
 
   const actions = ACTIONS_BY_DOMAIN[fork.domain] ?? [];
   const latest = series?.points.at(-1) ?? null;
@@ -113,7 +113,7 @@ export function ForkView({
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-foreground-muted">Counterfactual · 포크</p>
           <h1 className="text-xl font-semibold">여기서 다르게 했다면?</h1>
-          <p className="mt-1 text-sm text-foreground-muted">
+          <p className="mt-1 max-w-[72ch] text-sm text-foreground-muted">
             원래 인시던트의 {formatDuration(fork.forkedAtSeconds)} 시점(그때까지의 조치:{" "}
             {fork.prefixActions.length === 0 ? "없음" : fork.prefixActions.map(actionLabel).join(", ")})에서 갈라졌습니다. 이 실험은 기록·점수에 남지 않고 1시간 뒤 사라집니다.
           </p>

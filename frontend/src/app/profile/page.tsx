@@ -134,197 +134,204 @@ export default function ProfilePage() {
     : [];
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">역량 프로필</h1>
         <p className="mt-1 text-sm text-foreground-muted">진행률, 역량, 기록, 배지를 한눈에 확인하세요.</p>
       </div>
 
-      <PreferencesCard />
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        <aside className="flex min-w-0 flex-col gap-6 lg:col-start-2 lg:row-start-1">
+          <PreferencesCard />
 
-      {/* PLAN.md Round E32 (C14) — what my posts earned, per domain; never part of Drill Score */}
-      {certification && <ReputationCard userId={certification.userId} />}
+          {/* PLAN.md Round E32 (C14) — what my posts earned, per domain; never part of Drill Score */}
+          {certification && <ReputationCard userId={certification.userId} />}
 
-      <Card as="section">
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground-muted">진행률</h2>
-            <p className="text-xs text-foreground-muted">
-              {passedCount}/{totalDomains}개 도메인 완료
-            </p>
-          </div>
-          <Badge variant={certification?.certified ? "success" : "neutral"}>
-            {certification?.certified ? "SysDrill Certified" : "인증 진행 중"}
-          </Badge>
-        </div>
-        <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-surface-elevated">
-          <div
-            className="h-full rounded-full bg-accent transition-all"
-            style={{ width: `${totalDomains ? (passedCount / totalDomains) * 100 : 0}%` }}
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {certification?.domains.map((d) => (
-            <Badge key={d.domain} variant={d.passed ? "success" : "neutral"}>
-              {d.title}
-              {d.passed ? " ✓" : ""}
-            </Badge>
-          ))}
-        </div>
-      </Card>
+          {recommended && (
+            <Card className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm text-foreground-muted">
+                  추천 학습 경로
+                  {skillProfile?.recommendedCategory && ` · 가장 약한 영역: ${categoryLabel(skillProfile.recommendedCategory)}`}
+                </p>
+                <p className="font-medium">{recommended.title}</p>
+              </div>
+              <Button onClick={handleStartRecommended} disabled={startingRecommended} size="sm">
+                {startingRecommended ? "시작하는 중..." : "시작"}
+              </Button>
+            </Card>
+          )}
+        </aside>
 
-      {radarData.length > 0 && (
-        <Card as="section">
-          <h2 className="mb-2 text-sm font-semibold text-foreground-muted">역량 프로필</h2>
-          <ResponsiveContainer width="100%" height={280}>
-            <RadarChart data={radarData} outerRadius="60%" margin={{ top: 12, right: 32, bottom: 12, left: 32 }}>
-              <PolarGrid stroke="var(--border)" />
-              <PolarAngleAxis dataKey="domain" tick={{ fill: "var(--foreground-muted)", fontSize: 11 }} />
-              <Radar dataKey="score" stroke="var(--accent)" fill="var(--accent)" fillOpacity={0.35} />
-            </RadarChart>
-          </ResponsiveContainer>
-        </Card>
-      )}
-
-      {(skillProfile?.trend.length ?? 0) > 0 && (
-        <Card as="section">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground-muted">점수 추이</h2>
-            {skillProfile && TREND_DIRECTION_LABELS[skillProfile.trendDirection].text && (
-              <span className={`text-xs font-medium ${TREND_DIRECTION_LABELS[skillProfile.trendDirection].className}`}>
-                {TREND_DIRECTION_LABELS[skillProfile.trendDirection].text}
-              </span>
-            )}
-          </div>
-          <div className="flex items-end gap-1.5" style={{ height: 48 }}>
-            {skillProfile!.trend.slice(-30).map((score, i) => (
+        <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
+          <Card as="section">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground-muted">진행률</h2>
+                <p className="text-xs text-foreground-muted">
+                  {passedCount}/{totalDomains}개 도메인 완료
+                </p>
+              </div>
+              <Badge variant={certification?.certified ? "success" : "neutral"}>
+                {certification?.certified ? "SysDrill Certified" : "인증 진행 중"}
+              </Badge>
+            </div>
+            <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-surface-elevated">
               <div
-                key={i}
-                title={`${score}/100`}
-                className="w-3 rounded-t bg-accent/70"
-                style={{ height: `${Math.max(4, score / 2)}px` }}
+                className="h-full rounded-full bg-accent transition-all"
+                style={{ width: `${totalDomains ? (passedCount / totalDomains) * 100 : 0}%` }}
               />
-            ))}
-          </div>
-          <p className="mt-1 text-xs text-foreground-muted">
-            누적 {skillProfile!.trend.length}회 · 최신 {skillProfile!.trend.at(-1)}점
-          </p>
-        </Card>
-      )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {certification?.domains.map((d) => (
+                <Badge key={d.domain} variant={d.passed ? "success" : "neutral"}>
+                  {d.title}
+                  {d.passed ? " ✓" : ""}
+                </Badge>
+              ))}
+            </div>
+          </Card>
 
-      {postmortemSummary && postmortemSummary.totalIncidents > 0 && (
-        <Card as="section">
-          <h2 className="mb-2 text-sm font-semibold text-foreground-muted">장애 대응 통계</h2>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-foreground-muted">평균 MTTD</span>
-                {TIME_TREND_LABELS[postmortemSummary.mttdTrend].text && (
-                  <span className={`text-xs font-medium ${TIME_TREND_LABELS[postmortemSummary.mttdTrend].className}`}>
-                    {TIME_TREND_LABELS[postmortemSummary.mttdTrend].text}
+          {radarData.length > 0 && (
+            <Card as="section">
+              <h2 className="mb-2 text-sm font-semibold text-foreground-muted">역량 프로필</h2>
+              <ResponsiveContainer width="100%" height={280}>
+                <RadarChart data={radarData} outerRadius="60%" margin={{ top: 12, right: 32, bottom: 12, left: 32 }}>
+                  <PolarGrid stroke="var(--border)" />
+                  <PolarAngleAxis dataKey="domain" tick={{ fill: "var(--foreground-muted)", fontSize: 11 }} />
+                  <Radar dataKey="score" stroke="var(--accent)" fill="var(--accent)" fillOpacity={0.35} />
+                </RadarChart>
+              </ResponsiveContainer>
+            </Card>
+          )}
+
+          {(skillProfile?.trend.length ?? 0) > 0 && (
+            <Card as="section">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-foreground-muted">점수 추이</h2>
+                {skillProfile && TREND_DIRECTION_LABELS[skillProfile.trendDirection].text && (
+                  <span className={`text-xs font-medium ${TREND_DIRECTION_LABELS[skillProfile.trendDirection].className}`}>
+                    {TREND_DIRECTION_LABELS[skillProfile.trendDirection].text}
                   </span>
                 )}
               </div>
-              <p className="font-semibold">{formatSeconds(postmortemSummary.avgMttdSeconds)}</p>
-            </div>
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-foreground-muted">평균 MTTR</span>
-                {TIME_TREND_LABELS[postmortemSummary.mttrTrend].text && (
-                  <span className={`text-xs font-medium ${TIME_TREND_LABELS[postmortemSummary.mttrTrend].className}`}>
-                    {TIME_TREND_LABELS[postmortemSummary.mttrTrend].text}
-                  </span>
-                )}
+              <div className="flex items-end gap-1.5" style={{ height: 48 }}>
+                {skillProfile!.trend.slice(-30).map((score, i) => (
+                  <div
+                    key={i}
+                    title={`${score}/100`}
+                    className="w-3 rounded-t bg-accent/70"
+                    style={{ height: `${Math.max(4, score / 2)}px` }}
+                  />
+                ))}
               </div>
-              <p className="font-semibold">{formatSeconds(postmortemSummary.avgMttrSeconds)}</p>
-            </div>
-          </div>
-          <ul className="mt-3 space-y-1 border-t border-border pt-3 text-sm">
-            {postmortemSummary.byDomain.map((d) => (
-              <li key={d.domain} className="flex justify-between">
-                <span>
-                  {DOMAIN_TITLES[d.domain] ?? d.domain} <span className="text-foreground-muted">({d.incidentCount}회)</span>
-                </span>
-                <span className="text-foreground-muted">
-                  MTTD {formatSeconds(d.avgMttdSeconds)} · MTTR {formatSeconds(d.avgMttrSeconds)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+              <p className="mt-1 text-xs text-foreground-muted">
+                누적 {skillProfile!.trend.length}회 · 최신 {skillProfile!.trend.at(-1)}점
+              </p>
+            </Card>
+          )}
 
-      {weaknessCategories.length > 0 && (
-        <Card as="section">
-          <h2 className="mb-3 text-sm font-semibold text-foreground-muted">보완이 필요한 영역</h2>
-          <div className="space-y-3">
-            {weaknessCategories.map(({ category, total, topRiskKeys }) => (
-              <div key={category}>
-                <div className="flex justify-between text-sm font-medium">
-                  <span>{categoryLabel(category)}</span>
-                  <span className="text-foreground-muted">{total}회</span>
+          {postmortemSummary && postmortemSummary.totalIncidents > 0 && (
+            <Card as="section">
+              <h2 className="mb-2 text-sm font-semibold text-foreground-muted">장애 대응 통계</h2>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-foreground-muted">평균 MTTD</span>
+                    {TIME_TREND_LABELS[postmortemSummary.mttdTrend].text && (
+                      <span className={`text-xs font-medium ${TIME_TREND_LABELS[postmortemSummary.mttdTrend].className}`}>
+                        {TIME_TREND_LABELS[postmortemSummary.mttdTrend].text}
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-semibold">{formatSeconds(postmortemSummary.avgMttdSeconds)}</p>
                 </div>
-                <ul className="mt-1 space-y-1 pl-3 text-sm text-foreground-muted">
-                  {topRiskKeys.map(([key, count]) => (
-                    <li key={key} className="flex justify-between">
-                      {concepts.isConcept(key) ? (
-                        <Link href={`/learning/${key}`} className="hover:text-accent hover:underline">
-                          {riskLabel(key)}
-                        </Link>
-                      ) : (
-                        <span>{riskLabel(key)}</span>
-                      )}
-                      <span>{count}회</span>
-                    </li>
-                  ))}
-                </ul>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-foreground-muted">평균 MTTR</span>
+                    {TIME_TREND_LABELS[postmortemSummary.mttrTrend].text && (
+                      <span className={`text-xs font-medium ${TIME_TREND_LABELS[postmortemSummary.mttrTrend].className}`}>
+                        {TIME_TREND_LABELS[postmortemSummary.mttrTrend].text}
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-semibold">{formatSeconds(postmortemSummary.avgMttrSeconds)}</p>
+                </div>
               </div>
-            ))}
-          </div>
-        </Card>
-      )}
+              <ul className="mt-3 space-y-1 border-t border-border pt-3 text-sm">
+                {postmortemSummary.byDomain.map((d) => (
+                  <li key={d.domain} className="flex justify-between">
+                    <span>
+                      {DOMAIN_TITLES[d.domain] ?? d.domain} <span className="text-foreground-muted">({d.incidentCount}회)</span>
+                    </span>
+                    <span className="text-foreground-muted">
+                      MTTD {formatSeconds(d.avgMttdSeconds)} · MTTR {formatSeconds(d.avgMttrSeconds)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
-      {recommended && (
-        <Card className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-foreground-muted">
-              추천 학습 경로
-              {skillProfile?.recommendedCategory && ` · 가장 약한 영역: ${categoryLabel(skillProfile.recommendedCategory)}`}
-            </p>
-            <p className="font-medium">{recommended.title}</p>
-          </div>
-          <Button onClick={handleStartRecommended} disabled={startingRecommended} size="sm">
-            {startingRecommended ? "시작하는 중..." : "시작"}
-          </Button>
-        </Card>
-      )}
+          {weaknessCategories.length > 0 && (
+            <Card as="section">
+              <h2 className="mb-3 text-sm font-semibold text-foreground-muted">보완이 필요한 영역</h2>
+              <div className="space-y-3">
+                {weaknessCategories.map(({ category, total, topRiskKeys }) => (
+                  <div key={category}>
+                    <div className="flex justify-between text-sm font-medium">
+                      <span>{categoryLabel(category)}</span>
+                      <span className="text-foreground-muted">{total}회</span>
+                    </div>
+                    <ul className="mt-1 space-y-1 pl-3 text-sm text-foreground-muted">
+                      {topRiskKeys.map(([key, count]) => (
+                        <li key={key} className="flex justify-between">
+                          {concepts.isConcept(key) ? (
+                            <Link href={`/learning/${key}`} className="hover:text-accent hover:underline">
+                              {riskLabel(key)}
+                            </Link>
+                          ) : (
+                            <span>{riskLabel(key)}</span>
+                          )}
+                          <span>{count}회</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
-      <Card as="section">
-        <h2 className="mb-2 text-sm font-semibold text-foreground-muted">기록 ({sessions.length}건)</h2>
-        {sessions.length === 0 ? (
-          <EmptyState message="아직 진행한 시나리오가 없습니다." />
-        ) : (
-          <ul className="space-y-2 text-sm">
-            {sessions.map((session) => (
-              <li key={session.id} className="flex items-center justify-between">
-                <span>{session.scenarioTitle}</span>
-                <span className="flex items-center gap-2">
-                  <Badge>{STATUS_LABELS[session.status] ?? session.status}</Badge>
-                  {session.status === "COMPLETED" ? (
-                    <Button href={`/report/${session.id}`} variant="ghost" size="sm">
-                      리포트 보기
-                    </Button>
-                  ) : (
-                    <Button href={`/design/${session.id}`} variant="ghost" size="sm">
-                      이어하기
-                    </Button>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+
+          <Card as="section">
+            <h2 className="mb-2 text-sm font-semibold text-foreground-muted">기록 ({sessions.length}건)</h2>
+            {sessions.length === 0 ? (
+              <EmptyState message="아직 진행한 시나리오가 없습니다." />
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {sessions.map((session) => (
+                  <li key={session.id} className="flex items-center justify-between">
+                    <span>{session.scenarioTitle}</span>
+                    <span className="flex items-center gap-2">
+                      <Badge>{STATUS_LABELS[session.status] ?? session.status}</Badge>
+                      {session.status === "COMPLETED" ? (
+                        <Button href={`/report/${session.id}`} variant="ghost" size="sm">
+                          리포트 보기
+                        </Button>
+                      ) : (
+                        <Button href={`/design/${session.id}`} variant="ghost" size="sm">
+                          이어하기
+                        </Button>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

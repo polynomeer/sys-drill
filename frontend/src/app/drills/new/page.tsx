@@ -73,67 +73,69 @@ export default function NewDrillPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
       <div>
         <Link href="/marketplace" className="text-xs text-foreground-muted hover:text-foreground">
           ← Drills
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">시나리오 등록</h1>
-        <p className="mt-1 text-sm text-foreground-muted">
+        <p className="mt-1 max-w-[72ch] text-sm text-foreground-muted">
           초기 설계와 꼬리설계 2단계로 구성된 커뮤니티 Drill을 만듭니다. 장애 대응 단계는 포함되지 않습니다.
         </p>
       </div>
 
-      <form onSubmit={handlePublish} className="flex flex-col gap-3">
-        <Input label="제목" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 커뮤니티 게시판 좋아요 카운터" />
-        <div className="flex flex-col gap-3 sm:flex-row">
-          {/* Input's className styles the field itself, not its label wrapper — size the wrappers here. */}
-          <div className="flex-1">
-            <Input
-              label="도메인 라벨"
-              className="w-full"
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-              placeholder="예: community-rate-limit"
-            />
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        <form onSubmit={handlePublish} className="flex min-w-0 flex-col gap-3">
+          <Input label="제목" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 커뮤니티 게시판 좋아요 카운터" />
+          <div className="flex flex-col gap-3 sm:flex-row">
+            {/* Input's className styles the field itself, not its label wrapper — size the wrappers here. */}
+            <div className="flex-1">
+              <Input
+                label="도메인 라벨"
+                className="w-full"
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                placeholder="예: community-rate-limit"
+              />
+            </div>
+            <div className="sm:w-44">
+              <Input label="난이도" className="w-full" value={difficulty} onChange={(e) => setDifficulty(e.target.value)} placeholder="EASY / MEDIUM / HARD" />
+            </div>
           </div>
-          <div className="sm:w-44">
-            <Input label="난이도" className="w-full" value={difficulty} onChange={(e) => setDifficulty(e.target.value)} placeholder="EASY / MEDIUM / HARD" />
-          </div>
-        </div>
-        <Textarea label="초기 설계 프롬프트" value={initialPrompt} onChange={(e) => setInitialPrompt(e.target.value)} rows={4} />
-        <Textarea
-          label="꼬리설계 프롬프트 — 1단계 제출 후에 공개되는 바뀐 조건"
-          value={followupPrompt}
-          onChange={(e) => setFollowupPrompt(e.target.value)}
-          rows={4}
-        />
-        {error && <p className="text-sm text-danger">{error}</p>}
-        {notice && <p className="text-sm text-success">{notice}</p>}
-        <Button type="submit" disabled={publishing} className="self-start">
-          {publishing ? "등록하는 중..." : "등록하기"}
-        </Button>
-      </form>
+          <Textarea label="초기 설계 프롬프트" value={initialPrompt} onChange={(e) => setInitialPrompt(e.target.value)} rows={4} />
+          <Textarea
+            label="꼬리설계 프롬프트 — 1단계 제출 후에 공개되는 바뀐 조건"
+            value={followupPrompt}
+            onChange={(e) => setFollowupPrompt(e.target.value)}
+            rows={4}
+          />
+          {error && <p className="text-sm text-danger">{error}</p>}
+          {notice && <p className="text-sm text-success">{notice}</p>}
+          <Button type="submit" disabled={publishing} className="self-start">
+            {publishing ? "등록하는 중..." : "등록하기"}
+          </Button>
+        </form>
 
-      <Card as="section">
-        <h2 className="mb-3 text-sm font-semibold text-foreground-muted">내가 등록한 시나리오 ({mine.length}개)</h2>
-        {loading ? (
-          <LoadingState />
-        ) : mine.length === 0 ? (
-          <EmptyState message="아직 등록한 시나리오가 없습니다." />
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {mine.map((scenario) => (
-              <li key={scenario.id} className="flex items-center justify-between gap-3 text-sm">
-                <Link href={`/drills/${scenario.id}`} className="hover:text-accent">
-                  {scenario.title}
-                </Link>
-                <DifficultyBadge difficulty={scenario.difficulty} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+        <Card as="section">
+          <h2 className="mb-3 text-sm font-semibold text-foreground-muted">내가 등록한 시나리오 ({mine.length}개)</h2>
+          {loading ? (
+            <LoadingState />
+          ) : mine.length === 0 ? (
+            <EmptyState message="아직 등록한 시나리오가 없습니다." />
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {mine.map((scenario) => (
+                <li key={scenario.id} className="flex items-center justify-between gap-3 text-sm">
+                  <Link href={`/drills/${scenario.id}`} className="hover:text-accent">
+                    {scenario.title}
+                  </Link>
+                  <DifficultyBadge difficulty={scenario.difficulty} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }
