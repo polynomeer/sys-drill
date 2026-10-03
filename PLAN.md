@@ -2243,6 +2243,22 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## 동시성·지터 단계 판별력 강화 (4개 언어) ✅ 완료 (2026-10-03)
+
+사용자 요청("이어서 진행해줘" — 직전 보고의 알려진 한계 두 가지). 각 언어의 모범 답안에서 락을 기계적으로 걷어낸 변형(Python `nullcontext`, Java/Kotlin `synchronized` 제거, Go mutex 호출 제거)과 지터를 뺀 변형으로 판별력을 실측하며 바꿨다.
+
+- [x] retry-backoff 3단계: "지연 값이 서로 다른가" → 같은 정책을 두 번 돌려 지연 수열이 달라야 통과. 지터 없는 변형이 4개 언어 모두 실패, 정답은 통과
+- [x] queue / event-bus 4단계: 20개 → 1000개, 워커 5 → 8, 시작 게이트, Python은 워커 예외를 main으로 올리고 `sys.setswitchinterval(1e-6)`. 락 없는 변형: Python·Java·Kotlin 3/3 실패
+- [x] distributed-lock 4단계: 한 번의 20-스레드 경쟁 → 새 키 200개마다 8-스레드 경쟁. Java·Kotlin 3/3 실패
+- [x] **Go는 `go run -race`로 채점**([ADR-0052](docs/adr/0052-go-build-challenges-run-under-the-race-detector.md)). 0.5 CPU 쿼터에서 Go 1.25가 GOMAXPROCS를 2로 잡아 고루틴이 거의 안 겹친다 — 1000개·GOMAXPROCS(8)로도 queue 2/3, lock 0/3. 레이스 디텍터로는 9/9. 이미지에 cgo·레이스 캐시, `GORACE=halt_on_error=1`, 워커가 data race 전용 피드백을 준다
+- [x] `V74` — 16개 스테이지 스크립트 갱신(파일에서 생성), Go README 6개에 `-race` 안내, 테스트: Go 레이스 샌드박스 테스트 + 락 없는 Go queue가 4단계만 data race로 실패하는 통합 테스트(fixture `build-solutions-racy/`)
+
+**남은 한계**: Python distributed-lock 4단계는 여전히 락 없는 구현을 못 잡는다 — GIL 아래에서 몇 바이트코드짜리 dict check-then-set은 사실상 원자적이라, 라운드 반복·전환 간격 축소·키 스윕 모두 0/3이었다. free-threaded Python 이미지 없이는 테스트로 드러낼 방법이 없어 그대로 둔다.
+
+**환경 메모**: 재부팅 직후 BuildKit이 Docker Hub 메타데이터 조회에서 멈춰(다른 프로젝트의 `imagetools inspect`도 같은 증상) `docker compose build`·클래식 `docker build` 모두 진행되지 않았다. 로컬 Go 이미지는 Dockerfile과 같은 단계를 `docker run` + `docker commit`으로 만들었다 — CI는 Dockerfile로 그대로 빌드한다.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
