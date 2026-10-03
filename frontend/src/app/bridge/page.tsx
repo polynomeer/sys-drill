@@ -33,7 +33,9 @@ import {
   saveBuildSubmissionId,
   saveEditorTheme,
 } from "@/lib/localSession";
-import { EDITOR_THEMES, editorThemeById } from "@/lib/editorThemes";
+import { APP_EDITOR_THEMES, AUTO_EDITOR_THEME, EXTRA_EDITOR_THEMES, resolveEditorTheme } from "@/lib/editorThemes";
+import { APP_THEMES } from "@/lib/appTheme";
+import { useAppTheme } from "@/lib/useAppTheme";
 import { BridgeProgress } from "@/components/BridgeProgress";
 import { StageList, type Stage } from "@/components/StageList";
 import { Button } from "@/components/ui/Button";
@@ -117,7 +119,13 @@ export default function BridgePage() {
   const [error, setError] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState(false);
   const [mode, setMode] = useState<"web" | "local">("web");
-  const [editorTheme, setEditorTheme] = useState(() => editorThemeById(loadEditorTheme()));
+  const appTheme = useAppTheme();
+  const [editorThemeChoice, setEditorThemeChoice] = useState(loadEditorTheme);
+  // A hand-picked editor theme only holds under the app theme it was picked in —
+  // switching app themes brings back that theme's own editor by default.
+  const editorThemeId =
+    editorThemeChoice && editorThemeChoice.appTheme === appTheme ? editorThemeChoice.id : AUTO_EDITOR_THEME;
+  const editorTheme = resolveEditorTheme(editorThemeId, appTheme);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const slug = slugFor(family, language);
@@ -420,18 +428,30 @@ export default function BridgePage() {
                   테마
                   <select
                     className="rounded border border-border bg-surface px-2 py-1 text-xs text-foreground"
-                    value={editorTheme.id}
+                    value={editorThemeId}
                     onChange={(e) => {
-                      const next = editorThemeById(e.target.value);
-                      setEditorTheme(next);
-                      saveEditorTheme(next.id);
+                      const next = e.target.value === AUTO_EDITOR_THEME ? null : { id: e.target.value, appTheme };
+                      setEditorThemeChoice(next);
+                      saveEditorTheme(next);
                     }}
                   >
-                    {EDITOR_THEMES.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.label}
-                      </option>
-                    ))}
+                    <option value={AUTO_EDITOR_THEME}>
+                      앱 테마에 맞춤 ({APP_THEMES.find((t) => t.id === appTheme)?.label})
+                    </option>
+                    <optgroup label="앱 테마">
+                      {APP_THEMES.map((t) => (
+                        <option key={t.id} value={APP_EDITOR_THEMES[t.id].id}>
+                          {APP_EDITOR_THEMES[t.id].label}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="기타">
+                      {EXTRA_EDITOR_THEMES.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </label>
               )}
