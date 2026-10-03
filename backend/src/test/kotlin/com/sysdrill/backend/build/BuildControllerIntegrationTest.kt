@@ -87,7 +87,7 @@ class BuildControllerIntegrationTest(
 
     @Test
     fun `the challenge endpoint lists every stage with instructions before any submission`() {
-        for (slug in listOf("rate-limiter", "rate-limiter-ts")) {
+        for (slug in listOf("rate-limiter", "rate-limiter-ts", "rate-limiter-java", "rate-limiter-kotlin", "rate-limiter-go")) {
             val response = mockMvc.perform(get("/build-challenges/$slug").header("Authorization", bearerHeader(userId)))
                 .andExpect(status().isOk).andReturn().response.contentAsString
             assertThat(JsonPath.read<List<Int>>(response, "$.stages[*].stageOrder")).containsExactly(1, 2, 3, 4, 5, 6)
@@ -128,13 +128,46 @@ class BuildControllerIntegrationTest(
         assertThat(JsonPath.read<String>(response, "$.stages[0].status")).isEqualTo("PASSED")
     }
 
-    /** Strips the first "# " / "// " from the [lines] lines right after the "Stage 1 — uncomment" marker. */
-    private fun uncommentStageOne(source: String, lines: Int): String {
+    /**
+     * ADR-0051 — the compiled-language stubs follow the same contract, plus one more step the
+     * instructions spell out: the not-implemented line after the uncommented ones must go
+     * (Java rejects it as unreachable code). Stage 2 stays open as in Python — expire() is a no-op.
+     */
+    @Test
+    fun `the java, kotlin and go stubs pass stage 1 only after uncommenting, and stage 2 is still open`() {
+        val stubs = mapOf(
+            "rate-limiter-java" to ("RateLimiter.java" to "throw new UnsupportedOperationException"),
+            "rate-limiter-kotlin" to ("RateLimiter.kt" to "TODO(\"not implemented\")"),
+            "rate-limiter-go" to ("rate_limiter.go" to "panic(\"not implemented\")"),
+        )
+        stubs.forEach { (slug, file) ->
+            val (fileName, notImplemented) = file
+            val stub = File("../challenges/$slug/$fileName").readText()
+
+            val raw = awaitCompleted(mockMvc.submitBuildChallenge(objectMapper, slug, userId, stub), Duration.ofSeconds(240))
+            assertThat(JsonPath.read<String>(raw, "$.stages[0].status")).describedAs(slug).isEqualTo("FAILED")
+
+            val solved = uncommentStageOne(stub, lines = 3, dropFirstLineContaining = notImplemented)
+            val uncommented = awaitCompleted(mockMvc.submitBuildChallenge(objectMapper, slug, userId, solved), Duration.ofSeconds(240))
+            assertThat(JsonPath.read<String>(uncommented, "$.stages[0].status")).describedAs(slug).isEqualTo("PASSED")
+            assertThat(JsonPath.read<String>(uncommented, "$.stages[1].status")).describedAs(slug).isEqualTo("FAILED")
+        }
+    }
+
+    /**
+     * Strips the first "# " / "// " from the [lines] lines right after the "Stage 1 — uncomment" marker,
+     * then drops the first later line containing [dropFirstLineContaining], if given.
+     */
+    private fun uncommentStageOne(source: String, lines: Int, dropFirstLineContaining: String? = null): String {
         val all = source.lines().toMutableList()
         val marker = all.indexOfFirst { it.contains("Stage 1 — uncomment") }
         check(marker >= 0) { "stub has no Stage 1 marker" }
         for (i in marker + 1..marker + lines) {
             all[i] = all[i].replaceFirst("# ", "").replaceFirst("// ", "")
+        }
+        if (dropFirstLineContaining != null) {
+            val stubLine = (marker + lines + 1 until all.size).first { all[it].contains(dropFirstLineContaining) }
+            all.removeAt(stubLine)
         }
         return all.joinToString("\n")
     }

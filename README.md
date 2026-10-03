@@ -94,7 +94,7 @@ flowchart TB
 
     subgraph EXT["<b>Ephemeral / External</b>"]
         direction LR
-        DK["Docker 샌드박스<br/>python:3.12-slim<br/>--network none · CPU / Mem cap"]
+        DK["Docker 샌드박스<br/>Python · TS · Java · Kotlin · Go<br/>--network none · CPU / Mem cap"]
         K6["k6 컨테이너<br/>부하 생성"]
         LLM["Anthropic Claude API<br/>structured output"]
     end
@@ -193,7 +193,7 @@ sequenceDiagram
 | 백엔드 | Kotlin 179 파일 · 패키지 19개(도메인 17 + 공통·도구 2) · Flyway 마이그레이션 44개 · REST 엔드포인트 67개 |
 | 테스트 | 테스트 클래스 60개 · 테스트 297개 (단위 + 실제 compose 스택 대상 통합 + real-infra 파일럿 범위 단언) |
 | 프론트엔드 | 페이지 30개 · TypeScript/TSX 54 파일 |
-| 콘텐츠 | 시나리오 도메인 7개 (쿠폰·알림·상품조회·결제·예약·배치정산·오토스케일링) · Build 과제 7개 (Rate Limiter는 Python·TypeScript 2종 · Queue · Circuit Breaker · Distributed Lock · Retry/Backoff · Event Bus) |
+| 콘텐츠 | 시나리오 도메인 7개 (쿠폰·알림·상품조회·결제·예약·배치정산·오토스케일링) · Build 과제 10개 (Rate Limiter는 Python·TypeScript·Java·Kotlin·Go 5종 · Queue · Circuit Breaker · Distributed Lock · Retry/Backoff · Event Bus) |
 | 문서 | PRD · 아키텍처 · 로드맵 · ADR 42건 · UX 전략 · 상용화 계획 |
 
 ## Quick Start

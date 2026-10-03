@@ -19,7 +19,7 @@ import java.util.UUID
  * PLAN.md Round E2 (docs/LEARNING_EXPANSION_PLAN.md L4-b) — `/bridge` now starts
  * every challenge from the DB stub instead of two frontend constants. The stub a
  * learner sees in the browser and the one they `git clone` from `challenges/`
- * must be the same file, so this pins all seven byte-for-byte: editing one
+ * must be the same file, so this pins every one byte-for-byte: editing one
  * without a new migration for the other fails here.
  */
 @SpringBootTest
@@ -39,7 +39,7 @@ class BuildStarterCodeTest(
             .andExpect(status().isOk).andReturn().response.contentAsString
         val slugs: List<String> = JsonPath.read(list, "$[*].slug")
         assertThat(slugs).containsExactlyInAnyOrder(
-            "rate-limiter", "rate-limiter-ts", "queue", "circuit-breaker", "distributed-lock", "retry-backoff", "event-bus",
+            "rate-limiter", "rate-limiter-ts", "rate-limiter-java", "rate-limiter-kotlin", "rate-limiter-go", "queue", "circuit-breaker", "distributed-lock", "retry-backoff", "event-bus",
         )
         val stageCounts: List<Int> = JsonPath.read(list, "$[*].stageCount")
         assertThat(stageCounts).allMatch { it > 0 }
