@@ -327,3 +327,50 @@ body {
   --xy-handle-background-color: var(--accent);
   --xy-handle-border-color: var(--background);
 }
+
+/* Per app theme edge styling (paths come from canvasSurface in canvasThemes.tsx):
+   Quest — bubbly round dots, Arcade — chunky marching pixels, RPG — gold line,
+   Tactical — thin glowing dashes. 기본 keeps the plain muted line above. */
+[data-theme="quest"] [data-canvas-theme="app"] .react-flow {
+  --xy-edge-stroke: var(--accent);
+  --xy-edge-stroke-width: 3.5;
+}
+[data-theme="quest"] [data-canvas-theme="app"] .react-flow__edge-path {
+  stroke-linecap: round;
+  stroke-dasharray: 0.1 8;
+}
+
+[data-theme="arcade"] [data-canvas-theme="app"] .react-flow {
+  --xy-edge-stroke: var(--accent);
+  --xy-edge-stroke-width: 3;
+}
+[data-theme="arcade"] [data-canvas-theme="app"] .react-flow__edge-path {
+  stroke-linecap: square;
+  stroke-dasharray: 9 6;
+  animation: canvas-edge-march 0.6s steps(3) infinite;
+}
+@keyframes canvas-edge-march {
+  to {
+    stroke-dashoffset: -15; /* one 9+6 dash period, so the loop doesn't jump */
+  }
+}
+
+[data-theme="rpg"] [data-canvas-theme="app"] .react-flow {
+  --xy-edge-stroke: var(--accent);
+  --xy-edge-stroke-width: 2.5;
+}
+
+[data-theme="tactical"] [data-canvas-theme="app"] .react-flow {
+  --xy-edge-stroke: var(--accent);
+  --xy-edge-stroke-width: 1.25;
+}
+[data-theme="tactical"] [data-canvas-theme="app"] .react-flow__edge-path {
+  stroke-dasharray: 5 3;
+  filter: drop-shadow(0 0 3px var(--accent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="arcade"] [data-canvas-theme="app"] .react-flow__edge-path {
+    animation: none;
+  }
+}

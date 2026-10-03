@@ -230,6 +230,10 @@ export function DiagramCanvas({
   const { appTheme, themeId, selectTheme } = useThemeChoice(AUTO_CANVAS_THEME, loadCanvasTheme, saveCanvasTheme);
   const theme = canvasThemeById(themeId);
   const surface = canvasSurface(theme, appTheme);
+  const themedEdges = useMemo(
+    () => (surface.edgeType ? edges.map((e) => ({ ...e, type: surface.edgeType })) : edges),
+    [edges, surface.edgeType],
+  );
 
   const commit = useCallback(
     (nextNodes: Node<CanvasNodeData>[], nextEdges: Edge[]) => {
@@ -403,7 +407,7 @@ export function DiagramCanvas({
         <CanvasThemeContext.Provider value={theme}>
           <ReactFlow
             nodes={nodesWithHandlers}
-            edges={edges}
+            edges={themedEdges}
             nodeTypes={NODE_TYPES}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}

@@ -31,6 +31,8 @@ type CanvasSurface = {
   gap: number;
   /** Must match the theme's `--xy-edge-stroke` in globals.css — the arrowhead marker is colored separately from the edge path. */
   edgeColor: string;
+  /** React Flow's built-in edge path; unset means its default bezier. Applied at render only — never saved into the graph. */
+  edgeType?: "default" | "straight" | "step" | "smoothstep";
   colorScheme: "dark" | "light";
 };
 
@@ -120,11 +122,25 @@ export function canvasThemeById(id: string | null): CanvasTheme {
 }
 
 /** The app-theme canvas swaps dots for the same grid lines Arcade and Tactical draw behind the page. */
+/**
+ * The app-theme canvas varies by app theme: Arcade and Tactical swap dots for
+ * the grid lines they draw behind the page, and each theme gets its own edge
+ * path (stroke/dash styling lives in globals.css under `[data-theme]`).
+ */
 export function canvasSurface(theme: CanvasTheme, appTheme: AppThemeId): CanvasSurface {
-  if (theme.id === "app" && (appTheme === "arcade" || appTheme === "tactical")) {
-    return { ...theme.surface, variant: BackgroundVariant.Lines, gap: 32 };
+  if (theme.id !== "app") return theme.surface;
+  switch (appTheme) {
+    case "quest":
+      return { ...theme.surface, edgeColor: "var(--accent)" };
+    case "arcade":
+      return { ...theme.surface, variant: BackgroundVariant.Lines, gap: 32, edgeColor: "var(--accent)", edgeType: "step" };
+    case "rpg":
+      return { ...theme.surface, edgeColor: "var(--accent)", edgeType: "smoothstep" };
+    case "tactical":
+      return { ...theme.surface, variant: BackgroundVariant.Lines, gap: 32, edgeColor: "var(--accent)", edgeType: "straight" };
+    default:
+      return theme.surface;
   }
-  return theme.surface;
 }
 
 /** Small deterministic tilt (−2°..2°) so sticky notes look hand-placed but don't jitter between renders. */
