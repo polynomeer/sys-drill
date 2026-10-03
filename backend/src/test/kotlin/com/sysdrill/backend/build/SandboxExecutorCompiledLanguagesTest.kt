@@ -1,6 +1,7 @@
 package com.sysdrill.backend.build
 
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
 import org.springframework.beans.factory.annotation.Autowired
@@ -102,6 +103,40 @@ class SandboxExecutorCompiledLanguagesTest(@Autowired val sandboxExecutor: Sandb
         val result = sandboxExecutor.run(case.language, case.sourceFileName, case.wrong, case.testScript)
         assertThat(result.passed).isFalse()
         assertThat(result.output).contains("RESULT:FAIL:add(2, 3) should be 5")
+    }
+
+    /**
+     * ADR-0052 — Go runs under the race detector, so an unsynchronized write fails the stage even
+     * when the result happens to come out right (at 0.5 CPU it almost always would). The halt
+     * stops the process before it can print RESULT:PASS.
+     */
+    @Test
+    fun `a go data race fails the stage even when the result comes out right`() {
+        val result = sandboxExecutor.run(
+            "go",
+            "counter.go",
+            "package main\n\nvar hits int\n\nfunc hit() { hits++ }\n",
+            """
+            package main
+
+            import (
+                "fmt"
+                "sync"
+            )
+
+            func main() {
+                var wg sync.WaitGroup
+                for i := 0; i < 2; i++ {
+                    wg.Add(1)
+                    go func() { defer wg.Done(); hit() }()
+                }
+                wg.Wait()
+                fmt.Println("RESULT:PASS")
+            }
+            """.trimIndent(),
+        )
+        assertThat(result.passed).isFalse()
+        assertThat(result.output).contains("WARNING: DATA RACE").doesNotContain("RESULT:PASS")
     }
 
     /** A compile error never reaches the test — the learner sees the compiler's own output instead. */

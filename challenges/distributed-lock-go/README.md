@@ -2,9 +2,9 @@
 
 SysDrill Build Mode 과제입니다. `distributed_lock.go`의 `TODO`를 채워 4개 스테이지를 통과시키세요.
 
-이 챌린지는 [`challenges/distributed-lock/`](../distributed-lock/)의 Python 버전과 같은 4개 스테이지를 다룹니다. 채점 샌드박스는 이 파일과 테스트 파일을 같은 디렉터리에 두고 `go run *.go`(Go 1.25)로 실행합니다. 표준 라이브러리만 쓸 수 있고(go.mod·외부 모듈 없음), `main` 함수는 테스트 파일에 있으니 이 파일에는 넣지 마세요.
+이 챌린지는 [`challenges/distributed-lock/`](../distributed-lock/)의 Python 버전과 같은 4개 스테이지를 다룹니다. 채점 샌드박스는 이 파일과 테스트 파일을 같은 디렉터리에 두고 `go run -race *.go`(Go 1.25)로 실행합니다. **채점은 레이스 디텍터(`go run -race`)로 돕니다** — 결과가 맞아도 여러 고루틴이 동기화 없이 같은 값을 건드리면 그 자리에서 실패하고, 테스트 로그의 `WARNING: DATA RACE` 아래 두 스택이 부딪힌 위치입니다. 표준 라이브러리만 쓸 수 있고(go.mod·외부 모듈 없음), `main` 함수는 테스트 파일에 있으니 이 파일에는 넣지 마세요.
 
-Python 버전에서 "토큰 또는 `None`"이던 반환값은 `(int64, bool)`(획득 실패 시 `false`)이고, lease는 `time.Duration`으로 받습니다. 같은 `*LockStore`를 여러 `DistributedLock`에 넘기는 것이 "여러 인스턴스가 같은 외부 락 서비스(Redis 등)를 바라보는" 상황의 흉내입니다 — stage 4는 고루틴 20개가 같은 키로 `Acquire`를 동시에 불러 정확히 하나만 성공하는지 봅니다. `go run`은 `_test.go`로 끝나는 파일을 받지 않아서 스테이지 파일 이름이 `stages/stageN.go`입니다.
+Python 버전에서 "토큰 또는 `None`"이던 반환값은 `(int64, bool)`(획득 실패 시 `false`)이고, lease는 `time.Duration`으로 받습니다. 같은 `*LockStore`를 여러 `DistributedLock`에 넘기는 것이 "여러 인스턴스가 같은 외부 락 서비스(Redis 등)를 바라보는" 상황의 흉내입니다 — stage 4는 새 키 200개마다 고루틴 8개가 `Acquire`를 동시에 불러, 매번 정확히 하나만 성공하는지 봅니다. `go run`은 `_test.go`로 끝나는 파일을 받지 않아서 스테이지 파일 이름이 `stages/stageN.go`입니다.
 
 ## 스테이지
 
@@ -13,12 +13,12 @@ Python 버전에서 "토큰 또는 `None`"이던 반환값은 `(int64, bool)`(�
 | 1 | mutual exclusion | 기본 상호 배제 — 동시에 두 소유자가 같은 락을 가질 수 없다 |
 | 2 | lease/TTL 만료 | release 없이도 lease가 지나면 락이 풀려야 하는 이유 |
 | 3 | fencing token | 오래 멈췄다 깨어난 소유자(GC pause 등)가 새 소유자의 락에 영향을 주면 안 되는 이유 |
-| 4 | 동시성 (고루틴 20개 동시 acquire) | 여러 요청이 동시에 acquire를 시도해도 정확히 하나만 성공 |
+| 4 | 동시성 (키 200개 × 고루틴 8개 동시 acquire) | 여러 요청이 동시에 acquire를 시도해도 정확히 하나만 성공 |
 
 각 스테이지의 테스트는 `stages/`에 있습니다. 로컬에서 직접 실행해 확인할 수 있습니다.
 
 ```bash
-cp stages/stage1.go . && go run distributed_lock.go stage1.go; rm stage1.go
+cp stages/stage1.go . && go run -race distributed_lock.go stage1.go; rm stage1.go
 ```
 
 ## 제출하기

@@ -175,10 +175,17 @@ class BuildRunnerWorker(
         val marker = "RESULT:FAIL:"
         val line = output.lineSequence().firstOrNull { it.startsWith(marker) }
         return line?.removePrefix(marker)?.trim()?.takeIf { it.isNotEmpty() }
+            // Go 레이스 디텍터(ADR-0052)는 RESULT 줄 전에 프로세스를 멈춘다. 출력 끝 500자는
+            // 스택의 꼬리뿐이라, 무엇이 잘못됐는지를 먼저 말하고 위치는 테스트 로그로 보낸다.
+            ?: DATA_RACE_FEEDBACK.takeIf { output.contains("WARNING: DATA RACE") }
             ?: output.takeLast(500).ifBlank { "알 수 없는 오류" }
     }
 
     private companion object {
+        const val DATA_RACE_FEEDBACK =
+            "data race — 여러 고루틴이 동기화 없이 같은 값을 읽고 썼습니다. 테스트 로그의 \"WARNING: DATA RACE\" 아래 " +
+                "두 스택이 서로 부딪힌 위치입니다. 그 접근을 sync.Mutex 등으로 보호하세요."
+
         val POLL_TIMEOUT: Duration = Duration.ofSeconds(2)
 
         /** 첫 실패 직후의 대기. 이후 연속 실패마다 두 배가 된다. */

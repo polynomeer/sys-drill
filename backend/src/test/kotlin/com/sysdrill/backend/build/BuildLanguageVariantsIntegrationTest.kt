@@ -6,6 +6,7 @@ import com.sysdrill.backend.identity.UserRepository
 import com.sysdrill.backend.support.bearerHeader
 import com.sysdrill.backend.support.submitBuildChallenge
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import org.springframework.beans.factory.annotation.Autowired
@@ -52,6 +53,24 @@ class BuildLanguageVariantsIntegrationTest(
         assertThat(JsonPath.read<List<String>>(answer, "$.stages[*].status"))
             .describedAs("$slug model answer: ${JsonPath.read<List<String?>>(answer, "$.stages[*].output")}")
             .isNotEmpty.allMatch { it == "PASSED" }
+    }
+
+    /**
+     * ADR-0052 — a Go queue with no locking at all hands out each message exactly once at 0.5 CPU,
+     * so stage 4 would pass on outcome alone. Under the race detector it fails, with feedback that
+     * says what happened instead of the tail of a stack trace.
+     */
+    @Test
+    fun `a lock-free go queue fails the concurrency stage as a data race`() {
+        val userId = userRepository.save(
+            User(email = "racy-${UUID.randomUUID()}@example.com", passwordHash = "hash", nickname = "racy")
+        ).id!!
+        val racy = File("src/test/resources/build-solutions-racy/queue-go/queue.go").readText()
+
+        val response = awaitCompleted(userId, mockMvc.submitBuildChallenge(objectMapper, "queue-go", userId, racy))
+        assertThat(JsonPath.read<List<String>>(response, "$.stages[*].status")).containsExactly("PASSED", "PASSED", "PASSED", "FAILED")
+        assertThat(JsonPath.read<String>(response, "$.stages[3].feedback")).contains("data race")
+        assertThat(JsonPath.read<String>(response, "$.stages[3].output")).contains("WARNING: DATA RACE")
     }
 
     private fun solutionDir(slug: String) = File("src/test/resources/build-solutions/$slug")

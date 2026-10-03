@@ -76,10 +76,12 @@ class SandboxExecutor(
             ),
             // `_test.go` 로 끝나는 파일은 `go run` 이 받지 않는다. 이미지에 표준 라이브러리 빌드
             // 캐시를 미리 채워 둔 이유는 sandbox/go/Dockerfile.
+            // -race: 0.5 CPU 에서는 고루틴이 거의 겹치지 않아, 락 없는 구현도 결과값만 보면 대개
+            // 통과한다. 레이스 디텍터는 겹침 운과 무관하게 동기화 없는 접근을 잡는다(ADR-0052).
             "go" to LanguageRuntime(
                 goImage,
                 "run_stage.go",
-                listOf("sh", "-c", "go run *.go"),
+                listOf("sh", "-c", "go run -race *.go"),
                 compileSeconds = 5,
             ),
         )
