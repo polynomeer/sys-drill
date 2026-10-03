@@ -102,7 +102,7 @@ export default function OrganizationAssessmentsPage() {
   if (!org) return null;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-8">
+    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-8">
       <div>
         <Link href={`/organizations/${orgId}`} className="text-sm text-foreground-muted underline">
           {org.name} 조직 상세로
@@ -113,81 +113,83 @@ export default function OrganizationAssessmentsPage() {
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      <Card as="section">
-        <h2 className="mb-3 text-sm font-semibold text-foreground-muted">평가 목록 ({assessments.length}건)</h2>
-        {assessments.length === 0 && <p className="text-sm text-foreground-muted">아직 생성된 평가가 없습니다.</p>}
-        <ul className="flex flex-col gap-3">
-          {assessments.map((a) => (
-            <li key={a.id} className="text-sm">
-              <div className="flex items-center justify-between">
-                <span>
-                  {a.candidateEmail}
-                  <span className="ml-2 text-xs text-foreground-muted">({a.scenarioTitle})</span>
-                </span>
-                <span className="flex items-center gap-2">
-                  <Badge>{STATUS_LABELS[a.status] ?? a.status}</Badge>
-                  {a.status === "COMPLETED" && (
-                    <Button variant="ghost" size="sm" onClick={() => handleViewReport(a)}>
-                      리포트 보기
-                    </Button>
-                  )}
-                </span>
-              </div>
-              {openReportId === a.id && (
-                <div className="mt-2 rounded bg-surface-elevated p-3 text-xs ">
-                  {reportError && <p className="text-danger">{reportError}</p>}
-                  {report && (
-                    <>
-                      <p className="mb-2">{report.summary}</p>
-                      <ul className="flex flex-col gap-1">
-                        {report.timelineFeedback.map((entry) => (
-                          <li key={entry.submissionId}>
-                            {entry.phase}: {entry.totalScore ?? "-"}점
-                            {entry.topRisks.length > 0 && ` — ${entry.topRisks.join(", ")}`}
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        <Card as="section">
+          <h2 className="mb-3 text-sm font-semibold text-foreground-muted">평가 목록 ({assessments.length}건)</h2>
+          {assessments.length === 0 && <p className="text-sm text-foreground-muted">아직 생성된 평가가 없습니다.</p>}
+          <ul className="flex flex-col gap-3">
+            {assessments.map((a) => (
+              <li key={a.id} className="text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 wrap-anywhere">
+                    {a.candidateEmail}
+                    <span className="ml-2 text-xs text-foreground-muted">({a.scenarioTitle})</span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <Badge>{STATUS_LABELS[a.status] ?? a.status}</Badge>
+                    {a.status === "COMPLETED" && (
+                      <Button variant="ghost" size="sm" onClick={() => handleViewReport(a)}>
+                        리포트 보기
+                      </Button>
+                    )}
+                  </span>
                 </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      </Card>
-
-      <Card as="section">
-        <h2 className="mb-3 text-sm font-semibold text-foreground-muted">새 평가 생성</h2>
-        <form onSubmit={handleCreate} className="flex flex-col gap-2">
-          <Input
-            type="email"
-            value={candidateEmail}
-            onChange={(e) => setCandidateEmail(e.target.value)}
-            placeholder="candidate@example.com"
-          />
-          <select
-            className="rounded border border-border px-3 py-2 text-sm  "
-            value={scenarioId}
-            onChange={(e) => setScenarioId(e.target.value)}
-          >
-            <option value="">시나리오 선택</option>
-            {candidateScenarios.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.title} ({s.domain})
-              </option>
+                {openReportId === a.id && (
+                  <div className="mt-2 rounded bg-surface-elevated p-3 text-xs ">
+                    {reportError && <p className="text-danger">{reportError}</p>}
+                    {report && (
+                      <>
+                        <p className="mb-2">{report.summary}</p>
+                        <ul className="flex flex-col gap-1">
+                          {report.timelineFeedback.map((entry) => (
+                            <li key={entry.submissionId}>
+                              {entry.phase}: {entry.totalScore ?? "-"}점
+                              {entry.topRisks.length > 0 && ` — ${entry.topRisks.join(", ")}`}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </div>
+                )}
+              </li>
             ))}
-          </select>
-          <Button type="submit" disabled={creating} className="self-start">
-            {creating ? "생성하는 중..." : "평가 생성"}
-          </Button>
-        </form>
-        {lastLink && (
-          <div className="mt-3 rounded bg-surface-elevated p-3 text-xs ">
-            <p className="mb-1 text-foreground-muted">이 링크를 후보자에게 직접 전달하세요 (이메일은 자동 발송되지 않습니다):</p>
-            <code className="break-all">{lastLink}</code>
-          </div>
-        )}
-      </Card>
+          </ul>
+        </Card>
+
+        <Card as="section">
+          <h2 className="mb-3 text-sm font-semibold text-foreground-muted">새 평가 생성</h2>
+          <form onSubmit={handleCreate} className="flex flex-col gap-2">
+            <Input
+              type="email"
+              value={candidateEmail}
+              onChange={(e) => setCandidateEmail(e.target.value)}
+              placeholder="candidate@example.com"
+            />
+            <select
+              className="rounded border border-border px-3 py-2 text-sm  "
+              value={scenarioId}
+              onChange={(e) => setScenarioId(e.target.value)}
+            >
+              <option value="">시나리오 선택</option>
+              {candidateScenarios.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.title} ({s.domain})
+                </option>
+              ))}
+            </select>
+            <Button type="submit" disabled={creating} className="self-start">
+              {creating ? "생성하는 중..." : "평가 생성"}
+            </Button>
+          </form>
+          {lastLink && (
+            <div className="mt-3 rounded bg-surface-elevated p-3 text-xs ">
+              <p className="mb-1 text-foreground-muted">이 링크를 후보자에게 직접 전달하세요 (이메일은 자동 발송되지 않습니다):</p>
+              <code className="break-all">{lastLink}</code>
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }

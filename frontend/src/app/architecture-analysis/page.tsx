@@ -88,10 +88,10 @@ export default function ArchitectureAnalysisPage() {
   if (loading) return <LoadingState className="p-8" />;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-8">
+    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">정적 분석 (Architecture Linter)</h1>
-        <p className="mt-1 text-sm text-foreground-muted">
+        <p className="mt-1 max-w-[72ch] text-sm text-foreground-muted">
           OpenAPI 스펙을 업로드하면 규칙 기반으로 리스크를 찾아 나만의 훈련 시나리오를 만듭니다. 원본 스펙은 저장하지 않으며, 생성된
           시나리오는 본인만 볼 수 있습니다.
         </p>
@@ -99,59 +99,61 @@ export default function ArchitectureAnalysisPage() {
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      <Card as="section">
-        <h2 className="mb-3 text-sm font-semibold text-foreground-muted">OpenAPI 스펙 분석</h2>
-        <form onSubmit={handleAnalyze} className="flex flex-col gap-2">
-          <input type="file" accept=".yaml,.yml,.json" onChange={handleFileSelect} className="text-sm" />
-          <textarea
-            className="rounded border border-border px-3 py-2 font-mono text-xs  "
-            value={spec}
-            onChange={(e) => setSpec(e.target.value)}
-            placeholder="OpenAPI 3.0 YAML 또는 JSON을 붙여넣으세요"
-            rows={10}
-          />
-          <Button type="submit" disabled={analyzing} className="self-start">
-            {analyzing ? "분석하는 중..." : "분석하기"}
-          </Button>
-        </form>
-
-        {result && (
-          <div className="mt-4 rounded bg-surface-elevated p-3 text-sm ">
-            <p className="mb-2 font-medium">{result.scenario.title} — 발견된 리스크 {result.findings.length}건</p>
-            <div className="mb-3 rounded border border-border bg-surface p-2  ">
-              <MermaidDiagram code={result.diagram} />
-              <p className="mt-1 text-[11px] text-foreground-muted">빨강 = 높은 위험, 노랑 = 중간 위험 엔드포인트</p>
-            </div>
-            {result.findings.length === 0 ? (
-              <p className="text-xs text-foreground-muted">뚜렷한 문제를 찾지 못했습니다.</p>
-            ) : (
-              <ul className="mb-3 flex flex-col gap-1 text-xs text-foreground-muted">
-                {result.findings.map((f, i) => (
-                  <li key={i}>- {f}</li>
-                ))}
-              </ul>
-            )}
-            <Button variant="secondary" size="sm" onClick={() => handleStart(result.scenario.id)} disabled={startingId === result.scenario.id}>
-              {startingId === result.scenario.id ? "시작하는 중..." : "이 시나리오로 시작"}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        <Card as="section" className="min-w-0">
+          <h2 className="mb-3 text-sm font-semibold text-foreground-muted">OpenAPI 스펙 분석</h2>
+          <form onSubmit={handleAnalyze} className="flex flex-col gap-2">
+            <input type="file" accept=".yaml,.yml,.json" onChange={handleFileSelect} className="text-sm" />
+            <textarea
+              className="rounded border border-border px-3 py-2 font-mono text-xs  "
+              value={spec}
+              onChange={(e) => setSpec(e.target.value)}
+              placeholder="OpenAPI 3.0 YAML 또는 JSON을 붙여넣으세요"
+              rows={10}
+            />
+            <Button type="submit" disabled={analyzing} className="self-start">
+              {analyzing ? "분석하는 중..." : "분석하기"}
             </Button>
-          </div>
-        )}
-      </Card>
+          </form>
 
-      <Card as="section">
-        <h2 className="mb-3 text-sm font-semibold text-foreground-muted">내가 만든 분석 시나리오 ({mine.length}개)</h2>
-        {mine.length === 0 && <p className="text-sm text-foreground-muted">아직 만든 시나리오가 없습니다.</p>}
-        <ul className="flex flex-col gap-2">
-          {mine.map((s) => (
-            <li key={s.id} className="flex items-center justify-between text-sm">
-              <span>{s.title}</span>
-              <Button variant="secondary" size="sm" onClick={() => handleStart(s.id)} disabled={startingId === s.id}>
-                {startingId === s.id ? "시작하는 중..." : "시작"}
+          {result && (
+            <div className="mt-4 rounded bg-surface-elevated p-3 text-sm ">
+              <p className="mb-2 font-medium">{result.scenario.title} — 발견된 리스크 {result.findings.length}건</p>
+              <div className="mb-3 rounded border border-border bg-surface p-2  ">
+                <MermaidDiagram code={result.diagram} />
+                <p className="mt-1 text-[11px] text-foreground-muted">빨강 = 높은 위험, 노랑 = 중간 위험 엔드포인트</p>
+              </div>
+              {result.findings.length === 0 ? (
+                <p className="text-xs text-foreground-muted">뚜렷한 문제를 찾지 못했습니다.</p>
+              ) : (
+                <ul className="mb-3 flex flex-col gap-1 text-xs text-foreground-muted">
+                  {result.findings.map((f, i) => (
+                    <li key={i}>- {f}</li>
+                  ))}
+                </ul>
+              )}
+              <Button variant="secondary" size="sm" onClick={() => handleStart(result.scenario.id)} disabled={startingId === result.scenario.id}>
+                {startingId === result.scenario.id ? "시작하는 중..." : "이 시나리오로 시작"}
               </Button>
-            </li>
-          ))}
-        </ul>
-      </Card>
+            </div>
+          )}
+        </Card>
+
+        <Card as="section">
+          <h2 className="mb-3 text-sm font-semibold text-foreground-muted">내가 만든 분석 시나리오 ({mine.length}개)</h2>
+          {mine.length === 0 && <p className="text-sm text-foreground-muted">아직 만든 시나리오가 없습니다.</p>}
+          <ul className="flex flex-col gap-2">
+            {mine.map((s) => (
+              <li key={s.id} className="flex items-center justify-between gap-2 text-sm">
+                <span className="min-w-0">{s.title}</span>
+                <Button variant="secondary" size="sm" onClick={() => handleStart(s.id)} disabled={startingId === s.id}>
+                  {startingId === s.id ? "시작하는 중..." : "시작"}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -56,7 +56,7 @@ export default function AdminDashboardPage() {
   }, [router]);
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-8">
+    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">운영 대시보드</h1>
       </div>
@@ -65,7 +65,7 @@ export default function AdminDashboardPage() {
       {error && <p className="text-sm text-danger">{error}</p>}
 
       {stats && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard label="총 사용자" value={stats.totalUsers} />
           <StatCard label="오늘 신규 가입" value={stats.newUsersToday} />
           <StatCard label="총 조직 수" value={stats.totalOrganizations} />
@@ -75,9 +75,11 @@ export default function AdminDashboardPage() {
 
       {metrics && <SuccessMetricsPanel metrics={metrics} />}
 
-      {stats && <ReportedDiscussionsPanel />}
-      {stats && <ReportedWriteupCommentsPanel />}
-      {stats && <ChallengeEventAdminPanel />}
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start xl:grid-cols-3">
+        {stats && <ReportedDiscussionsPanel />}
+        {stats && <ReportedWriteupCommentsPanel />}
+        {stats && <ChallengeEventAdminPanel />}
+      </div>
     </div>
   );
 }
@@ -294,7 +296,7 @@ function SuccessMetricsPanel({ metrics }: { metrics: SuccessMetrics }) {
   return (
     <section className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">성공 지표</h2>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 lg:items-start">
         <Card>
           <p className="text-sm text-foreground-muted">7일 내 첫 Drill 완료율</p>
           <p className="text-2xl font-semibold">{pct(metrics.firstDrillWithin7DaysPercent)}</p>

@@ -58,41 +58,46 @@ export default function OrganizationsPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">내 조직</h1>
         <p className="mt-1 text-sm text-foreground-muted">소속된 조직 목록입니다. 새 조직을 만들거나 초대를 기다리세요.</p>
       </div>
 
       {error && <p className="text-sm text-danger">{error}</p>}
-      {loading && <LoadingState />}
 
-      {!loading && organizations.length === 0 && <EmptyState message="아직 속한 조직이 없습니다." />}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        <div className="flex min-w-0 flex-col gap-6">
+          {loading && <LoadingState />}
 
-      <ul className="flex flex-col gap-3">
-        {organizations.map((org) => (
-          <li key={org.id}>
-            <Link href={`/organizations/${org.id}`}>
-              <Card className="flex items-center justify-between">
-                <span className="font-medium">{org.name}</span>
-                <Badge>{ROLE_LABELS[org.myRole] ?? org.myRole}</Badge>
-              </Card>
-            </Link>
-          </li>
-        ))}
-      </ul>
+          {!loading && organizations.length === 0 && <EmptyState message="아직 속한 조직이 없습니다." />}
 
-      <Card as="section">
-        <form onSubmit={handleCreate} className="flex flex-col gap-3">
-          <h2 className="text-sm font-semibold text-foreground-muted">새 조직 만들기</h2>
-          <div className="flex gap-2">
-            <Input className="flex-1" value={name} onChange={(e) => setName(e.target.value)} placeholder="조직 이름" />
-            <Button type="submit" disabled={creating}>
-              {creating ? "만드는 중..." : "만들기"}
-            </Button>
-          </div>
-        </form>
-      </Card>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {organizations.map((org) => (
+              <li key={org.id}>
+                <Link href={`/organizations/${org.id}`}>
+                  <Card className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate font-medium">{org.name}</span>
+                    <Badge>{ROLE_LABELS[org.myRole] ?? org.myRole}</Badge>
+                  </Card>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <Card as="section">
+          <form onSubmit={handleCreate} className="flex flex-col gap-3">
+            <h2 className="text-sm font-semibold text-foreground-muted">새 조직 만들기</h2>
+            <div className="flex gap-2">
+              <Input className="min-w-0 flex-1" value={name} onChange={(e) => setName(e.target.value)} placeholder="조직 이름" />
+              <Button type="submit" disabled={creating}>
+                {creating ? "만드는 중..." : "만들기"}
+              </Button>
+            </div>
+          </form>
+        </Card>
+      </div>
     </div>
   );
 }

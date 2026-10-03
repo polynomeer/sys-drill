@@ -114,7 +114,7 @@ export default function OrganizationCurriculumPage() {
   if (loading) return <LoadingState className="p-8" />;
   if (error && !org) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-8">
         <Link href={`/organizations/${orgId}`} className="text-sm text-foreground-muted underline">
           조직 상세로
         </Link>
@@ -125,7 +125,7 @@ export default function OrganizationCurriculumPage() {
   if (!org || !curriculum) return null;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
+    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-8">
       <div>
         <Link href={`/organizations/${orgId}`} className="text-sm text-foreground-muted underline">
           {org.name} 조직 상세로
@@ -136,76 +136,78 @@ export default function OrganizationCurriculumPage() {
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      <Card as="section">
-        <h2 className="mb-3 text-sm font-semibold text-foreground-muted">내 진행 상황</h2>
-        {curriculum.steps.length === 0 && <p className="text-sm text-foreground-muted">아직 커리큘럼이 설정되지 않았습니다.</p>}
-        <ol className="flex flex-col gap-2">
-          {curriculum.steps.map((step) => (
-            <li key={step.scenarioId} className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-1.5">
-                {step.order}.
-                {step.completed ? (
-                  <CircleCheck className="h-4 w-4 text-success" aria-label="완료" />
-                ) : (
-                  <Circle className="h-4 w-4 text-foreground-muted" aria-label="미완료" />
-                )}
-                {step.title}
-                <span className="ml-2 text-xs text-foreground-muted">({step.domain})</span>
-              </span>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => handleStart(step.scenarioId)}
-                disabled={startingId === step.scenarioId}
-              >
-                {startingId === step.scenarioId ? "시작하는 중..." : step.completed ? "다시 풀기" : "시작"}
-              </Button>
-            </li>
-          ))}
-        </ol>
-      </Card>
-
-      {org.myRole === "ADMIN" && (
+      <div className={`flex flex-col gap-6 lg:grid lg:items-start ${org.myRole === "ADMIN" ? "lg:grid-cols-2" : ""}`}>
         <Card as="section">
-          <h2 className="mb-3 text-sm font-semibold text-foreground-muted">커리큘럼 편집</h2>
-
-          <ol className="mb-3 flex flex-col gap-2">
-            {draftIds.length === 0 && <p className="text-sm text-foreground-muted">아래에서 시나리오를 추가하세요.</p>}
-            {draftIds.map((scenarioId, index) => (
-              <li key={scenarioId} className="flex items-center justify-between gap-2 text-sm">
-                <span>
-                  {index + 1}. {titleFor(scenarioId)}
+          <h2 className="mb-3 text-sm font-semibold text-foreground-muted">내 진행 상황</h2>
+          {curriculum.steps.length === 0 && <p className="text-sm text-foreground-muted">아직 커리큘럼이 설정되지 않았습니다.</p>}
+          <ol className="flex flex-col gap-2">
+            {curriculum.steps.map((step) => (
+              <li key={step.scenarioId} className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  {step.order}.
+                  {step.completed ? (
+                    <CircleCheck className="h-4 w-4 text-success" aria-label="완료" />
+                  ) : (
+                    <Circle className="h-4 w-4 text-foreground-muted" aria-label="미완료" />
+                  )}
+                  {step.title}
+                  <span className="ml-2 text-xs text-foreground-muted">({step.domain})</span>
                 </span>
-                <span className="flex gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => moveInDraft(index, -1)} disabled={index === 0}>
-                    위로
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => moveInDraft(index, 1)} disabled={index === draftIds.length - 1}>
-                    아래로
-                  </Button>
-                  <Button variant="danger" size="sm" onClick={() => removeFromDraft(scenarioId)}>
-                    제거
-                  </Button>
-                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleStart(step.scenarioId)}
+                  disabled={startingId === step.scenarioId}
+                >
+                  {startingId === step.scenarioId ? "시작하는 중..." : step.completed ? "다시 풀기" : "시작"}
+                </Button>
               </li>
             ))}
           </ol>
-
-          <div className="mb-3 flex flex-wrap gap-2">
-            {candidates
-              .filter((c) => !draftIds.includes(c.id))
-              .map((c) => (
-                <Button key={c.id} variant="secondary" size="sm" onClick={() => addToDraft(c.id)}>
-                  + {c.title}
-                </Button>
-              ))}
-          </div>
-
-          <Button onClick={handleSave} disabled={saving || draftIds.length === 0}>
-            {saving ? "저장하는 중..." : "저장"}
-          </Button>
         </Card>
-      )}
+
+        {org.myRole === "ADMIN" && (
+          <Card as="section">
+            <h2 className="mb-3 text-sm font-semibold text-foreground-muted">커리큘럼 편집</h2>
+
+            <ol className="mb-3 flex flex-col gap-2">
+              {draftIds.length === 0 && <p className="text-sm text-foreground-muted">아래에서 시나리오를 추가하세요.</p>}
+              {draftIds.map((scenarioId, index) => (
+                <li key={scenarioId} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="min-w-0">
+                    {index + 1}. {titleFor(scenarioId)}
+                  </span>
+                  <span className="flex gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => moveInDraft(index, -1)} disabled={index === 0}>
+                      위로
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => moveInDraft(index, 1)} disabled={index === draftIds.length - 1}>
+                      아래로
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={() => removeFromDraft(scenarioId)}>
+                      제거
+                    </Button>
+                  </span>
+                </li>
+              ))}
+            </ol>
+
+            <div className="mb-3 flex flex-wrap gap-2">
+              {candidates
+                .filter((c) => !draftIds.includes(c.id))
+                .map((c) => (
+                  <Button key={c.id} variant="secondary" size="sm" onClick={() => addToDraft(c.id)}>
+                    + {c.title}
+                  </Button>
+                ))}
+            </div>
+
+            <Button onClick={handleSave} disabled={saving || draftIds.length === 0}>
+              {saving ? "저장하는 중..." : "저장"}
+            </Button>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
