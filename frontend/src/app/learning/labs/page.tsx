@@ -34,7 +34,7 @@ export default function LabsPage() {
   }, [router]);
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 p-6 md:p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 p-6 md:p-8">
       <div>
         <Link href="/learning" className="text-sm text-foreground-muted hover:text-foreground">
           ← Learning
@@ -54,7 +54,7 @@ export default function LabsPage() {
                 <h2 className="font-semibold">{KIND_META[kind].title}</h2>
                 <p className="text-sm text-foreground-muted">{KIND_META[kind].description}</p>
               </div>
-              <ul className="grid gap-3 sm:grid-cols-2">
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {ofKind.map((lab) => (
                   <li key={lab.slug}>
                     <Link href={`/learning/labs/${lab.slug}`} className="block h-full">

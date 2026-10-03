@@ -28,7 +28,7 @@ export default function FailurePatternsPage() {
   }, [router]);
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6 p-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-8">
       <div>
         <Link href="/learning" className="text-sm text-foreground-muted hover:text-foreground">
           ← Learning
@@ -40,7 +40,7 @@ export default function FailurePatternsPage() {
       </div>
       {error && <p className="text-sm text-danger">{error}</p>}
       {!patterns && !error && <LoadingState />}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {patterns?.map((p) => (
           <Link key={p.domain} href={`/learning/failures/${p.domain}`} className="block">
             <Card className="h-full transition-colors hover:border-accent">

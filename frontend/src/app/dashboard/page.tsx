@@ -113,7 +113,7 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-10 p-8">
       {firstDrill && !startHereDismissed && (
-        <div className="mx-auto flex w-full max-w-5xl items-start justify-between gap-4 rounded-xl border border-accent/40 bg-accent/5 p-4">
+        <div className="mx-auto flex w-full max-w-7xl items-start justify-between gap-4 rounded-xl border border-accent/40 bg-accent/5 p-4">
           <div>
             <p className="font-medium">처음이세요? 여기서 시작하세요</p>
             <p className="mt-1 text-sm text-foreground-muted">
@@ -143,7 +143,7 @@ export default function DashboardPage() {
       )}
 
       {teamGoal && (
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4">
           <div>
             <p className="font-medium">팀과 함께 훈련하기</p>
             <p className="mt-1 text-sm text-foreground-muted">
@@ -157,7 +157,7 @@ export default function DashboardPage() {
       )}
 
       {/* Hero — SysDrill_UIUX_Design_Plan.docx §5.1 */}
-      <section className="mx-auto flex w-full max-w-5xl flex-col items-start justify-between gap-6 rounded-xl border border-border bg-surface p-8 md:flex-row md:items-center">
+      <section className="mx-auto flex w-full max-w-7xl flex-col items-start justify-between gap-6 rounded-xl border border-border bg-surface p-8 md:flex-row md:items-center">
         <div className="flex flex-col gap-3">
           <h1 className="text-3xl font-semibold leading-tight">
             {nickname ? `${nickname}님, ` : ""}
@@ -185,7 +185,7 @@ export default function DashboardPage() {
         </p>
       </section>
 
-      <section className="mx-auto grid w-full max-w-5xl gap-4 sm:grid-cols-3">
+      <section className="mx-auto grid w-full max-w-7xl gap-4 sm:grid-cols-3">
         {MODE_CARDS.map((mode) => (
           <Link key={mode.type} href="/marketplace">
             <Card className="h-full">
@@ -197,14 +197,14 @@ export default function DashboardPage() {
         ))}
       </section>
 
-      <section className="mx-auto flex w-full max-w-5xl flex-wrap gap-3 text-xs text-foreground-muted">
+      <section className="mx-auto flex w-full max-w-7xl flex-wrap gap-3 text-xs text-foreground-muted">
         <span className="rounded-full border border-border px-3 py-1">{scenarios.length}개 시나리오</span>
         <span className="rounded-full border border-border px-3 py-1">{domainCount}개 도메인</span>
         <span className="rounded-full border border-border px-3 py-1">AI 상세 피드백</span>
         <span className="rounded-full border border-border px-3 py-1">실무 기반 워게임 시뮬레이션</span>
       </section>
 
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6" id="drills">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6" id="drills">
         <Link
           href="/bridge"
           className="flex items-center justify-between rounded-xl border border-accent/40 bg-accent/5 p-4"

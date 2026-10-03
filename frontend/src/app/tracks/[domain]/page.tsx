@@ -64,7 +64,7 @@ export default function TrackPage() {
 
   if (!title) {
     return (
-      <div className="mx-auto max-w-5xl p-8">
+      <div className="mx-auto max-w-7xl p-8">
         <p className="text-sm text-danger">존재하지 않는 트랙입니다.</p>
         <Link href="/tracks" className="mt-2 inline-block text-sm underline">
           트랙 목록으로
@@ -75,7 +75,7 @@ export default function TrackPage() {
   if (error) return <p className="p-8 text-sm text-danger">{error}</p>;
   if (!scenarios)
     return (
-      <div className="mx-auto w-full max-w-5xl p-8">
+      <div className="mx-auto w-full max-w-7xl p-8">
         <CardGridSkeleton count={2} />
       </div>
     );
@@ -86,7 +86,7 @@ export default function TrackPage() {
   const myDomain = certification?.domains.find((d) => d.domain === domain);
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 p-8">
       <header className="flex flex-col gap-3 border-b border-border pb-8">
         <Link href="/tracks" className="text-xs text-foreground-muted hover:text-foreground">
           ← 도메인 트랙
@@ -107,7 +107,7 @@ export default function TrackPage() {
             {drills.length === 0 ? (
               <EmptyState message="이 도메인에는 아직 Drill이 없습니다." />
             ) : (
-              <ul ref={cardsRef} className="grid gap-4 md:grid-cols-2">
+              <ul ref={cardsRef} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {drills.map((s) => (
                   <li key={s.id}>
                     <DrillCard scenario={s} />

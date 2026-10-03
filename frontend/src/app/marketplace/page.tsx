@@ -101,13 +101,13 @@ function MarketplaceContent() {
 
   if (loading)
     return (
-      <div className="mx-auto w-full max-w-5xl p-8">
+      <div className="mx-auto w-full max-w-7xl p-8">
         <CardGridSkeleton count={6} />
       </div>
     );
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Drill 탐색</h1>
@@ -205,7 +205,7 @@ function MarketplaceContent() {
           {ordered.length === 0 ? (
             <EmptyState message="조건에 맞는 Drill이 없습니다." />
           ) : (
-            <ul ref={cardsRef} className="grid gap-4 md:grid-cols-2">
+            <ul ref={cardsRef} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {ordered.map((scenario) => (
                 <li key={scenario.id}>
                   <DrillCard scenario={scenario} />

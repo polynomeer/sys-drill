@@ -108,7 +108,7 @@ export function ForkView({
   const latest = series?.points.at(-1) ?? null;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 p-6 md:p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 p-6 md:p-8">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-foreground-muted">Counterfactual · 포크</p>

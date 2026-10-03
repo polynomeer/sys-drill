@@ -55,7 +55,7 @@ export default function LandingPage() {
   return (
     <div className="flex flex-col">
       <section className="border-b border-border">
-        <div className="mx-auto grid max-w-5xl items-center gap-10 px-6 py-16 md:grid-cols-[1fr_360px] md:py-24">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 px-6 py-16 md:grid-cols-[1fr_360px] md:py-24">
           <div className="flex flex-col gap-5">
             <p className="font-mono text-sm font-semibold text-accent">Train. Break. Fix. Repeat.</p>
             <h1 className="break-keep text-4xl font-semibold leading-tight md:text-5xl">
@@ -91,7 +91,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="mx-auto grid w-full max-w-5xl gap-4 px-6 py-16 md:grid-cols-3">
+      <section className="mx-auto grid w-full max-w-7xl gap-4 px-6 py-16 md:grid-cols-3">
         {MODES.map((mode) => (
           <div key={mode.label} className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
             <Badge variant={mode.badge} className="self-start">
@@ -104,7 +104,7 @@ export default function LandingPage() {
       </section>
 
       <section className="border-t border-border">
-        <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-16">
+        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-16">
           <h2 className="text-2xl font-semibold">한 번의 Drill은 이렇게 흘러갑니다</h2>
           <ol className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
             {LOOP.map((step, i) => (

@@ -136,7 +136,7 @@ export default function KnowledgeMapPage() {
   }, [map]);
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4 sm:p-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-4 p-4 sm:p-8">
       <div>
         <Link href="/learning" className="text-sm text-foreground-muted hover:text-foreground">
           ← Learning

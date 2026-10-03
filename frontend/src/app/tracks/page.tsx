@@ -33,7 +33,7 @@ export default function TracksPage() {
   if (error) return <p className="p-8 text-sm text-danger">{error}</p>;
   if (!scenarios)
     return (
-      <div className="mx-auto w-full max-w-5xl p-8">
+      <div className="mx-auto w-full max-w-7xl p-8">
         <CardGridSkeleton count={6} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" />
       </div>
     );
@@ -41,7 +41,7 @@ export default function TracksPage() {
   const passed = new Set(certification?.domains.filter((d) => d.passed).map((d) => d.domain));
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">도메인 트랙</h1>
         <p className="mt-1 text-sm text-foreground-muted">

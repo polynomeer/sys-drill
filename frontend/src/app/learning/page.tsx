@@ -41,7 +41,7 @@ export default function LearningPage() {
   const totalWeakness = (categories ?? []).reduce((sum, c) => sum + c.myWeaknessCount, 0);
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6 p-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">Learning</h1>
         <p className="mt-1 text-sm text-foreground-muted">
@@ -49,53 +49,55 @@ export default function LearningPage() {
         </p>
       </div>
 
-      {/* PLAN.md Round E18 (L7) — 25개 개념의 지도 */}
-      <Link
-        href="/learning/map"
-        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
-      >
-        <span>
-          <span className="block font-medium">지식 맵</span>
-          <span className="block text-sm text-foreground-muted">채점 엔진이 아는 25개 개념과 선행 관계 — 내 숙련 상태가 노드에 표시됩니다.</span>
-        </span>
-        <span className="text-accent">→</span>
-      </Link>
+      <div className="grid gap-3 lg:grid-cols-2">
+        {/* PLAN.md Round E18 (L7) — 25개 개념의 지도 */}
+        <Link
+          href="/learning/map"
+          className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
+        >
+          <span>
+            <span className="block font-medium">지식 맵</span>
+            <span className="block text-sm text-foreground-muted">채점 엔진이 아는 25개 개념과 선행 관계 — 내 숙련 상태가 노드에 표시됩니다.</span>
+          </span>
+          <span className="text-accent">→</span>
+        </Link>
 
-      {/* PLAN.md Round E28 (L9) — 진단 퍼즐 */}
-      <Link
-        href="/learning/puzzle"
-        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
-      >
-        <span>
-          <span className="block font-medium">진단 퍼즐</span>
-          <span className="block text-sm text-foreground-muted">지표만 보고 무슨 장애인지, 무엇부터 확인할지 — 5분짜리.</span>
-        </span>
-        <span className="text-accent">→</span>
-      </Link>
+        {/* PLAN.md Round E28 (L9) — 진단 퍼즐 */}
+        <Link
+          href="/learning/puzzle"
+          className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
+        >
+          <span>
+            <span className="block font-medium">진단 퍼즐</span>
+            <span className="block text-sm text-foreground-muted">지표만 보고 무슨 장애인지, 무엇부터 확인할지 — 5분짜리.</span>
+          </span>
+          <span className="text-accent">→</span>
+        </Link>
 
-      {/* PLAN.md Round E19 (L8) — 장애 패턴 사전 */}
-      <Link
-        href="/learning/failures"
-        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
-      >
-        <span>
-          <span className="block font-medium">장애 패턴 사전</span>
-          <span className="block text-sm text-foreground-muted">인시던트 7개의 증상·지표·로그와 그럴듯하지만 틀린 대응(Bad Fixes).</span>
-        </span>
-        <span className="text-accent">→</span>
-      </Link>
+        {/* PLAN.md Round E19 (L8) — 장애 패턴 사전 */}
+        <Link
+          href="/learning/failures"
+          className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
+        >
+          <span>
+            <span className="block font-medium">장애 패턴 사전</span>
+            <span className="block text-sm text-foreground-muted">인시던트 7개의 증상·지표·로그와 그럴듯하지만 틀린 대응(Bad Fixes).</span>
+          </span>
+          <span className="text-accent">→</span>
+        </Link>
 
-      {/* docs/LEARNING_EXPANSION_PLAN.md §5 — 랩: 읽는 대신 값을 바꿔 보는 곳 */}
-      <Link
-        href="/learning/labs"
-        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
-      >
-        <span>
-          <span className="block font-medium">랩</span>
-          <span className="block text-sm text-foreground-muted">규모 추정(Capacity Lab)과 시뮬레이션 랩 — 값을 바꿔서 현상을 발견합니다.</span>
-        </span>
-        <span className="text-accent">→</span>
-      </Link>
+        {/* docs/LEARNING_EXPANSION_PLAN.md §5 — 랩: 읽는 대신 값을 바꿔 보는 곳 */}
+        <Link
+          href="/learning/labs"
+          className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
+        >
+          <span>
+            <span className="block font-medium">랩</span>
+            <span className="block text-sm text-foreground-muted">규모 추정(Capacity Lab)과 시뮬레이션 랩 — 값을 바꿔서 현상을 발견합니다.</span>
+          </span>
+          <span className="text-accent">→</span>
+        </Link>
+      </div>
 
       {error && <p className="text-sm text-danger">{error}</p>}
       {!categories && !error && <LoadingState />}
@@ -150,7 +152,7 @@ export default function LearningPage() {
                   )}
                   <span className="text-xs text-foreground-muted">개념 {category.concepts.length}개</span>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {category.concepts.map((concept) => (
                     <Link key={concept.riskKey} href={`/learning/${concept.riskKey}`} className="block">
                       <Card className="h-full transition-colors hover:border-accent">
@@ -181,7 +183,7 @@ export default function LearningPage() {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-foreground-muted">도메인별 설계 가이드</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Object.keys(DESIGN_GUIDANCE_BY_DOMAIN).map((domain) => (
             <Card key={domain} as="section">
               <h3 className="mb-2 font-medium">{DOMAIN_TITLES[domain] ?? domain}</h3>

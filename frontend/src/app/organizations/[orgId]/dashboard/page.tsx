@@ -69,7 +69,7 @@ export default function OrganizationDashboardPage() {
   if (!org || !dashboard) return null;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
+    <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 p-8">
       <div>
         <Link href={`/organizations/${orgId}`} className="text-sm text-foreground-muted underline">
           {org.name} 조직 상세로

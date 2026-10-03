@@ -88,7 +88,7 @@ export function AppHeader() {
 
   return (
     <header className="border-b border-border bg-background">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-3">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3">
         <Link href={loggedIn ? "/dashboard" : "/"} className="flex shrink-0 items-center gap-2 font-semibold">
           <svg viewBox="0 0 32 32" width="22" height="22" className="rounded" aria-hidden>
             <rect width="32" height="32" rx="7" fill="#2f80ff" />

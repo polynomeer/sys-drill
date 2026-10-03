@@ -95,7 +95,7 @@ export default function IncidentReplayPage() {
   const step = steps[currentIndex];
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
+    <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 p-8">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">인시던트 리플레이</h1>
         <Link href={`/report/${sessionId}`} className="text-sm underline">
