@@ -35,47 +35,52 @@ export default function CertificationVerificationPage() {
   if (error || !status) return <p className="p-8 text-sm text-danger">{error ?? "인증 현황을 불러오지 못했습니다."}</p>;
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">{status.nickname}님의 SysDrill 인증 현황</h1>
         <p className="mt-1 text-sm text-foreground-muted">공개 검증 페이지 — 로그인 없이 누구나 확인할 수 있습니다.</p>
       </div>
 
-      <Card as="section">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground-muted">SysDrill Certified Incident Responder</h2>
-          <Badge variant={status.certified ? "success" : "neutral"}>{status.certified ? "인증됨" : "미인증"}</Badge>
-        </div>
-        <ul className="flex flex-col gap-2">
-          {status.domains.map((d) => (
-            <li key={d.domain} className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2">
-                {d.title}
-                <span className="text-xs text-foreground-muted">({d.domain})</span>
-              </span>
-              <span className="flex items-center gap-2">
+      {/* 왼쪽은 인증 상태와 도메인별 카드, 오른쪽은 활동 타임라인. */}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+        <div className="flex min-w-0 flex-col gap-4">
+          <Card as="section">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-foreground-muted">SysDrill Certified Incident Responder</h2>
+              <Badge variant={status.certified ? "success" : "neutral"}>{status.certified ? "인증됨" : "미인증"}</Badge>
+            </div>
+          </Card>
+          <ul className="grid gap-4 sm:grid-cols-2">
+            {status.domains.map((d) => (
+              <Card as="li" key={d.domain} className="flex flex-col gap-3 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="flex flex-wrap items-center gap-2 font-medium">
+                    {d.title}
+                    <span className="text-xs font-normal text-foreground-muted">({d.domain})</span>
+                  </span>
+                  <Badge variant={d.passed ? "success" : "neutral"}>{d.passed ? "완료" : "미완료"}</Badge>
+                </div>
                 <span className="text-xs text-foreground-muted">{d.bestScore !== null ? `최고 ${d.bestScore}점` : "미완료"}</span>
-                <Badge variant={d.passed ? "success" : "neutral"}>{d.passed ? "완료" : "미완료"}</Badge>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Card>
+              </Card>
+            ))}
+          </ul>
+        </div>
 
-      <Card as="section">
-        <h2 className="mb-3 text-sm font-semibold text-foreground-muted">활동</h2>
-        {!signedIn ? (
-          <p className="text-sm text-foreground-muted">로그인한 회원에게만 활동 기록이 보입니다.</p>
-        ) : !activity ? (
-          <p className="text-sm text-foreground-muted">활동 기록을 불러오지 못했습니다.</p>
-        ) : activity.hidden ? (
-          <p className="text-sm text-foreground-muted">이 사용자는 활동을 공개하지 않습니다.</p>
-        ) : activity.entries.length === 0 ? (
-          <p className="text-sm text-foreground-muted">아직 완료한 Drill이 없습니다.</p>
-        ) : (
-          <ActivityTimeline activity={activity} />
-        )}
-      </Card>
+        <Card as="section">
+          <h2 className="mb-3 text-sm font-semibold text-foreground-muted">활동</h2>
+          {!signedIn ? (
+            <p className="text-sm text-foreground-muted">로그인한 회원에게만 활동 기록이 보입니다.</p>
+          ) : !activity ? (
+            <p className="text-sm text-foreground-muted">활동 기록을 불러오지 못했습니다.</p>
+          ) : activity.hidden ? (
+            <p className="text-sm text-foreground-muted">이 사용자는 활동을 공개하지 않습니다.</p>
+          ) : activity.entries.length === 0 ? (
+            <p className="text-sm text-foreground-muted">아직 완료한 Drill이 없습니다.</p>
+          ) : (
+            <ActivityTimeline activity={activity} />
+          )}
+        </Card>
+      </div>
     </div>
   );
 }

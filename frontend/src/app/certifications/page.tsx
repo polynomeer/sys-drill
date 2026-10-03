@@ -44,7 +44,7 @@ export default function CertificationsPage() {
   const passedCount = status.domains.filter((d) => d.passed).length;
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-2xl font-semibold">SysDrill Certified Incident Responder</h1>
         <p className="mt-1 text-sm text-foreground-muted">
@@ -54,64 +54,70 @@ export default function CertificationsPage() {
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      <Card as="section">
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground-muted">전체 인증 상태</h2>
-            <p className="text-xs text-foreground-muted">
-              {passedCount}/{status.domains.length}개 도메인 완료
-            </p>
-          </div>
-          <Badge variant={status.certified ? "success" : "neutral"}>{status.certified ? "인증됨" : "미인증"}</Badge>
-        </div>
-        <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-surface-elevated">
-          <div
-            className="h-full rounded-full bg-accent transition-all"
-            style={{ width: `${status.domains.length ? (passedCount / status.domains.length) * 100 : 0}%` }}
-          />
-        </div>
-        <ul className="flex flex-col gap-2">
-          {status.domains.map((d) => (
-            <li key={d.domain} className="flex items-center justify-between text-sm">
-              <Link href={`/tracks/${d.domain}`} className="flex items-center gap-2 hover:text-accent">
-                {d.title}
-                <span className="text-xs text-foreground-muted">트랙 →</span>
-              </Link>
-              <span className="flex items-center gap-2">
-                <span className="text-xs text-foreground-muted">{d.bestScore !== null ? `최고 ${d.bestScore}점` : "미완료"}</span>
-                {(d.passedVariants ?? 0) > 0 && (
-                  <span className="text-xs text-foreground-muted" title="서로 다른 꼬리설계 변형을 몇 개 통과했는지 — 한 번 통과로는 '신뢰'가 되지 않습니다">
-                    변형 {d.passedVariants}/{d.totalVariants ?? 1}
-                  </span>
-                )}
-                <Badge variant={d.passed ? "success" : "neutral"}>{d.passed ? "완료" : "미완료"}</Badge>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Card>
-
-      {verifyUrl && (
+      {/* 위쪽은 전체 진행 요약과 공개 검증 링크, 아래는 도메인별 카드 그리드. */}
+      <div className="grid gap-6 md:grid-cols-2 md:items-start">
         <Card as="section">
-          <h2 className="mb-2 text-sm font-semibold text-foreground-muted">공개 검증 링크</h2>
-          <p className="mb-2 text-xs text-foreground-muted">이 링크를 공유하면 누구나 로그인 없이 인증 여부를 확인할 수 있습니다.</p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 truncate rounded bg-surface-elevated px-2 py-1 text-xs ">{verifyUrl}</code>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                navigator.clipboard.writeText(verifyUrl).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                });
-              }}
-            >
-              {copied ? "복사됨" : "복사"}
-            </Button>
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground-muted">전체 인증 상태</h2>
+              <p className="text-xs text-foreground-muted">
+                {passedCount}/{status.domains.length}개 도메인 완료
+              </p>
+            </div>
+            <Badge variant={status.certified ? "success" : "neutral"}>{status.certified ? "인증됨" : "미인증"}</Badge>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-surface-elevated">
+            <div
+              className="h-full rounded-full bg-accent transition-all"
+              style={{ width: `${status.domains.length ? (passedCount / status.domains.length) * 100 : 0}%` }}
+            />
           </div>
         </Card>
-      )}
+
+        {verifyUrl && (
+          <Card as="section">
+            <h2 className="mb-2 text-sm font-semibold text-foreground-muted">공개 검증 링크</h2>
+            <p className="mb-2 text-xs text-foreground-muted">이 링크를 공유하면 누구나 로그인 없이 인증 여부를 확인할 수 있습니다.</p>
+            <div className="flex items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded bg-surface-elevated px-2 py-1 text-xs ">{verifyUrl}</code>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  navigator.clipboard.writeText(verifyUrl).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  });
+                }}
+              >
+                {copied ? "복사됨" : "복사"}
+              </Button>
+            </div>
+          </Card>
+        )}
+      </div>
+
+      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {status.domains.map((d) => (
+          <Card as="li" key={d.domain} className="flex flex-col gap-3 text-sm">
+            <div className="flex items-start justify-between gap-2">
+              <Link href={`/tracks/${d.domain}`} className="flex flex-wrap items-center gap-2 font-medium hover:text-accent">
+                {d.title}
+                <span className="text-xs font-normal text-foreground-muted">트랙 →</span>
+              </Link>
+              <Badge variant={d.passed ? "success" : "neutral"}>{d.passed ? "완료" : "미완료"}</Badge>
+            </div>
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-foreground-muted">{d.bestScore !== null ? `최고 ${d.bestScore}점` : "미완료"}</span>
+              {(d.passedVariants ?? 0) > 0 && (
+                <span className="text-xs text-foreground-muted" title="서로 다른 꼬리설계 변형을 몇 개 통과했는지 — 한 번 통과로는 '신뢰'가 되지 않습니다">
+                  변형 {d.passedVariants}/{d.totalVariants ?? 1}
+                </span>
+              )}
+            </span>
+          </Card>
+        ))}
+      </ul>
     </div>
   );
 }
