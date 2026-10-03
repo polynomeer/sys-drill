@@ -3,13 +3,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
+  ConnectionMode,
   Controls,
   Handle,
+  MarkerType,
   Position,
   ReactFlow,
   addEdge,
   applyEdgeChanges,
   applyNodeChanges,
+  reconnectEdge,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -141,26 +144,44 @@ function CanvasNode({ id, data }: NodeProps<Node<CanvasFlowNodeData>>) {
   );
   return (
     <>
-      <Handle type="target" position={Position.Top} />
       <ThemedNodeBody
         themeId={theme.id}
         nodeId={id}
         visual={{ kindLabel: meta.label, color: meta.color, Icon: KIND_ICONS[data.kind] }}
         editor={editor}
       />
-      <Handle type="source" position={Position.Bottom} />
+      {HANDLE_SIDES.map((side) => (
+        <Handle key={side.id} id={side.id} type="source" position={side.position} />
+      ))}
     </>
   );
 }
 
 const NODE_TYPES = { canvasNode: CanvasNode };
 
+/**
+ * Every side gets one handle, all `type="source"` under `ConnectionMode.Loose`,
+ * so an edge can run from any side of one node to any side of another —
+ * direction is whichever handle the drag started from (shown by the arrow).
+ */
+const HANDLE_SIDES = [
+  { id: "bottom", position: Position.Bottom },
+  { id: "top", position: Position.Top },
+  { id: "left", position: Position.Left },
+  { id: "right", position: Position.Right },
+];
+
+/** Edges saved before four-sided handles have no handle ids; pin them to the old bottom→top so they render where they always did. */
+function withHandleIds(edges: Edge[]): Edge[] {
+  return edges.map((e) => ({ ...e, sourceHandle: e.sourceHandle ?? "bottom", targetHandle: e.targetHandle ?? "top" }));
+}
+
 function loadInitialGraph(sessionId: string): { nodes: Node<CanvasNodeData>[]; edges: Edge[] } {
   const raw = loadCanvasDraft(sessionId);
   if (!raw) return { nodes: [], edges: [] };
   try {
     const parsed = JSON.parse(raw) as { nodes: Node<CanvasNodeData>[]; edges: Edge[] };
-    return { nodes: parsed.nodes ?? [], edges: parsed.edges ?? [] };
+    return { nodes: parsed.nodes ?? [], edges: withHandleIds(parsed.edges ?? []) };
   } catch {
     return { nodes: [], edges: [] };
   }
@@ -279,7 +300,7 @@ export function DiagramCanvas({
         if (cancelled || !topology.saved) return;
         const parsed = JSON.parse(topology.graph) as { nodes?: Node<CanvasNodeData>[]; edges?: Edge[] };
         setNodes(parsed.nodes ?? []);
-        setEdges(parsed.edges ?? []);
+        setEdges(withHandleIds(parsed.edges ?? []));
       })
       .catch((err) => console.error("Failed to load canvas topology", err));
     return () => {
@@ -341,6 +362,10 @@ export function DiagramCanvas({
     setEdges((prev) => addEdge(connection, prev));
   }
 
+  function onReconnect(oldEdge: Edge, connection: Connection) {
+    setEdges((prev) => reconnectEdge(oldEdge, connection, prev));
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-1.5">
@@ -385,6 +410,11 @@ export function DiagramCanvas({
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onReconnect={onReconnect}
+            connectionMode={ConnectionMode.Loose}
+            connectionRadius={36}
+            isValidConnection={(c) => c.source !== c.target}
+            defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, color: theme.surface.edgeColor } }}
             deleteKeyCode={["Backspace", "Delete"]}
             fitView
             proOptions={{ hideAttribution: true }}
@@ -396,7 +426,7 @@ export function DiagramCanvas({
       </div>
       {nodes.length === 0 && (
         <p className="text-xs text-foreground-muted">
-          위 팔레트에서 노드를 추가하고, 노드 아래쪽 점을 드래그해 다른 노드에 연결하세요. 선택 후 Delete로 삭제합니다.
+          위 팔레트에서 노드를 추가하고, 노드 테두리의 점(상하좌우 어디든)을 드래그해 다른 노드 근처에 놓으면 연결됩니다. 연결선 끝(점 바로 바깥)을 끌어 다른 점으로 옮길 수 있고, 선택 후 Delete로 삭제합니다.
         </p>
       )}
     </div>

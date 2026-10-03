@@ -28,6 +28,8 @@ type CanvasSurface = {
   patternColor: string;
   variant: BackgroundVariant;
   gap: number;
+  /** Must match the theme's `--xy-edge-stroke` in globals.css — the arrowhead marker is colored separately from the edge path. */
+  edgeColor: string;
   colorScheme: "dark" | "light";
 };
 
@@ -47,19 +49,19 @@ export const CANVAS_THEMES: CanvasTheme[] = [
   {
     id: "classic",
     label: "Classic",
-    surface: { background: "var(--surface)", patternColor: "var(--border)", variant: BackgroundVariant.Dots, gap: 16, colorScheme: "dark" },
+    surface: { background: "var(--surface)", patternColor: "var(--border)", variant: BackgroundVariant.Dots, gap: 16, edgeColor: "#b1b1b7", colorScheme: "dark" },
     fields: DEFAULT_FIELDS,
   },
   {
     id: "icon",
     label: "Icon",
-    surface: { background: "var(--surface)", patternColor: "var(--border)", variant: BackgroundVariant.Dots, gap: 20, colorScheme: "dark" },
+    surface: { background: "var(--surface)", patternColor: "var(--border)", variant: BackgroundVariant.Dots, gap: 20, edgeColor: "#b1b1b7", colorScheme: "dark" },
     fields: { ...DEFAULT_FIELDS, label: "nodrag w-full bg-transparent text-center text-xs font-semibold text-foreground outline-none" },
   },
   {
     id: "blueprint",
     label: "Blueprint",
-    surface: { background: "#0d3b66", patternColor: "rgba(224, 242, 254, 0.12)", variant: BackgroundVariant.Lines, gap: 20, colorScheme: "dark" },
+    surface: { background: "#0d3b66", patternColor: "rgba(224, 242, 254, 0.12)", variant: BackgroundVariant.Lines, gap: 20, edgeColor: "#e0f2fe", colorScheme: "dark" },
     fields: {
       label: "nodrag w-full bg-transparent font-mono text-sm font-semibold text-sky-50 outline-none",
       traitRow: "flex items-center justify-between gap-2 font-mono text-[10px] text-sky-200/80",
@@ -70,7 +72,7 @@ export const CANVAS_THEMES: CanvasTheme[] = [
   {
     id: "neon",
     label: "Neon",
-    surface: { background: "#05060a", patternColor: "#1c2233", variant: BackgroundVariant.Dots, gap: 18, colorScheme: "dark" },
+    surface: { background: "#05060a", patternColor: "#1c2233", variant: BackgroundVariant.Dots, gap: 18, edgeColor: "#22d3ee", colorScheme: "dark" },
     fields: {
       ...DEFAULT_FIELDS,
       traitInput: "w-16 rounded border border-white/15 bg-black/40 px-1 py-0.5 text-right text-foreground outline-none",
@@ -80,7 +82,7 @@ export const CANVAS_THEMES: CanvasTheme[] = [
   {
     id: "terminal",
     label: "Terminal",
-    surface: { background: "#060a06", patternColor: "#123012", variant: BackgroundVariant.Dots, gap: 14, colorScheme: "dark" },
+    surface: { background: "#060a06", patternColor: "#123012", variant: BackgroundVariant.Dots, gap: 14, edgeColor: "#22c55e", colorScheme: "dark" },
     fields: {
       label: "nodrag w-full bg-transparent font-mono text-sm text-green-300 caret-green-400 outline-none",
       traitRow: "flex items-center justify-between gap-2 font-mono text-[10px] text-green-500",
@@ -91,7 +93,7 @@ export const CANVAS_THEMES: CanvasTheme[] = [
   {
     id: "sticky",
     label: "Sticky",
-    surface: { background: "#f4efe3", patternColor: "#d4ccb8", variant: BackgroundVariant.Dots, gap: 22, colorScheme: "light" },
+    surface: { background: "#f4efe3", patternColor: "#d4ccb8", variant: BackgroundVariant.Dots, gap: 22, edgeColor: "#475569", colorScheme: "light" },
     fields: {
       label: "nodrag w-full bg-transparent text-sm font-bold text-slate-800 outline-none",
       traitRow: "flex items-center justify-between gap-2 text-[10px] text-slate-600",
