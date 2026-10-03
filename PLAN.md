@@ -2210,6 +2210,23 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## Build 챌린지에 Java·Kotlin·Go 언어 추가 (rate-limiter) ✅ 완료 (2026-10-03)
+
+사용자 요청("java, kotlin, go도 과제 구현언어에 추가해줘"). TypeScript 추가(2026-09-30) 때와 같은 범위 — 언어별 판은 채점 하니스를 그 언어로 새로 짜야 하는 일이라 **rate-limiter 하나 × 세 언어**로 했다. 나머지 5개 과제는 여전히 Python 전용.
+
+- [x] `challenges/rate-limiter-{java,kotlin,go}/` — 스텁, `stages/`(6개), `README.md`, `submit.sh`. 셋 다 Python판 구조를 따른다: `InMemoryStore.expire`가 비어 있어 2단계가 실제 과제, 1단계는 주석 세 줄을 풀고 미구현 줄(`throw`/`TODO()`/`panic`)을 지우면 통과. Java는 `return` 뒤 문장을 컴파일 오류로 거절해서 "지우기"가 필요하다
+- [x] Stage 3 재설계 — JVM·Go의 실제 스레드/고루틴 200회 동시 호출. 그냥 `HashMap`이면 경쟁 창이 너무 좁아 락 없는 구현이 운 좋게 통과하므로, TS판처럼 `incr`를 "읽기 → 1ms 왕복 → 쓰기"인 비원자 구현으로 제공(개별 맵 접근은 안전 — Go 맵 동시 쓰기 크래시 방지). 락 없는 구현은 3회 모두 200건 통과로 실패, 정답은 6/6
+- [x] `SandboxExecutor` — java/kotlin/go 런타임 + 언어별 `cpus`/`memory`/`compileSeconds`. 측정: Java(temurin 25) 단계당 2~4초, Kotlin은 128m OOM → `--cpus 1.0 --memory 384m` + JVM 옵션으로 단계당 4~5초, Go는 빈 캐시면 128m에서 표준 라이브러리 컴파일 중 OOM → `go build std` 캐시를 구운 이미지로 약 1초. 결정과 대안은 [ADR-0051](docs/adr/0051-compiled-language-sandboxes-get-own-images-and-limits.md)
+- [x] `sandbox/kotlin`, `sandbox/go` Dockerfile + `docker-compose.yml`의 `sandbox-images` 프로필(띄우지 않고 빌드만), CI에 빌드 단계
+- [x] `V72` — 3개 챌린지(스텁·스테이지·지시문)를 `challenges/` 파일에서 생성
+- [x] `/bridge` — 언어 표(`BUILD_LANGUAGES`)로 slug 접미사·라벨 일반화, CodeMirror Java/Go(공식)·Kotlin(legacy clike). 선호 언어(`PreferredLanguage`)에도 JAVA/KOTLIN/GO
+
+**완료 기준 충족**: `./scripts/run-tests-isolated.sh --tests "com.sysdrill.backend.build.*"` 42/42 — 신규 `SandboxExecutorCompiledLanguagesTest`(3언어 × 통과/실패 메시지/컴파일 오류) 9개, 세 스텁이 그대로는 1단계 실패·주석 해제 후 1단계 통과·2단계 실패하는 통합 테스트, `BuildStarterCodeTest`(DB 스텁 = 파일) 포함. 프론트 `lint`(오류 0, 경고는 기존 것)·`typecheck` 클린. 격리 서버에서 선호 언어 Kotlin 사용자로 `/bridge`가 Kotlin 판으로 열리고, Go로 전환 → 스텁 제출 → 샌드박스 채점 결과(1단계 `not implemented`, 1.2s)가 테스트 로그에 뜨는 것 확인.
+
+**주의**: `run-tests-isolated.sh`는 `docker compose up`을 기본 포트로 부르므로, `run.sh`가 다른 포트로 띄운 jaeger가 있으면 재생성되다 포트 충돌로 멈춘다. 이번에 `JAEGER_*_PORT`를 넘겨 재실행했다.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
