@@ -157,8 +157,8 @@ sysdrill:
     # concurrently. Unlike evaluation's worker-concurrency above, this is a
     # direct resource dial, not just a throughput one: each thread blocks on
     # its own `docker run` (--cpus 0.5 --memory 128m; Kotlin --cpus 1.0
-    # --memory 384m), so this many threads means up to that many containers
-    # running at once. Default of 2 reserves at most ~2 CPU / 768MB for
+    # --memory 512m), so this many threads means up to that many containers
+    # running at once. Default of 2 reserves at most ~2 CPU / 1GB for
     # sandboxes -- raise only alongside host capacity.
     worker-concurrency: ${BUILD_WORKER_CONCURRENCY:2}
     # docs/COMMERCIALIZATION.md — not an LLM call, but a real docker sandbox

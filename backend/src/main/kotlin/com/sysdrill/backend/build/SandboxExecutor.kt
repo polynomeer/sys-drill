@@ -64,13 +64,14 @@ class SandboxExecutor(
                 compileSeconds = 5,
             ),
             // kotlinc 는 128m 에서 OOM 으로 죽고 0.5 CPU 에서는 컴파일만 7초가 걸린다 — 이 언어만
-            // 한도를 올린다. 측정치와 근거는 ADR-0051, 이미지는 sandbox/kotlin/Dockerfile.
+            // 한도를 올린다. 힙(-Xmx256m) 바깥의 메타스페이스·네이티브 메모리까지 들어가야 해서 384m 는
+            // 경계선이었다(통과하다가 cgroup OOM 으로 죽기 시작함). 측정치와 근거는 ADR-0051.
             "kotlin" to LanguageRuntime(
                 kotlinImage,
                 "RunTest.kt",
                 listOf("sh", "-c", "kotlinc -nowarn *.kt -d /tmp/run.jar && java -cp /tmp/run.jar:\$KOTLIN_STDLIB RunTest"),
                 cpus = "1.0",
-                memory = "384m",
+                memory = "512m",
                 compileSeconds = 10,
             ),
             // `_test.go` 로 끝나는 파일은 `go run` 이 받지 않는다. 이미지에 표준 라이브러리 빌드
