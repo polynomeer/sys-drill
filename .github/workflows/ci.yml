@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Full history so a pull request can be diffed against its base (Select build variants).
+          fetch-depth: 0
 
       - uses: actions/setup-java@v6
         with:
@@ -43,9 +46,20 @@ jobs:
       # 낮추면 단언이 무의미해지므로(ADR-0014) CI 에서만 빼고 나머지 real-infra
       # 테스트(스키마 프로비저닝 · Toxiproxy · sweep · Kafka · 추적)는 그대로
       # 돌린다. 근거와 로컬 실행법은 docs/TESTING.md 참고.
+      # BuildLanguageVariantsIntegrationTest grades every Build language variant in the real
+      # sandbox (~11 min). On a pull request, grade only a smoke set (one per language) plus the
+      # variants whose files the PR touches — or everything if shared grading code changed.
+      # Pushes to main always grade every variant. Rules: scripts/select-build-variants.sh.
+      - name: Select build variants
+        id: variants
+        if: github.event_name == 'pull_request'
+        run: echo "list=$(scripts/select-build-variants.sh ${{ github.event.pull_request.base.sha }})" >> "$GITHUB_OUTPUT"
+
       - name: Run backend tests
         working-directory: backend
-        run: ./gradlew test --no-daemon -PexcludeTags=realinfra-load
+        env:
+          BUILD_VARIANTS: ${{ steps.variants.outputs.list }}
+        run: ./gradlew test --no-daemon -PexcludeTags=realinfra-load ${BUILD_VARIANTS:+-PbuildVariants=$BUILD_VARIANTS}
 
       - name: Upload test results
         if: always()

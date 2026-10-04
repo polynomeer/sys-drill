@@ -68,6 +68,7 @@ cd backend && ./gradlew test
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)은 `push`/`pull_request`마다:
 
 - **backend** — `docker compose up -d` → Postgres 준비 대기 → `./gradlew test -PexcludeTags=realinfra-load` → JUnit XML 아티팩트 업로드 (297개 중 290개, 아래 참고)
+  - **Build 언어별 판 채점은 PR에서 일부만** — `BuildLanguageVariantsIntegrationTest`는 모든 판의 스텁·모범 답안을 실제 샌드박스로 채점해 전체가 ~11분이다. PR에서는 [`scripts/select-build-variants.sh`](../scripts/select-build-variants.sh)가 PR이 건드린 판을 골라 `-PbuildVariants=…`로 넘기고, 테스트는 스모크 세트(언어별 하나: `cache`, `queue-java`, `idempotency-kotlin`, `outbox-go`)와 그 판만 돌린다(~2분). 채점 공용 코드(`build/` 패키지, `sandbox/`, 빌드 시드 마이그레이션, 이 테스트 자체 등)를 건드린 PR은 전부 돈다. main 푸시와 로컬 `./gradlew test`는 언제나 전부 돈다. 로컬에서 줄여 돌리려면 `./gradlew test -PbuildVariants=smoke,queue-go`.
 - **frontend** — `npm ci` → `eslint` → `tsc --noEmit` → `next build` → `npm audit --audit-level=high`
 
 CI 러너는 전용이라 격리 스크립트가 필요 없습니다 — 격리 스크립트는 순전히 개발자 머신에서 이미 떠 있는 스택과 공존하기 위한 것입니다.

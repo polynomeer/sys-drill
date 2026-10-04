@@ -127,6 +127,9 @@ tasks.withType<Test> {
 	// CPU with no output after RealInfraCouponControllerSessionTrackingTest hit
 	// "Java heap space").
 	maxHeapSize = "3g"
+	// `-PbuildVariants=queue-go,cache` narrows BuildLanguageVariantsIntegrationTest to a smoke set
+	// plus those slugs (CI does this on pull requests). Unset, every variant runs, as before.
+	(project.findProperty("buildVariants") as String?)?.let { systemProperty("sysdrill.buildVariants", it) }
 	// Each test run gets its own evaluation/build queue keys. Plain `./gradlew test` uses the shared
 	// docker-compose Redis, where a running dev server (`bootRun`) — or another test run — would
 	// otherwise pop this run's jobs and grade them with a real LLM: slow, different scores, and

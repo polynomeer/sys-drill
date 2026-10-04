@@ -88,12 +88,32 @@ class BuildLanguageVariantsIntegrationTest(
     }
 
     companion object {
-        @JvmStatic
-        fun variants(): List<String> =
+        /** System property (`-PbuildVariants=…` in Gradle) that narrows the run — see [variants]. */
+        const val VARIANTS_PROPERTY = "sysdrill.buildVariants"
+
+        val ALL_VARIANTS: List<String> =
             listOf("queue", "circuit-breaker", "distributed-lock", "retry-backoff", "event-bus")
                 .flatMap { family -> listOf("java", "kotlin", "go").map { "$family-$it" } } +
                 // V75/V76 — new challenges carry a model answer for their Python original too.
                 listOf("cache", "idempotency", "consistent-hashing", "outbox")
                     .flatMap { family -> listOf(family) + listOf("java", "kotlin", "go").map { "$family-$it" } }
+
+        /** One per language, so a narrowed run still exercises every runtime end to end. */
+        val SMOKE_VARIANTS = listOf("cache", "queue-java", "idempotency-kotlin", "outbox-go")
+
+        /**
+         * Every variant by default — a full run is ~11 minutes of real sandbox grading. With
+         * [VARIANTS_PROPERTY] set (CI does this on pull requests, from the PR's changed paths —
+         * scripts/select-build-variants.sh), only [SMOKE_VARIANTS] plus the listed slugs run.
+         * `all` or an absent/blank property means everything; slugs without a model answer
+         * (e.g. the Python originals of the older challenges) are ignored.
+         */
+        @JvmStatic
+        fun variants(): List<String> {
+            val requested = System.getProperty(VARIANTS_PROPERTY)?.split(",")?.map(String::trim)?.filter(String::isNotEmpty)
+            if (requested.isNullOrEmpty() || "all" in requested) return ALL_VARIANTS
+            val selected = SMOKE_VARIANTS.toSet() + requested
+            return ALL_VARIANTS.filter { it in selected }
+        }
     }
 }
