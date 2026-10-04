@@ -2287,6 +2287,16 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## CI — PR에서는 Build 언어별 판 일부만 채점 ✅ 완료 (2026-10-04)
+
+사용자 요청("PR에서는 일부 판만 돌리게 나눠줘"). 판이 41개로 늘면서 `BuildLanguageVariantsIntegrationTest`가 ~11분이 됐다.
+
+- [x] 테스트: `sysdrill.buildVariants` 시스템 프로퍼티가 있으면 스모크 세트(언어별 하나 — Python `cache`, Java `queue-java`, Kotlin `idempotency-kotlin`, Go `outbox-go`) + 나열된 slug만, 없거나 `all`이면 전부(로컬·main 기본값 그대로). Gradle `-PbuildVariants=…`가 전달
+- [x] `scripts/select-build-variants.sh <base> [<head>]` — PR diff에서 `challenges/<slug>/`·`build-solutions/<slug>/`를 모아 출력. 채점 공용 경로(`build/` 패키지, `sandbox/`, `application.yml`, 빌드 테이블을 건드리는 마이그레이션, 이 테스트, `build.gradle.kts`, `docker-compose.yml`, 스크립트 자신)가 바뀌면 `all`, 과제를 안 건드렸으면 `smoke`(빈 값은 "전부"로 읽히므로). 과거 커밋으로 확인: 프론트 전용 → smoke, V76 포함 커밋 → all, 과제 파일만 바꾼 임시 커밋 → 해당 slug
+- [x] CI: backend 잡 checkout `fetch-depth: 0`, PR일 때만 선택 단계 실행. 실측: 스모크 + 1개 판 101초(전체 ~670초)
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
