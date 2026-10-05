@@ -67,7 +67,9 @@ L11 착수 시 브라우저에서 먼저 재현해 원인을 확정합니다(추
 - **허브 문구** — `/learning` 허브와 맵 설명이 "25개 개념", "인시던트 7개"로 굳어 있다(지금은 27개·8개). 개수를 데이터에서 읽게 고친다.
 - **완료 기준**: hover로 화면 전체 opacity가 바뀌지 않음(브라우저에서 노드 사이를 오가며 확인), 클릭 → 패널, 패널에서 상세·랩 이동, 375px 폭에서 하단 시트, 다크 모드.
 
-### L12 — 시각 자료 기반 *(L13·L14·L15가 쓰는 공용 부품)*
+### L12 — 시각 자료 기반 *(L13·L14·L15가 쓰는 공용 부품)* — ✅ 완료 (Round E34, 2026-10-05)
+
+> 블록 모델·엔진 계산·claims 테스트·`SystemDiagram`·Mermaid 테마 완료. 첫 콘텐츠로 Single-flight에 블록 전 종류. 발견: 상품 조회 엔진은 TTL을 쓰지 않음 — L14 예시의 TTL 단계는 정책 분리로 바꾼다.
 
 - **콘텐츠 블록 모델** — 개념·장애 패턴·가이드가 공통으로 쓰는 블록 배열(JSONB): `text`(마크다운 일부), `diagram`(Mermaid + 캡션 + 대체 텍스트), `steps`(번호 붙은 메커니즘 단계), `numbers`(엔진 계산 결과를 넣을 자리 — §3-1), `callout`(주의/트레이드오프), `compare`(Before/After 두 그림 나란히).
 - **`SystemDiagram` 컴포넌트** — 도메인별 토폴로지(Client → API → Cache/DB/Queue/외부 PG…)를 `SystemState`로 색칠. 토폴로지는 시뮬레이션 쪽 `SystemTopologyService.TOPOLOGY_FIELDS`와 설계 캔버스의 노드 종류를 그대로 씁니다(새 어휘를 만들지 않음). L14·L15·L16이 같은 컴포넌트를 씁니다.
@@ -114,8 +116,8 @@ L11 착수 시 브라우저에서 먼저 재현해 원인을 확정합니다(추
 1. 평시: API → Redis(TTL 10s) → DB primary. 가격·재고·리뷰를 한 키로 캐시.
 2. 트래픽 20배 + hot key → hit ratio 급락, DB 읽기 사용률 급등 (신호)
    → Cache Stampede (진단) → Single-flight 도입 (설계 변경) → DB 읽기 ↓ (결과)
-3. 그래도 TTL 10s가 짧아 miss가 잦다 → TTL을 일괄로 늘리면 가격이 stale해진다 (대가)
-   → 캐시 정책 분리: 가격은 짧게, 리뷰는 길게 (설계 변경) → hit ratio ↑
+3. 그래도 hot key 집중으로 miss가 잦다 → 캐시를 일괄로 오래 두면 가격이 stale해진다 (대가)
+   → 캐시 정책 분리: 가격은 짧게, 리뷰는 길게 (설계 변경) → hit ratio ↑ (엔진: 0.2 → 0.8)
 4. 남은 읽기 부하 → read replica 2대 (값 조정) → DB 읽기 ↓, 대신 복제 지연이라는 새 위험
    → Hot Key 분산·Consistent Hashing으로 이어짐 (다른 개념 연결)
 ```

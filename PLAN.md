@@ -2313,6 +2313,24 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## Round E34 — 시각 자료 기반: 콘텐츠 블록 · 시스템 다이어그램 (docs/LEARNING_DEEPENING_PLAN.md L12) ✅ 완료 (2026-10-05)
+
+- [x] **콘텐츠 블록 모델**(`learning/ContentBlocks.kt`) — 개념·장애 패턴에 `blocks` JSONB(V77). 종류: text / diagram(Mermaid + 대체 텍스트) / steps / callout(tip·warning·tradeoff) / compare(Before/After 그림 둘) / numbers / system
+- [x] **numbers·system 블록은 수치를 저장하지 않는다** — 도메인·인시던트 여부·`DesignTraits` 덮어쓰기만 저장하고, 읽을 때 `ContentBlockService`가 규칙 엔진으로 before/after를 계산해 채운다. numbers의 `claims`(본문이 주장하는 방향)는 `ContentBlocksTest`가 엔진과 대조 — 엔진이 바뀌어 문장이 틀리면 CI가 실패한다. 모르는 trait·metric·domain은 거부
+- [x] **첫 콘텐츠: Single-flight**에 모든 블록 종류 — compare(동시 miss 8개 → DB 8번 vs 1번), 동작 4단계, 상품 조회 장애 시스템 그림, numbers 두 개. 엔진으로 확인한 결과가 원래 초안보다 교육적이었다: Single-flight만 켜면 **DB 읽기 4000% → 400%인데 P95 480ms·에러 30%는 그대로**(여전히 포화 — 지연·에러는 사용률 구간 함수). 그래서 첫 블록의 claims는 `dbReadLoad DOWN, p95 SAME, errorRate SAME`, 두 번째 블록(캐시 정책 분리 + replica 1대)에서 50%·60ms·0.1%로 내려간다
+- [x] **`SystemDiagram`**(+ `lib/systemTopology.ts`) — 도메인 8개를 엔진 수식이 실제로 모델링하는 구성 요소로 그리고 `SystemState`로 색칠(사용률 구간은 기존 `utilizationStatus`). 도메인이 채우지 않는 지표(엔진에서 상수 0)로는 색을 정하지 않는다. 읽기 전용, 스크린리더용 문장 요약
+- [x] **렌더러** `ContentBlocks` — 개념 상세("그림과 숫자로 보기", 해결 패턴 다음)·장애 패턴 상세에 연결. Engine Lab 결과에도 전/후 시스템 그림(L15의 출발점)
+- [x] **Mermaid 테마** — 하드코딩 `dark` → 현재 앱 테마 토큰을 쓰는 `base` 테마, 앱 테마를 바꾸면 다시 그림
+- [x] 랩의 지표 라벨·방향 판정을 `lib/metrics.ts`로 옮겨 블록과 공유
+
+**검증**: `learning.*` 37/37(신규 `ContentBlocksTest` 4개). 격리 서버 브라우저에서 Single-flight 페이지 — Mermaid 2개 렌더(문법 오류 0), 수치 표가 엔진 값과 일치, 시스템 그림에서 API·캐시·DB 빨강. Engine Lab 8개 전부 인시던트 on/off로 그림 색 확인(각 장애의 병목이 빨강, 평시 전부 초록 — 예: 카나리 장애에서 DB는 초록, 게이트웨이·카나리만 빨강). 앱 테마를 Quest로 바꾸면 Mermaid가 Quest accent로 다시 그려짐. `tsc`·`eslint` 클린.
+
+**E35 메모**: 상품 조회 엔진은 `cacheTtlSeconds`를 쓰지 않는다(hit ratio는 캐시 정책 분리로만 바뀜). 계획서 예시의 "TTL 10→60" 단계는 수치로 보일 수 없으니 정책 분리로 서술한다.
+
+**환경 메모**: 재부팅 후 다른 프로젝트의 jaeger가 4319/16687로 옮겨 가, 이 프로젝트 jaeger를 다시 기본 포트(16686/4317/4318)로 띄웠다.
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
