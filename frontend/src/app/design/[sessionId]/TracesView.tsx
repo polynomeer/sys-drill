@@ -83,7 +83,7 @@ export function TracesView({
   );
 }
 
-function Waterfall({ trace, onShowService }: { trace: TraceView; onShowService?: (service: string) => void }) {
+export function Waterfall({ trace, onShowService }: { trace: TraceView; onShowService?: (service: string) => void }) {
   const total = Math.max(1, trace.durationMs);
   const depth = new Map<string, number>();
   trace.spans.forEach((s) => depth.set(s.spanId, s.parentSpanId ? (depth.get(s.parentSpanId) ?? 0) + 1 : 0));

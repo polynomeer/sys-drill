@@ -1379,6 +1379,8 @@ export interface DiagnosticPuzzle {
   points: PuzzlePoint[];
   patterns: { key: string; label: string }[];
   checks: { key: string; label: string }[];
+  /** docs/LEARNING_DEEPENING_PLAN.md L16 — random puzzles only (the weekly one stays two questions). */
+  investigations?: { key: string; label: string; cost: number }[];
 }
 
 export interface PuzzleResult {
@@ -1390,8 +1392,50 @@ export interface PuzzleResult {
   explanation: string;
 }
 
-export function getPuzzle(seed?: number): Promise<DiagnosticPuzzle> {
-  return apiFetch<DiagnosticPuzzle>(`/learning/puzzles${seed ? `?seed=${seed}` : ""}`);
+export function getPuzzle(seed?: number, domain?: string): Promise<DiagnosticPuzzle> {
+  const query = new URLSearchParams();
+  if (seed) query.set("seed", String(seed));
+  if (domain) query.set("domain", domain);
+  const qs = query.toString();
+  return apiFetch<DiagnosticPuzzle>(`/learning/puzzles${qs ? `?${qs}` : ""}`);
+}
+
+/** L16 — one investigation's evidence; only the field for its kind is filled. */
+export interface PuzzleEvidence {
+  kind: string;
+  logs: SimulationLogLine[] | null;
+  spans: TraceSpan[] | null;
+  domain: string | null;
+  state: SystemState | null;
+  changes: { minutesBefore: number; text: string }[] | null;
+}
+
+export function getPuzzleEvidence(seed: number, kind: string): Promise<PuzzleEvidence> {
+  return apiFetch<PuzzleEvidence>(`/learning/puzzles/${seed}/evidence/${kind}`);
+}
+
+export interface PuzzleDebrief {
+  /** The failure pattern's alerts, in the order they first fired (second null = not yet by the moment asked). */
+  signals: { metric: keyof SystemState; label: string; second: number | null }[];
+  actions: SimulationActionType[];
+  relatedConcepts: RelatedConceptLink[];
+  lab: string | null;
+}
+
+export function getPuzzleDebrief(seed: number): Promise<PuzzleDebrief> {
+  return apiFetch<PuzzleDebrief>(`/learning/puzzles/${seed}/debrief`);
+}
+
+export interface PuzzleActResult {
+  verdict: "RECOVERED" | "PARTIAL" | "NO_EFFECT";
+  timeline: TimelineContentBlock;
+  recommended: SimulationActionType[];
+  badFix: SimulationActionType[];
+  badFixWhy: string | null;
+}
+
+export function actOnPuzzle(seed: number, actions: SimulationActionType[]): Promise<PuzzleActResult> {
+  return apiFetch<PuzzleActResult>(`/learning/puzzles/${seed}/act`, { method: "POST", body: JSON.stringify({ actions }) });
 }
 
 export function answerPuzzle(seed: number, answer: { pattern?: string; check?: string }): Promise<PuzzleResult> {

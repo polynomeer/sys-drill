@@ -16,20 +16,45 @@ const METRICS: { key: keyof PuzzlePoint; label: string; unit: string }[] = [
   { key: "externalLatencyMs", label: "외부 의존성 지연", unit: "ms" },
 ];
 
+export const PUZZLE_METRIC_KEYS = METRICS.map((m) => m.key);
+
 /**
  * PLAN.md Round E28 (L9 / C12) — the puzzle's metrics as small multiples. A metric the system
  * doesn't have (flat zero throughout) is shown as "—" rather than hidden: absence is a clue too.
+ *
+ * docs/LEARNING_DEEPENING_PLAN.md L16 — [hidden] metrics (hard mode) show as a locked tile, and after
+ * answering [markers] put "this one moved first" on a chart: the order alerts fired, with its rank.
  */
-export function PuzzleCharts({ points }: { points: PuzzlePoint[] }) {
+export function PuzzleCharts({
+  points,
+  hidden = [],
+  markers = {},
+}: {
+  points: PuzzlePoint[];
+  hidden?: (keyof PuzzlePoint)[];
+  markers?: Partial<Record<keyof PuzzlePoint, { second: number; rank: number }>>;
+}) {
   const last = points.at(-1);
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
       {METRICS.map((m) => {
+        if (hidden.includes(m.key)) {
+          return (
+            <div key={m.key} className="flex flex-col justify-between rounded-lg border border-dashed border-border p-2 text-foreground-muted">
+              <p className="text-[11px]">{m.label}</p>
+              <p className="text-xs">🔒 어려움 모드에서 숨김</p>
+            </div>
+          );
+        }
         const values = points.map((p) => Number(p[m.key]));
         const flat = values.every((v) => v === 0);
+        const marker = markers[m.key];
         return (
-          <div key={m.key} className="rounded-lg border border-border p-2">
-            <p className="text-[11px] text-foreground-muted">{m.label}</p>
+          <div key={m.key} className={`rounded-lg border p-2 ${marker ? "border-warning" : "border-border"}`}>
+            <p className="flex justify-between gap-1 text-[11px] text-foreground-muted">
+              <span>{m.label}</span>
+              {marker && <span className="text-warning">#{marker.rank} 경보 +{marker.second}s</span>}
+            </p>
             <p className="font-mono text-sm">{flat || !last ? "—" : `${format(Number(last[m.key]))}${m.unit === "%" ? "%" : ` ${m.unit}`}`}</p>
             <div className="h-10">
               {!flat && (
@@ -38,6 +63,7 @@ export function PuzzleCharts({ points }: { points: PuzzlePoint[] }) {
                     <XAxis dataKey="second" hide />
                     <YAxis hide domain={["auto", "auto"]} />
                     <ReferenceLine x={0} stroke="var(--border)" strokeDasharray="3 3" />
+                    {marker && <ReferenceLine x={marker.second} stroke="var(--warning)" />}
                     <Tooltip formatter={(v) => format(Number(v))} labelFormatter={(s) => `${s}초`} />
                     <Line type="monotone" dataKey={m.key} stroke="var(--accent)" dot={false} strokeWidth={1.5} isAnimationActive={false} />
                   </LineChart>
