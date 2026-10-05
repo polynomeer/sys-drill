@@ -50,9 +50,15 @@ class DesignGuideTest(
             val actionProblems = steps.mapIndexedNotNull { i, step ->
                 if (step.action.kind in setOf("TUNE", "REDESIGN")) null else "${guide.domain} step ${i + 1}: action kind ${step.action.kind}"
             }
+            // Extra numbers blocks inside the requirements, architecture or a step carry claims of their own.
             val blockProblems = runCatching {
-                blocks.resolve(guide.requirements) + blocks.resolve(guide.architecture) + steps.flatMap { blocks.resolve(it.blocks) }
-            }.exceptionOrNull()?.let { listOf("${guide.domain}: ${it.message}") }.orEmpty()
+                val sections = listOf("requirements" to guide.requirements, "architecture" to guide.architecture) +
+                    steps.mapIndexed { i, step -> "step ${i + 1}" to step.blocks }
+                sections.flatMap { (where, raw) ->
+                    blocks.resolve(raw).filterIsInstance<NumbersBlock>().flatMap { blocks.brokenClaims(it) }
+                        .map { "${guide.domain} $where numbers block: $it" }
+                }
+            }.getOrElse { listOf("${guide.domain}: ${it.message}") }
             claimProblems + chainProblems + actionProblems + blockProblems
         }
         assertThat(problems).describedAs("design guides out of step with the engine").isEmpty()
@@ -83,7 +89,9 @@ class DesignGuideTest(
         val user = userRepository.save(User(email = "guide-${UUID.randomUUID()}@example.com", passwordHash = "hash", nickname = "guide")).id!!
         val list = mockMvc.perform(get("/learning/guides").header("Authorization", bearerHeader(user)))
             .andExpect(status().isOk).andReturn().response.contentAsString
-        assertThat(JsonPath.read<List<String>>(list, "$[*].domain")).contains("product-browsing")
+        assertThat(JsonPath.read<List<String>>(list, "$[*].domain")).containsExactly(
+            "coupon", "notification", "product-browsing", "payment", "reservation", "batch-settlement", "autoscaling", "deployment",
+        )
 
         val body = mockMvc.perform(get("/learning/guides/product-browsing").header("Authorization", bearerHeader(user)))
             .andExpect(status().isOk).andReturn().response.contentAsString
