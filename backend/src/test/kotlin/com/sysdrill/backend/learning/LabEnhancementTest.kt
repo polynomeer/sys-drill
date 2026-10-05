@@ -62,6 +62,23 @@ class LabEnhancementTest(
     }
 
     @Test
+    fun `every lab sweeps each numeric knob and replays a change that the engine notices`() {
+        val problems = engineLabs().flatMap { lab ->
+            val spec = labs.engineSpecOf(lab.slug)
+            val sweeps = spec.knobs.filter { it.type == "number" }.mapNotNull { knob ->
+                val points = labs.sweep(lab.slug, EngineSweepRequest(knob = knob.trait)).points
+                if (points.size >= 2 && points.map { it.value }.distinct().size == points.size) null else "${lab.slug}: sweep of ${knob.trait} gave ${points.size} points"
+            }
+            // Flip every boolean knob on (the labs' fixes are switches), applied at 120 s: the replay's last point must differ from doing nothing.
+            val change: Map<String, Any?> = spec.knobs.filter { it.type == "boolean" }.associate { it.trait to true }
+            val replay = labs.replay(lab.slug, EngineReplayRequest(traits = change, applyAt = listOf(120))).resolved!!
+            val moved = spec.watch.any { m -> replay.series[0].values.getValue(m).last() != replay.series[1].values.getValue(m).last() }
+            sweeps + listOfNotNull(if (moved) null else "${lab.slug}: replaying $change changed nothing")
+        }
+        assertThat(problems).isEmpty()
+    }
+
+    @Test
     fun `every concept the content explains with engine numbers has a lab on that domain`() {
         val labsByConcept = engineLabs().flatMap { lab ->
             (listOfNotNull(lab.riskKey) + labs.engineSpecOf(lab.slug).concepts).map { it to lab.domain }
