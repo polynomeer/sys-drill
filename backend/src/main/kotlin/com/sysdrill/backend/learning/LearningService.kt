@@ -22,6 +22,7 @@ class LearningService(
     private val conceptMasteryService: ConceptMasteryService,
     private val labRepository: LearningLabRepository,
     private val failurePatternRepository: FailurePatternRepository,
+    private val contentBlockService: ContentBlockService,
 ) {
 
     fun categories(userId: UUID): List<LearningCategory> {
@@ -92,6 +93,7 @@ class LearningService(
             badFixes = concept.badFixes,
             whenNotToUse = concept.whenNotToUse,
             failurePatterns = failurePatternRepository.findAllByOrderByDisplayOrderAsc().filter { riskKey in it.relatedConcepts }.map { it.domain },
+            blocks = contentBlockService.resolve(concept.blocks),
         )
     }
 

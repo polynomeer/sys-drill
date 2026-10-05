@@ -52,6 +52,8 @@ data class LearningConceptDetail(
     val whenNotToUse: String = "",
     /** Incident domains whose failure pattern lists this concept. */
     val failurePatterns: List<String> = emptyList(),
+    /** docs/LEARNING_DEEPENING_PLAN.md L12 — engine values already filled in. */
+    val blocks: List<ContentBlock> = emptyList(),
 )
 
 data class RelatedConceptLink(val riskKey: String, val label: String, val relation: String)

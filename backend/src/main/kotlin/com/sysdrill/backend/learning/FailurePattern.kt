@@ -32,6 +32,8 @@ class FailurePattern(
     @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition = "jsonb") var prevention: List<String> = emptyList(),
     @JdbcTypeCode(SqlTypes.JSON) @Column(name = "related_concepts", columnDefinition = "jsonb") var relatedConcepts: List<String> = emptyList(),
     @Column(name = "display_order") var displayOrder: Int = 0,
+    /** docs/LEARNING_DEEPENING_PLAN.md L12 — see [ContentBlock]. */
+    @JdbcTypeCode(SqlTypes.JSON) @Column(nullable = false, columnDefinition = "jsonb") var blocks: List<Map<String, Any?>> = emptyList(),
 )
 
 interface FailurePatternRepository : JpaRepository<FailurePattern, String> {
@@ -54,12 +56,14 @@ data class FailurePatternDetail(
     val mitigations: List<String>,
     val prevention: List<String>,
     val relatedConcepts: List<RelatedConceptLink>,
+    val blocks: List<ContentBlock> = emptyList(),
 )
 
 @Service
 class FailurePatternService(
     private val repository: FailurePatternRepository,
     private val conceptRepository: LearningConceptRepository,
+    private val contentBlockService: ContentBlockService,
 ) {
     fun list(): List<FailurePatternSummary> =
         repository.findAllByOrderByDisplayOrderAsc().map { FailurePatternSummary(it.domain, it.name, it.summary, it.symptoms) }
@@ -79,6 +83,7 @@ class FailurePatternService(
             mitigations = p.mitigations,
             prevention = p.prevention,
             relatedConcepts = p.relatedConcepts.mapNotNull { key -> labels[key]?.let { RelatedConceptLink(key, it, "RELATED") } },
+            blocks = contentBlockService.resolve(p.blocks),
         )
     }
 }
