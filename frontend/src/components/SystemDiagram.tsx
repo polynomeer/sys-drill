@@ -77,11 +77,19 @@ export function SystemDiagram({ domain, state, caption }: { domain: string; stat
 
   if (!topology) return null;
   const rows = Math.max(...topology.nodes.map((n) => n.row)) + 1;
+  const cols = Math.max(...topology.nodes.map((n) => n.col)) + 1;
+  // The box takes the drawing's own proportions, so fitView fills it at any width instead of
+  // shrinking the nodes into a tall empty frame; capped so a wide page doesn't blow them up.
+  const aspect = (cols * COL_WIDTH - 20) / (rows * ROW_HEIGHT + 40);
   const troubled = statuses.filter((s) => s.health === "danger" || s.health === "warning");
 
   return (
     <figure className="flex flex-col gap-2">
-      <div className="w-full overflow-hidden rounded-lg border border-border bg-background" style={{ height: 70 + rows * ROW_HEIGHT }} aria-hidden>
+      <div
+        className="mx-auto w-full overflow-hidden rounded-lg border border-border bg-background"
+        style={{ aspectRatio: aspect, maxWidth: Math.round(300 * aspect), minHeight: 140 }}
+        aria-hidden
+      >
         <ReactFlow
           nodes={nodes}
           edges={edges}

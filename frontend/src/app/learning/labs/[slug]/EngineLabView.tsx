@@ -32,7 +32,19 @@ export function EngineLabView({ slug }: { slug: string }) {
   useEffect(() => {
     getEngineLab(slug)
       .then(async (loaded) => {
-        const defaults = Object.fromEntries(loaded.knobs.map((k) => [k.trait, k.default]));
+        // docs/LEARNING_DEEPENING_PLAN.md L14 — a design guide step opens the lab in its own state:
+        // `?singleFlightEnabled=true&readReplicaCount=1` presets those knobs (others keep the defaults).
+        const query = new URLSearchParams(window.location.search);
+        const defaults = Object.fromEntries(
+          loaded.knobs.map((k) => {
+            const raw = query.get(k.trait);
+            if (raw === null) return [k.trait, k.default];
+            if (k.type === "boolean") return [k.trait, raw === "true"];
+            const n = Number(raw);
+            const inRange = Number.isFinite(n) && (k.min == null || n >= k.min) && (k.max == null || n <= k.max);
+            return [k.trait, inRange ? n : k.default];
+          }),
+        );
         setLab(loaded);
         setValues(defaults);
         setBaselineValues(defaults);
