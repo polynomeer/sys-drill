@@ -39,6 +39,7 @@ export default function LearningPage() {
   }, [router]);
 
   const totalWeakness = (categories ?? []).reduce((sum, c) => sum + c.myWeaknessCount, 0);
+  const conceptCount = (categories ?? []).reduce((sum, c) => sum + c.concepts.length, 0);
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
@@ -50,14 +51,16 @@ export default function LearningPage() {
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        {/* PLAN.md Round E18 (L7) — 25개 개념의 지도 */}
+        {/* PLAN.md Round E18 (L7), E33 (L11) — 개념 지도 */}
         <Link
           href="/learning/map"
           className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
         >
           <span>
             <span className="block font-medium">지식 맵</span>
-            <span className="block text-sm text-foreground-muted">채점 엔진이 아는 25개 개념과 선행 관계 — 내 숙련 상태가 노드에 표시됩니다.</span>
+            <span className="block text-sm text-foreground-muted">
+              채점 엔진이 아는 {conceptCount ? `${conceptCount}개 ` : ""}개념과 선행 관계 — 개념을 누르면 요약과 먼저 알면 좋은 순서가 열립니다.
+            </span>
           </span>
           <span className="text-accent">→</span>
         </Link>
@@ -81,7 +84,7 @@ export default function LearningPage() {
         >
           <span>
             <span className="block font-medium">장애 패턴 사전</span>
-            <span className="block text-sm text-foreground-muted">인시던트 7개의 증상·지표·로그와 그럴듯하지만 틀린 대응(Bad Fixes).</span>
+            <span className="block text-sm text-foreground-muted">도메인별 인시던트의 증상·지표·로그와 그럴듯하지만 틀린 대응(Bad Fixes).</span>
           </span>
           <span className="text-accent">→</span>
         </Link>
