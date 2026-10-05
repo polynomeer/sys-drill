@@ -72,3 +72,4 @@ Short records of decisions that are hard to reverse, would surprise a future rea
 | [0052](0052-go-build-challenges-run-under-the-race-detector.md) | Go 과제 채점은 레이스 디텍터(`go run -race`) 아래에서 돈다 — 0.5 CPU에서는 결과값 판정이 락 없는 구현을 못 잡는다 |
 | [0053](0053-initial-tech-selection-reconstructed.md) | 초기 기술 선택(Kotlin/Spring Boot, 모듈러 모놀리스, PostgreSQL, Redis 리스트 큐, 규칙 기반 시뮬레이션, Docker 샌드박스, Next.js)의 이유와 대안을 초기 커밋에서 재구성 |
 | [0054](0054-learning-content-numbers-are-computed-by-the-engine-and-claims-are-tested.md) | Learning 콘텐츠의 수치는 저장하지 않고 엔진이 읽을 때 계산하며, 서술의 방향(claims)은 테스트가 엔진과 대조한다 |
+| [0055](0055-mechanism-widgets-are-grounded-in-build-challenge-specs.md) | 메커니즘 위젯(L17)은 엔진이 아니라 Build 과제 스테이지 스펙을 근거로 두고, 위젯 시나리오 값이 Build 테스트와 같은지 검사한다 |
