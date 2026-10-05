@@ -9,6 +9,12 @@ import kotlin.math.max
 data class TimedAction(val at: Instant, val action: SimulationActionType)
 
 /**
+ * docs/LEARNING_DEEPENING_PLAN.md L15 — from [at] on, the design is [traits] instead of the base
+ * traits (a lab's "apply my settings at t s"). Actions still fold on top of whichever is current.
+ */
+data class TraitSwitch(val at: Instant, val traits: DesignTraits)
+
+/**
  * One sample of the incident's telemetry.
  *
  * [state] carries the *accumulated* backlog in `queueLag` for the backlog
@@ -78,6 +84,7 @@ object TelemetrySampler {
         from: Instant,
         to: Instant,
         step: Duration,
+        switch: TraitSwitch? = null,
     ): List<TelemetryPoint> {
         require(!step.isNegative && !step.isZero) { "step must be positive" }
         val times = buildList {
@@ -88,7 +95,7 @@ object TelemetrySampler {
             }
             add(to)
         }
-        return sampleAt(domain, baseTraits, incidentStartedAt, actions, times)
+        return sampleAt(domain, baseTraits, incidentStartedAt, actions, times, switch)
     }
 
     fun sampleAt(
@@ -97,6 +104,7 @@ object TelemetrySampler {
         incidentStartedAt: Instant,
         actions: List<TimedAction>,
         times: List<Instant>,
+        switch: TraitSwitch? = null,
     ): List<TelemetryPoint> {
         val sortedActions = actions.sortedBy { it.at }
         val backlogDomain = domain in BACKLOG_DOMAINS
@@ -109,7 +117,7 @@ object TelemetrySampler {
         if (backlogDomain) {
             var backlog = 0.0
             for (second in 1..max(lastSecond, 0L)) {
-                val steady = steadyAt(domain, baseTraits, sortedActions, incidentStartedAt, second)
+                val steady = steadyAt(domain, baseTraits, sortedActions, incidentStartedAt, second, switch = switch)
                 backlog = if (steady.queueLag > 0) {
                     backlog + steady.queueLag
                 } else {
@@ -127,7 +135,7 @@ object TelemetrySampler {
             } else {
                 // Actions are cut off at the sample's own instant, not the whole second it falls in —
                 // otherwise an action applied a few hundred ms before "now" wouldn't show yet.
-                val steady = steadyAt(domain, baseTraits, sortedActions, incidentStartedAt, second, actionCutoff = at)
+                val steady = steadyAt(domain, baseTraits, sortedActions, incidentStartedAt, second, actionCutoff = at, switch = switch)
                 val backlog = if (backlogDomain) backlogBySecond[second.toInt()] else 0L
                 val shown = if (backlogDomain) steady.copy(queueLag = backlog) else steady
                 TelemetryPoint(at, shown, steady.level, backlog)
@@ -180,8 +188,10 @@ object TelemetrySampler {
         incidentStartedAt: Instant,
         second: Long,
         actionCutoff: Instant = incidentStartedAt.plusSeconds(second),
+        switch: TraitSwitch? = null,
     ): SystemState {
-        val folded = actions.filter { !it.at.isAfter(actionCutoff) }.fold(baseTraits) { traits, timed ->
+        val current = if (switch != null && !switch.at.isAfter(actionCutoff)) switch.traits else baseTraits
+        val folded = actions.filter { !it.at.isAfter(actionCutoff) }.fold(current) { traits, timed ->
             RuleBasedSimulationEngine.applyAction(session(domain, traits, incidentActive = true), timed.action).traits
         }
         // PLAN.md Round E30 — the one domain whose state moves with the clock: hand it the canary share at this second.

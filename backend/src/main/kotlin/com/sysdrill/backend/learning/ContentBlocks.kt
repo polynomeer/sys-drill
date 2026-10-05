@@ -10,6 +10,7 @@ import com.sysdrill.backend.simulation.SystemState
 import com.sysdrill.backend.simulation.SystemStateResponse
 import com.sysdrill.backend.simulation.TelemetrySampler
 import com.sysdrill.backend.simulation.TimedAction
+import com.sysdrill.backend.simulation.TraitSwitch
 import org.springframework.stereotype.Service
 import tools.jackson.databind.ObjectMapper
 import java.time.Duration
@@ -115,14 +116,32 @@ data class TimelineBlock(
     /** Fires when [metric] goes [op] (`ABOVE` / `BELOW`) [threshold], in the engine's units (ratios are 0–1). */
     data class Alert(val metric: String, val op: String, val threshold: Double, val label: String)
 
-    /** [tone]: `bad` (a plausible wrong fix) or `good` (the mitigation). */
-    data class Scenario(val label: String, val tone: String = "good", val actions: List<At> = emptyList(), val claims: List<NumbersBlock.Claim> = emptyList())
+    /**
+     * [tone]: `bad` (a plausible wrong fix) or `good` (the mitigation). Besides Drill [actions], a scenario
+     * may switch the whole design to the block's traits + [switchTraits] at [switchAt] (a lab's
+     * "apply my settings at t s", L15).
+     */
+    data class Scenario(
+        val label: String,
+        val tone: String = "good",
+        val actions: List<At> = emptyList(),
+        val claims: List<NumbersBlock.Claim> = emptyList(),
+        val switchAt: Long? = null,
+        val switchTraits: Map<String, Any> = emptyMap(),
+    )
     data class At(val second: Long, val action: SimulationActionType)
 
     data class Resolved(val seconds: List<Long>, val series: List<Series>, val firstAlerts: List<AlertHit>)
 
     /** One run — the first is always "nothing done". [values] per metric, aligned with [Resolved.seconds]; [status] per point. */
-    data class Series(val label: String, val tone: String, val values: Map<String, List<Double>>, val status: List<String>, val actions: List<At>)
+    data class Series(
+        val label: String,
+        val tone: String,
+        val values: Map<String, List<Double>>,
+        val status: List<String>,
+        val actions: List<At>,
+        val switchAt: Long? = null,
+    )
 
     /** [second] is null when the alert never fired within the window. */
     data class AlertHit(val label: String, val metric: String, val second: Long?)
@@ -168,11 +187,14 @@ class ContentBlockService(private val mapper: ObjectMapper) {
     fun resolveTimeline(block: TimelineBlock): TimelineBlock {
         val traits = traits(block.domain, block.traits)
         val start = TIMELINE_EPOCH
-        fun run(label: String, tone: String, actions: List<TimelineBlock.At>): Pair<TimelineBlock.Series, List<Long>> {
+        fun run(scenario: TimelineBlock.Scenario): Pair<TimelineBlock.Series, List<Long>> {
+            val (label, tone, actions) = Triple(scenario.label, scenario.tone, scenario.actions)
             val timed = actions.map { TimedAction(start.plusSeconds(it.second), it.action) }
+            val switch = scenario.switchAt?.let { TraitSwitch(start.plusSeconds(it), traits(block.domain, block.traits + scenario.switchTraits)) }
             val points = TelemetrySampler.sample(
                 block.domain, traits, start, timed,
                 start.minusSeconds(TIMELINE_LEAD_SECONDS), start.plusSeconds(block.durationSeconds), Duration.ofSeconds(block.stepSeconds),
+                switch,
             )
             val rows = points.map { metricsOf(it.state) }
             val series = TimelineBlock.Series(
@@ -181,11 +203,12 @@ class ContentBlockService(private val mapper: ObjectMapper) {
                 values = block.metrics.associateWith { m -> rows.map { it.metric(m) } },
                 status = TelemetrySampler.classify(points, start).map { it.name },
                 actions = actions,
+                switchAt = scenario.switchAt,
             )
             return series to points.map { Duration.between(start, it.at).seconds }
         }
-        val (incident, seconds) = run("아무것도 하지 않으면", "none", emptyList())
-        val scenarios = block.scenarios.map { run(it.label, it.tone, it.actions).first }
+        val (incident, seconds) = run(TimelineBlock.Scenario("아무것도 하지 않으면", "none"))
+        val scenarios = block.scenarios.map { run(it).first }
         val firstAlerts = block.alerts.map { alert ->
             require(alert.metric in block.metrics) { "Alert on ${alert.metric}, which the timeline doesn't list in metrics" }
             val values = incident.values.getValue(alert.metric)

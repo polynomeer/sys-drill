@@ -89,13 +89,20 @@ class LearningService(
                 }
                 labels[other]?.let { RelatedConceptLink(other, it, relation) }
             },
-            labs = labRepository.findAllByOrderByDisplayOrderAsc().filter { it.riskKey == riskKey }.map { it.slug },
+            // The lab built around this concept first, then labs that exercise it too (spec.concepts, L15).
+            labs = labRepository.findAllByOrderByDisplayOrderAsc()
+                .filter { it.riskKey == riskKey || riskKey in labConcepts(it) }
+                .sortedBy { if (it.riskKey == riskKey) 0 else 1 }
+                .map { it.slug },
             badFixes = concept.badFixes,
             whenNotToUse = concept.whenNotToUse,
             failurePatterns = failurePatternRepository.findAllByOrderByDisplayOrderAsc().filter { riskKey in it.relatedConcepts }.map { it.domain },
             blocks = contentBlockService.resolve(concept.blocks),
         )
     }
+
+    private fun labConcepts(lab: LearningLab): List<String> =
+        objectMapper.readTree(lab.spec).path("concepts").let { node -> (0 until node.size()).map { node.get(it).asString() } }
 
     /** PLAN.md Round E18 (L7) — every concept as a node with my mastery, plus the seeded edges. */
     fun map(userId: UUID): KnowledgeMap {

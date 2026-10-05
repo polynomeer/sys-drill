@@ -81,6 +81,16 @@ class LearningController(
     fun runEngineLab(@PathVariable slug: String, @RequestBody request: EngineRunRequest) =
         learningLabService.run(slug, request)
 
+    /** docs/LEARNING_DEEPENING_PLAN.md L15 — the watched metrics across one numeric knob's range. */
+    @PostMapping("/labs/{slug}/engine/sweep")
+    fun sweepEngineLab(@PathVariable slug: String, @RequestBody request: EngineSweepRequest) =
+        learningLabService.sweep(slug, request)
+
+    /** L15 — the incident on the engine's clock with the lab's settings applied at the given seconds. */
+    @PostMapping("/labs/{slug}/engine/replay")
+    fun replayEngineLab(@PathVariable slug: String, @RequestBody request: EngineReplayRequest) =
+        learningLabService.replay(slug, request)
+
     @GetMapping("/concepts/{riskKey}")
     fun concept(@PathVariable riskKey: String, @AuthenticatedUserId userId: UUID): LearningConceptDetail =
         learningService.detail(riskKey, userId)
