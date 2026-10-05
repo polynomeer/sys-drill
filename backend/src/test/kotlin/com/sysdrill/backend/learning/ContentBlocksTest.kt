@@ -47,6 +47,10 @@ class ContentBlocksTest(
                     is CompareBlock -> listOf(block.before, block.after)
                         .filter { it.mermaid.isBlank() || it.alt.isBlank() }
                         .map { "$owner block $i: compare pane '${it.label}' needs mermaid and alt text" }
+                    is TimelineBlock -> service.brokenClaims(block).map { "$owner block $i: $it" } +
+                        block.scenarios.filter { it.claims.isEmpty() || it.tone !in setOf("bad", "good") }
+                            .map { "$owner block $i: scenario '${it.label}' needs claims and a bad/good tone" } +
+                        block.resolved!!.firstAlerts.filter { it.second == null }.map { "$owner block $i: alert '${it.label}' never fires" }
                     is CalloutBlock -> if (block.tone !in setOf("tip", "warning", "tradeoff")) listOf("$owner block $i: unknown callout tone ${block.tone}") else emptyList()
                     else -> emptyList()
                 }
@@ -61,6 +65,35 @@ class ContentBlocksTest(
         assertThat(kinds).containsExactlyInAnyOrder(
             "TextBlock", "StepsBlock", "CalloutBlock", "CompareBlock", "NumbersBlock", "SystemBlock",
         )
+    }
+
+    @Test
+    fun `the caching concepts carry the L13 shape`() {
+        // docs/LEARNING_DEEPENING_PLAN.md L13 pilot (Round E37): a mechanism picture, the steps, and a callout on the cost.
+        val caching = conceptRepository.findAll().filter { it.category == "CACHING_DATA_ACCESS" }
+        assertThat(caching).hasSize(4)
+        val missing = caching.flatMap { concept ->
+            val kinds = service.parse(concept.blocks).map { it::class.simpleName }.toSet()
+            listOf("CompareBlock", "StepsBlock", "CalloutBlock").filterNot { it in kinds }.map { "${concept.riskKey} has no $it" }
+        }
+        assertThat(missing).isEmpty()
+    }
+
+    @Test
+    fun `the stampede timeline fires the effect's alerts before the cause's`() {
+        val timeline = service.resolve(failurePatternRepository.findById("product-browsing").orElseThrow().blocks)
+            .filterIsInstance<TimelineBlock>().single()
+        val resolved = timeline.resolved!!
+        // Hit ratio falls 0.9 → 0.2 over the 90 s ramp while ×10 dogpiled misses take DB reads from 2.5% to 4000%:
+        // the DB alert fires within seconds, the hit-ratio one (the cause) last.
+        assertThat(resolved.firstAlerts.map { it.metric }).containsExactly("dbReadLoad", "errorRate", "p95LatencyMs", "cacheHitRatio")
+        assertThat(resolved.firstAlerts.first().second).isEqualTo(2L)
+        assertThat(resolved.seconds.first()).isEqualTo(-30L)
+        assertThat(resolved.series.map { it.tone }).containsExactly("none", "bad", "good")
+        // The mitigation ends at the guide's final state: 50% DB read, P95 back to 60 ms; the replica-only fix leaves P95 at 480.
+        assertThat(resolved.series[2].values.getValue("p95LatencyMs").last()).isCloseTo(60.0, Offset.offset(0.001))
+        assertThat(resolved.series[1].values.getValue("p95LatencyMs").last()).isCloseTo(480.0, Offset.offset(0.001))
+        assertThat(resolved.series[2].status.last()).isEqualTo("RECOVERED")
     }
 
     @Test
