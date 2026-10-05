@@ -2297,6 +2297,22 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 ---
 
+## Round E33 — 지식 맵 수리와 상호작용 (docs/LEARNING_DEEPENING_PLAN.md L11) ✅ 완료 (2026-10-05)
+
+사용자 요청("E33부터 진행해줘"). 3차 Learning 계획의 첫 라운드.
+
+- [x] **깜빡임 원인 확정 후 제거** — 브라우저에서 MutationObserver로 측정: 노드 5개를 훑는 동안 DOM 노드 118개 재삽입·속성 변경 360회·opacity 클래스 전환 96회. hover가 React 상태(`focus`)라 노드·간선 객체 전체를 다시 만들고, 노드 사이 빈 공간에서 focus가 null로 풀렸다 잡히며 27개 노드 opacity가 매번 뒤집혔다. → hover는 React를 거치지 않는다: 노드·간선에 이웃 관계를 클래스(`kn-*`, `ke-*`)로 미리 박고, hover는 래퍼의 `data-focus`만 바꾸며, 개념별 CSS 규칙이 나머지를 흐린다. 떠날 때 120ms 지연(빈 공간 통과 시 원복 방지). 같은 측정에서 **그래프 안 DOM 변경 0회**(래퍼 속성 6회뿐)
+- [x] **더블클릭이 아예 동작하지 않던 버그** — React Flow의 `zoomOnDoubleClick`(d3-zoom)이 dblclick을 `stopImmediatePropagation`해 React 루트까지 가지 않았다(`onNodeDoubleClick` 무반응). 더블클릭 줌을 끄고 더블클릭 = 개념 페이지로
+- [x] **클릭 = 개념 패널**(`ConceptPanel`) — 페이지를 떠나지 않고 요약·숙련 상태와 근거·먼저 알면 좋은 순서(선행 간선을 거슬러 올라간 사슬, 맵에서도 강조)·다음에 볼 것·함께 볼 것·관련 랩/Build/Drill. 패널의 개념 칩을 누르면 그 개념으로 이동. 빈 곳 클릭 = 선택 해제. 노드는 `<button>`이라 Tab → Enter로 키보드 탐색
+- [x] **필터·검색** — 이름 검색, 카테고리, "약점만". 맞지 않는 개념은 지우지 않고 흐리게(배치 유지)
+- [x] 모바일: 패널이 맵 아래로, 선택하면 패널로 스크롤(375px에서 가로 넘침 없음). 허브·맵 문구의 "25개 개념", "인시던트 7개" 고정값 → 데이터에서 읽음(현재 27개)
+
+**검증**: 격리 서버 브라우저에서 위 측정(전/후), 클릭 → 패널 내용(Single-flight: 선행 "캐시 정책 분리", 관련 "Hot Key 분산", 랩·Build·Drill 링크), 칩 이동, 검색("멱등" → 2개, 25개 흐림), 카테고리, 선택 해제, 더블클릭 이동, 모바일 레이아웃·스크롤. `tsc`·`eslint` 클린. 백엔드 변경 없음(기존 `/learning/map`·`/learning/concepts/{key}`·`/learning/labs`로 충분).
+
+**메모**: 브라우저 패널이 숨겨진 상태라 스크린샷이 불가해 DOM·계산 스타일로 검증했다 — 숨겨진 창에서는 `requestAnimationFrame`과 CSS transition이 진행되지 않아, 처음엔 패널 스크롤이 안 되는 것처럼 보였다(rAF 대기를 없애 어느 쪽이든 동작하게 함).
+
+---
+
 ## 진행 방식 메모
 
 - 각 단계 시작 전 해당 단계의 "완료 기준"을 재확인하고, 애매하면 [PRD.md](docs/PRD.md)/[ARCHITECTURE.md](docs/ARCHITECTURE.md)를 먼저 참고한다. 그래도 결정할 수 없는 제품 방향 질문이면 사용자에게 확인한다.
