@@ -40,11 +40,15 @@ class CapacityLabIntegrationTest(
     ).andExpect(status().isOk).andReturn().response.contentAsString
 
     @Test
-    fun `the three seeded problems are listed and formulas stay hidden until checked`() {
+    fun `the seeded problems are listed and formulas stay hidden until checked`() {
         val list = mockMvc.perform(get("/learning/labs").header("Authorization", bearerHeader(user)))
             .andExpect(status().isOk).andReturn().response.contentAsString
         assertThat(JsonPath.read<List<String>>(list, "$[?(@.kind == 'CAPACITY')].slug"))
-            .containsExactly("capacity-feed", "capacity-shortener", "capacity-chat")
+            .containsExactly(
+                "capacity-feed", "capacity-shortener", "capacity-chat",
+                // docs/LEARNING_DEEPENING_PLAN.md L15 (Round E39) — the design guides' domains.
+                "capacity-coupon-open", "capacity-notification-blast", "capacity-payment-peak",
+            )
 
         val view = mockMvc.perform(get("/learning/labs/capacity-feed/capacity").header("Authorization", bearerHeader(user)))
             .andExpect(status().isOk).andReturn().response.contentAsString
