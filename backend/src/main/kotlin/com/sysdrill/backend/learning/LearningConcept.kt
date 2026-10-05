@@ -81,6 +81,11 @@ class LearningConcept(
 
     @Column(name = "when_not_to_use", nullable = false)
     var whenNotToUse: String = "",
+
+    /** docs/LEARNING_DEEPENING_PLAN.md L12 — diagrams, mechanism steps, engine-computed numbers ([ContentBlock]). */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(nullable = false, columnDefinition = "jsonb")
+    var blocks: List<Map<String, Any?>> = emptyList(),
 )
 
 interface LearningConceptRepository : JpaRepository<LearningConcept, String> {

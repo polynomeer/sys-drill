@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { type EngineLab, type SystemState, getEngineLab, runEngineLab } from "@/lib/api";
-import { formatMs, formatPercent } from "@/lib/metrics";
+import { type Direction, STATE_METRICS as METRIC_META, directionOf } from "@/lib/metrics";
+import { SystemDiagram } from "@/components/SystemDiagram";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -14,29 +15,6 @@ import { LoadingState } from "@/components/ui/LoadingState";
  * compare. "장애 상황" off shows the same settings without the incident. The truth is the
  * engine's output — there is no stored answer key, and nothing here is recorded.
  */
-
-type Direction = "UP" | "SAME" | "DOWN";
-
-const METRIC_META: Partial<Record<keyof SystemState, { label: string; format: (v: number) => string }>> = {
-  trafficRps: { label: "트래픽", format: (v) => `${v.toFixed(0)}/s` },
-  p95LatencyMs: { label: "P95 지연", format: formatMs },
-  errorRate: { label: "에러율", format: formatPercent },
-  availability: { label: "가용성", format: formatPercent },
-  dbReadLoad: { label: "DB 읽기 사용률", format: formatPercent },
-  dbWriteLoad: { label: "DB 쓰기 사용률", format: formatPercent },
-  connectionPoolUsage: { label: "커넥션 풀 사용률", format: formatPercent },
-  cacheHitRatio: { label: "캐시 hit ratio", format: formatPercent },
-  queueLag: { label: "적체 / 대기", format: (v) => v.toLocaleString() },
-  consumerThroughput: { label: "처리 용량", format: (v) => `${v.toFixed(1)}/s` },
-};
-
-/** Within 2% of the previous value counts as "about the same". */
-function directionOf(before: number, after: number): Direction {
-  const scale = Math.max(Math.abs(before), 1e-9);
-  const change = (after - before) / scale;
-  if (Math.abs(change) < 0.02) return "SAME";
-  return change > 0 ? "UP" : "DOWN";
-}
 
 const ARROW: Record<Direction, string> = { UP: "↑", SAME: "≈", DOWN: "↓" };
 
@@ -54,7 +32,19 @@ export function EngineLabView({ slug }: { slug: string }) {
   useEffect(() => {
     getEngineLab(slug)
       .then(async (loaded) => {
-        const defaults = Object.fromEntries(loaded.knobs.map((k) => [k.trait, k.default]));
+        // docs/LEARNING_DEEPENING_PLAN.md L14 — a design guide step opens the lab in its own state:
+        // `?singleFlightEnabled=true&readReplicaCount=1` presets those knobs (others keep the defaults).
+        const query = new URLSearchParams(window.location.search);
+        const defaults = Object.fromEntries(
+          loaded.knobs.map((k) => {
+            const raw = query.get(k.trait);
+            if (raw === null) return [k.trait, k.default];
+            if (k.type === "boolean") return [k.trait, raw === "true"];
+            const n = Number(raw);
+            const inRange = Number.isFinite(n) && (k.min == null || n >= k.min) && (k.max == null || n <= k.max);
+            return [k.trait, inRange ? n : k.default];
+          }),
+        );
         setLab(loaded);
         setValues(defaults);
         setBaselineValues(defaults);
@@ -223,6 +213,11 @@ export function EngineLabView({ slug }: { slug: string }) {
             })}
           </tbody>
         </table>
+        {/* docs/LEARNING_DEEPENING_PLAN.md L12 — where the bottleneck is, before vs after (L15 builds on this). */}
+        <div className={`mt-4 grid gap-3 ${result ? "lg:grid-cols-2" : ""}`}>
+          <SystemDiagram domain={lab.domain} state={baseline} caption={result ? "바꾸기 전" : undefined} />
+          {result && <SystemDiagram domain={lab.domain} state={result} caption="바꾼 뒤" />}
+        </div>
         {result && (
           <Button size="sm" variant="secondary" className="mt-3" onClick={keepGoing}>
             이 값에서 계속 실험하기

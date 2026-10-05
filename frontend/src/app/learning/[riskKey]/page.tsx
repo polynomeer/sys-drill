@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { BlockReader } from "@/components/BlockReader";
+import { ContentBlocks } from "@/components/ContentBlocks";
 import { ConceptQuizCard } from "@/components/ConceptQuizCard";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -103,6 +104,20 @@ export default function LearningConceptPage() {
         </Card>
       ),
     },
+    // docs/LEARNING_DEEPENING_PLAN.md L12/L13 — the mechanism in pictures and the engine's own numbers.
+    ...((concept.blocks?.length ?? 0) > 0
+      ? [
+          {
+            key: "deep-dive",
+            node: (
+              <Card as="section">
+                <h2 className="mb-3 text-sm font-semibold text-foreground-muted">그림과 숫자로 보기</h2>
+                <ContentBlocks blocks={concept.blocks!} />
+              </Card>
+            ),
+          },
+        ]
+      : []),
     {
       key: "tradeoffs",
       node: (

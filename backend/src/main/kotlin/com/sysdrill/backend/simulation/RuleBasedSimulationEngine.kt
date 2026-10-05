@@ -598,10 +598,18 @@ object RuleBasedSimulationEngine : SimulationEngine {
      * The canary's share at [second] after the start — PLAN.md Round E30, called by the sampler (ADR-0045:
      * time lives outside the domain functions). Every [Deployment.STAGE_SECONDS] the rollout doubles unless
      * paused; CONTINUE_ROLLOUT promotes at once; ROLLBACK drops to zero; a designed auto-rollback bar
-     * rolls back [Deployment.AUTO_ROLLBACK_DELAY_SECONDS] after the error rate crosses it.
+     * rolls back [Deployment.AUTO_ROLLBACK_DELAY_SECONDS] after the error rate crosses it. The bar is judged
+     * on the error rate the chart shows — the sampler's [ramp] (fraction of the incident's strength at a
+     * second) applied — not the steady state, or it would fire while the chart still reads under it.
      */
-    fun deploymentRolloutAt(base: DesignTraits, actions: List<TimedAction>, incidentStartedAt: java.time.Instant, second: Long, cutoff: java.time.Instant): Double =
-        Deployment.rolloutAt(base, actions.filter { !it.at.isAfter(cutoff) }, incidentStartedAt, second)
+    fun deploymentRolloutAt(
+        base: DesignTraits,
+        actions: List<TimedAction>,
+        incidentStartedAt: java.time.Instant,
+        second: Long,
+        cutoff: java.time.Instant,
+        ramp: (Long) -> Double,
+    ): Double = Deployment.rolloutAt(base, actions.filter { !it.at.isAfter(cutoff) }, incidentStartedAt, second, ramp)
 
     /**
      * docs/DRILLS_EXPANSION_PLAN.md M9 (PLAN.md Round E30, ADR-0049) — a defective release on its way out
@@ -650,7 +658,7 @@ object RuleBasedSimulationEngine : SimulationEngine {
             else -> error("$action does not apply to the deployment incident")
         }
 
-        fun rolloutAt(base: DesignTraits, actions: List<TimedAction>, start: java.time.Instant, second: Long): Double {
+        fun rolloutAt(base: DesignTraits, actions: List<TimedAction>, start: java.time.Instant, second: Long, ramp: (Long) -> Double): Double {
             val stages = stages(base.canaryStartPercent)
             val bySecond = actions.groupBy { maxOf(0L, java.time.Duration.between(start, it.at).seconds) }
             var stage = 0
@@ -666,17 +674,15 @@ object RuleBasedSimulationEngine : SimulationEngine {
                         else -> Unit
                     }
                 }
-                val errorPct = (BASELINE_ERROR_RATE + stages[stage] / 100.0 * DEFECT_RATE) * 100
-                if (base.autoRollbackErrorPct > 0 && errorPct >= base.autoRollbackErrorPct) {
-                    overBarFor++
-                    if (overBarFor >= AUTO_ROLLBACK_DELAY_SECONDS) return 0.0
-                } else {
-                    overBarFor = 0
-                }
+                if (overBarFor >= AUTO_ROLLBACK_DELAY_SECONDS) return 0.0
                 if (!paused && s > 0 && ++sinceStage >= STAGE_SECONDS) {
                     stage = minOf(stage + 1, stages.lastIndex)
                     sinceStage = 0
                 }
+                // The share this second shows, at the ramp's strength — the same error rate the chart draws
+                // (calm is the baseline, so the ramp scales only the defect's part).
+                val errorPct = (BASELINE_ERROR_RATE + ramp(s) * stages[stage] / 100.0 * DEFECT_RATE) * 100
+                if (base.autoRollbackErrorPct > 0 && errorPct >= base.autoRollbackErrorPct) overBarFor++ else overBarFor = 0
             }
             return stages[stage]
         }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LearningCategory, LearningPath, MisconceptionCard, getLearningConcepts, getLearningPath, getMisconceptions } from "@/lib/api";
+import { DesignGuideSummary, LearningCategory, LearningPath, MisconceptionCard, getLearningConcepts, getLearningPath, getMisconceptions, listDesignGuides } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -23,6 +23,7 @@ export default function LearningPage() {
   const [categories, setCategories] = useState<LearningCategory[] | null>(null);
   const [path, setPath] = useState<LearningPath | null>(null);
   const [misconceptions, setMisconceptions] = useState<MisconceptionCard[]>([]);
+  const [guides, setGuides] = useState<DesignGuideSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,9 +37,11 @@ export default function LearningPage() {
     // 경로는 부가 패널이다 — 실패해도 개념 목록은 그대로 보여준다.
     getLearningPath().then(setPath).catch(() => setPath(null));
     getMisconceptions().then(setMisconceptions).catch(() => setMisconceptions([]));
+    listDesignGuides().then(setGuides).catch(() => setGuides([]));
   }, [router]);
 
   const totalWeakness = (categories ?? []).reduce((sum, c) => sum + c.myWeaknessCount, 0);
+  const conceptCount = (categories ?? []).reduce((sum, c) => sum + c.concepts.length, 0);
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
@@ -50,14 +53,16 @@ export default function LearningPage() {
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        {/* PLAN.md Round E18 (L7) — 25개 개념의 지도 */}
+        {/* PLAN.md Round E18 (L7), E33 (L11) — 개념 지도 */}
         <Link
           href="/learning/map"
           className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
         >
           <span>
             <span className="block font-medium">지식 맵</span>
-            <span className="block text-sm text-foreground-muted">채점 엔진이 아는 25개 개념과 선행 관계 — 내 숙련 상태가 노드에 표시됩니다.</span>
+            <span className="block text-sm text-foreground-muted">
+              채점 엔진이 아는 {conceptCount ? `${conceptCount}개 ` : ""}개념과 선행 관계 — 개념을 누르면 요약과 먼저 알면 좋은 순서가 열립니다.
+            </span>
           </span>
           <span className="text-accent">→</span>
         </Link>
@@ -81,7 +86,7 @@ export default function LearningPage() {
         >
           <span>
             <span className="block font-medium">장애 패턴 사전</span>
-            <span className="block text-sm text-foreground-muted">인시던트 7개의 증상·지표·로그와 그럴듯하지만 틀린 대응(Bad Fixes).</span>
+            <span className="block text-sm text-foreground-muted">도메인별 인시던트의 증상·지표·로그와 그럴듯하지만 틀린 대응(Bad Fixes).</span>
           </span>
           <span className="text-accent">→</span>
         </Link>
@@ -184,16 +189,26 @@ export default function LearningPage() {
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-foreground-muted">도메인별 설계 가이드</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Object.keys(DESIGN_GUIDANCE_BY_DOMAIN).map((domain) => (
-            <Card key={domain} as="section">
-              <h3 className="mb-2 font-medium">{DOMAIN_TITLES[domain] ?? domain}</h3>
-              <ul className="list-inside list-disc space-y-1 text-sm text-foreground-muted">
-                {DESIGN_GUIDANCE_BY_DOMAIN[domain].map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </Card>
-          ))}
+          {Object.keys(DESIGN_GUIDANCE_BY_DOMAIN).map((domain) => {
+            const guide = guides.find((g) => g.domain === domain);
+            return (
+              <Card key={domain} as="section" className={guide ? "border-accent/40" : ""}>
+                <h3 className="mb-2 font-medium">{DOMAIN_TITLES[domain] ?? domain}</h3>
+                {/* docs/LEARNING_DEEPENING_PLAN.md L14 — the detail page, where one exists. */}
+                {guide && (
+                  <Link href={`/learning/guides/${domain}`} className="mb-3 block rounded-lg border border-accent/40 px-3 py-2 text-sm hover:border-accent">
+                    <span className="font-medium text-accent">상세 가이드 →</span>
+                    <span className="block text-xs text-foreground-muted">그림과 시나리오 {guide.stepCount}단계 — 문제가 생기면 무엇을 바꾸나</span>
+                  </Link>
+                )}
+                <ul className="list-inside list-disc space-y-1 text-sm text-foreground-muted">
+                  {DESIGN_GUIDANCE_BY_DOMAIN[domain].map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </Card>
+            );
+          })}
           <Card as="section">
             <h3 className="mb-2 font-medium">장애 대응 회고</h3>
             <ul className="list-inside list-disc space-y-1 text-sm text-foreground-muted">

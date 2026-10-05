@@ -5,6 +5,8 @@
 > 관련 문서 — 1차 확장 기획 [LEARNING_COMMUNITY_PLAN.md](LEARNING_COMMUNITY_PLAN.md)(L1 개념 라이브러리 · L2 학습 경로 · L3 훈련 진입, 전부 구현됨), [ADR-0039](adr/0039-learning-concepts-live-in-the-database-not-frontend-constants.md), 형제 계획안 [OBSERVABILITY_UI_PLAN.md](OBSERVABILITY_UI_PLAN.md) · [DRILLS_EXPANSION_PLAN.md](DRILLS_EXPANSION_PLAN.md) · [COMMUNITY_EXPANSION_PLAN.md](COMMUNITY_EXPANSION_PLAN.md).
 >
 > 이 문서는 **계획안**이며 아직 구현되지 않았습니다. 슬라이스 번호는 1차 기획의 L1~L3에 이어 **L4부터** 매깁니다.
+>
+> 후속: 3차 기획 [LEARNING_DEEPENING_PLAN.md](LEARNING_DEEPENING_PLAN.md)(L11~L17 — 시각 자료, 도메인 설계 가이드, 퍼즐·랩 고도화). 이 문서 §6의 "Visualize 위젯" 보류는 그 문서의 L17에서 재개합니다.
 
 ---
 

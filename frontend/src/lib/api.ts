@@ -1204,6 +1204,61 @@ export interface LearningConceptDetail {
   whenNotToUse?: string;
   /** Incident domains whose failure pattern involves this concept. */
   failurePatterns?: string[];
+  /** docs/LEARNING_DEEPENING_PLAN.md L12 — engine values already filled in by the backend. */
+  blocks?: ContentBlock[];
+}
+
+/**
+ * docs/LEARNING_DEEPENING_PLAN.md L12 — mirrors backend learning/ContentBlocks.kt. `numbers` and
+ * `system` blocks carry no numbers of their own: `resolved` / `state` are the rule engine's output.
+ */
+export interface ComparePane {
+  label: string;
+  mermaid: string;
+  body: string;
+  alt: string;
+}
+
+export type ContentBlock =
+  | { type: "text"; body: string }
+  | { type: "diagram"; mermaid: string; caption: string; alt: string }
+  | { type: "steps"; title: string; items: { title: string; body: string }[] }
+  | { type: "callout"; tone: "tip" | "warning" | "tradeoff"; title: string; body: string }
+  | { type: "compare"; before: ComparePane; after: ComparePane; caption: string }
+  | {
+      type: "numbers";
+      title: string;
+      domain: string;
+      incident: boolean;
+      changeLabel: string;
+      metrics: (keyof SystemState)[];
+      claims: { metric: keyof SystemState; direction: "UP" | "SAME" | "DOWN" }[];
+      resolved: Partial<Record<keyof SystemState, { before: number; after: number }>> | null;
+    }
+  | { type: "system"; domain: string; incident: boolean; caption: string; state: SystemState | null }
+  | TimelineContentBlock;
+
+/** docs/LEARNING_DEEPENING_PLAN.md L13 — an incident over time on the engine's clock, with recovery scenarios. */
+export interface TimelineContentBlock {
+  type: "timeline";
+  title: string;
+  domain: string;
+  durationSeconds: number;
+  metrics: (keyof SystemState)[];
+  alerts: { metric: keyof SystemState; op: "ABOVE" | "BELOW"; threshold: number; label: string }[];
+  caption: string;
+  resolved: {
+    seconds: number[];
+    /** The first series is always "nothing done". */
+    series: {
+      label: string;
+      tone: "none" | "bad" | "good";
+      values: Partial<Record<keyof SystemState, number[]>>;
+      status: string[];
+      actions: { second: number; action: SimulationActionType }[];
+    }[];
+    firstAlerts: { label: string; metric: keyof SystemState; second: number | null }[];
+  } | null;
 }
 
 /** PLAN.md Round E19 (L8) — 장애 패턴 사전, 인시던트 도메인과 1:1. */
@@ -1222,6 +1277,55 @@ export interface FailurePatternDetail extends FailurePatternSummary {
   mitigations: string[];
   prevention: string[];
   relatedConcepts: RelatedConceptLink[];
+  /** docs/LEARNING_DEEPENING_PLAN.md L12. */
+  blocks?: ContentBlock[];
+}
+
+/** docs/LEARNING_DEEPENING_PLAN.md L14 — domain design guides (backend learning/DesignGuide.kt). */
+export interface DesignGuideSummary {
+  domain: string;
+  title: string;
+  summary: string;
+  stepCount: number;
+}
+
+export interface GuideStep {
+  title: string;
+  situation: string;
+  incident: boolean;
+  signal: string;
+  diagnosis: string;
+  concepts: RelatedConceptLink[];
+  action: { kind: "TUNE" | "REDESIGN"; label: string; change: Record<string, number | boolean>; why: string };
+  metrics: Partial<Record<keyof SystemState, { before: number; after: number }>>;
+  claims: { metric: keyof SystemState; direction: "UP" | "SAME" | "DOWN" }[];
+  before: SystemState;
+  after: SystemState;
+  tradeoff: string;
+  blocks: ContentBlock[];
+  links: { labs: string[]; challenges: string[]; failurePattern: string | null };
+  traitsBefore: Record<string, number | boolean>;
+  traitsAfter: Record<string, number | boolean>;
+}
+
+export interface DesignGuide {
+  domain: string;
+  title: string;
+  summary: string;
+  requirements: ContentBlock[];
+  architecture: ContentBlock[];
+  steps: GuideStep[];
+  /** `where`: "requirements" | "architecture" | "step-N" (1-based). */
+  checklist: { item: string; where: string }[];
+  pitfalls: { fix: string; why: string }[];
+}
+
+export function listDesignGuides(): Promise<DesignGuideSummary[]> {
+  return apiFetch<DesignGuideSummary[]>("/learning/guides");
+}
+
+export function getDesignGuide(domain: string): Promise<DesignGuide> {
+  return apiFetch<DesignGuide>(`/learning/guides/${domain}`);
 }
 
 /** docs/LEARNING_EXPANSION_PLAN.md L9 (PLAN.md Round E28) — metrics only; open without login. */

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FailurePatternDetail, ScenarioSummary, getFailurePattern, listScenarios } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
+import { ContentBlocks } from "@/components/ContentBlocks";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -65,6 +66,13 @@ export default function FailurePatternPage() {
           <Section title="흔한 원인">
             <List items={pattern.commonCauses} />
           </Section>
+          {/* docs/LEARNING_DEEPENING_PLAN.md L12/L13 — how the incident unfolds, in pictures and the engine's numbers. */}
+          {(pattern.blocks?.length ?? 0) > 0 && (
+            <Card as="section">
+              <h2 className="mb-3 text-sm font-semibold">그림과 숫자로 보기</h2>
+              <ContentBlocks blocks={pattern.blocks!} />
+            </Card>
+          )}
           <Card as="section" className="border-danger/40">
             <h2 className="mb-2 text-sm font-semibold">그럴듯하지만 틀린 대응</h2>
             <ul className="flex flex-col gap-2 text-sm">
