@@ -105,7 +105,8 @@ data class EngineSweepRequest(
     val knob: String,
 )
 
-data class EngineSweepResult(val knob: String, val points: List<EngineSweepPoint>)
+/** [logScale]: the range spans two or more decades, so the points are spread evenly on a log axis. */
+data class EngineSweepResult(val knob: String, val points: List<EngineSweepPoint>, val logScale: Boolean = false)
 data class EngineSweepPoint(val value: Int, val state: SystemStateResponse)
 
 /** L15 replay — the incident from the default design, switching to [traits] at each of [applyAt] seconds. */
@@ -245,7 +246,7 @@ class LearningLabService(
             val traits = labTraits(spec, request.traits + (knob.trait to value))
             EngineSweepPoint(value, SystemStateResponse.from(compute(lab.domain!!, traits, request.incidentActive)))
         }
-        return EngineSweepResult(knob.trait, points)
+        return EngineSweepResult(knob.trait, points, logScale = isLogRange(knob))
     }
 
     /**
@@ -299,10 +300,20 @@ class LearningLabService(
         val min = (knob.min ?: 0.0).toInt()
         val max = (knob.max ?: 100.0).toInt()
         val step = maxOf(1, (knob.step ?: 1.0).toInt())
+        if (isLogRange(knob)) {
+            // A chunk size of 100…100,000: evenly spaced on a log axis, snapped to the knob's step.
+            val ratio = max.toDouble() / min
+            return (0 until SWEEP_POINTS).map { i ->
+                val raw = min * Math.pow(ratio, i.toDouble() / (SWEEP_POINTS - 1))
+                (min + Math.round((raw - min) / step) * step).toInt().coerceIn(min, max)
+            }.distinct()
+        }
         val all = (min..max step step).toList().let { if (it.last() != max) it + max else it }
         if (all.size <= SWEEP_POINTS) return all
         return (0 until SWEEP_POINTS).map { i -> all[(i * (all.size - 1)) / (SWEEP_POINTS - 1)] }.distinct()
     }
+
+    private fun isLogRange(knob: EngineKnob): Boolean = (knob.min ?: 0.0) > 0 && (knob.max ?: 0.0) / knob.min!! >= 100
 
     /** The lab's knobs on top of the incident's defaults, each checked against the knob's type and range. */
     private fun labTraits(spec: EngineSpec, settings: Map<String, Any?>): DesignTraits {

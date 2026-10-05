@@ -122,6 +122,18 @@ class LabEnhancementTest(
             post("/learning/labs/engine-cache-stampede/engine/sweep").contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearerHeader(user)).content("""{"knob": "singleFlightEnabled"}"""),
         ).andExpect(status().isBadRequest)
+
+        // Chunk size spans three decades: points are spread on a log axis, so the small-chunk end isn't squashed.
+        val chunks = mockMvc.perform(
+            post("/learning/labs/engine-batch-chunk/engine/sweep").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearerHeader(user)).content("""{"knob": "chunkSize"}"""),
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        assertThat(JsonPath.read<Boolean>(chunks, "$.logScale")).isTrue()
+        val values = JsonPath.read<List<Int>>(chunks, "$.points[*].value")
+        assertThat(values.first()).isEqualTo(100)
+        assertThat(values.last()).isEqualTo(100_000)
+        // A linear grid would put one point below 1,000; the log grid puts most of 100…1,000 (step 100) there.
+        assertThat(values.count { it <= 1000 }).isGreaterThanOrEqualTo(8)
     }
 
     @Test
