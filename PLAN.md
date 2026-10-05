@@ -2383,6 +2383,17 @@ CodeCrafters의 1단계처럼 첫 성공까지 몇 분이면 되게 한다.
 
 **남은 일**: 배포 자동 롤백의 램프 불일치(엔진). 다음은 E39(L15 랩 고도화).
 
+## 배포 자동 롤백 — 차트와 같은 (램프된) 에러율로 판단 ✅ 완료 (2026-10-05)
+
+E38에서 분리한 엔진 불일치. `TelemetrySampler`는 장애 시작 후 90초 동안 모든 지표를 평시→장애 정상 상태로 선형 보간하는데, 롤아웃 시계(`Deployment.rolloutAt`)는 `autoRollbackErrorPct`를 램프 없는 정상 상태 에러율로 판단했다.
+
+- [x] **재현** — `autoRollbackErrorPct = 5`, 기본 카나리 10%(정상 상태 6.1%): 카나리가 **29초**에 0이 되는데 직전 차트 에러율은 0.1% + 6% × 28/90 ≈ **2.0%**. 또 판단 카운터가 발동한 초까지 세어 "넘은 뒤 30초"가 실제로는 29초였다
+- [x] **수정** — 샘플러가 자기 램프(`rampFraction`, 0→1)를 `deploymentRolloutAt(…, ramp)`로 넘기고 롤아웃 시계가 그 값으로 결함 몫만 줄여 판단(평시 에러율이 기준선이라 차트의 보간과 정확히 같은 식). 도메인 `computeState`는 그대로(ADR-0045 — 시간 효과는 도메인 함수 밖). 한 초 안의 순서도 정리: 조치 → (지난 초까지 30초 넘었으면 롤백) → 단계 승격 → **그 초에 보이는 비율로** 판단. 이전에는 승격 전 비율로 판단해 승격한 초의 차트 값과 어긋났다
+- [x] **결과** — 같은 설계에서 10% 단계는 차트상 최대 4.0%라 임계를 넘지 않고, 20%로 승격한 60초에 8.1%로 넘어 정확히 30초 뒤 **90초**에 롤백(차트에 임계 이상이 30초 보임). 기존 테스트의 10% 임계는 75초에 넘어 105초에 롤백(이전 89초)
+- 시드 콘텐츠 영향 없음: 자동 롤백을 언급하는 V79 배포 가이드(1% 임계는 1% 단계에서 안 울리고 2%로 오른 뒤 동작 — 램프 적용 시 68초에 넘어 98초 롤백, 방향 그대로)와 V81 서술은 그대로 맞고, timeline·guide 블록의 engine traits는 `autoRollbackErrorPct`를 쓰지 않는다
+
+**검증**: 전체 테스트 525개 중 515개 통과 — `ContentBlocksTest`·`DesignGuideTest`(시드 콘텐츠의 엔진 claims)·`DeploymentDomainTest`·`TelemetrySamplerTest` 포함. 실패 10개는 모두 이 변경과 무관한 인프라: Build 샌드박스 채점 타임아웃 8개(`BuildControllerIntegrationTest` 5, `BuildLanguageVariantsIntegrationTest` 3 — "sandbox timed out after 15s/20s", 제출 미완료)와 Jaeger(`localhost:16686`) 접속 실패 2개(`RealInfraCouponTracingTest`, `RealInfraTraceServiceTest`). 워크트리에서는 compose 프로젝트명이 달라 `COMPOSE_PROJECT_NAME=sys-drill`을 붙여야 공유 스택과 포트가 충돌하지 않는다. `DeploymentDomainTest`에 재현 테스트(롤백 직전 차트 ≥ 5%, 임계를 넘은 첫 초 = 60, 롤백까지 정확히 30초)와 기존 자동 롤백 테스트 시각 갱신.
+
 ---
 
 ## 진행 방식 메모
