@@ -1235,7 +1235,31 @@ export type ContentBlock =
       claims: { metric: keyof SystemState; direction: "UP" | "SAME" | "DOWN" }[];
       resolved: Partial<Record<keyof SystemState, { before: number; after: number }>> | null;
     }
-  | { type: "system"; domain: string; incident: boolean; caption: string; state: SystemState | null };
+  | { type: "system"; domain: string; incident: boolean; caption: string; state: SystemState | null }
+  | TimelineContentBlock;
+
+/** docs/LEARNING_DEEPENING_PLAN.md L13 — an incident over time on the engine's clock, with recovery scenarios. */
+export interface TimelineContentBlock {
+  type: "timeline";
+  title: string;
+  domain: string;
+  durationSeconds: number;
+  metrics: (keyof SystemState)[];
+  alerts: { metric: keyof SystemState; op: "ABOVE" | "BELOW"; threshold: number; label: string }[];
+  caption: string;
+  resolved: {
+    seconds: number[];
+    /** The first series is always "nothing done". */
+    series: {
+      label: string;
+      tone: "none" | "bad" | "good";
+      values: Partial<Record<keyof SystemState, number[]>>;
+      status: string[];
+      actions: { second: number; action: SimulationActionType }[];
+    }[];
+    firstAlerts: { label: string; metric: keyof SystemState; second: number | null }[];
+  } | null;
+}
 
 /** PLAN.md Round E19 (L8) — 장애 패턴 사전, 인시던트 도메인과 1:1. */
 export interface FailurePatternSummary {

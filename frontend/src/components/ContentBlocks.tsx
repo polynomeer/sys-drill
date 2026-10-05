@@ -5,6 +5,7 @@ import type { ComparePane, ContentBlock, SystemState } from "@/lib/api";
 import { STATE_METRICS, directionOf } from "@/lib/metrics";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { SystemDiagram } from "@/components/SystemDiagram";
+import { TimelineView } from "@/components/TimelineView";
 
 /**
  * docs/LEARNING_DEEPENING_PLAN.md L12 — renders the typed content blocks a concept, failure pattern
@@ -42,7 +43,7 @@ function Block({ block }: { block: ContentBlock }) {
                 <span className="flex h-7 w-7 items-center justify-center rounded-full border border-accent text-xs font-semibold text-accent">{i + 1}</span>
                 <div className="pt-0.5">
                   <p className="text-sm font-medium">{item.title}</p>
-                  {item.body && <p className="mt-0.5 text-sm text-foreground-muted">{item.body}</p>}
+                  {item.body && <p className="mt-0.5 text-sm text-foreground-muted">{inline(item.body)}</p>}
                 </div>
               </li>
             ))}
@@ -65,6 +66,8 @@ function Block({ block }: { block: ContentBlock }) {
       return <NumbersView block={block} />;
     case "system":
       return block.state ? <SystemDiagram domain={block.domain} state={block.state} caption={block.caption} /> : null;
+    case "timeline":
+      return <TimelineView block={block} />;
   }
 }
 
@@ -88,7 +91,7 @@ function ComparePaneView({ pane, tone }: { pane: ComparePane; tone: "before" | "
           <MermaidDiagram code={pane.mermaid} />
         </div>
       </div>
-      {pane.body && <p className="text-sm text-foreground-muted">{pane.body}</p>}
+      {pane.body && <p className="text-sm text-foreground-muted">{inline(pane.body)}</p>}
     </div>
   );
 }
