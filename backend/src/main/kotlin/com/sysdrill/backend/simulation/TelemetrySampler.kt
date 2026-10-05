@@ -186,15 +186,18 @@ object TelemetrySampler {
         }
         // PLAN.md Round E30 — the one domain whose state moves with the clock: hand it the canary share at this second.
         val traits = if (domain == RuleBasedSimulationEngine.DOMAIN_DEPLOYMENT) {
-            folded.copy(canaryPercent = RuleBasedSimulationEngine.deploymentRolloutAt(baseTraits, actions, incidentStartedAt, second, actionCutoff))
+            folded.copy(canaryPercent = RuleBasedSimulationEngine.deploymentRolloutAt(baseTraits, actions, incidentStartedAt, second, actionCutoff, ::rampFraction))
         } else {
             folded
         }
         val incident = compute(domain, traits, incidentActive = true)
         if (second >= RAMP_SECONDS) return incident
         val calm = compute(domain, traits, incidentActive = false)
-        return lerp(calm, incident, second.toDouble() / RAMP_SECONDS)
+        return lerp(calm, incident, rampFraction(second))
     }
+
+    /** How far into the ramp [second] is — 0 at the start, 1 from [RAMP_SECONDS] on. */
+    private fun rampFraction(second: Long): Double = (second.toDouble() / RAMP_SECONDS).coerceIn(0.0, 1.0)
 
     private fun compute(domain: String, traits: DesignTraits, incidentActive: Boolean): SystemState =
         RuleBasedSimulationEngine.computeState(session(domain, traits, incidentActive))

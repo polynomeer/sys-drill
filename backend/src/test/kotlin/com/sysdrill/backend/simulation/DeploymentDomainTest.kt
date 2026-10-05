@@ -52,9 +52,27 @@ class DeploymentDomainTest(
     @Test
     fun `a designed auto-rollback bar rolls back by itself`() {
         val guarded = DesignTraits(autoRollbackErrorPct = 10)
-        // 20% canary = 12% errors ≥ 10% from second 60 → rolled back 30s later.
-        assertThat(errorAt(100, guarded)).isEqualTo(0.001)
-        assertThat(errorAt(100)).isGreaterThan(0.1)
+        // 20% canary from second 60 = 12% errors at full strength; on the 90s ramp the chart reaches 10%
+        // at second 75 → rolled back 30s later, at 105.
+        assertThat(errorAt(104, guarded)).isGreaterThan(0.1)
+        assertThat(errorAt(105, guarded)).isEqualTo(0.001)
+        assertThat(errorAt(105)).isGreaterThan(0.1)
+    }
+
+    @Test
+    fun `auto-rollback judges the same ramped error rate the chart shows`() {
+        // A 10% canary is 6.1% errors at steady state — over a 5% bar from t=0 if the ramp is ignored,
+        // which rolled back at 29s while the chart still read ~2%.
+        val guarded = DesignTraits(autoRollbackErrorPct = 5)
+        val series = TelemetrySampler.sample(domain, guarded, start, emptyList(), start, start.plusSeconds(200), Duration.ofSeconds(1))
+            .map { it.state.errorRate }
+        val rolledBackAt = (1 until series.size).first { series[it] == 0.001 }
+        assertThat(series[rolledBackAt - 1]).isGreaterThanOrEqualTo(0.05)
+        // The chart reads over the bar for exactly the 30s delay, then the canary is pulled.
+        val crossedAt = series.indexOfFirst { it >= 0.05 }
+        assertThat(rolledBackAt - crossedAt).isEqualTo(30)
+        assertThat(crossedAt).isEqualTo(60) // the 10% stage never charts above 4%; the 20% stage does at once
+        assertThat(series.subList(crossedAt, rolledBackAt)).allMatch { it >= 0.05 }
     }
 
     @Test
