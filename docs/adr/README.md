@@ -70,3 +70,4 @@ Short records of decisions that are hard to reverse, would surprise a future rea
 | [0050](0050-challenge-events-are-created-by-admins-not-seeded.md) | 챌린지 이벤트는 마이그레이션이 아니라 관리자 화면에서 만든다(운영 일정 ≠ 콘텐츠) |
 | [0051](0051-compiled-language-sandboxes-get-own-images-and-limits.md) | Java·Kotlin·Go 채점은 저장소에서 빌드한 이미지(Kotlin·Go)와 언어별 자원 한도로 돈다 |
 | [0052](0052-go-build-challenges-run-under-the-race-detector.md) | Go 과제 채점은 레이스 디텍터(`go run -race`) 아래에서 돈다 — 0.5 CPU에서는 결과값 판정이 락 없는 구현을 못 잡는다 |
+| [0054](0054-learning-content-numbers-are-computed-by-the-engine-and-claims-are-tested.md) | Learning 콘텐츠의 수치는 저장하지 않고 엔진이 읽을 때 계산하며, 서술의 방향(claims)은 테스트가 엔진과 대조한다 |
