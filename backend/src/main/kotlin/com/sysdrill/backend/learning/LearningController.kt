@@ -25,6 +25,7 @@ class LearningController(
     private val learningPathService: LearningPathService,
     private val learningLabService: LearningLabService,
     private val failurePatternService: FailurePatternService,
+    private val designGuideService: DesignGuideService,
 ) {
 
     /** 역량 카테고리 6개와 그 아래 개념 요약. 내 약점이 많은 카테고리가 먼저 온다. */
@@ -41,6 +42,13 @@ class LearningController(
     fun failure(@PathVariable domain: String): FailurePatternDetail = failurePatternService.detail(domain)
 
     /** PLAN.md Round E18 (L7) — the knowledge map. */
+    /** docs/LEARNING_DEEPENING_PLAN.md L14 — domain design guides. */
+    @GetMapping("/guides")
+    fun guides(): List<DesignGuideSummary> = designGuideService.list()
+
+    @GetMapping("/guides/{domain}")
+    fun guide(@PathVariable domain: String): DesignGuideView = designGuideService.detail(domain)
+
     @GetMapping("/map")
     fun map(@AuthenticatedUserId userId: UUID): KnowledgeMap = learningService.map(userId)
 

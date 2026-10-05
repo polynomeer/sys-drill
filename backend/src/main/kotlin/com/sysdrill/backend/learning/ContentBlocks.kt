@@ -106,14 +106,17 @@ class ContentBlockService(private val mapper: ObjectMapper) {
     /** Parses stored blocks and fills in every engine-computed value. Throws on a malformed block. */
     fun resolve(raw: List<Map<String, Any?>>): List<ContentBlock> = parse(raw).map { block ->
         when (block) {
-            is NumbersBlock -> {
-                val before = metricsOf(state(block.domain, block.incident, block.base))
-                val after = metricsOf(state(block.domain, block.incident, block.base + block.change))
-                block.copy(resolved = block.metrics.associateWith { NumbersBlock.MetricPair(before.metric(it), after.metric(it)) })
-            }
+            is NumbersBlock -> resolveNumbers(block)
             is SystemBlock -> block.copy(state = SystemStateResponse.from(state(block.domain, block.incident, block.traits)))
             else -> block
         }
+    }
+
+    /** [block] with its before/after metrics computed by the engine. */
+    fun resolveNumbers(block: NumbersBlock): NumbersBlock {
+        val before = metricsOf(state(block.domain, block.incident, block.base))
+        val after = metricsOf(state(block.domain, block.incident, block.base + block.change))
+        return block.copy(resolved = block.metrics.associateWith { NumbersBlock.MetricPair(before.metric(it), after.metric(it)) })
     }
 
     fun parse(raw: List<Map<String, Any?>>): List<ContentBlock> = raw.map { mapper.convertValue(it, ContentBlock::class.java) }
