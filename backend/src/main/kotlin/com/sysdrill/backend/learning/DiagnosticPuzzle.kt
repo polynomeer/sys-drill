@@ -38,6 +38,8 @@ data class DiagnosticPuzzleView(
     val points: List<PuzzlePoint>,
     val patterns: List<PuzzleChoice>,
     val checks: List<PuzzleChoice>,
+    /** L16 — the investigations this puzzle offers (random puzzles only; the weekly one stays two questions). */
+    val investigations: List<PuzzleInvestigation> = emptyList(),
 )
 
 data class PuzzleAnswer(val pattern: String? = null, val check: String? = null)
@@ -117,7 +119,13 @@ object DiagnosticPuzzles {
 
     fun domainOf(seed: Long, set: PuzzleSet = CURRENT): String = set.domains[Random(seed).nextInt(set.domains.size)]
 
-    fun generate(seed: Long, patternNames: Map<String, String>, set: PuzzleSet = CURRENT): DiagnosticPuzzleView {
+    /**
+     * What a seed decides: the domain, slightly shaken capacities, and the moment being asked about
+     * ([at] seconds into the incident). The investigation and action steps (L16) replay this same scene.
+     */
+    data class Scene(val domain: String, val traits: DesignTraits, val at: Long)
+
+    fun scene(seed: Long, set: PuzzleSet = CURRENT): Scene {
         val random = Random(seed)
         val domain = set.domains[random.nextInt(set.domains.size)]
         fun shake(base: Int) = maxOf(1, (base * (0.6 + random.nextDouble() * 0.8)).toInt())
@@ -130,7 +138,11 @@ object DiagnosticPuzzles {
             chunkSize = shake(DesignTraits.DEFAULT_CHUNK_SIZE),
             podReplicas = shake(DesignTraits.DEFAULT_POD_REPLICAS),
         )
-        val at = 60L + random.nextLong(181)
+        return Scene(domain, traits, 60L + random.nextLong(181))
+    }
+
+    fun generate(seed: Long, patternNames: Map<String, String>, set: PuzzleSet = CURRENT): DiagnosticPuzzleView {
+        val (domain, traits, at) = scene(seed, set)
         val start = EPOCH
         val points = TelemetrySampler.sample(domain, traits, start, emptyList(), start.minusSeconds(60), start.plusSeconds(at), Duration.ofSeconds(10))
         return DiagnosticPuzzleView(
@@ -164,7 +176,7 @@ object DiagnosticPuzzles {
     }
 
     /** A fixed origin so the same seed gives the same numbers (the engine only reads offsets from it). */
-    private val EPOCH: Instant = Instant.parse("2026-01-01T00:00:00Z")
+    val EPOCH: Instant = Instant.parse("2026-01-01T00:00:00Z")
 }
 
 @Service
@@ -176,12 +188,27 @@ class DiagnosticPuzzleService(private val failurePatternRepository: FailurePatte
 
 /** Open without login (docs/LEARNING_EXPANSION_PLAN.md L9 — a five-minute taste). */
 @RestController
-class DiagnosticPuzzleController(private val service: DiagnosticPuzzleService) {
-    /** Without [seed] a fresh random one. */
+class DiagnosticPuzzleController(private val service: DiagnosticPuzzleService, private val incident: PuzzleIncidentService) {
+    /** Without [seed] a fresh random one; [domain] (L16) picks a random seed whose incident is that domain. */
     @GetMapping("/learning/puzzles")
-    fun puzzle(@RequestParam(required = false) seed: Long?): DiagnosticPuzzleView =
-        service.puzzle(seed ?: Random.nextLong(1, Long.MAX_VALUE))
+    fun puzzle(@RequestParam(required = false) seed: Long?, @RequestParam(required = false) domain: String?): DiagnosticPuzzleView {
+        if (domain != null && domain !in DiagnosticPuzzles.CURRENT.domains) throw BadRequestException("알 수 없는 도메인: $domain")
+        val chosen = seed ?: generateSequence { Random.nextLong(1, Long.MAX_VALUE) }.first { domain == null || DiagnosticPuzzles.domainOf(it) == domain }
+        return service.puzzle(chosen).copy(investigations = incident.investigations())
+    }
 
     @PostMapping("/learning/puzzles/{seed}/answer")
     fun answer(@PathVariable seed: Long, @RequestBody answer: PuzzleAnswer): PuzzleResult = service.grade(seed, answer)
+
+    /** L16 — open one piece of evidence (logs, trace, components, changes). */
+    @GetMapping("/learning/puzzles/{seed}/evidence/{kind}")
+    fun evidence(@PathVariable seed: Long, @PathVariable kind: String): PuzzleEvidence = incident.evidence(seed, kind)
+
+    /** L16 — after answering: which alert fired first, the domain's actions, related concepts and lab. */
+    @GetMapping("/learning/puzzles/{seed}/debrief")
+    fun debrief(@PathVariable seed: Long): PuzzleDebrief = incident.debrief(seed)
+
+    /** L16 — apply up to three actions from the moment asked about and see the recovery on the engine's clock. */
+    @PostMapping("/learning/puzzles/{seed}/act")
+    fun act(@PathVariable seed: Long, @RequestBody request: PuzzleActRequest): PuzzleActResult = incident.act(seed, request)
 }
