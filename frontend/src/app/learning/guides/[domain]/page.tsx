@@ -157,18 +157,18 @@ function StepCard({ index, step, domain, last }: { index: number; step: GuideSte
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold text-accent-foreground">{index + 1}</span>
           <div>
             <h3 className="font-semibold">{step.title}</h3>
-            <p className="mt-1 text-sm text-foreground-muted">{step.situation}</p>
+            <div className="mt-1 text-foreground-muted"><RichText body={step.situation} /></div>
           </div>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="flex flex-col gap-2">
             <Label>신호 — 무엇이 보이나</Label>
-            <p className="text-sm">{step.signal}</p>
+            <RichText body={step.signal} />
           </div>
           <div className="flex flex-col gap-2">
             <Label>진단 — 왜 그런가</Label>
-            <p className="text-sm">{step.diagnosis}</p>
+            <RichText body={step.diagnosis} />
             {step.concepts.length > 0 && (
               <div className="flex flex-wrap gap-1.5 text-xs">
                 {step.concepts.map((c) => (
@@ -183,7 +183,7 @@ function StepCard({ index, step, domain, last }: { index: number; step: GuideSte
                 <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${kind.className}`}>{kind.label}</span>
                 <span className="text-sm font-medium">{step.action.label}</span>
               </div>
-              <p className="mt-1 text-sm text-foreground-muted">{step.action.why}</p>
+              <div className="mt-1 text-foreground-muted"><RichText body={step.action.why} /></div>
             </div>
           </div>
         </div>
