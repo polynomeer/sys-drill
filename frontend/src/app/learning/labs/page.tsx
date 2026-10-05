@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type LabSummary, listLabs } from "@/lib/api";
 import { getStoredToken } from "@/lib/localSession";
+import { MECHANISMS } from "@/lib/mechanisms";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
 
@@ -69,6 +70,25 @@ export default function LabsPage() {
             </section>
           );
         })}
+      {/* docs/LEARNING_DEEPENING_PLAN.md L17 (ADR-0055) — mechanism widgets, grounded in Build stage values. */}
+      <section className="flex flex-col gap-3">
+        <div>
+          <h2 className="font-semibold">메커니즘 시뮬레이터</h2>
+          <p className="text-sm text-foreground-muted">알고리즘이 요청 하나하나를 어떻게 다루는지 브라우저에서 재생합니다. 값은 Build 과제의 스테이지 테스트와 같습니다.</p>
+        </div>
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {MECHANISMS.map((m) => (
+            <li key={m.slug}>
+              <Link href={`/learning/mechanisms/${m.slug}`} className="block h-full">
+                <Card className="h-full transition-colors hover:border-accent/40">
+                  <p className="font-medium">{m.title}</p>
+                  <p className="mt-1 text-sm text-foreground-muted">{m.summary}</p>
+                </Card>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }

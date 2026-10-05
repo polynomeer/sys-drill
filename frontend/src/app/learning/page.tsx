@@ -74,7 +74,7 @@ export default function LearningPage() {
         >
           <span>
             <span className="block font-medium">진단 퍼즐</span>
-            <span className="block text-sm text-foreground-muted">지표만 보고 무슨 장애인지, 무엇부터 확인할지 — 5분짜리.</span>
+            <span className="block text-sm text-foreground-muted">지표와 로그·트레이스로 무슨 장애인지 진단하고, 조치를 골라 회복 곡선까지 — 5분짜리.</span>
           </span>
           <span className="text-accent">→</span>
         </Link>
@@ -98,7 +98,7 @@ export default function LearningPage() {
         >
           <span>
             <span className="block font-medium">랩</span>
-            <span className="block text-sm text-foreground-muted">규모 추정(Capacity Lab)과 시뮬레이션 랩 — 값을 바꿔서 현상을 발견합니다.</span>
+            <span className="block text-sm text-foreground-muted">규모 추정(Capacity Lab), 시뮬레이션 랩, 메커니즘 시뮬레이터 — 값을 바꿔서 현상을 발견합니다.</span>
           </span>
           <span className="text-accent">→</span>
         </Link>

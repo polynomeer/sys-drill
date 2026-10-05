@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Button } from "@/components/ui/Button";
 import { DOMAIN_TITLES } from "@/lib/designGuidance";
+import { mechanismsFor } from "@/lib/mechanisms";
 import { MASTERY_META } from "@/lib/mastery";
 
 /**
@@ -181,6 +182,16 @@ export default function LearningConceptPage() {
                 {labs.map((lab) => (
                   <Button key={lab.slug} href={`/learning/labs/${lab.slug}`} size="sm" variant="secondary">
                     랩: {lab.title}
+                  </Button>
+                ))}
+              </PracticeStep>
+            )}
+            {/* docs/LEARNING_DEEPENING_PLAN.md L17 — the mechanism itself, before implementing it. */}
+            {mechanismsFor(concept.riskKey).length > 0 && (
+              <PracticeStep title="메커니즘 들여다보기" hint="시뮬레이터 — Build 과제와 같은 값으로 동작을 재생 (5분)">
+                {mechanismsFor(concept.riskKey).map((m) => (
+                  <Button key={m.slug} href={`/learning/mechanisms/${m.slug}`} size="sm" variant="secondary">
+                    {m.title}
                   </Button>
                 ))}
               </PracticeStep>
