@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type CapacityCheckResult, type CapacityLab, checkCapacityLab, getCapacityLab } from "@/lib/api";
+import { type CapacityCheckResult, type CapacityLab, type EstimateResult, checkCapacityLab, getCapacityLab } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -111,6 +111,7 @@ export function CapacityLabView({ slug }: { slug: string }) {
               <EstimateResultRow key={r.key} label={r.label} unit={r.unit} result={r.result} formula={r.formula} />
             ))}
           </ul>
+          <MagnitudeBars results={result.results} />
           {variant + 1 < lab.variants.length && (
             <Button size="sm" variant="secondary" className="mt-3" onClick={() => selectVariant(variant + 1)}>
               다음 조건: {lab.variants[variant + 1].label} →
@@ -120,4 +121,67 @@ export function CapacityLabView({ slug }: { slug: string }) {
       )}
     </div>
   );
+}
+
+/**
+ * docs/LEARNING_DEEPENING_PLAN.md L15 — "my answer vs the computed value" on a log scale, one row per
+ * ask: the shaded band is the 0.5–2× window that counts as on target, so being off by 10× reads as a
+ * whole decade, not a slightly longer bar.
+ */
+function MagnitudeBars({ results }: { results: CapacityCheckResult["results"] }) {
+  const rows = results.filter((r) => r.result.truth > 0);
+  if (rows.length === 0) return null;
+  return (
+    <section className="mt-4 flex flex-col gap-3" aria-label="자릿수 비교">
+      <h3 className="text-xs font-semibold text-foreground-muted">자릿수로 보기 (로그 눈금)</h3>
+      {rows.map((r) => (
+        <MagnitudeRow key={r.key} label={r.label} unit={r.unit} result={r.result} />
+      ))}
+      <p className="flex flex-wrap gap-x-3 text-[11px] text-foreground-muted">
+        <span><span className="inline-block h-2 w-3 rounded-sm bg-success/30 align-middle" /> 적중 구간(0.5~2배)</span>
+        <span><span className="inline-block h-3 w-0.5 bg-foreground align-middle" /> 실제 값</span>
+        <span><span className="inline-block h-2.5 w-2.5 rounded-full bg-accent align-middle" /> 내 추정</span>
+      </p>
+    </section>
+  );
+}
+
+function MagnitudeRow({ label, unit, result }: { label: string; unit: string; result: EstimateResult }) {
+  const truth = result.truth;
+  const estimate = result.estimate !== null && result.estimate > 0 ? result.estimate : null;
+  const lo = Math.floor(Math.log10(Math.min(truth, estimate ?? truth) / 10));
+  const hi = Math.ceil(Math.log10(Math.max(truth, estimate ?? truth) * 10));
+  const pos = (v: number) => `${((Math.log10(v) - lo) / (hi - lo)) * 100}%`;
+  const decades = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex justify-between text-xs">
+        <span>{label}</span>
+        <span className="text-foreground-muted">{unit}</span>
+      </div>
+      <div className="relative h-6 rounded bg-background" role="img" aria-label={`${label}: 실제 ${truth.toLocaleString()}, 내 추정 ${estimate === null ? "없음" : estimate.toLocaleString()}`}>
+        <div className="absolute inset-y-0 bg-success/30" style={{ left: pos(truth * 0.5), width: `calc(${pos(truth * 2)} - ${pos(truth * 0.5)})` }} />
+        {decades.map((d) => (
+          <div key={d} className="absolute inset-y-0 w-px bg-border" style={{ left: pos(10 ** d) }} />
+        ))}
+        <div className="absolute inset-y-0 w-0.5 bg-foreground" style={{ left: pos(truth) }} />
+        {estimate !== null && <div className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent" style={{ left: pos(estimate) }} />}
+      </div>
+      <div className="relative h-3 text-[10px] text-foreground-muted" aria-hidden>
+        {decades.map((d) => (
+          <span key={d} className="absolute -translate-x-1/2" style={{ left: pos(10 ** d) }}>
+            {decadeLabel(d)}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** 10^d as a short label: 0.01, 1, 100, 10K, 1M, 100B. */
+function decadeLabel(d: number): string {
+  if (d < 0) return (10 ** d).toFixed(-d);
+  const units = ["", "K", "M", "B", "T"];
+  const group = Math.min(Math.floor(d / 3), units.length - 1);
+  return `${10 ** (d - group * 3)}${units[group]}`;
 }

@@ -22,7 +22,7 @@ const TONE_LABEL: Record<Series["tone"], string> = { none: "방치", bad: "틀�
  * don't). Every value is the backend's TelemetrySampler output; the table under the charts says
  * the same as the lines for screen readers.
  */
-export function TimelineView({ block }: { block: TimelineContentBlock }) {
+export function TimelineView({ block, toneLabels }: { block: TimelineContentBlock; toneLabels?: Partial<Record<Series["tone"], string>> }) {
   const resolved = block.resolved;
   const [hidden, setHidden] = useState<Set<number>>(new Set());
   if (!resolved) return null;
@@ -74,12 +74,13 @@ export function TimelineView({ block }: { block: TimelineContentBlock }) {
           >
             <span className="inline-block h-0.5 w-5 shrink-0" style={{ background: TONE_COLOR[s.tone] }} aria-hidden />
             <span className="font-medium">{s.label}</span>
-            <span className="text-foreground-muted">{TONE_LABEL[s.tone]}</span>
+            <span className="text-foreground-muted">{toneLabels?.[s.tone] ?? TONE_LABEL[s.tone]}</span>
             {s.actions.length > 0 && (
               <span className="text-foreground-muted">
                 · {s.actions.map((a) => `${formatDuration(a.second)} ${actionLabel(a.action)}`).join(" → ")}
               </span>
             )}
+            {s.switchAt != null && <span className="text-foreground-muted">· {formatDuration(s.switchAt)}에 설정 적용</span>}
           </button>
         ))}
       </div>
@@ -101,7 +102,11 @@ export function TimelineView({ block }: { block: TimelineContentBlock }) {
                     <ReferenceLine x={0} stroke="var(--foreground-muted)" strokeDasharray="3 3" />
                     {alert && <ReferenceLine y={alert.threshold} stroke="var(--warning)" strokeDasharray="4 3" />}
                     {resolved.series.flatMap((s, si) =>
-                      visible[si] ? s.actions.map((a) => <ReferenceLine key={`${si}-${a.second}`} x={a.second} stroke={TONE_COLOR[s.tone]} strokeOpacity={0.4} />) : [],
+                      visible[si]
+                        ? [...s.actions.map((a) => a.second), ...(s.switchAt != null ? [s.switchAt] : [])].map((second) => (
+                            <ReferenceLine key={`${si}-${second}`} x={second} stroke={TONE_COLOR[s.tone]} strokeOpacity={0.4} />
+                          ))
+                        : [],
                     )}
                     <Tooltip
                       contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", fontSize: 11 }}

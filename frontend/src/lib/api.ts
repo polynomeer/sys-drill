@@ -705,6 +705,35 @@ export interface EngineLab {
   knobs: EngineKnob[];
   watch: (keyof SystemState)[];
   predict: (keyof SystemState)[];
+  /** docs/LEARNING_DEEPENING_PLAN.md L15 — targets to reach with the knobs. */
+  goals: LabGoal[];
+}
+
+/** Every condition must hold: a `metric` of the engine's state or a `trait` the knobs set (the cost side). */
+export interface LabGoal {
+  id: string;
+  label: string;
+  hint: string;
+  incident: boolean;
+  conditions: { metric: keyof SystemState | null; trait: string | null; op: "<=" | ">=" | "<" | ">" | "=="; value: number | boolean }[];
+}
+
+/** L15 — one numeric knob across its range. */
+export function sweepEngineLab(
+  slug: string,
+  traits: Record<string, number | boolean>,
+  incidentActive: boolean,
+  knob: string,
+): Promise<{ knob: string; points: { value: number; state: SystemState }[]; logScale: boolean }> {
+  return apiFetch(`/learning/labs/${slug}/engine/sweep`, { method: "POST", body: JSON.stringify({ traits, incidentActive, knob }) });
+}
+
+/** L15 — the incident on the engine's clock with these settings applied at each of `applyAt` seconds. */
+export function replayEngineLab(slug: string, traits: Record<string, number | boolean>, applyAt: number[], durationSeconds = 300): Promise<TimelineContentBlock> {
+  return apiFetch<TimelineContentBlock>(`/learning/labs/${slug}/engine/replay`, {
+    method: "POST",
+    body: JSON.stringify({ traits, applyAt, durationSeconds }),
+  });
 }
 
 export function getEngineLab(slug: string): Promise<EngineLab> {
@@ -1256,6 +1285,8 @@ export interface TimelineContentBlock {
       values: Partial<Record<keyof SystemState, number[]>>;
       status: string[];
       actions: { second: number; action: SimulationActionType }[];
+      /** A lab replay's "settings applied at" second (L15); null for content scenarios. */
+      switchAt?: number | null;
     }[];
     firstAlerts: { label: string; metric: keyof SystemState; second: number | null }[];
   } | null;

@@ -8,13 +8,26 @@ import { SystemDiagram } from "@/components/SystemDiagram";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { FreePanel, type KnobValues, ReplayPanel, SweepPanel } from "./LabPanels";
 
 /**
  * docs/LEARNING_EXPANSION_PLAN.md L5 (PLAN.md Round E11, ADR-0047) — Predict → Experiment → Break.
  * Change a knob, predict which way each metric moves, run the domain's own formula, and
  * compare. "장애 상황" off shows the same settings without the incident. The truth is the
  * engine's output — there is no stored answer key, and nothing here is recorded.
+ *
+ * docs/LEARNING_DEEPENING_PLAN.md L15 (PLAN.md Round E39) — the same knobs drive four tabs:
+ * predict (above), free play with A/B compare and goals, replay on the incident's clock, and a
+ * sweep across one knob's range (LabPanels.tsx).
  */
+
+type Tab = "predict" | "free" | "replay" | "sweep";
+const TABS: { key: Tab; label: string }[] = [
+  { key: "predict", label: "예측 실험" },
+  { key: "free", label: "자유 실험·목표" },
+  { key: "replay", label: "시간 재생" },
+  { key: "sweep", label: "스윕" },
+];
 
 const ARROW: Record<Direction, string> = { UP: "↑", SAME: "≈", DOWN: "↓" };
 
@@ -28,6 +41,8 @@ export function EngineLabView({ slug }: { slug: string }) {
   const [predictions, setPredictions] = useState<Record<string, Direction>>({});
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("predict");
+  const [defaults, setDefaults] = useState<KnobValues>({});
 
   useEffect(() => {
     getEngineLab(slug)
@@ -46,6 +61,9 @@ export function EngineLabView({ slug }: { slug: string }) {
           }),
         );
         setLab(loaded);
+        setDefaults(Object.fromEntries(loaded.knobs.map((k) => [k.trait, k.default])));
+        const requestedTab = query.get("tab");
+        if (TABS.some((t) => t.key === requestedTab)) setTab(requestedTab as Tab);
         setValues(defaults);
         setBaselineValues(defaults);
         setBaseline(await runEngineLab(slug, defaults, true));
@@ -101,11 +119,13 @@ export function EngineLabView({ slug }: { slug: string }) {
 
       <Card as="section">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-foreground-muted">1. 값을 바꿔 보세요</h2>
-          <label className="flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={incident} onChange={(e) => toggleIncident(e.target.checked)} />
-            장애 상황 (Break)
-          </label>
+          <h2 className="text-sm font-semibold text-foreground-muted">{tab === "predict" ? "1. 값을 바꿔 보세요" : "손잡이"}</h2>
+          {tab !== "replay" && (
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={incident} onChange={(e) => toggleIncident(e.target.checked)} />
+              장애 상황 (Break)
+            </label>
+          )}
         </div>
         <div className="flex flex-col gap-4">
           {lab.knobs.map((knob) =>
@@ -138,7 +158,27 @@ export function EngineLabView({ slug }: { slug: string }) {
         </div>
       </Card>
 
-      {changed && !result && (
+      <div role="tablist" aria-label="실험 방식" className="flex flex-wrap gap-1 border-b border-border">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            onClick={() => setTab(t.key)}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm ${tab === t.key ? "border-accent font-medium text-foreground" : "border-transparent text-foreground-muted hover:text-foreground"}`}
+          >
+            {t.label}
+            {t.key === "free" && lab.goals.length > 0 && <span className="ml-1 text-xs text-foreground-muted">({lab.goals.length})</span>}
+          </button>
+        ))}
+      </div>
+
+      {tab === "free" && <FreePanel lab={lab} values={values} incident={incident} />}
+      {tab === "replay" && <ReplayPanel lab={lab} values={values} defaults={defaults} />}
+      {tab === "sweep" && <SweepPanel lab={lab} values={values} incident={incident} />}
+
+      {tab === "predict" && changed && !result && (
         <Card as="section" className="border-accent/40">
           <h2 className="mb-1 text-sm font-semibold text-foreground-muted">2. 실행하기 전에 예측하세요</h2>
           <p className="mb-3 text-xs text-foreground-muted">지금 값과 비교해 각 지표는 어느 쪽으로 움직일까요?</p>
@@ -168,63 +208,65 @@ export function EngineLabView({ slug }: { slug: string }) {
         </Card>
       )}
 
-      <Card as="section">
-        <h2 className="mb-2 text-sm font-semibold text-foreground-muted">
-          {result ? "결과 — 바꾸기 전과 비교" : incident ? "지금 상태 (장애 중)" : "지금 상태 (평상시)"}
-        </h2>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-xs text-foreground-muted">
-              <th className="text-left font-normal">지표</th>
-              <th className="text-right font-normal">{result ? "전" : "값"}</th>
-              {result && <th className="text-right font-normal">후</th>}
-              {result && <th className="text-right font-normal">내 예측</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {lab.watch.map((metric) => {
-              const meta = METRIC_META[metric];
-              const before = Number(baseline[metric]);
-              const after = result ? Number(result[metric]) : null;
-              const actual = after === null ? null : directionOf(before, after);
-              const guess = predictions[metric];
-              return (
-                <tr key={metric} className="border-t border-border">
-                  <td className="py-1.5">{meta?.label ?? metric}</td>
-                  <td className="text-right font-mono">{meta ? meta.format(before) : before}</td>
-                  {after !== null && (
-                    <td className="text-right font-mono">
-                      {meta ? meta.format(after) : after} <span className="text-foreground-muted">{actual && ARROW[actual]}</span>
-                    </td>
-                  )}
-                  {after !== null && (
-                    <td className="text-right">
-                      {guess ? (
-                        <span className={guess === actual ? "text-success" : "text-danger"}>
-                          {ARROW[guess]} {guess === actual ? "✓" : "✗"}
-                        </span>
-                      ) : (
-                        <span className="text-foreground-muted">—</span>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {/* docs/LEARNING_DEEPENING_PLAN.md L12 — where the bottleneck is, before vs after (L15 builds on this). */}
-        <div className={`mt-4 grid gap-3 ${result ? "lg:grid-cols-2" : ""}`}>
-          <SystemDiagram domain={lab.domain} state={baseline} caption={result ? "바꾸기 전" : undefined} />
-          {result && <SystemDiagram domain={lab.domain} state={result} caption="바꾼 뒤" />}
-        </div>
-        {result && (
-          <Button size="sm" variant="secondary" className="mt-3" onClick={keepGoing}>
-            이 값에서 계속 실험하기
-          </Button>
-        )}
-        {error && <p className="mt-2 text-xs text-danger">{error}</p>}
-      </Card>
+      {tab === "predict" && (
+        <Card as="section">
+          <h2 className="mb-2 text-sm font-semibold text-foreground-muted">
+            {result ? "결과 — 바꾸기 전과 비교" : incident ? "지금 상태 (장애 중)" : "지금 상태 (평상시)"}
+          </h2>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-foreground-muted">
+                <th className="text-left font-normal">지표</th>
+                <th className="text-right font-normal">{result ? "전" : "값"}</th>
+                {result && <th className="text-right font-normal">후</th>}
+                {result && <th className="text-right font-normal">내 예측</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {lab.watch.map((metric) => {
+                const meta = METRIC_META[metric];
+                const before = Number(baseline[metric]);
+                const after = result ? Number(result[metric]) : null;
+                const actual = after === null ? null : directionOf(before, after);
+                const guess = predictions[metric];
+                return (
+                  <tr key={metric} className="border-t border-border">
+                    <td className="py-1.5">{meta?.label ?? metric}</td>
+                    <td className="text-right font-mono">{meta ? meta.format(before) : before}</td>
+                    {after !== null && (
+                      <td className="text-right font-mono">
+                        {meta ? meta.format(after) : after} <span className="text-foreground-muted">{actual && ARROW[actual]}</span>
+                      </td>
+                    )}
+                    {after !== null && (
+                      <td className="text-right">
+                        {guess ? (
+                          <span className={guess === actual ? "text-success" : "text-danger"}>
+                            {ARROW[guess]} {guess === actual ? "✓" : "✗"}
+                          </span>
+                        ) : (
+                          <span className="text-foreground-muted">—</span>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {/* docs/LEARNING_DEEPENING_PLAN.md L12 — where the bottleneck is, before vs after (L15 builds on this). */}
+          <div className={`mt-4 grid gap-3 ${result ? "lg:grid-cols-2" : ""}`}>
+            <SystemDiagram domain={lab.domain} state={baseline} caption={result ? "바꾸기 전" : undefined} />
+            {result && <SystemDiagram domain={lab.domain} state={result} caption="바꾼 뒤" />}
+          </div>
+          {result && (
+            <Button size="sm" variant="secondary" className="mt-3" onClick={keepGoing}>
+              이 값에서 계속 실험하기
+            </Button>
+          )}
+          {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+        </Card>
+      )}
       <p className="text-[11px] text-foreground-muted">
         Drill 인시던트와 같은 수식으로 계산합니다. 2% 안의 변화는 ≈로 봅니다. 랩 기록은 저장되지 않습니다.
       </p>
