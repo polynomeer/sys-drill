@@ -68,15 +68,49 @@ class ContentBlocksTest(
     }
 
     @Test
-    fun `the caching concepts carry the L13 shape`() {
-        // docs/LEARNING_DEEPENING_PLAN.md L13 pilot (Round E37): a mechanism picture, the steps, and a callout on the cost.
-        val caching = conceptRepository.findAll().filter { it.category == "CACHING_DATA_ACCESS" }
-        assertThat(caching).hasSize(4)
-        val missing = caching.flatMap { concept ->
+    fun `every concept and failure pattern carries the L13 shape`() {
+        // docs/LEARNING_DEEPENING_PLAN.md L13 (Rounds E37–E38): a concept has a mechanism picture, the steps and a
+        // callout on the cost; a failure pattern has its propagation path and a timeline on the engine's clock.
+        val conceptProblems = conceptRepository.findAll().flatMap { concept ->
             val kinds = service.parse(concept.blocks).map { it::class.simpleName }.toSet()
             listOf("CompareBlock", "StepsBlock", "CalloutBlock").filterNot { it in kinds }.map { "${concept.riskKey} has no $it" }
         }
-        assertThat(missing).isEmpty()
+        val patternProblems = failurePatternRepository.findAll().flatMap { pattern ->
+            val kinds = service.parse(pattern.blocks).map { it::class.simpleName }.toSet()
+            listOf("DiagramBlock", "TimelineBlock").filterNot { it in kinds }.map { "failure pattern ${pattern.domain} has no $it" }
+        }
+        assertThat(conceptProblems + patternProblems).isEmpty()
+    }
+
+    @Test
+    fun `every mermaid source is a flowchart with balanced quotes and brackets`() {
+        // The server can't render Mermaid; this catches the usual slips (a stray quote, an unclosed node) before the
+        // browser does. Rendering itself is checked in the browser.
+        val sources = allSeeded().flatMap { (owner, raw) ->
+            service.parse(raw).flatMap { block ->
+                when (block) {
+                    is DiagramBlock -> listOf(owner to block.mermaid)
+                    is CompareBlock -> listOf(owner to block.before.mermaid, owner to block.after.mermaid)
+                    else -> emptyList()
+                }
+            }
+        }
+        val header = Regex("^(flowchart|graph) (LR|RL|TD|TB|BT)$")
+        val problems = sources.flatMap { (owner, src) ->
+            val lines = src.lines()
+            listOfNotNull(if (header.matches(lines.first().trim())) null else "$owner: first line '${lines.first()}' isn't a flowchart header") +
+                lines.drop(1).mapNotNull { line ->
+                    val outside = line.replace(Regex("\"[^\"]*\""), "")
+                    when {
+                        line.count { it == '"' } % 2 != 0 -> "$owner: unbalanced quote in '$line'"
+                        outside.count { it == '[' } != outside.count { it == ']' } -> "$owner: unbalanced [] in '$line'"
+                        outside.count { it == '(' } != outside.count { it == ')' } -> "$owner: unbalanced () in '$line'"
+                        outside.count { it == '{' } != outside.count { it == '}' } -> "$owner: unbalanced {} in '$line'"
+                        else -> null
+                    }
+                }
+        }
+        assertThat(problems).isEmpty()
     }
 
     @Test
