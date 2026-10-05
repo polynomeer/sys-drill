@@ -99,6 +99,12 @@ jobs:
         working-directory: frontend
         run: npm run typecheck
 
+      # ADR-0055 — the mechanism widgets (L17) use the Build stages' own values; this checks the
+      # widget core against each scenario and that the values are still in challenges/*/stages.
+      - name: Mechanism widgets match Build stages
+        working-directory: frontend
+        run: npm run check:mechanisms
+
       - name: Build
         working-directory: frontend
         run: npm run build
