@@ -1204,7 +1204,38 @@ export interface LearningConceptDetail {
   whenNotToUse?: string;
   /** Incident domains whose failure pattern involves this concept. */
   failurePatterns?: string[];
+  /** docs/LEARNING_DEEPENING_PLAN.md L12 — engine values already filled in by the backend. */
+  blocks?: ContentBlock[];
 }
+
+/**
+ * docs/LEARNING_DEEPENING_PLAN.md L12 — mirrors backend learning/ContentBlocks.kt. `numbers` and
+ * `system` blocks carry no numbers of their own: `resolved` / `state` are the rule engine's output.
+ */
+export interface ComparePane {
+  label: string;
+  mermaid: string;
+  body: string;
+  alt: string;
+}
+
+export type ContentBlock =
+  | { type: "text"; body: string }
+  | { type: "diagram"; mermaid: string; caption: string; alt: string }
+  | { type: "steps"; title: string; items: { title: string; body: string }[] }
+  | { type: "callout"; tone: "tip" | "warning" | "tradeoff"; title: string; body: string }
+  | { type: "compare"; before: ComparePane; after: ComparePane; caption: string }
+  | {
+      type: "numbers";
+      title: string;
+      domain: string;
+      incident: boolean;
+      changeLabel: string;
+      metrics: (keyof SystemState)[];
+      claims: { metric: keyof SystemState; direction: "UP" | "SAME" | "DOWN" }[];
+      resolved: Partial<Record<keyof SystemState, { before: number; after: number }>> | null;
+    }
+  | { type: "system"; domain: string; incident: boolean; caption: string; state: SystemState | null };
 
 /** PLAN.md Round E19 (L8) — 장애 패턴 사전, 인시던트 도메인과 1:1. */
 export interface FailurePatternSummary {
@@ -1222,6 +1253,8 @@ export interface FailurePatternDetail extends FailurePatternSummary {
   mitigations: string[];
   prevention: string[];
   relatedConcepts: RelatedConceptLink[];
+  /** docs/LEARNING_DEEPENING_PLAN.md L12. */
+  blocks?: ContentBlock[];
 }
 
 /** docs/LEARNING_EXPANSION_PLAN.md L9 (PLAN.md Round E28) — metrics only; open without login. */

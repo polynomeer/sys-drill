@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { useAppTheme } from "@/lib/useAppTheme";
 
 const DEBOUNCE_MS = 400;
 
@@ -9,8 +10,9 @@ const DEBOUNCE_MS = 400;
  * talks to `mermaid` (its first runtime dependency beyond next/react/tailwind)
  * — kept as one small, self-contained component so a syntax error from
  * user-typed DSL (Design Workspace) never takes down the surrounding page.
- * Dark theme is hardcoded: per the dark-navy-console rebrand, this app has
- * exactly one theme (no `prefers-color-scheme` branch left in globals.css).
+ * Every app theme is dark, but each has its own palette — so the diagram uses
+ * mermaid's `base` theme fed from the current theme's CSS tokens, and re-renders
+ * when the app theme switches (docs/LEARNING_DEEPENING_PLAN.md L12).
  */
 export function MermaidDiagram({ code }: { code: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -21,13 +23,14 @@ export function MermaidDiagram({ code }: { code: string }) {
   // fresh id rather than reusing one across re-renders.
   const renderCountRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
+  const appTheme = useAppTheme();
 
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(() => {
       import("mermaid").then(async ({ default: mermaid }) => {
         if (cancelled) return;
-        mermaid.initialize({ startOnLoad: false, theme: "dark", securityLevel: "strict" });
+        mermaid.initialize({ startOnLoad: false, theme: "base", securityLevel: "strict", themeVariables: themeVariables() });
         const renderId = `mermaid-${rawId}-${renderCountRef.current++}`;
         try {
           const { svg } = await mermaid.render(renderId, code);
@@ -50,7 +53,7 @@ export function MermaidDiagram({ code }: { code: string }) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [code, rawId]);
+  }, [code, rawId, appTheme]);
 
   return (
     <div>
@@ -66,4 +69,31 @@ export function MermaidDiagram({ code }: { code: string }) {
       <div ref={containerRef} className={`overflow-x-auto ${error ? "hidden" : ""}`} />
     </div>
   );
+}
+
+/** The current app theme's tokens as mermaid `base` theme variables. */
+function themeVariables(): Record<string, string | boolean> {
+  const css = getComputedStyle(document.documentElement);
+  const token = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+  const surface = token("--surface", "#0f1b2b");
+  const elevated = token("--surface-elevated", surface);
+  const foreground = token("--foreground", "#f5f7fa");
+  const muted = token("--foreground-muted", "#94a3b8");
+  const accent = token("--accent", "#2f80ff");
+  return {
+    darkMode: true,
+    background: token("--background", "#08111f"),
+    primaryColor: elevated,
+    primaryTextColor: foreground,
+    primaryBorderColor: accent,
+    secondaryColor: surface,
+    tertiaryColor: surface,
+    lineColor: muted,
+    textColor: foreground,
+    edgeLabelBackground: surface,
+    clusterBkg: surface,
+    clusterBorder: token("--border", "#1e2f45"),
+    fontFamily: "inherit",
+    fontSize: "13px",
+  };
 }
