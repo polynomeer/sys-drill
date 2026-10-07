@@ -46,7 +46,7 @@ dependencies {
 	// drive directly than through Spring's declarative @KafkaListener beans
 	// (same "raw client over framework abstraction" choice as CouponLoadRunner
 	// shelling out to `docker run` instead of using testcontainers).
-	implementation("org.apache.kafka:kafka-clients:3.9.0")
+	implementation("org.apache.kafka:kafka-clients:4.3.1")
 	// PLAN.md step 30 — real authentication. Just the crypto module for
 	// BCryptPasswordEncoder, not the full spring-boot-starter-security — that
 	// starter auto-configures a filter chain/CSRF/default login page that
