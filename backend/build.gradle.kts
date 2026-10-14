@@ -74,7 +74,7 @@ dependencies {
 	// 기동 자체가 깨져 되돌렸다. Sentry가 이후 낸 Boot 4 전용 아티팩트(Spring
 	// Framework 7에 맞춰 다시 빌드됨, Maven Central 디렉터리 리스팅으로 실존
 	// 확인)로 재시도.
-	implementation("io.sentry:sentry-spring-boot-4-starter:8.59.0")
+	implementation("io.sentry:sentry-spring-boot-4-starter:8.60.0")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("tools.jackson.module:jackson-module-kotlin")
 	runtimeOnly("org.postgresql:postgresql")
