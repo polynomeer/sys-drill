@@ -10,13 +10,13 @@ import { SystemDiagram } from "@/components/SystemDiagram";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { guideAnchor } from "@/lib/designChecklists";
 
 const ACTION_KIND = {
   TUNE: { label: "값 조정", className: "border-accent text-accent" },
   REDESIGN: { label: "설계 변경", className: "border-warning text-warning" },
 } as const;
 
-const anchorOf = (where: string) => (where.startsWith("step-") ? where : `section-${where}`);
 
 /**
  * docs/LEARNING_DEEPENING_PLAN.md L14 (PLAN.md Round E35) — one domain's design guide: what the
@@ -96,7 +96,7 @@ export default function DesignGuidePage() {
               {guide.checklist.map((c) => (
                 <li key={c.item} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
                   <span>{c.item}</span>
-                  <a href={`#${anchorOf(c.where)}`} className="shrink-0 text-xs text-accent underline">
+                  <a href={`#${guideAnchor(c.where)}`} className="shrink-0 text-xs text-accent underline">
                     {c.where === "requirements" ? "1. 요구사항" : c.where === "architecture" ? "2. 아키텍처" : `단계 ${c.where.slice(5)}`}
                   </a>
                 </li>

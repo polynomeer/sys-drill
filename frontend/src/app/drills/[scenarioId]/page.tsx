@@ -16,7 +16,8 @@ import {
 } from "@/lib/api";
 import { trackEvent } from "@/lib/events";
 import { getStoredToken } from "@/lib/localSession";
-import { DESIGN_GUIDANCE_BY_DOMAIN, DOMAIN_TITLES } from "@/lib/designGuidance";
+import { DOMAIN_TITLES } from "@/lib/designGuidance";
+import { useDesignChecklists } from "@/lib/designChecklists";
 import { completedTiers, needsPrereq } from "@/lib/drillPrereq";
 import { DomainIcon } from "@/lib/domainIcons";
 import { StageList, type Stage } from "@/components/StageList";
@@ -61,6 +62,7 @@ export default function DrillOverviewPage() {
   const scenarioId = params.scenarioId;
 
   const [scenario, setScenario] = useState<ScenarioDetail | null>(null);
+  const checklists = useDesignChecklists();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [recent, setRecent] = useState<RecentCompletion[]>([]);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -132,7 +134,7 @@ export default function DrillOverviewPage() {
     REPORT_STAGE,
   ];
   const { functional, nonFunctional } = readRequirements(scenario.baseRequirements);
-  const guidance = DESIGN_GUIDANCE_BY_DOMAIN[scenario.domain] ?? [];
+  const guidance = (checklists?.[scenario.domain] ?? []).map((c) => c.item);
   // Official scenarios' domain title usually *is* the scenario title — don't print it twice.
   const domainTitle = DOMAIN_TITLES[scenario.domain] ?? scenario.domain;
   const domainLabel = domainTitle !== scenario.title ? `${domainTitle} · ` : "";

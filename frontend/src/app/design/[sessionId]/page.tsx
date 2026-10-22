@@ -37,7 +37,8 @@ import { DiagramCanvas } from "./DiagramCanvas";
 import { FeedbackDetail } from "@/components/FeedbackDetail";
 import { StageList, type Stage } from "@/components/StageList";
 import { REPORT_STAGE, stageFromStepType } from "@/lib/stageCopy";
-import { DESIGN_GUIDANCE_BY_DOMAIN, INCIDENT_GUIDANCE } from "@/lib/designGuidance";
+import { INCIDENT_GUIDANCE } from "@/lib/designGuidance";
+import { guideAnchor, useDesignChecklists } from "@/lib/designChecklists";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -80,6 +81,7 @@ export default function DesignWorkspacePage() {
 
   const [view, setView] = useState<ViewState>("loading");
   const [session, setSession] = useState<SessionResponse | null>(null);
+  const checklists = useDesignChecklists();
   const [answer, setAnswer] = useState("");
   // PLAN.md Round E9 — mission inputs fixed at submit time, sent as structuredJson (M2 estimates, …).
   const [estimates, setEstimates] = useState<Record<string, number | null>>({});
@@ -294,7 +296,8 @@ export default function DesignWorkspacePage() {
   const isFollowup = session?.currentPhase === "FOLLOWUP";
   const isIncident = session?.currentPhase === "INCIDENT";
   const domain = session?.domain ?? "coupon";
-  const guidance = isIncident ? INCIDENT_GUIDANCE : (DESIGN_GUIDANCE_BY_DOMAIN[domain] ?? DESIGN_GUIDANCE_BY_DOMAIN.coupon);
+  // Design phase: the domain's checklist, each item linking to the guide section that explains it.
+  const guidance: { item: string; where?: string }[] = isIncident ? INCIDENT_GUIDANCE.map((item) => ({ item })) : (checklists?.[domain] ?? []);
   const isEditing = view === "editing" || view === "submitting";
 
   // docs/CODECRAFTERS_BENCHMARK.md §3.3 — the stage list comes from the session's
@@ -397,8 +400,15 @@ export default function DesignWorkspacePage() {
                   {isIncident ? "회고에 포함하면 좋은 항목" : "답안에 포함하면 좋은 항목"}
                 </h2>
                 <ul className="list-inside list-disc space-y-1 text-foreground-muted">
-                  {guidance.map((section) => (
-                    <li key={section}>{section}</li>
+                  {guidance.map(({ item, where }) => (
+                    <li key={item}>
+                      {item}
+                      {where && (
+                        <a href={`/learning/guides/${domain}#${guideAnchor(where)}`} target="_blank" rel="noreferrer" className="ml-1 text-xs text-accent hover:underline">
+                          가이드 ↗
+                        </a>
+                      )}
+                    </li>
                   ))}
                 </ul>
               </Card>

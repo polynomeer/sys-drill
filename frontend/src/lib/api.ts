@@ -1351,6 +1351,17 @@ export interface DesignGuide {
   pitfalls: { fix: string; why: string }[];
 }
 
+/** One design checklist item and the guide section that covers it (`requirements`, `architecture` or `step-N`). */
+export interface ChecklistItem {
+  item: string;
+  where: string;
+}
+
+/** Every domain's design checklist (domain → items, in display order) — open without login. */
+export function getDesignChecklists(): Promise<Record<string, ChecklistItem[]>> {
+  return apiFetch<Record<string, ChecklistItem[]>>("/learning/guides/checklists");
+}
+
 export function listDesignGuides(): Promise<DesignGuideSummary[]> {
   return apiFetch<DesignGuideSummary[]>("/learning/guides");
 }

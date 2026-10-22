@@ -8,7 +8,8 @@ import { getStoredToken } from "@/lib/localSession";
 import { Card } from "@/components/ui/Card";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { LearningPathPanel } from "@/components/LearningPathPanel";
-import { DESIGN_GUIDANCE_BY_DOMAIN, DOMAIN_TITLES, INCIDENT_GUIDANCE } from "@/lib/designGuidance";
+import { DOMAIN_TITLES, INCIDENT_GUIDANCE } from "@/lib/designGuidance";
+import { useDesignChecklists } from "@/lib/designChecklists";
 import { MASTERY_META } from "@/lib/mastery";
 
 /**
@@ -24,6 +25,7 @@ export default function LearningPage() {
   const [path, setPath] = useState<LearningPath | null>(null);
   const [misconceptions, setMisconceptions] = useState<MisconceptionCard[]>([]);
   const [guides, setGuides] = useState<DesignGuideSummary[]>([]);
+  const checklists = useDesignChecklists();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -189,7 +191,7 @@ export default function LearningPage() {
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-foreground-muted">도메인별 설계 가이드</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Object.keys(DESIGN_GUIDANCE_BY_DOMAIN).map((domain) => {
+          {Object.keys(checklists ?? {}).map((domain) => {
             const guide = guides.find((g) => g.domain === domain);
             return (
               <Card key={domain} as="section" className={guide ? "border-accent/40" : ""}>
@@ -202,7 +204,7 @@ export default function LearningPage() {
                   </Link>
                 )}
                 <ul className="list-inside list-disc space-y-1 text-sm text-foreground-muted">
-                  {DESIGN_GUIDANCE_BY_DOMAIN[domain].map((item) => (
+                  {checklists![domain].map(({ item }) => (
                     <li key={item}>{item}</li>
                   ))}
                 </ul>
