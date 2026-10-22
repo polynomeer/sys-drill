@@ -127,7 +127,8 @@ export const TOPOLOGIES: Record<string, Topology> = {
   "batch-settlement": {
     nodes: [
       { id: "scheduler", label: "스케줄러", col: 0, row: 0 },
-      { id: "worker", label: "배치 워커", col: 1, row: 0, status: (s) => worst(errors(s.errorRate), backlog(s.queueLag, "재처리 레코드")) },
+      // Records a failure would reprocess, out of a 1,000,000-record run — one small chunk (≤0.5%) is healthy, 10%+ is a restart from scratch.
+      { id: "worker", label: "배치 워커", col: 1, row: 0, status: (s) => worst(errors(s.errorRate), backlog(s.queueLag, "재처리 레코드", 5_000, 100_000)) },
       { id: "db", label: "정산 DB", col: 2, row: 0, status: (s) => util(s.dbWriteLoad, "복구 오버헤드") },
       { id: "external", label: "외부 정산 API", col: 2, row: 1, status: (s) => latency(s.externalDependencyLatencyMs, "응답") },
     ],
