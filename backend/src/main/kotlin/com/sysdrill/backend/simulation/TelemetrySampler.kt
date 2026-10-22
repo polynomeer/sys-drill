@@ -233,6 +233,7 @@ object TelemetrySampler {
             queueLag = d(a.queueLag.toDouble(), b.queueLag.toDouble()).toLong(),
             consumerThroughput = d(a.consumerThroughput, b.consumerThroughput),
             externalDependencyLatencyMs = d(a.externalDependencyLatencyMs, b.externalDependencyLatencyMs),
+            backlogLoad = if (a.backlogLoad == null && b.backlogLoad == null) null else d(a.backlogLoad ?: 0.0, b.backlogLoad ?: 0.0),
         )
     }
 }

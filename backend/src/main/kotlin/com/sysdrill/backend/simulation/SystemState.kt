@@ -19,6 +19,13 @@ data class SystemState(
     val queueLag: Long,
     val consumerThroughput: Double,
     val externalDependencyLatencyMs: Double,
+    /**
+     * The waiting work as a share of capacity (0–1), for a domain whose [queueLag] isn't a count of queued
+     * requests. Null (every domain but batch-settlement) keeps the default reading below: 100 queued = saturated.
+     * Batch-settlement's [queueLag] is the records a failure would make it reprocess — 1,000 of a
+     * 1,000,000-record run is 0.1%, not a full queue, and read as a count it kept a fully mitigated run CRITICAL.
+     */
+    val backlogLoad: Double? = null,
 ) {
     /**
      * SysDrill_UIUX_Design_Plan.docx §5.5 — the Incident screen's CPU/Memory
@@ -37,7 +44,7 @@ data class SystemState(
      */
     val cpuUtilization: Double
         get() {
-            val queueSignal = (queueLag / 100.0).coerceAtMost(1.0)
+            val queueSignal = backlogLoad ?: (queueLag / 100.0).coerceAtMost(1.0)
             val errorSignal = (errorRate * 3).coerceAtMost(1.0)
             return maxOf(dbReadLoad, dbWriteLoad, connectionPoolUsage, queueSignal, errorSignal).coerceIn(0.05, 0.98)
         }

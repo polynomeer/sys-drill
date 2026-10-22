@@ -517,6 +517,8 @@ object RuleBasedSimulationEngine : SimulationEngine {
                 queueLag = wastedRecords.toLong(),
                 consumerThroughput = effectiveThroughput,
                 externalDependencyLatencyMs = externalLatencyMs,
+                // Records to reprocess are a share of the run, not a queue of requests (see SystemState.backlogLoad).
+                backlogLoad = recoveryOverheadFraction,
             )
         }
 

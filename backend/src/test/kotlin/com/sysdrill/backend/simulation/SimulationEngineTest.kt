@@ -390,6 +390,10 @@ class SimulationEngineTest {
         assertThat(state.queueLag).isEqualTo(1000)
         assertThat(state.errorRate).isCloseTo(0.0, delta)
         assertThat(state.p95LatencyMs).isCloseTo(700.0, delta)
+        // Recovered means the health bar says so: 1,000 records to reprocess after a failure is 0.1% of the
+        // run, not a saturated queue — the load signal reads it as that share, not as 1,000 queued requests.
+        assertThat(state.cpuUtilization).isLessThan(0.6)
+        assertThat(state.level).isEqualTo("INFO")
     }
 
     private fun batchSettlementSession(incidentActive: Boolean, traits: DesignTraits = DesignTraits()) =

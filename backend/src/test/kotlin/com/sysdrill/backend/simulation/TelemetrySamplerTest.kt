@@ -109,6 +109,25 @@ class TelemetrySamplerTest {
     }
 
     @Test
+    fun `batch-settlement reaches recovered once the restart and duplicate fixes land`() {
+        // The records-to-reprocess figure is the cost of the next failure, not a live queue — after
+        // checkpointing, idempotent reprocessing and smaller chunks the run is healthy again.
+        val fixes = listOf(
+            SimulationActionType.ENABLE_CHECKPOINT_RESTART,
+            SimulationActionType.ENABLE_IDEMPOTENT_RECONCILIATION,
+            SimulationActionType.REDUCE_CHUNK_SIZE,
+        ).map { TimedAction(at(120), it) }
+        val points = TelemetrySampler.sample(
+            RuleBasedSimulationEngine.DOMAIN_BATCH_SETTLEMENT, DesignTraits(), start, fixes,
+            from = start, to = at(300), step = Duration.ofSeconds(10),
+        )
+        val statusAt = points.zip(TelemetrySampler.classify(points, start)).associate { (p, s) -> p.at to s }
+
+        assertThat(statusAt[at(100)]).isEqualTo(HealthStatus.CRITICAL)
+        assertThat(statusAt[at(300)]).isEqualTo(HealthStatus.RECOVERED)
+    }
+
+    @Test
     fun `a domain that never degrades stays healthy`() {
         val noTrouble = DesignTraits(consumerCount = 100, circuitBreakerEnabled = true, retryBackoffMultiplier = 10)
         val points = TelemetrySampler.sample(
