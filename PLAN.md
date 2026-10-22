@@ -2432,6 +2432,16 @@ E38에서 분리한 엔진 불일치. `TelemetrySampler`는 장애 시작 후 90
 
 **남은 일**: 사용자 반응을 보고 확장(후보: Consistent Hashing·Cache·Circuit Breaker). 3차 기획(L11~L17) 라운드 E33~E41 완료.
 
+## 후속 — 설계 체크리스트 출처를 DB로 (docs/LEARNING_DEEPENING_PLAN.md L14 결정 3) ✅ 완료 (2026-10-22)
+
+E36에서 미룬 일. 가이드 체크리스트(`design_guides.checklist`)가 프론트 상수 `DESIGN_GUIDANCE_BY_DOMAIN`을 그대로 옮긴 사본이라 한쪽을 고치면 다른 쪽도 고쳐야 했다(옮기기 전 8개 도메인 모두 항목·순서가 일치함을 확인).
+
+- [x] `GET /learning/guides/checklists` — 도메인 → `[{item, where}]`, 표시 순서. Drill 상세는 로그인 전에도 보이므로 인증 제외(`AuthWebConfig`). `DesignGuideTest`: 로그인 없이 200, 8개 도메인 순서, 각 가이드의 체크리스트와 같음
+- [x] 프론트 `useDesignChecklists()`(페이지당 한 번 요청해 공유) — Design 세션 안내·Drill 상세 "무엇을 평가받나요?"·Learning 허브 카드가 읽는다. 상수는 삭제(`DOMAIN_TITLES`·`INCIDENT_GUIDANCE`는 도메인 체크리스트가 아니라 그대로). ADR-0039와 같은 이동이라 별도 ADR 없음
+- [x] Design 세션의 항목마다 "가이드 ↗"(새 탭 — 작성 중인 답안을 잃지 않게) → 그 항목을 다룬 가이드 위치(`guideAnchor`를 가이드 페이지와 공유)
+
+**검증**: `DesignGuideTest` 통과, `tsc`·`eslint` 클린. 로그인 없이 API 호출 200. 브라우저에서 허브 카드 9개(도메인 8 + 장애 대응 회고), 결제 Drill 상세의 항목 7개, 결제 Design 세션의 항목 7개와 링크(`#section-requirements`, `#section-architecture`, `#step-2` …, 새 탭).
+
 ---
 
 ## 진행 방식 메모
