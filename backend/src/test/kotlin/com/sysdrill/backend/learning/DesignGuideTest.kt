@@ -85,6 +85,20 @@ class DesignGuideTest(
     }
 
     @Test
+    fun `the design checklists are served without login, in display order, from the guides`() {
+        // The Design session, Drill detail and Learning hub read these instead of a frontend constant.
+        val body = mockMvc.perform(get("/learning/guides/checklists")).andExpect(status().isOk).andReturn().response.contentAsString
+        val served = JsonPath.read<Map<String, List<Map<String, String>>>>(body, "$")
+        assertThat(served.keys).containsExactly(
+            "coupon", "notification", "product-browsing", "payment", "reservation", "batch-settlement", "autoscaling", "deployment",
+        )
+        guides.findAll().forEach { guide ->
+            assertThat(served[guide.domain]).describedAs(guide.domain).containsExactlyElementsOf(guide.checklist)
+        }
+        assertThat(served.values).allSatisfy { assertThat(it).hasSizeGreaterThanOrEqualTo(5) }
+    }
+
+    @Test
     fun `the guide API returns each step with the engine's before and after`() {
         val user = userRepository.save(User(email = "guide-${UUID.randomUUID()}@example.com", passwordHash = "hash", nickname = "guide")).id!!
         val list = mockMvc.perform(get("/learning/guides").header("Authorization", bearerHeader(user)))

@@ -46,6 +46,10 @@ class LearningController(
     @GetMapping("/guides")
     fun guides(): List<DesignGuideSummary> = designGuideService.list()
 
+    /** Every domain's design checklist (domain → `[{item, where}]`, in display order). Open without login — the Drill page shows it before sign-in. */
+    @GetMapping("/guides/checklists")
+    fun guideChecklists(): Map<String, List<Map<String, String>>> = designGuideService.checklists()
+
     @GetMapping("/guides/{domain}")
     fun guide(@PathVariable domain: String): DesignGuideView = designGuideService.detail(domain)
 

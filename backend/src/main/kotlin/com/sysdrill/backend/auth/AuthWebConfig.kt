@@ -106,7 +106,7 @@ class AuthWebConfig(
                 "/writeup-comments/**",
                 "/auth/logout",
             )
-            .excludePathPatterns("/sessions/*/simulation/realinfra/coupon/**", "/organizations/assessments/*", "/learning/puzzles", "/learning/puzzles/**")
+            .excludePathPatterns("/sessions/*/simulation/realinfra/coupon/**", "/organizations/assessments/*", "/learning/puzzles", "/learning/puzzles/**", "/learning/guides/checklists")
     }
 
     override fun addArgumentResolvers(resolvers: MutableList<HandlerMethodArgumentResolver>) {

@@ -110,6 +110,14 @@ class DesignGuideService(
     fun list(): List<DesignGuideSummary> =
         repository.findAllByOrderByDisplayOrderAsc().map { DesignGuideSummary(it.domain, it.title, it.summary, it.steps.size) }
 
+    /**
+     * Each domain's design checklist (`[{item, where}]`, `where` = the guide section that covers it),
+     * in display order — the single source for the Design session's guidance, the Drill detail page and
+     * the Learning hub (they used to read a frontend constant; ADR-0039's move to seeded content).
+     */
+    fun checklists(): Map<String, List<Map<String, String>>> =
+        repository.findAllByOrderByDisplayOrderAsc().associate { guide -> guide.domain to guide.checklist }
+
     fun detail(domain: String): DesignGuideView {
         val guide = repository.findById(domain).orElseThrow { NotFoundException("No design guide for $domain") }
         val labels = conceptRepository.findAll().associate { it.riskKey to it.label }
